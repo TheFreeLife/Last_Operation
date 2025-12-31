@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>커맨드 디펜스 (Command Defence)</title>
+    <link rel="stylesheet" href="./src/style.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-layer">
+            <div id="top-bar" class="glass-panel">
+                <div class="stat-item wave">
+                    <span class="stat-icon">🌊</span>
+                    <span class="stat-label">웨이브</span>
+                    <span id="wave-count" class="stat-value">1</span>
+                </div>
+                <div class="stat-item hp">
+                    <span class="stat-icon">❤️</span>
+                    <span class="stat-label">기지 체력</span>
+                    <span id="base-hp" class="stat-value">1000</span>
+                </div>
+                <div class="stat-item gold">
+                    <span class="stat-icon">💰</span>
+                    <span class="stat-label">골드</span>
+                    <span id="resource-gold" class="stat-value">100</span>
+                </div>
+                <div class="stat-item oil">
+                    <span class="stat-icon">🛢️</span>
+                    <span class="stat-label">정제유</span>
+                    <span id="resource-oil" class="stat-value">0</span>
+                </div>
+            </div>
+
+            <div id="inventory-container">
+                <div id="inventory-bar" class="glass-panel">
+                    <div class="inventory-slot" data-index="0"></div>
+                    <div class="inventory-slot" data-index="1"></div>
+                    <div class="inventory-slot" data-index="2"></div>
+                    <div class="inventory-slot" data-index="3"></div>
+                    <div class="inventory-slot" data-index="4"></div>
+                    <div class="inventory-slot" data-index="5"></div>
+                </div>
+                <button id="roll-card-btn" class="glass-panel">
+                    <span class="roll-icon">🎲</span>
+                    <span class="roll-cost">100G</span>
+                </button>
+            </div>
+
+            <div id="top-right-area">
+                <div id="minimap-container" class="glass-panel">
+                    <canvas id="minimapCanvas"></canvas>
+                </div>
+            </div>
+
+            <div id="right-panel" class="glass-panel">
+                <div class="panel-header">건 설</div>
+                
+                <div class="build-grid" id="build-grid">
+                    <!-- Buttons will be injected by GameEngine.js -->
+                </div>
+                <div class="mode-info">ESC: 취소</div>
+            </div>
+
+            <div id="upgrade-modal" class="modal-overlay hidden">
+                <div class="modal-content glass-panel">
+                    <h2>업그레이드 선택</h2>
+                    <div id="upgrade-cards" class="card-container">
+                        <!-- 업그레이드 카드가 동적으로 생성됩니다 -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="wave-notice" class="modal-overlay hidden">
+                <h1 class="wave-text">웨이브 시작</h1>
+            </div>
+
+            <div id="game-over-modal" class="modal-overlay hidden">
+                <div class="modal-content glass-panel">
+                    <h1>게임 오버</h1>
+                    <p>당신의 기지가 파괴되었습니다.</p>
+                    <button id="restart-btn">다시 시작</button>
+                </div>
+            </div>
+
+            <div id="ui-tooltip" class="glass-panel hidden">
+                <div class="tooltip-title"></div>
+                <div class="tooltip-desc"></div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+</body>
+
+</html>
