@@ -1157,7 +1157,10 @@ export class PlayerUnit extends Entity {
                     this.destination = this.patrolEnd;
                 } else {
                     this.destination = null;
-                    this.command = 'stop';
+                    // 건설 명령 중이 아닐 때만 정지 상태로 변경 (건설 간섭 방지)
+                    if (this.command !== 'build') {
+                        this.command = 'stop';
+                    }
                 }
             } else {
                 this.angle = Math.atan2(this.destination.y - this.y, this.destination.x - this.x);
@@ -1596,13 +1599,14 @@ export class CombatEngineer extends PlayerUnit {
             const targetDistY = (th * 40) / 2 + this.size / 2 + 5;
             const dx = Math.abs(this.x - currentTask.x), dy = Math.abs(this.y - currentTask.y);
             if (dx <= targetDistX && dy <= targetDistY) {
-                // 저장된 gridX, gridY를 사용하여 건물 생성
+                // 인접 완료! 건물 기초 공사 시작
                 const building = this.engine.executeBuildingPlacement(
                     currentTask.type, currentTask.x, currentTask.y, currentTask.gridX, currentTask.gridY
                 );
                 if (building) {
                     this.buildingTarget = building;
                     this.buildQueue.shift();
+                    this.destination = null; // 이동 완료 처리를 막기 위해 목적지 제거
                 } else {
                     this.buildQueue.shift();
                 }
