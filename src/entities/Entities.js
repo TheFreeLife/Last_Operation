@@ -3,6 +3,20 @@ export class Entity {
         this.x = x;
         this.y = y;
         this.active = true;
+        this.width = 40;  // Default 1x1
+        this.height = 40; // Default 1x1
+        this.size = 40;   // Default for circles
+    }
+
+    getSelectionBounds() {
+        const w = this.width || this.size || 40;
+        const h = this.height || this.size || 40;
+        return {
+            left: this.x - w / 2,
+            right: this.x + w / 2,
+            top: this.y - h / 2,
+            bottom: this.y + h / 2
+        };
     }
 }
 
@@ -935,12 +949,10 @@ export class Storage extends Entity {
     }
 }
 
-export class PatrolUnit extends Entity {
-    constructor(x, y, armory, engine) {
+export class PlayerUnit extends Entity {
+    constructor(x, y, engine) {
         super(x, y);
-        this.armory = armory;
         this.engine = engine;
-        this.patrolRadius = 450; 
         this.attackRange = 250; 
         this.angle = Math.random() * Math.PI * 2;
         this.speed = 1;
@@ -951,23 +963,76 @@ export class PatrolUnit extends Entity {
         this.alive = true;
         this.size = 20;
         this.damage = 0; // 하위 클래스에서 정의
+        this.destination = null; // {x, y}
+        this.command = 'stop'; // 'move', 'attack', 'patrol', 'stop', 'hold'
+        this.patrolStart = null;
+        this.patrolEnd = null;
     }
 
     update(deltaTime) {
         if (!this.alive) return;
 
+        let pushX = 0;
+        let pushY = 0;
+
+        // --- Collision Avoidance (Units) ---
+        const allUnits = this.engine.entities.units;
+        for (const other of allUnits) {
+            if (other === this || !other.alive) continue;
+            const d = Math.hypot(this.x - other.x, this.y - other.y);
+            const minDist = (this.size + other.size) * 0.8; 
+            if (d < minDist) {
+                const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                const force = (minDist - d) / minDist;
+                pushX += Math.cos(pushAngle) * force * 1.5;
+                pushY += Math.sin(pushAngle) * force * 1.5;
+            }
+        }
+
+        // --- Collision Avoidance (Buildings) ---
+        const buildings = [
+            ...this.engine.entities.turrets,
+            ...this.engine.entities.generators,
+            ...this.engine.entities.airports,
+            ...this.engine.entities.refineries,
+            ...this.engine.entities.goldMines,
+            ...this.engine.entities.storage,
+            ...this.engine.entities.armories,
+            ...this.engine.entities.powerLines,
+            ...this.engine.entities.pipeLines,
+            ...this.engine.entities.walls,
+            this.engine.entities.base
+        ];
+
+        for (const b of buildings) {
+            if (!b || !b.active) continue;
+            const bWidth = b.width || b.size || 40;
+            const bHeight = b.height || b.size || 40;
+            const halfW = bWidth / 2 + this.size / 2;
+            const halfH = bHeight / 2 + this.size / 2;
+            const dx = this.x - b.x;
+            const dy = this.y - b.y;
+            if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
+                const overlapX = halfW - Math.abs(dx);
+                const overlapY = halfH - Math.abs(dy);
+                if (overlapX < overlapY) pushX += (dx > 0 ? 1 : -1) * overlapX * 0.5;
+                else pushY += (dy > 0 ? 1 : -1) * overlapY * 0.5;
+            }
+        }
+
+        this.x += pushX;
+        this.y += pushY;
+
+        // --- Command Logic ---
         const enemies = this.engine.entities.enemies;
         let bestTarget = null;
         let minDistToMe = Infinity;
-        
-        // 1. 타겟 탐색 (병기창 보호 반경 내에 있는 모든 적 인식)
-        const radius = this.patrolRadius; 
-        for (const e of enemies) {
-            const distToArmory = Math.hypot(e.x - this.armory.x, e.y - this.armory.y);
-            // 보호 구역 안에만 있으면 일단 '인식' 가능
-            if (distToArmory <= radius) {
+
+        // 1. 타겟 탐색 (어택 땅이나 패트롤, 정지 시에만 적을 찾음)
+        if (this.command !== 'move') {
+            for (const e of enemies) {
                 const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
-                if (distToMe < minDistToMe) {
+                if (distToMe <= this.attackRange && distToMe < minDistToMe) {
                     minDistToMe = distToMe;
                     bestTarget = e;
                 }
@@ -975,46 +1040,42 @@ export class PatrolUnit extends Entity {
         }
         this.target = bestTarget;
 
-        // 2. 이동 및 공격 로직
+        // 2. 이동 및 명령 수행
         if (this.target) {
-            const angleToTarget = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            this.angle = angleToTarget;
-            const distToMe = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            // 적을 발견하면 이동을 멈추고 공격
+            this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+            this.attack();
             
-            // 내 공격 사거리보다 멀리 있으면 추격
-            if (distToMe > this.attackRange * 0.9) {
-                const nextX = this.x + Math.cos(this.angle) * this.speed;
-                const nextY = this.y + Math.sin(this.angle) * this.speed;
-                const nextDistToArmory = Math.hypot(nextX - this.armory.x, nextY - this.armory.y);
-
-                // 추격하되 병기창 보호 구역을 넘지는 않음
-                if (nextDistToArmory <= radius) {
-                    this.x = nextX;
-                    this.y = nextY;
+            // 어택 땅 명령 중이었다면 적 처치 후 멈추기 위해 상태 변경
+            if (this.command === 'attack') {
+                this.destination = null; 
+            }
+        } else if (this.destination) {
+            // 목적지가 있을 때 이동
+            const dist = Math.hypot(this.destination.x - this.x, this.destination.y - this.y);
+            if (dist < 5) {
+                if (this.command === 'patrol') {
+                    // 패트롤은 지점 도달 시 시작점과 끝점을 뒤바꿈
+                    const temp = this.patrolStart;
+                    this.patrolStart = this.patrolEnd;
+                    this.patrolEnd = temp;
+                    this.destination = this.patrolEnd;
+                } else {
+                    this.destination = null;
+                    this.command = 'stop';
                 }
-            }
-            
-            // 사거리 안에 있으면 공격
-            if (distToMe <= this.attackRange) {
-                this.attack();
-            }
-        } else {
-            // 적이 없을 때: 순찰 로직 (기존과 동일)
-            const distToHome = Math.hypot(this.x - this.armory.x, this.y - this.armory.y);
-            if (distToHome > radius - 30) {
-                const angleToHome = Math.atan2(this.armory.y - this.y, this.armory.x - this.x);
-                this.angle = angleToHome + (Math.random() - 0.5);
-            } else if (Math.random() < 0.02) {
-                this.angle += (Math.random() - 0.5) * 2;
-            }
-            
-            const nextX = this.x + Math.cos(this.angle) * (this.speed * 0.6);
-            const nextY = this.y + Math.sin(this.angle) * (this.speed * 0.6);
-            if (Math.hypot(nextX - this.armory.x, nextY - this.armory.y) <= radius) {
-                this.x = nextX;
-                this.y = nextY;
+            } else {
+                this.angle = Math.atan2(this.destination.y - this.y, this.destination.x - this.x);
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
             }
         }
+
+        // Map boundaries
+        const mapW = this.engine.tileMap.cols * this.engine.tileMap.tileSize;
+        const mapH = this.engine.tileMap.rows * this.engine.tileMap.tileSize;
+        this.x = Math.max(this.size, Math.min(mapW - this.size, this.x));
+        this.y = Math.max(this.size, Math.min(mapH - this.size, this.y));
 
         if (this.hp <= 0) this.alive = false;
     }
@@ -1022,9 +1083,9 @@ export class PatrolUnit extends Entity {
     attack() {}
 }
 
-export class Tank extends PatrolUnit {
-    constructor(x, y, armory, engine) {
-        super(x, y, armory, engine);
+export class Tank extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
         this.type = 'tank';
         this.name = '전차';
         this.speed = 1.2;
@@ -1140,16 +1201,15 @@ export class Missile extends Entity {
     }
 }
 
-export class MissileLauncher extends PatrolUnit {
-    constructor(x, y, armory, engine) {
-        super(x, y, armory, engine);
+export class MissileLauncher extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
         this.type = 'missile-launcher';
         this.name = '이동식 미사일 발사대';
         this.speed = 0.8;
         this.fireRate = 2500;
         this.damage = 70;
         this.color = '#ff3131';
-        this.patrolRadius = 660; 
         this.attackRange = 400; 
     }
 
@@ -1195,16 +1255,11 @@ export class Armory extends Entity {
         this.spawnQueue = []; // {type, timer}
         this.spawnTime = 5000; // 유닛당 5초
         this.units = []; // 생산한 유닛들
-        this.maxUnits = 4;
-        this.patrolRadius = 450; // 150 -> 450 (3배 확대)
     }
 
     requestUnit(unitType) {
-        if (this.units.length + this.spawnQueue.length < this.maxUnits) {
-            this.spawnQueue.push({ type: unitType, timer: 0 });
-            return true;
-        }
-        return false;
+        this.spawnQueue.push({ type: unitType, timer: 0 });
+        return true;
     }
 
     update(deltaTime, engine) {
@@ -1214,9 +1269,13 @@ export class Armory extends Entity {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
+                const spawnY = this.y + 45; // 병기창 아래쪽 문 앞
                 let unit;
-                if (current.type === 'tank') unit = new Tank(this.x, this.y, this, engine);
-                else unit = new MissileLauncher(this.x, this.y, this, engine);
+                if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);
+                else unit = new MissileLauncher(this.x, spawnY, engine);
+                
+                // 생성되자마자 문 밖으로 조금 더 나가도록 목적지 설정 (건물 겹침 방지)
+                unit.destination = { x: this.x, y: this.y + 80 };
                 
                 this.units.push(unit);
                 engine.entities.units.push(unit);
@@ -1992,13 +2051,13 @@ export class CargoPlane extends Entity {
 }
 
 export class Enemy extends Entity {
-    constructor(x, y, wave) {
+    constructor(x, y) {
         super(x, y);
-        this.speed = 1.5 + (wave * 0.15);
-        this.maxHp = 20 + (wave * 10);
+        this.speed = 1.8;
+        this.maxHp = 50;
         this.hp = this.maxHp;
         this.size = 20;
-        this.damage = 5 + (wave * 2);
+        this.damage = 10;
         this.attackRange = 35;
         this.attackInterval = 1000;
         this.lastAttackTime = 0;

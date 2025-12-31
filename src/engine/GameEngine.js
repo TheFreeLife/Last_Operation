@@ -1,6 +1,6 @@
 import { TileMap } from '../map/TileMap.js';
 import { Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher } from '../entities/Entities.js';
-import { WaveManager, UpgradeManager } from '../systems/GameSystems.js';
+import { UpgradeManager } from '../systems/GameSystems.js';
 
 export class GameEngine {
     constructor() {
@@ -38,6 +38,14 @@ export class GameEngine {
         };
 
         this.initResources();
+        
+        // Spawn starting units near base
+        const startTank = new Tank(basePos.x - 60, basePos.y + 60, this);
+        const startMissile = new MissileLauncher(basePos.x + 60, basePos.y + 60, this);
+        startTank.destination = { x: basePos.x - 100, y: basePos.y + 100 };
+        startMissile.destination = { x: basePos.x + 100, y: basePos.y + 100 };
+        this.entities.units.push(startTank, startMissile);
+
         this.updateVisibility(); // 초기 시야 확보
 
         this.buildingCosts = {
@@ -57,7 +65,6 @@ export class GameEngine {
 
         this.resources = { gold: 999999, oil: 0 };
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
-        this.waveManager = new WaveManager(this);
         this.upgradeManager = new UpgradeManager(this);
 
         this.lastTime = 0;
@@ -67,6 +74,7 @@ export class GameEngine {
         this.isSellMode = false;
         this.isSkillMode = false;
         this.selectedSkill = null;
+        this.unitCommandMode = null; // 'move', 'attack', 'patrol' 등
         this.selectedAirport = null;
         this.selectedEntity = null; // Track any selected building
         this.selectedEntities = []; // Track multiple selected units
@@ -199,7 +207,7 @@ export class GameEngine {
     initUI() {
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
         document.getElementById('roll-card-btn')?.addEventListener('click', () => this.rollRandomCard());
-        this.updateBuildMenu('main');
+        this.updateBuildMenu();
     }
 
     getIconSVG(type) {
@@ -222,216 +230,255 @@ export class GameEngine {
             'wall': `<div class="btn-icon"><svg viewBox="0 0 40 40"><rect x="5" y="10" width="30" height="25" fill="#444" stroke="#888" stroke-width="2"/><line x1="5" y1="22" x2="35" y2="22" stroke="#888" stroke-width="1"/><line x1="15" y1="10" x2="15" y2="22" stroke="#888" stroke-width="1"/><line x1="25" y1="22" x2="25" y2="35" stroke="#888" stroke-width="1"/></svg></div>`,
             'category-power': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M20 10 L20 30" stroke="#ffff00" stroke-width="3"/><circle cx="20" cy="20" r="15" fill="none" stroke="#ffff00" stroke-width="2"/></svg></div>`,
             'category-network': `<div class="btn-icon purple"><svg viewBox="0 0 40 40"><circle cx="15" cy="15" r="5" fill="#ffff00"/><circle cx="25" cy="25" r="5" fill="#9370DB"/><path d="M15 15 L25 25" stroke="#fff" stroke-width="2"/></svg></div>`,
+            'category-military': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#333" stroke="#ff3131" stroke-width="2"/><path d="M5 15 L10 10 M35 15 L30 10 M20 5 V10" stroke="#ff3131" stroke-width="2"/><path d="M15 20 L25 20 M20 15 V25" stroke="#ff3131" stroke-width="2"/></svg></div>`,
             'power-line': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><line x1="20" y1="5" x2="20" y2="35" stroke="#ffff00" stroke-width="4"/><circle cx="20" cy="20" r="6" fill="#333" stroke="#ffff00" stroke-width="2"/></svg></div>`,
             'pipe-line': `<div class="btn-icon purple"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" rx="4" fill="#333" stroke="#9370DB" stroke-width="4"/><path d="M15 20 H25" stroke="#9370DB" stroke-width="2"/></svg></div>`,
-            'sell': `<div class="btn-icon red">`,
-            'back': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`
+            'menu:network': `<div class="btn-icon purple"><svg viewBox="0 0 40 40"><circle cx="15" cy="15" r="5" fill="#ffff00"/><circle cx="25" cy="25" r="5" fill="#9370DB"/><path d="M15 15 L25 25" stroke="#fff" stroke-width="2"/></svg></div>`,
+            'menu:power': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M20 10 L20 30" stroke="#ffff00" stroke-width="3"/><circle cx="20" cy="20" r="15" fill="none" stroke="#ffff00" stroke-width="2"/></svg></div>`,
+            'menu:military': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#333" stroke="#ff3131" stroke-width="2"/><path d="M5 15 L10 10 M35 15 L30 10 M20 5 V10" stroke="#ff3131" stroke-width="2"/><path d="M15 20 L25 20 M20 15 V25" stroke="#ff3131" stroke-width="2"/></svg></div>`,
+            'skill:tank': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><rect x="10" y="15" width="20" height="15" fill="#2c3e50" stroke="#39ff14" stroke-width="2"/><circle cx="20" cy="22" r="5" fill="#34495e"/><rect x="20" y="20" width="12" height="4" fill="#39ff14"/></svg></div>`,
+            'skill:missile': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="15" width="20" height="15" fill="#444" stroke="#ff3131" stroke-width="2"/><rect x="15" y="10" width="10" height="15" fill="#222"/><path d="M20 5 L24 12 L16 12 Z" fill="#ff3131"/></svg></div>`,
+            'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
+            'skill:scout': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="#00d2ff" stroke-width="2"/><path d="M20 10 V30 M10 20 H30" stroke="#00d2ff" stroke-width="1"/><circle cx="20" cy="20" r="5" fill="#00d2ff" opacity="0.5"/></svg></div>`,
+            'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
+            'unit:stop': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#ff3131"/></svg></div>`,
+            'unit:hold': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M20 5 L32 12 V25 L20 35 L8 25 V12 Z" fill="#333" stroke="#ffff00" stroke-width="2"/></svg></div>`,
+            'unit:patrol': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="12" fill="none" stroke="#00ffcc" stroke-width="2" stroke-dasharray="5,3"/><path d="M32 20 L28 16 M32 20 L28 24" stroke="#00ffcc" stroke-width="2" fill="none"/></svg></div>`,
+            'unit:attack': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><path d="M10 30 L30 10 M10 10 L30 30" stroke="#ff3131" stroke-width="4"/><path d="M15 15 L10 10 M25 15 L30 10" stroke="#fff" stroke-width="2"/></svg></div>`,
+            'back': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
+            'menu:main': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
+            'toggle:sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`,
+            'sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`
         };
         return svgs[type] || '';
     }
 
-    updateBuildMenu(menuName) {
+    updateBuildMenu() {
         const grid = document.getElementById('build-grid');
         grid.innerHTML = '';
         
-        // 패널 헤더 업데이트
         const header = document.querySelector('.panel-header');
-        if (header) {
-            if (menuName === 'skills' && this.selectedAirport) {
-                header.textContent = '공항';
-            } else if (menuName === 'skills' && this.selectedEntity && this.selectedEntity.type === 'storage') {
-                header.textContent = '창고';
-            } else if (menuName === 'skills' && this.selectedEntity && this.selectedEntity.type === 'armory') {
+        if (!header) return;
+        
+        // 1. Determine which menu to show based on selection
+        let menuType = 'main';
+        let items = [];
+
+        if (this.selectedEntities.length > 0) {
+            // Check if all selected entities are units
+            const allUnits = this.selectedEntities.every(ent => ent.type === 'tank' || ent.type === 'missile-launcher');
+            // Check if all selected entities are of the same building type
+            const firstType = this.selectedEntities[0].type;
+            const allSameType = this.selectedEntities.every(ent => ent.type === firstType);
+
+            if (allUnits) {
+                menuType = 'unit';
+                header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : this.selectedEntities[0].name;
+                items = [
+                    { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move' },
+                    { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
+                    { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
+                    { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol' },
+                    { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack' },
+                    null, null, null, null
+                ];
+            } else if (allSameType) {
+                const type = firstType;
+                if (type === 'armory') {
+                    menuType = 'armory';
+                    header.textContent = this.selectedEntities.length > 1 ? `병기창 (${this.selectedEntities.length})` : '병기창';
+                    items = [
+                        { type: 'skill-tank', name: '전차 생산', cost: 300, icon: '🚜', action: 'skill:tank' },
+                        { type: 'skill-missile', name: '미사일 생산', cost: 500, icon: '🚀', action: 'skill:missile' },
+                        null, null, null, null,
+                        { type: 'menu:main', name: '취소', action: 'menu:main' },
+                        null, null
+                    ];
+                } else if (type === 'airport') {
+                    menuType = 'airport';
+                    header.textContent = this.selectedEntities.length > 1 ? `공항 (${this.selectedEntities.length})` : '공항';
+                    items = [
+                        { type: 'skill-scout', name: '정찰', cost: 100, icon: '✈️', action: 'skill:scout' },
+                        null, null, null, null, null,
+                        { type: 'menu:main', name: '취소', action: 'menu:main' },
+                        null, null
+                    ];
+                } else if (type === 'storage') {
+                    menuType = 'storage';
+                    header.textContent = this.selectedEntities.length > 1 ? `창고 (${this.selectedEntities.length})` : '창고';
+                    items = [
+                        { type: 'skill-cargo', name: '수송기 생산', cost: 100, icon: '📦', action: 'skill:cargo' },
+                        null, null, null, null, null,
+                        { type: 'menu:main', name: '취소', action: 'menu:main' },
+                        null, null
+                    ];
+                } else {
+                    menuType = 'building';
+                    header.textContent = allSameType ? `${this.selectedEntities[0].name || '건물'} (${this.selectedEntities.length})` : '건물 정보';
+                    items = [
+                        null, null, null, null, null, null,
+                        { type: 'menu:main', name: '취소', action: 'menu:main' },
+                        null,
+                        { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    ];
+                }
+            } else {
+                // Mixed types selected (e.g., a unit and a building, or two different buildings)
+                menuType = 'mixed';
+                header.textContent = `다중 선택 (${this.selectedEntities.length})`;
+                items = [null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null];
+            }
+        } else if (this.selectedEntity) {
+            const type = this.selectedEntity.type;
+            if (type === 'armory') {
+                menuType = 'armory';
                 header.textContent = '병기창';
-            } else if (menuName === 'main') {
-                header.textContent = '건 설';
-            } else if (menuName === 'network') {
+                items = [
+                    { type: 'skill-tank', name: '전차 생산', cost: 300, icon: '🚜', action: 'skill:tank' },
+                    { type: 'skill-missile', name: '미사일 생산', cost: 500, icon: '🚀', action: 'skill:missile' },
+                    null, null, null, null,
+                    { type: 'menu:main', name: '취소', action: 'menu:main' },
+                    null, null
+                ];
+            } else if (type === 'airport') {
+                menuType = 'airport';
+                header.textContent = '공항';
+                items = [
+                    { type: 'skill-scout', name: '정찰', cost: 100, icon: '✈️', action: 'skill:scout' },
+                    null, null, null, null, null,
+                    { type: 'menu:main', name: '취소', action: 'menu:main' },
+                    null, null
+                ];
+            } else if (type === 'storage') {
+                menuType = 'storage';
+                header.textContent = '창고';
+                items = [
+                    { type: 'skill-cargo', name: '수송기 생산', cost: 100, icon: '📦', action: 'skill:cargo' },
+                    null, null, null, null, null,
+                    { type: 'menu:main', name: '취소', action: 'menu:main' },
+                    null, null
+                ];
+            } else {
+                menuType = 'building';
+                header.textContent = '건물 정보';
+                items = [
+                    null, null, null, null, null, null,
+                    { type: 'menu:main', name: '취소', action: 'menu:main' },
+                    null,
+                    { type: 'sell', name: '판매', action: 'toggle:sell', icon: '💰' }
+                ];
+            }
+        } else {
+            header.textContent = '건 설';
+            if (this.currentMenuName === 'network') {
                 header.textContent = '네트워크';
-            } else if (menuName === 'power') {
+                items = [
+                    { type: 'power-line', name: '전선', cost: 10 },
+                    { type: 'pipe-line', name: '파이프', cost: 10 },
+                    null, null, null, null,
+                    { type: 'menu:main', name: '뒤로', action: 'menu:main' },
+                    null,
+                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                ];
+            } else if (this.currentMenuName === 'power') {
                 header.textContent = '발전소';
+                items = [
+                    { type: 'coal-generator', name: '석탄 발전', cost: 200 },
+                    { type: 'oil-generator', name: '석유 발전', cost: 200 },
+                    { type: 'refinery', name: '정제소', cost: 300 },
+                    { type: 'gold-mine', name: '금 채굴장', cost: 400 },
+                    { type: 'storage', name: '창고', cost: 200 },
+                    null,
+                    { type: 'menu:main', name: '뒤로', action: 'menu:main' },
+                    null,
+                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                ];
+            } else if (this.currentMenuName === 'military') {
+                header.textContent = '군사 시설';
+                items = [
+                    { type: 'armory', name: '병기창', cost: 600 },
+                    { type: 'airport', name: '공항', cost: 500 },
+                    null, null, null, null,
+                    { type: 'menu:main', name: '뒤로', action: 'menu:main' },
+                    null,
+                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                ];
+            } else {
+                items = [
+                    { type: 'turret-basic', name: '기본 포탑', cost: 50 },
+                    { type: 'menu:network', name: '네트워크', action: 'menu:network' },
+                    { type: 'substation', name: '변전소', cost: 100 },
+                    { type: 'menu:power', name: '에너지', action: 'menu:power' },
+                    { type: 'wall', name: '벽', cost: 30 },
+                    { type: 'menu:military', name: '군사', action: 'menu:military' },
+                    null,
+                    null,
+                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                ];
             }
         }
 
-        // Reset tooltip state when menu changes
         this.isHoveringUI = false;
         this.hideUITooltip();
-        
-        this.currentMenuName = menuName; // Remember current menu
-
-        const menus = {
-            'main': [
-                { type: 'turret-basic', name: '기본 포탑', cost: 50 },
-                { type: 'category-network', name: '네트워크', cost: null, action: 'menu:network' },
-                { type: 'substation', name: '변전소', cost: 100 },
-                { type: 'category-power', name: '발전소', cost: null, action: 'menu:power' },
-                { type: 'wall', name: '벽', cost: 30 },
-                { type: 'airport', name: '공항', cost: 500 },
-                { type: 'armory', name: '병기창', cost: 600 },
-                null,
-                { type: 'sell', name: '판매', cost: null, action: 'toggle:sell' }
-            ],
-            'network': [
-                { type: 'power-line', name: '전선', cost: 10 },
-                { type: 'pipe-line', name: '파이프', cost: 10 },
-                null,
-                null,
-                null,
-                null,
-                { type: 'back', name: '뒤로', cost: null, action: 'menu:main' },
-                null,
-                { type: 'sell', name: '판매', cost: null, action: 'toggle:sell' }
-            ],
-            'power': [
-                { type: 'coal-generator', name: '석탄 발전', cost: 200 },
-                { type: 'oil-generator', name: '석유 발전', cost: 200 },
-                { type: 'refinery', name: '정제소', cost: 300 },
-                { type: 'gold-mine', name: '금 채굴장', cost: 400 },
-                { type: 'storage', name: '창고', cost: 200 },
-                null,
-                { type: 'back', name: '뒤로', cost: null, action: 'menu:main' },
-                null,
-                { type: 'sell', name: '판매', cost: null, action: 'toggle:sell' }
-            ]
-        };
-
-        // 스킬 메뉴는 선택된 엔티티에 따라 동적으로 구성
-        if (menuName === 'skills') {
-            if (this.selectedAirport) {
-                menus['skills'] = [
-                    { type: 'skill-scout', name: '정찰', cost: 100, action: 'skill:scout' },
-                    null, null, null, null, null,
-                    { type: 'back', name: '뒤로', cost: null, action: 'menu:main' },
-                    null, null
-                ];
-            } else if (this.selectedEntity && this.selectedEntity.type === 'storage') {
-                menus['skills'] = [
-                    { type: 'skill-cargo', name: '수송기 생산', cost: 100, action: 'skill:cargo' },
-                    null, null, null, null, null,
-                    { type: 'back', name: '뒤로', cost: null, action: 'menu:main' },
-                    null, null
-                ];
-            } else if (this.selectedEntity && this.selectedEntity.type === 'armory') {
-                menus['skills'] = [
-                    { type: 'skill-tank', name: '전차 생산', cost: 300, action: 'skill:tank' },
-                    { type: 'skill-missile', name: '미사일 생산', cost: 500, action: 'skill:missile' },
-                    null, null, null, null,
-                    { type: 'back', name: '뒤로', cost: null, action: 'menu:main' },
-                    null, null
-                ];
-            }
-        }
-
-        const items = menus[menuName] || [];
 
         items.forEach(item => {
+            const btn = document.createElement('div');
+            btn.className = 'build-btn';
+            
             if (!item) {
-                const emptyDiv = document.createElement('div');
-                grid.appendChild(emptyDiv);
+                grid.appendChild(btn);
                 return;
             }
 
-            const btn = document.createElement('button');
-            btn.className = 'build-btn';
-            
-            // Apply active class if currently selected
             if (item.action === 'toggle:sell' && this.isSellMode) {
                 btn.classList.add('active');
             } else if (item.type === this.selectedBuildType && this.isBuildMode) {
                 btn.classList.add('active');
-            } else if (item.action === `skill:${this.selectedSkill}` && this.isSkillMode) {
-                btn.classList.add('active');
             }
 
-            if (item.action) {
-                btn.dataset.action = item.action;
-            } else {
-                btn.dataset.type = item.type;
-            }
-
-            const iconHtml = this.getIconSVG(item.type);
-            const costHtml = item.cost ? `<span class="btn-cost">${item.cost}G</span>` : '';
+            // Determine which icon key to use
+            const iconKey = item.action || item.type;
+            const iconHtml = this.getIconSVG(iconKey);
             
-            btn.innerHTML = `
-                ${iconHtml}
-                <div class="btn-info">
-                    <span class="btn-name">${item.name}</span>
-                    ${costHtml}
-                </div>
-            `;
+            btn.innerHTML = iconHtml; // Icons only
 
-            // Hover tooltip for build buttons
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                if (item.action) {
+                    this.handleMenuAction(item.action, item);
+                } else if (item.type) {
+                    this.startBuildMode(item.type, btn);
+                }
+            };
+
             btn.addEventListener('mouseenter', (e) => {
                 this.isHoveringUI = true;
                 let title = item.name;
                 let desc = '';
 
-                if (item.action === 'menu:power') {
-                    desc = '발전 시설 메뉴로 이동합니다.';
-                } else if (item.action === 'menu:skills') {
-                    desc = '공항 건물을 통해 사용할 수 있는 특수 스킬 메뉴입니다.';
-                } else if (item.action === 'skill:scout') {
-                    desc = `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">100G</span></div>
-                            <div class="item-stats-box">지정한 위치로 정찰기를 보내 반경 20칸의 안개를 영구적으로 제거합니다.</div>`;
-                } else if (item.action === 'skill:cargo') {
-                    desc = `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">100G</span></div>
-                            <div class="stat-row"><span>⏳ 생산 시간:</span> <span class="highlight">5초</span></div>
-                            <div class="item-stats-box">공중으로 자원을 기지까지 운송하는 수송기를 생산합니다. <br>파이프라인 없이도 자원 운반이 가능합니다.</div>`;
-                } else if (item.action === 'skill:tank') {
-                    desc = `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">300G</span></div>
-                            <div class="stat-row"><span>⏳ 생산 시간:</span> <span class="highlight">5초</span></div>
-                            <div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">25</span></div>
-                            <div class="item-stats-box">병기창 주변을 패트롤하며 적을 공격하는 전차를 생산합니다.</div>`;
-                } else if (item.action === 'skill:missile') {
-                    desc = `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">500G</span></div>
-                            <div class="stat-row"><span>⏳ 생산 시간:</span> <span class="highlight">5초</span></div>
-                            <div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">70</span></div>
-                            <div class="item-stats-box">강력한 장거리 미사일로 주변의 적을 요격하는 유닛을 생산합니다.</div>`;
-                } else if (item.action === 'menu:main' || item.type === 'back') {
-                    desc = '이전 메뉴로 돌아갑니다.';
+                // Add cost if applicable
+                const cost = item.cost || (item.type ? this.buildingCosts[item.type] : null);
+                if (cost) {
+                    desc += `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">${cost}G</span></div>`;
+                }
+
+                // Add specialized descriptions
+                if (item.type === 'turret-basic') {
+                    const stats = this.getTurretStats('turret-basic');
+                    desc += `<div class="item-stats-box">
+                        <div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${stats.damage}</span></div>
+                        <div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${stats.range}</span></div>
+                    </div>`;
                 } else if (item.action === 'toggle:sell') {
-                    desc = '판매 모드를 켭니다. <br><span class="highlight text-red">우클릭 드래그로 건물 철거</span>';
-                } else {
-                    // Actual build items
-                    const cost = item.cost || 0;
-                    desc = `<div class="stat-row"><span>💰 건설 비용:</span> <span class="highlight">${cost}G</span></div>`;
-                    
-                    if (item.type === 'turret-basic') {
-                        const stats = this.getTurretStats('turret-basic');
-                        desc += `<div class="item-stats-box">
-                            <div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${stats.damage}</span></div>
-                            <div class="stat-row"><span>⚡ 연사 속도:</span> <span class="highlight">${(1000/stats.fireRate).toFixed(1)}/s</span></div>
-                            <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${stats.maxHp}</span></div>
-                        </div>`;
-                    } else if (item.type === 'power-line') {
-                        desc += '<div class="item-stats-box">전력을 전달하는 선입니다. 일직선 시 옆면 공급이 제한됩니다.</div>';
-                    } else if (item.type === 'substation') {
-                        desc += '<div class="item-stats-box">주변 8방향(대각선 포함)으로 전력을 공급합니다.</div>';
-                    } else if (item.type === 'wall') {
-                        desc += '<div class="item-stats-box">튼튼한 벽으로 적의 진로를 차단합니다.</div>';
-                    } else if (item.type === 'airport') {
-                        desc += '<div class="item-stats-box">특수 스킬을 사용할 수 있게 해주는 공항 건물입니다.</div>';
-                    } else if (item.type === 'armory') {
-                        desc += '<div class="item-stats-box">방어 유닛(전차, 미사일)을 생산하는 군사 시설입니다.</div>';
-                    } else if (item.type === 'coal-generator') {
-                        desc += '<div class="item-stats-box">석탄 매장지 위에 건설하여 전력을 생산합니다. (50초 가동)</div>';
-                    } else if (item.type === 'oil-generator') {
-                        desc += '<div class="item-stats-box">석유 매장지 위에 건설하여 전력을 생산합니다. (80초 가동)</div>';
-                    } else if (item.type === 'refinery') {
-                        desc += '<div class="item-stats-box">석유를 정제하여 정제유를 생산합니다. <br>(초당 5 유닛, 80초 가동)</div>';
-                    } else if (item.type === 'gold-mine') {
-                        desc += '<div class="item-stats-box">금 매장지 위에 건설하여 골드를 생산합니다. <br>(초당 8G, 100초 가동)</div>';
-                    } else if (item.type === 'storage') {
-                        desc += '<div class="item-stats-box">자원을 임시 보관하는 건물입니다. <br>기지와 연결 시 보관된 자원이 기지로 전송됩니다.</div>';
-                    }
+                    desc += `<div class="item-stats-box text-red">건물을 철거하고 자원의 10%를 회수합니다.</div>`;
+                } else if (item.action?.startsWith('unit:')) {
+                    const cmd = item.action.split(':')[1];
+                    const hotkeys = { move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A' };
+                    desc += `<div class="item-stats-box">단축키: ${hotkeys[cmd] || ''}</div>`;
                 }
 
                 this.showUITooltip(title, desc, e.clientX, e.clientY);
             });
-
-            btn.addEventListener('mousemove', (e) => {
-                this.moveUITooltip(e.clientX, e.clientY);
-            });
-
             btn.addEventListener('mouseleave', () => {
                 this.isHoveringUI = false;
                 this.hideUITooltip();
@@ -441,12 +488,55 @@ export class GameEngine {
         });
     }
 
+    handleMenuAction(action, item) {
+        if (action.startsWith('menu:')) {
+            this.currentMenuName = action.split(':')[1];
+            this.selectedEntity = null;
+            this.selectedEntities = [];
+            this.updateBuildMenu();
+        } else if (action === 'toggle:sell') {
+            if (this.isSellMode) this.cancelSellMode();
+            else this.startSellMode();
+        } else if (action.startsWith('skill:')) {
+            const skill = action.split(':')[1];
+            if (skill === 'tank' || skill === 'missile' || skill === 'cargo') {
+                if (this.selectedEntity && this.selectedEntity.requestUnit) {
+                    const cost = item.cost || 0;
+                    if (this.resources.gold >= cost) {
+                        if (this.selectedEntity.requestUnit(skill === 'missile' ? 'missile-launcher' : skill)) {
+                            this.resources.gold -= cost;
+                        }
+                    }
+                }
+            } else {
+                this.startSkillMode(skill);
+            }
+        } else if (action.startsWith('unit:')) {
+            const cmd = action.split(':')[1];
+            if (cmd === 'stop' || cmd === 'hold') {
+                this.executeUnitCommand(cmd);
+            } else {
+                this.unitCommandMode = cmd;
+                this.updateCursor();
+            }
+        }
+    }
+
     initInput() {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                this.cancelBuildMode();
-                this.cancelSellMode();
-                this.cancelSkillMode(false);
+                this.cancelModes();
+                this.unitCommandMode = null;
+                this.updateCursor();
+            }
+            // 스타크래프트 단축키
+            if (this.selectedEntities.length > 0) {
+                const key = e.key.toLowerCase();
+                if (key === 'm') { this.unitCommandMode = 'move'; this.updateCursor(); }
+                else if (key === 's') this.executeUnitCommand('stop');
+                else if (key === 'h') this.executeUnitCommand('hold');
+                else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
+                else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
             }
         });
 
@@ -461,8 +551,8 @@ export class GameEngine {
 
             if (action) {
                 if (action.startsWith('menu:')) {
-                    const menuName = action.split(':')[1];
-                    this.updateBuildMenu(menuName);
+                    this.currentMenuName = action.split(':')[1];
+                    this.updateBuildMenu();
                 } else if (action === 'toggle:sell') {
                     if (this.isSellMode) {
                         this.cancelSellMode();
@@ -490,8 +580,16 @@ export class GameEngine {
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
 
             if (e.button === 0) { // LEFT CLICK
-                if (this.isBuildMode || this.isSellMode || this.isSkillMode) {
-                    // 기조 모드들(건설, 판매 등)은 드래그 대신 즉시 실행하거나 대기
+                if (this.unitCommandMode) {
+                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY);
+                } else if (this.isSellMode) {
+                    this.handleSell(worldX, worldY);
+                } else if (this.isBuildMode) {
+                    if (this.handleInput(worldX, worldY)) {
+                        this.cancelBuildMode(); // Single install and cancel
+                    }
+                } else if (this.isSkillMode) {
+                    this.handleInput(worldX, worldY);
                 } else {
                     // Start left-click drag selection
                     this.camera.selectionBox = {
@@ -502,10 +600,19 @@ export class GameEngine {
                     };
                 }
             } else if (e.button === 2) { // RIGHT CLICK
-                if (this.isSellMode) {
+                if (this.unitCommandMode) {
+                    this.unitCommandMode = null;
+                    this.updateCursor();
+                } else if (this.isSellMode) {
                     this.handleSell(worldX, worldY);
-                } else if (this.isBuildMode || this.isSkillMode) {
-                    this.handleInput(worldX, worldY); 
+                } else if (this.isBuildMode) {
+                    this.handleInput(worldX, worldY);
+                } else if (this.isSkillMode) {
+                    this.cancelModes();
+                    this.updateCursor();
+                } else if (this.selectedEntities.length > 0) {
+                    // SC Style Move command (ignores enemies)
+                    this.executeUnitCommand('move', worldX, worldY);
                 }
             }
         });
@@ -521,7 +628,7 @@ export class GameEngine {
             if (this.camera.selectionBox) {
                 this.camera.selectionBox.currentX = worldX;
                 this.camera.selectionBox.currentY = worldY;
-            } else if (e.buttons === 2) {
+            } else if (e.buttons === 2) { // RIGHT BUTTON held
                 if (this.isSellMode) {
                     this.handleSell(worldX, worldY);
                 } else if (this.isBuildMode) {
@@ -541,31 +648,15 @@ export class GameEngine {
                     const dragDist = Math.hypot(currentX - startX, currentY - startY);
 
                     if (dragDist > 5) {
-                        // 1. 드래그 거리가 크면 다중 선택 처리
                         this.handleMultiSelection();
                     } else {
-                        // 2. 드래그 거리가 작으면 단일 클릭 선택 처리
+                        // Small distance = Single Click action
                         if (!this.isBuildMode && !this.isSellMode && !this.isSkillMode) {
                             this.handleSingleSelection(worldX, worldY);
-                        } else if (this.isBuildMode) {
-                            // 건설 모드 등일 때는 원래의 로직 수행 필요할 수 있음
-                            // 현재 구조상 좌클릭은 선택, 우클릭은 건설로 나뉘어 있을 수 있으니 체크 필요
                         }
                     }
                     this.camera.selectionBox = null;
-                } else {
-                    // 모드 상태에서의 클릭 처리
-                    if (this.isBuildMode) {
-                        // 필요시 좌클릭 건설 로직
-                    }
-                }
-                
-                if (this.isBuildMode) {
-                    // 건설 로직이 좌클릭에 할당되어 있다면 여기서 처리
-                } else if (this.isSellMode) {
-                    // 판매 로직
-                } else if (this.isSkillMode) {
-                    this.handleSkill(worldX, worldY);
+                    this.updateCursor();
                 }
                 this.lastPlacedGrid = { x: -1, y: -1 };
             }
@@ -597,101 +688,153 @@ export class GameEngine {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
+    updateCursor() {
+        const modeClasses = ['build-mode-cursor', 'sell-mode-cursor', 'cmd-move-cursor', 'cmd-attack-cursor', 'cmd-patrol-cursor'];
+        const scClasses = ['sc-n', 'sc-s', 'sc-e', 'sc-w', 'sc-ne', 'sc-nw', 'sc-se', 'sc-sw'];
+        
+        document.body.classList.remove(...modeClasses);
+
+        // Only show mode cursors if NOT edge scrolling (scrolling has priority)
+        const isScrolling = scClasses.some(cls => document.body.classList.contains(cls));
+        if (isScrolling) return;
+
+        if (this.isBuildMode) {
+            document.body.classList.add('build-mode-cursor');
+        } else if (this.isSellMode) {
+            document.body.classList.add('sell-mode-cursor');
+        } else if (this.unitCommandMode) {
+            document.body.classList.add(`cmd-${this.unitCommandMode}-cursor`);
+        }
+    }
+
+    executeUnitCommand(cmd, worldX = null, worldY = null) {
+        if (this.selectedEntities.length === 0) return;
+
+        this.selectedEntities.forEach(unit => {
+            unit.command = cmd;
+            if (cmd === 'stop') {
+                unit.destination = null;
+            } else if (cmd === 'hold') {
+                unit.destination = null;
+            } else if (cmd === 'move' && worldX !== null) {
+                unit.destination = { x: worldX, y: worldY };
+            } else if (cmd === 'patrol' && worldX !== null) {
+                unit.patrolStart = { x: unit.x, y: unit.y };
+                unit.patrolEnd = { x: worldX, y: worldY };
+                unit.destination = unit.patrolEnd;
+            } else if (cmd === 'attack' && worldX !== null) {
+                unit.destination = { x: worldX, y: worldY };
+            }
+        });
+        this.unitCommandMode = null;
+        this.updateCursor();
+    }
+
+    cancelModes() {
+        this.cancelBuildMode();
+        this.cancelSellMode();
+        this.cancelSkillMode(false);
+    }
+
     handleSingleSelection(worldX, worldY) {
         this.selectedEntity = null;
         this.selectedEntities = [];
         this.selectedAirport = null;
 
-        // 1. Check for Airport selection
-        const airport = this.entities.airports.find(a => {
-            return Math.abs(a.x - worldX) < 40 && Math.abs(a.y - worldY) < 60;
+        // Collect all potential entities to check
+        const potentialEntities = [
+            ...this.entities.units,
+            ...this.entities.airports,
+            ...this.entities.storage,
+            ...this.entities.armories,
+            ...this.entities.turrets,
+            ...this.entities.generators,
+            ...this.entities.powerLines,
+            ...this.entities.substations,
+            ...this.entities.walls,
+            this.entities.base
+        ];
+
+        // Find the first entity that contains the click point
+        const found = potentialEntities.find(ent => {
+            if (!ent || (!ent.active && ent !== this.entities.base)) return false;
+            const bounds = ent.getSelectionBounds();
+            return worldX >= bounds.left && worldX <= bounds.right && 
+                   worldY >= bounds.top && worldY <= bounds.bottom;
         });
-        
-        if (airport) {
-            this.selectedAirport = airport;
-            this.selectedEntity = airport;
-            this.updateBuildMenu('skills');
-        } else {
-            // 2. Check for Storage selection
-            const storage = this.entities.storage.find(s => {
-                return Math.abs(s.x - worldX) < 20 && Math.abs(s.y - worldY) < 20;
-            });
 
-            if (storage) {
-                this.selectedEntity = storage;
-                this.updateBuildMenu('skills');
-            } else {
-                // 3. Check for Armory selection
-                const armory = this.entities.armories.find(a => {
-                    return Math.abs(a.x - worldX) < 40 && Math.abs(a.y - worldY) < 40;
-                });
-
-                if (armory) {
-                    this.selectedEntity = armory;
-                    this.updateBuildMenu('skills');
-                } else {
-                    // 4. Check for Unit selection
-                    const unit = this.entities.units.find(u => {
-                        return Math.abs(u.x - worldX) < 15 && Math.abs(u.y - worldY) < 15;
-                    });
-
-                    if (unit) {
-                        this.selectedEntity = unit;
-                        this.selectedEntities = [unit];
-                        this.updateBuildMenu('main');
-                    } else {
-                        // 5. Check for other buildings
-                        const allBuildings = [
-                            ...this.entities.turrets,
-                            ...this.entities.generators,
-                            ...this.entities.powerLines,
-                            ...this.entities.substations,
-                            ...this.entities.walls
-                        ];
-                        const found = allBuildings.find(b => Math.hypot(b.x - worldX, b.y - worldY) < 20);
-                        if (found) {
-                            this.selectedEntity = found;
-                            this.updateBuildMenu('main');
-                        } else {
-                            this.updateBuildMenu('main');
-                        }
-                    }
-                }
+        if (found) {
+            this.selectedEntity = found;
+            if (found.type === 'tank' || found.type === 'missile-launcher') {
+                this.selectedEntities = [found];
             }
+            if (found.type === 'airport') this.selectedAirport = found;
         }
+
+        this.updateCursor();
+        this.updateBuildMenu();
     }
 
     handleMultiSelection() {
         if (!this.camera.selectionBox) return;
-
         const { startX, startY, currentX, currentY } = this.camera.selectionBox;
-        
-        // 최소 드래그 거리 체크 (약 5픽셀 정도의 월드 거리)
-        if (Math.hypot(currentX - startX, currentY - startY) < 5) {
-            return;
-        }
+        if (Math.hypot(currentX - startX, currentY - startY) < 5) return;
 
-        const left = Math.min(startX, currentX);
-        const right = Math.max(startX, currentX);
-        const top = Math.min(startY, currentY);
-        const bottom = Math.max(startY, currentY);
+        const left = Math.min(startX, currentX), right = Math.max(startX, currentX);
+        const top = Math.min(startY, currentY), bottom = Math.max(startY, currentY);
 
-        // Clear previous selection
         this.selectedEntities = [];
         this.selectedEntity = null;
         this.selectedAirport = null;
 
-        // Select units only (Tanks, Missiles)
-        this.entities.units.forEach(unit => {
-            if (unit.x >= left && unit.x <= right && unit.y >= top && unit.y <= bottom) {
-                this.selectedEntities.push(unit);
+        const potentialEntities = [
+            ...this.entities.units,
+            ...this.entities.turrets,
+            ...this.entities.generators,
+            ...this.entities.powerLines,
+            ...this.entities.pipeLines,
+            ...this.entities.substations,
+            ...this.entities.walls,
+            ...this.entities.airports,
+            ...this.entities.refineries,
+            ...this.entities.goldMines,
+            ...this.entities.storage,
+            ...this.entities.armories,
+            this.entities.base
+        ];
+
+        const selectedUnits = [];
+        const selectedBuildings = [];
+
+        potentialEntities.forEach(ent => {
+            if (!ent || (!ent.active && ent !== this.entities.base)) return;
+            
+            const bounds = ent.getSelectionBounds();
+            const overlaps = !(bounds.right < left || bounds.left > right || bounds.bottom < top || bounds.top > bottom);
+            
+            if (overlaps) {
+                if (ent.type === 'tank' || ent.type === 'missile-launcher') {
+                    selectedUnits.push(ent);
+                } else {
+                    selectedBuildings.push(ent);
+                }
             }
         });
 
+        // Priority: Units > Buildings
+        if (selectedUnits.length > 0) {
+            this.selectedEntities = selectedUnits;
+        } else {
+            this.selectedEntities = selectedBuildings;
+        }
+
         if (this.selectedEntities.length > 0) {
             this.selectedEntity = this.selectedEntities[0];
-            this.updateBuildMenu('main'); // 유닛 선택 시 기본 메뉴 표시
+            if (this.selectedEntity.type === 'airport') this.selectedAirport = this.selectedEntity;
         }
+        
+        this.updateCursor();
+        this.updateBuildMenu();
     }
 
     startBuildMode(type, btn) {
@@ -699,9 +842,8 @@ export class GameEngine {
         this.isSkillMode = false;
         this.selectedBuildType = type;
         this.isBuildMode = true;
-        document.body.classList.remove('sell-mode-cursor');
-        document.body.classList.add('build-mode-cursor');
-        this.updateBuildMenu(this.currentMenuName || 'main');
+        this.updateCursor();
+        this.updateBuildMenu();
     }
 
     cancelBuildMode() {
@@ -709,8 +851,8 @@ export class GameEngine {
         this.selectedBuildType = null;
         this.selectedAirport = null;
         this.pendingItemIndex = -1;
-        document.body.classList.remove('build-mode-cursor');
-        this.updateBuildMenu('main');
+        this.updateCursor();
+        this.updateBuildMenu();
         this.updateInventoryUI(); // Refresh inventory highlights
     }
 
@@ -719,15 +861,14 @@ export class GameEngine {
         this.isSkillMode = false;
         this.selectedBuildType = null;
         this.isSellMode = true;
-        document.body.classList.remove('build-mode-cursor');
-        document.body.classList.add('sell-mode-cursor');
-        this.updateBuildMenu(this.currentMenuName || 'main');
+        this.updateCursor();
+        this.updateBuildMenu();
     }
 
     cancelSellMode() {
         this.isSellMode = false;
-        document.body.classList.remove('sell-mode-cursor');
-        this.updateBuildMenu(this.currentMenuName || 'main');
+        this.updateCursor();
+        this.updateBuildMenu();
     }
 
     startSkillMode(skillName, btn) {
@@ -744,7 +885,7 @@ export class GameEngine {
             if (this.resources.gold >= cost) {
                 entity.requestCargoPlane();
                 this.resources.gold -= cost;
-                this.updateBuildMenu('skills');
+                this.updateBuildMenu();
             }
             return;
         }
@@ -755,7 +896,7 @@ export class GameEngine {
                 const success = entity.requestUnit(skillName);
                 if (success) {
                     this.resources.gold -= cost;
-                    this.updateBuildMenu('skills');
+                    this.updateBuildMenu();
                 } else {
                     alert('생산 대기열이 가득 찼습니다!');
                 }
@@ -768,9 +909,8 @@ export class GameEngine {
         this.isSellMode = false;
         this.isSkillMode = true;
         this.selectedSkill = skillName;
-        document.body.classList.remove('sell-mode-cursor');
-        document.body.classList.add('build-mode-cursor');
-        this.updateBuildMenu(this.currentMenuName || 'main');
+        this.updateCursor();
+        this.updateBuildMenu();
     }
 
     cancelSkillMode(keepSelection = false) {
@@ -779,11 +919,11 @@ export class GameEngine {
         if (!keepSelection) {
             this.selectedAirport = null;
             this.selectedEntity = null;
-            this.updateBuildMenu('main');
+            this.updateBuildMenu();
         } else {
-            this.updateBuildMenu('skills');
+            this.updateBuildMenu();
         }
-        document.body.classList.remove('build-mode-cursor');
+        this.updateCursor();
     }
 
     handleSkill(worldX, worldY) {
@@ -827,27 +967,26 @@ export class GameEngine {
     }
 
     handleInput(worldX, worldY) {
-        if (!this.isBuildMode || !this.selectedBuildType) return;
+        if (!this.isBuildMode || !this.selectedBuildType) return false;
 
         const tileInfo = this.tileMap.getTileAt(worldX, worldY);
-        if (!tileInfo || !tileInfo.tile.visible) return; // 안개 지역 건설 불가
+        if (!tileInfo || !tileInfo.tile.visible) return false; // 안개 지역 건설 불가
 
-        // If using an item, cost is 0 (already paid via roll or wave reward)
+        // If using an item, cost is 0 (already paid via roll)
         const isFromItem = this.pendingItemIndex !== -1;
         const cost = isFromItem ? 0 : (this.buildingCosts[this.selectedBuildType] || 50);
 
-        if (this.resources.gold < cost) return;
+        if (this.resources.gold < cost) return false;
 
         const pos = this.tileMap.gridToWorld(tileInfo.x, tileInfo.y);
+        let placed = false;
 
         if (this.selectedBuildType === 'airport') {
-            // Check 2x3 area (clicked tile is bottom-left)
             const gridX = tileInfo.x;
             const gridY = tileInfo.y;
             let canPlace = true;
-
-            for (let dy = 0; dy > -3; dy--) { // 0, -1, -2 (bottom to top)
-                for (let dx = 0; dx < 2; dx++) { // 0, 1 (left to right)
+            for (let dy = 0; dy > -3; dy--) {
+                for (let dx = 0; dx < 2; dx++) {
                     const nx = gridX + dx;
                     const ny = gridY + dy;
                     if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
@@ -860,37 +999,25 @@ export class GameEngine {
                 }
                 if (!canPlace) break;
             }
-
             if (canPlace) {
-                // Calculated center for 2x3 block where gridX,gridY is bottom-left:
-                // x center: between gridX and gridX+1 -> (gridX + 1) * 40
-                // y center: gridY is bottom row. gridY-1 mid, gridY-2 top. 
-                // Center is at (gridY - 0.5) * 40
                 const worldPos = {
                     x: (gridX + 1) * this.tileMap.tileSize,
                     y: (gridY - 0.5) * this.tileMap.tileSize
                 };
-                
                 const { Airport } = this.entityClasses;
                 this.entities.airports.push(new Airport(worldPos.x, worldPos.y));
-                
-                // Mark all 6 tiles occupied
                 for (let dy = 0; dy > -3; dy--) {
                     for (let dx = 0; dx < 2; dx++) {
                         this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
                     }
                 }
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: gridX, y: gridY };
             }
-            return;
-        }
-
-        if (this.selectedBuildType === 'storage') {
+        } else if (this.selectedBuildType === 'storage') {
             const gridX = tileInfo.x;
             const gridY = tileInfo.y;
             let canPlace = true;
-
             for (let dy = 0; dy > -2; dy--) {
                 for (let dx = 0; dx < 2; dx++) {
                     const nx = gridX + dx;
@@ -905,7 +1032,6 @@ export class GameEngine {
                 }
                 if (!canPlace) break;
             }
-
             if (canPlace) {
                 const worldPos = {
                     x: (gridX + 1) * this.tileMap.tileSize,
@@ -913,23 +1039,18 @@ export class GameEngine {
                 };
                 const { Storage } = this.entityClasses;
                 this.entities.storage.push(new Storage(worldPos.x, worldPos.y));
-                
                 for (let dy = 0; dy > -2; dy--) {
                     for (let dx = 0; dx < 2; dx++) {
                         this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
                     }
                 }
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: gridX, y: gridY };
             }
-            return;
-        }
-
-        if (this.selectedBuildType === 'armory') {
+        } else if (this.selectedBuildType === 'armory') {
             const gridX = tileInfo.x;
             const gridY = tileInfo.y;
             let canPlace = true;
-
             for (let dy = 0; dy > -2; dy--) {
                 for (let dx = 0; dx < 2; dx++) {
                     const nx = gridX + dx;
@@ -944,7 +1065,6 @@ export class GameEngine {
                 }
                 if (!canPlace) break;
             }
-
             if (canPlace) {
                 const worldPos = {
                     x: (gridX + 1) * this.tileMap.tileSize,
@@ -952,79 +1072,54 @@ export class GameEngine {
                 };
                 const { Armory } = this.entityClasses;
                 this.entities.armories.push(new Armory(worldPos.x, worldPos.y));
-                
                 for (let dy = 0; dy > -2; dy--) {
                     for (let dx = 0; dx < 2; dx++) {
                         this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
                     }
                 }
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: gridX, y: gridY };
             }
-            return;
-        }
-
-        if (this.selectedBuildType === 'coal-generator') {
-            const resourceIndex = this.entities.resources.findIndex(r => {
-                return Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'coal';
-            });
+        } else if (this.selectedBuildType === 'coal-generator') {
+            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'coal');
             if (resourceIndex !== -1) {
                 this.entities.resources.splice(resourceIndex, 1);
                 const { CoalGenerator } = this.entityClasses;
                 this.entities.generators.push(new CoalGenerator(pos.x, pos.y));
                 tileInfo.tile.occupied = true;
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
             }
-            return;
-        }
-
-        if (this.selectedBuildType === 'oil-generator') {
-            const resourceIndex = this.entities.resources.findIndex(r => {
-                return Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'oil';
-            });
+        } else if (this.selectedBuildType === 'oil-generator') {
+            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'oil');
             if (resourceIndex !== -1) {
                 this.entities.resources.splice(resourceIndex, 1);
-                const { OilGenerator } = this.entityClasses;
-                this.entities.generators.push(new OilGenerator(pos.x, pos.y));
+                const { OilGenerator } = this.entities.generators.push(new OilGenerator(pos.x, pos.y));
                 tileInfo.tile.occupied = true;
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
             }
-            return;
-        }
-
-        if (this.selectedBuildType === 'refinery') {
-            const resourceIndex = this.entities.resources.findIndex(r => {
-                return Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'oil';
-            });
+        } else if (this.selectedBuildType === 'refinery') {
+            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'oil');
             if (resourceIndex !== -1) {
                 this.entities.resources.splice(resourceIndex, 1);
                 const { Refinery } = this.entityClasses;
                 this.entities.refineries.push(new Refinery(pos.x, pos.y));
                 tileInfo.tile.occupied = true;
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
             }
-            return;
-        }
-
-        if (this.selectedBuildType === 'gold-mine') {
-            const resourceIndex = this.entities.resources.findIndex(r => {
-                return Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'gold';
-            });
+        } else if (this.selectedBuildType === 'gold-mine') {
+            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'gold');
             if (resourceIndex !== -1) {
                 this.entities.resources.splice(resourceIndex, 1);
                 const { GoldMine } = this.entityClasses;
                 this.entities.goldMines.push(new GoldMine(pos.x, pos.y));
                 tileInfo.tile.occupied = true;
-                this.resources.gold -= cost;
+                placed = true;
                 this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
             }
-            return;
-        }
-
-        if (tileInfo.tile.buildable && !tileInfo.tile.occupied) {
+        } else if (tileInfo.tile.buildable && !tileInfo.tile.occupied) {
             if (this.selectedBuildType === 'power-line') {
                 const { PowerLine } = this.entityClasses;
                 this.entities.powerLines.push(new PowerLine(pos.x, pos.y));
@@ -1034,79 +1129,9 @@ export class GameEngine {
             } else if (this.selectedBuildType === 'substation') {
                 const { Substation } = this.entityClasses;
                 this.entities.substations.push(new Substation(pos.x, pos.y));
-            } else if (this.selectedBuildType === 'storage') {
-                const gridX = tileInfo.x;
-                const gridY = tileInfo.y;
-                let canPlace = true;
-
-                for (let dy = 0; dy > -2; dy--) { // 0, -1
-                    for (let dx = 0; dx < 2; dx++) { // 0, 1
-                        const nx = gridX + dx;
-                        const ny = gridY + dy;
-                        if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
-                            canPlace = false; break;
-                        }
-                        const tile = this.tileMap.grid[ny][nx];
-                        if (!tile.buildable || tile.occupied || !tile.visible) {
-                            canPlace = false; break;
-                        }
-                    }
-                    if (!canPlace) break;
-                }
-
-                if (canPlace) {
-                    const worldPos = {
-                        x: (gridX + 1) * this.tileMap.tileSize,
-                        y: (gridY) * this.tileMap.tileSize
-                    };
-                    const { Storage } = this.entityClasses;
-                    this.entities.storage.push(new Storage(worldPos.x, worldPos.y));
-                    
-                    for (let dy = 0; dy > -2; dy--) {
-                        for (let dx = 0; dx < 2; dx++) {
-                            this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                        }
-                    }
-                    this.resources.gold -= cost;
-                }
-            } else if (this.selectedBuildType === 'armory') {
-                const gridX = tileInfo.x;
-                const gridY = tileInfo.y;
-                let canPlace = true;
-
-                for (let dy = 0; dy > -2; dy--) {
-                    for (let dx = 0; dx < 2; dx++) {
-                        const nx = gridX + dx;
-                        const ny = gridY + dy;
-                        if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
-                            canPlace = false; break;
-                        }
-                        const tile = this.tileMap.grid[ny][nx];
-                        if (!tile.buildable || tile.occupied || !tile.visible) {
-                            canPlace = false; break;
-                        }
-                    }
-                    if (!canPlace) break;
-                }
-
-                if (canPlace) {
-                    const worldPos = {
-                        x: (gridX + 1) * this.tileMap.tileSize,
-                        y: (gridY) * this.tileMap.tileSize
-                    };
-                    const { Armory } = this.entityClasses;
-                    this.entities.armories.push(new Armory(worldPos.x, worldPos.y));
-                    
-                    for (let dy = 0; dy > -2; dy--) {
-                        for (let dx = 0; dx < 2; dx++) {
-                            this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                        }
-                    }
-                    this.resources.gold -= cost;
-                }
-            } else if (this.selectedBuildType === 'airport') {
-                const { Airport } = this.entityClasses;
-                this.entities.airports.push(new Airport(pos.x, pos.y));
+            } else if (this.selectedBuildType === 'wall') {
+                const { Wall } = this.entityClasses;
+                this.entities.walls.push(new Wall(pos.x, pos.y));
             } else {
                 const { Turret } = this.entityClasses;
                 const turret = new Turret(pos.x, pos.y, this.selectedBuildType);
@@ -1115,10 +1140,12 @@ export class GameEngine {
                 this.entities.turrets.push(turret);
             }
             tileInfo.tile.occupied = true;
-            this.resources.gold -= cost;
+            placed = true;
             this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
+        }
 
-            // Consume the item if it was used for this build
+        if (placed) {
+            this.resources.gold -= cost;
             if (isFromItem) {
                 this.inventory.splice(this.pendingItemIndex, 1);
                 this.pendingItemIndex = -1;
@@ -1126,7 +1153,9 @@ export class GameEngine {
                 this.updateInventoryUI();
                 this.hideUITooltip();
             }
+            return true;
         }
+        return false;
     }
 
     handleSell(worldX, worldY) {
@@ -1206,26 +1235,6 @@ export class GameEngine {
                 this.addToInventory(item);
             }
         }
-    }
-
-    onWaveComplete() {
-        this.gameState = 'upgrading';
-        const upgrades = this.upgradeManager.getRandomUpgrades(3);
-        const container = document.getElementById('upgrade-cards');
-        container.innerHTML = '';
-        upgrades.forEach(upg => {
-            const card = document.createElement('div');
-            card.className = 'upgrade-card';
-            card.innerHTML = `<h3>${upg.icon} ${upg.name}</h3><p>${upg.desc}</p>`;
-            card.onclick = () => {
-                upg.apply(); // 웨이브 업그레이드는 즉시 적용
-                document.getElementById('upgrade-modal').classList.add('hidden');
-                this.gameState = 'playing';
-                this.waveManager.startWave();
-            };
-            container.appendChild(card);
-        });
-        document.getElementById('upgrade-modal').classList.remove('hidden');
     }
 
     addToInventory(item) {
@@ -1374,9 +1383,6 @@ export class GameEngine {
         this.updateOilNetwork();
         this.updateVisibility();
 
-        const now = Date.now();
-        this.waveManager.update(now);
-
         const checkDestruction = (list) => {
             return list.filter(obj => {
                 if (obj.hp <= 0) {
@@ -1459,8 +1465,6 @@ export class GameEngine {
             document.getElementById('game-over-modal').classList.remove('hidden');
         }
 
-        document.getElementById('wave-count').textContent = this.waveManager.wave;
-        document.getElementById('base-hp').textContent = Math.ceil(this.entities.base.hp);
         document.getElementById('resource-gold').textContent = Math.floor(this.resources.gold);
         document.getElementById('resource-oil').textContent = Math.floor(this.resources.oil);
 
@@ -1527,9 +1531,43 @@ export class GameEngine {
             this.ctx.save();
             this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 초록색 테두리
             this.ctx.lineWidth = 1;
-            this.selectedEntities.forEach(unit => {
-                const size = unit.size || 20;
-                this.ctx.strokeRect(unit.x - size/2, unit.y - size/2, size, size);
+            this.selectedEntities.forEach(ent => {
+                const bounds = ent.getSelectionBounds();
+                const w = bounds.right - bounds.left;
+                const h = bounds.bottom - bounds.top;
+                this.ctx.strokeRect(bounds.left, bounds.top, w, h);
+
+                // Draw attack range for each selected unit
+                if (ent.attackRange) {
+                    this.ctx.save();
+                    this.ctx.beginPath();
+                    this.ctx.arc(ent.x, ent.y, ent.attackRange, 0, Math.PI * 2);
+                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // 연한 흰색 원
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+
+                // Draw movement line if destination exists
+                if (ent.destination) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(ent.x, ent.y);
+                    this.ctx.lineTo(ent.destination.x, ent.destination.y);
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+
+                    // Draw destination X marker
+                    this.ctx.beginPath();
+                    const markerSize = 5;
+                    this.ctx.moveTo(ent.destination.x - markerSize, ent.destination.y - markerSize);
+                    this.ctx.lineTo(ent.destination.x + markerSize, ent.destination.y + markerSize);
+                    this.ctx.moveTo(ent.destination.x + markerSize, ent.destination.y - markerSize);
+                    this.ctx.lineTo(ent.destination.x - markerSize, ent.destination.y + markerSize);
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                    this.ctx.stroke();
+                }
             });
             this.ctx.restore();
         }
@@ -1541,34 +1579,14 @@ export class GameEngine {
             this.ctx.shadowBlur = 5;
             this.ctx.shadowColor = 'rgba(0, 255, 204, 0.5)';
             
-            // 건물의 실제 크기에 맞춰 사각형 테두리 그리기
-            // 대형 건물(width/height 있음)과 일반 건물(size 있음) 구분
-            const w = this.selectedEntity.width || this.selectedEntity.size || 40;
-            const h = this.selectedEntity.height || this.selectedEntity.size || 40;
+            const bounds = this.selectedEntity.getSelectionBounds();
+            const w = bounds.right - bounds.left;
+            const h = bounds.bottom - bounds.top;
             
-            this.ctx.strokeRect(
-                this.selectedEntity.x - w/2, 
-                this.selectedEntity.y - h/2, 
-                w, 
-                h
-            );
+            this.ctx.strokeRect(bounds.left, bounds.top, w, h);
             
-            // 병기창 선택 시 수비 범위(Patrol Radius) 표시
-            if (this.selectedEntity.type === 'armory') {
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.arc(this.selectedEntity.x, this.selectedEntity.y, this.selectedEntity.patrolRadius, 0, Math.PI * 2);
-                this.ctx.strokeStyle = 'rgba(57, 255, 20, 0.4)'; // 네온 그린
-                this.ctx.setLineDash([10, 10]);
-                this.ctx.lineWidth = 2;
-                this.ctx.stroke();
-                this.ctx.fillStyle = 'rgba(57, 255, 20, 0.05)';
-                this.ctx.fill();
-                this.ctx.restore();
-            }
-
             // 유닛(전차, 미사일) 선택 시 공격 사거리(Attack Range) 표시
-            if (this.selectedEntity.attackRange && this.selectedEntity.type !== 'armory') {
+            if (this.selectedEntity.attackRange) {
                 this.ctx.save();
                 this.ctx.beginPath();
                 this.ctx.arc(this.selectedEntity.x, this.selectedEntity.y, this.selectedEntity.attackRange, 0, Math.PI * 2);
@@ -2250,8 +2268,18 @@ export class GameEngine {
         if (mouseY < edgeThreshold) { this.camera.y += edgeScrollSpeed; direction = 'n' + direction; }
         else if (mouseY > height - edgeThreshold) { this.camera.y -= edgeScrollSpeed; direction = 's' + direction; }
         const scClasses = ['sc-n', 'sc-s', 'sc-e', 'sc-w', 'sc-ne', 'sc-nw', 'sc-se', 'sc-sw'];
+        
+        const oldDirection = scClasses.find(cls => document.body.classList.contains(cls));
         document.body.classList.remove(...scClasses);
-        if (direction && !this.isBuildMode) { document.body.classList.add(`sc-${direction}`); }
+        
+        if (direction && !this.isBuildMode) { 
+            document.body.classList.add(`sc-${direction}`); 
+        }
+        
+        // If direction changed or stopped, update mode cursors
+        if (direction !== (oldDirection ? oldDirection.replace('sc-', '') : '')) {
+            this.updateCursor();
+        }
     }
 
     loop(timestamp) {
@@ -2263,7 +2291,6 @@ export class GameEngine {
     }
 
     start() {
-        this.waveManager.startWave();
         requestAnimationFrame((t) => this.loop(t));
     }
 }
