@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher } from '../entities/Entities.js';
+import { Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 
 export class GameEngine {
@@ -12,7 +12,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Base, Turret, Enemy, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher };
+        this.entityClasses = { Base, Turret, Enemy, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks };
         this.tileMap = new TileMap(this.canvas);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
@@ -29,6 +29,7 @@ export class GameEngine {
             goldMines: [],
             storage: [],
             armories: [],
+            barracks: [],
             units: [],
             pipeLines: [],
             scoutPlanes: [],
@@ -42,25 +43,32 @@ export class GameEngine {
         // Spawn starting units near base
         const startTank = new Tank(basePos.x - 60, basePos.y + 60, this);
         const startMissile = new MissileLauncher(basePos.x + 60, basePos.y + 60, this);
+        const startInfantry = new Rifleman(basePos.x, basePos.y + 80, this);
         startTank.destination = { x: basePos.x - 100, y: basePos.y + 100 };
         startMissile.destination = { x: basePos.x + 100, y: basePos.y + 100 };
-        this.entities.units.push(startTank, startMissile);
+        startInfantry.destination = { x: basePos.x, y: basePos.y + 120 };
+        this.entities.units.push(startTank, startMissile, startInfantry);
 
         this.updateVisibility(); // 초기 시야 확보
 
-        this.buildingCosts = {
-            'turret-basic': 50,
-            'power-line': 10,
-            'pipe-line': 10,
-            'substation': 100,
-            'wall': 30,
-            'airport': 500,
-            'refinery': 300,
-            'gold-mine': 400,
-            'storage': 200,
-            'armory': 600,
-            'coal-generator': 200,
-            'oil-generator': 200
+        this.buildingRegistry = {
+            'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets' },
+            'turret-fast': { cost: 100, size: [1, 1], className: 'Turret', list: 'turrets' },
+            'turret-sniper': { cost: 150, size: [1, 1], className: 'Turret', list: 'turrets' },
+            'turret-tesla': { cost: 200, size: [1, 1], className: 'Turret', list: 'turrets' },
+            'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets' },
+            'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines' },
+            'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines' },
+            'substation': { cost: 100, size: [1, 1], className: 'Substation', list: 'substations' },
+            'wall': { cost: 30, size: [1, 1], className: 'Wall', list: 'walls' },
+            'airport': { cost: 500, size: [2, 3], className: 'Airport', list: 'airports' },
+            'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil' },
+            'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold' },
+            'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage' },
+            'armory': { cost: 600, size: [2, 2], className: 'Armory', list: 'armories' },
+            'barracks': { cost: 400, size: [2, 2], className: 'Barracks', list: 'barracks' },
+            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal' },
+            'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil' }
         };
 
         this.resources = { gold: 999999, oil: 0 };
@@ -222,7 +230,9 @@ export class GameEngine {
             'storage': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><rect x="5" y="15" width="30" height="20" fill="#333" stroke="#00d2ff" stroke-width="2"/><path d="M5 15 L20 5 L35 15" fill="#555" stroke="#00d2ff" stroke-width="2"/><rect x="18" y="25" width="4" height="10" fill="#00d2ff" opacity="0.5"/></svg></div>`,
             'substation': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#333" stroke="#00ffcc" stroke-width="2"/><rect x="14" y="14" width="12" height="12" fill="#00ffcc" opacity="0.5"/><rect x="17" y="6" width="6" height="4" fill="#666"/></svg></div>`,
             'airport': `<div class="btn-icon"><svg viewBox="0 0 40 40"><rect x="5" y="15" width="30" height="15" fill="#444" stroke="#aaa" stroke-width="2"/><path d="M10 15 L20 5 L30 15" fill="#666" stroke="#aaa" stroke-width="2"/><rect x="18" y="20" width="4" height="10" fill="#fff" opacity="0.3"/></svg></div>`,
+            'barracks': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><rect x="5" y="10" width="30" height="25" fill="#2d3436" stroke="#1e272e" stroke-width="2"/><path d="M2 20 L20 5 L38 20" fill="#4a5d4b" stroke="#1e272e" stroke-width="2"/><rect x="15" y="25" width="10" height="10" fill="#111" stroke="#39ff14" stroke-width="1"/><rect x="8" y="18" width="6" height="4" fill="#00d2ff" opacity="0.5"/></svg></div>`,
             'armory': `<div class="btn-icon"><svg viewBox="0 0 40 40"><rect x="5" y="10" width="30" height="25" fill="#34495e" stroke="#2c3e50" stroke-width="2"/><rect x="10" y="20" width="20" height="15" fill="#111"/><path d="M5 10 L20 2 L35 10" fill="#2c3e50" stroke="#2c3e50" stroke-width="2"/></svg></div>`,
+            'skill-rifleman': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><circle cx="20" cy="15" r="6" fill="#2d3436"/><path d="M12 25 L28 25 L20 15 Z" fill="#556644"/><rect x="22" y="20" width="8" height="2" fill="#636e72"/></svg></div>`,
             'skill-scout': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="#00d2ff" stroke-width="2"/><path d="M20 10 V30 M10 20 H30" stroke="#00d2ff" stroke-width="1"/><circle cx="20" cy="20" r="5" fill="#00d2ff" opacity="0.5"/></svg></div>`,
             'skill-cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
             'skill-tank': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><rect x="10" y="15" width="20" height="15" fill="#2c3e50" stroke="#39ff14" stroke-width="2"/><circle cx="20" cy="22" r="5" fill="#34495e"/><rect x="20" y="20" width="12" height="4" fill="#39ff14"/></svg></div>`,
@@ -238,6 +248,7 @@ export class GameEngine {
             'menu:military': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#333" stroke="#ff3131" stroke-width="2"/><path d="M5 15 L10 10 M35 15 L30 10 M20 5 V10" stroke="#ff3131" stroke-width="2"/><path d="M15 20 L25 20 M20 15 V25" stroke="#ff3131" stroke-width="2"/></svg></div>`,
             'skill:tank': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><rect x="10" y="15" width="20" height="15" fill="#2c3e50" stroke="#39ff14" stroke-width="2"/><circle cx="20" cy="22" r="5" fill="#34495e"/><rect x="20" y="20" width="12" height="4" fill="#39ff14"/></svg></div>`,
             'skill:missile': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="15" width="20" height="15" fill="#444" stroke="#ff3131" stroke-width="2"/><rect x="15" y="10" width="10" height="15" fill="#222"/><path d="M20 5 L24 12 L16 12 Z" fill="#ff3131"/></svg></div>`,
+            'skill:rifleman': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><circle cx="20" cy="15" r="6" fill="#2d3436"/><path d="M12 25 L28 25 L20 15 Z" fill="#556644"/><rect x="22" y="20" width="8" height="2" fill="#636e72"/></svg></div>`,
             'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
             'skill:scout': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="#00d2ff" stroke-width="2"/><path d="M20 10 V30 M10 20 H30" stroke="#00d2ff" stroke-width="1"/><circle cx="20" cy="20" r="5" fill="#00d2ff" opacity="0.5"/></svg></div>`,
             'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
@@ -266,7 +277,8 @@ export class GameEngine {
 
         if (this.selectedEntities.length > 0) {
             // Check if all selected entities are units
-            const allUnits = this.selectedEntities.every(ent => ent.type === 'tank' || ent.type === 'missile-launcher');
+            const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
+            const allUnits = this.selectedEntities.every(ent => unitTypes.includes(ent.type));
             // Check if all selected entities are of the same building type
             const firstType = this.selectedEntities[0].type;
             const allSameType = this.selectedEntities.every(ent => ent.type === firstType);
@@ -340,6 +352,15 @@ export class GameEngine {
                     { type: 'menu:main', name: '취소', action: 'menu:main' },
                     null, null
                 ];
+            } else if (type === 'barracks') {
+                menuType = 'barracks';
+                header.textContent = '병영';
+                items = [
+                    { type: 'skill-rifleman', name: '소총병 생산', cost: 100, icon: '💂', action: 'skill:rifleman' },
+                    null, null, null, null, null,
+                    { type: 'menu:main', name: '취소', action: 'menu:main' },
+                    null, null
+                ];
             } else if (type === 'airport') {
                 menuType = 'airport';
                 header.textContent = '공항';
@@ -398,7 +419,8 @@ export class GameEngine {
                 items = [
                     { type: 'armory', name: '병기창', cost: 600 },
                     { type: 'airport', name: '공항', cost: 500 },
-                    null, null, null, null,
+                    { type: 'barracks', name: '병영', cost: 400 },
+                    null, null, null,
                     { type: 'menu:main', name: '뒤로', action: 'menu:main' },
                     null,
                     { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
@@ -438,9 +460,16 @@ export class GameEngine {
 
             // Determine which icon key to use
             const iconKey = item.action || item.type;
-            const iconHtml = this.getIconSVG(iconKey);
+            let iconHtml = this.getIconSVG(iconKey);
             
-            btn.innerHTML = iconHtml; // Icons only
+            // --- Mandatory Icon Check ---
+            if (!iconHtml) {
+                console.warn(`[GameEngine] Icon missing for key: ${iconKey}`);
+                // Use a default placeholder icon if none found
+                iconHtml = `<div class="btn-icon gray"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#555" stroke="#fff" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#fff" font-size="12">?</text></svg></div>`;
+            }
+            
+            btn.innerHTML = iconHtml; // Icons only (Mandatory)
 
             btn.onclick = (e) => {
                 e.stopPropagation();
@@ -499,7 +528,7 @@ export class GameEngine {
             else this.startSellMode();
         } else if (action.startsWith('skill:')) {
             const skill = action.split(':')[1];
-            if (skill === 'tank' || skill === 'missile' || skill === 'cargo') {
+            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman') {
                 if (this.selectedEntity && this.selectedEntity.requestUnit) {
                     const cost = item.cost || 0;
                     if (this.resources.gold >= cost) {
@@ -747,6 +776,7 @@ export class GameEngine {
             ...this.entities.airports,
             ...this.entities.storage,
             ...this.entities.armories,
+            ...this.entities.barracks,
             ...this.entities.turrets,
             ...this.entities.generators,
             ...this.entities.powerLines,
@@ -765,7 +795,8 @@ export class GameEngine {
 
         if (found) {
             this.selectedEntity = found;
-            if (found.type === 'tank' || found.type === 'missile-launcher') {
+            const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
+            if (unitTypes.includes(found.type)) {
                 this.selectedEntities = [found];
             }
             if (found.type === 'airport') this.selectedAirport = found;
@@ -800,6 +831,7 @@ export class GameEngine {
             ...this.entities.goldMines,
             ...this.entities.storage,
             ...this.entities.armories,
+            ...this.entities.barracks,
             this.entities.base
         ];
 
@@ -813,7 +845,8 @@ export class GameEngine {
             const overlaps = !(bounds.right < left || bounds.left > right || bounds.bottom < top || bounds.top > bottom);
             
             if (overlaps) {
-                if (ent.type === 'tank' || ent.type === 'missile-launcher') {
+                const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
+                if (unitTypes.includes(ent.type)) {
                     selectedUnits.push(ent);
                 } else {
                     selectedBuildings.push(ent);
@@ -970,190 +1003,99 @@ export class GameEngine {
         if (!this.isBuildMode || !this.selectedBuildType) return false;
 
         const tileInfo = this.tileMap.getTileAt(worldX, worldY);
-        if (!tileInfo || !tileInfo.tile.visible) return false; // 안개 지역 건설 불가
+        const buildInfo = this.buildingRegistry[this.selectedBuildType];
+        if (!tileInfo || !tileInfo.tile.visible || !buildInfo) return false;
 
-        // If using an item, cost is 0 (already paid via roll)
+        // If using an item, cost is 0
         const isFromItem = this.pendingItemIndex !== -1;
-        const cost = isFromItem ? 0 : (this.buildingCosts[this.selectedBuildType] || 50);
+        const cost = isFromItem ? 0 : buildInfo.cost;
 
         if (this.resources.gold < cost) return false;
 
-        const pos = this.tileMap.gridToWorld(tileInfo.x, tileInfo.y);
-        let placed = false;
+        const [tw, th] = buildInfo.size;
+        const gridX = tileInfo.x;
+        const gridY = tileInfo.y;
+        let canPlace = true;
 
-        if (this.selectedBuildType === 'airport') {
-            const gridX = tileInfo.x;
-            const gridY = tileInfo.y;
-            let canPlace = true;
-            for (let dy = 0; dy > -3; dy--) {
-                for (let dx = 0; dx < 2; dx++) {
-                    const nx = gridX + dx;
-                    const ny = gridY + dy;
-                    if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
-                        canPlace = false; break;
-                    }
-                    const tile = this.tileMap.grid[ny][nx];
-                    if (!tile.buildable || tile.occupied || !tile.visible) {
-                        canPlace = false; break;
-                    }
+        // 1. Validate area for multi-tile buildings
+        for (let dy = 0; dy > -th; dy--) {
+            for (let dx = 0; dx < tw; dx++) {
+                const nx = gridX + dx;
+                const ny = gridY + dy;
+                if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
+                    canPlace = false; break;
                 }
-                if (!canPlace) break;
-            }
-            if (canPlace) {
-                const worldPos = {
-                    x: (gridX + 1) * this.tileMap.tileSize,
-                    y: (gridY - 0.5) * this.tileMap.tileSize
-                };
-                const { Airport } = this.entityClasses;
-                this.entities.airports.push(new Airport(worldPos.x, worldPos.y));
-                for (let dy = 0; dy > -3; dy--) {
-                    for (let dx = 0; dx < 2; dx++) {
-                        this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                    }
+                const tile = this.tileMap.grid[ny][nx];
+                if (!tile.buildable || tile.occupied || !tile.visible) {
+                    canPlace = false; break;
                 }
-                placed = true;
-                this.lastPlacedGrid = { x: gridX, y: gridY };
             }
-        } else if (this.selectedBuildType === 'storage') {
-            const gridX = tileInfo.x;
-            const gridY = tileInfo.y;
-            let canPlace = true;
-            for (let dy = 0; dy > -2; dy--) {
-                for (let dx = 0; dx < 2; dx++) {
-                    const nx = gridX + dx;
-                    const ny = gridY + dy;
-                    if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
-                        canPlace = false; break;
-                    }
-                    const tile = this.tileMap.grid[ny][nx];
-                    if (!tile.buildable || tile.occupied || !tile.visible) {
-                        canPlace = false; break;
-                    }
-                }
-                if (!canPlace) break;
-            }
-            if (canPlace) {
-                const worldPos = {
-                    x: (gridX + 1) * this.tileMap.tileSize,
-                    y: (gridY) * this.tileMap.tileSize
-                };
-                const { Storage } = this.entityClasses;
-                this.entities.storage.push(new Storage(worldPos.x, worldPos.y));
-                for (let dy = 0; dy > -2; dy--) {
-                    for (let dx = 0; dx < 2; dx++) {
-                        this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                    }
-                }
-                placed = true;
-                this.lastPlacedGrid = { x: gridX, y: gridY };
-            }
-        } else if (this.selectedBuildType === 'armory') {
-            const gridX = tileInfo.x;
-            const gridY = tileInfo.y;
-            let canPlace = true;
-            for (let dy = 0; dy > -2; dy--) {
-                for (let dx = 0; dx < 2; dx++) {
-                    const nx = gridX + dx;
-                    const ny = gridY + dy;
-                    if (nx < 0 || nx >= this.tileMap.cols || ny < 0 || ny >= this.tileMap.rows) {
-                        canPlace = false; break;
-                    }
-                    const tile = this.tileMap.grid[ny][nx];
-                    if (!tile.buildable || tile.occupied || !tile.visible) {
-                        canPlace = false; break;
-                    }
-                }
-                if (!canPlace) break;
-            }
-            if (canPlace) {
-                const worldPos = {
-                    x: (gridX + 1) * this.tileMap.tileSize,
-                    y: (gridY) * this.tileMap.tileSize
-                };
-                const { Armory } = this.entityClasses;
-                this.entities.armories.push(new Armory(worldPos.x, worldPos.y));
-                for (let dy = 0; dy > -2; dy--) {
-                    for (let dx = 0; dx < 2; dx++) {
-                        this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                    }
-                }
-                placed = true;
-                this.lastPlacedGrid = { x: gridX, y: gridY };
-            }
-        } else if (this.selectedBuildType === 'coal-generator') {
-            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'coal');
-            if (resourceIndex !== -1) {
-                this.entities.resources.splice(resourceIndex, 1);
-                const { CoalGenerator } = this.entityClasses;
-                this.entities.generators.push(new CoalGenerator(pos.x, pos.y));
-                tileInfo.tile.occupied = true;
-                placed = true;
-                this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
-            }
-        } else if (this.selectedBuildType === 'oil-generator') {
-            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'oil');
-            if (resourceIndex !== -1) {
-                this.entities.resources.splice(resourceIndex, 1);
-                const { OilGenerator } = this.entities.generators.push(new OilGenerator(pos.x, pos.y));
-                tileInfo.tile.occupied = true;
-                placed = true;
-                this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
-            }
-        } else if (this.selectedBuildType === 'refinery') {
-            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'oil');
-            if (resourceIndex !== -1) {
-                this.entities.resources.splice(resourceIndex, 1);
-                const { Refinery } = this.entityClasses;
-                this.entities.refineries.push(new Refinery(pos.x, pos.y));
-                tileInfo.tile.occupied = true;
-                placed = true;
-                this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
-            }
-        } else if (this.selectedBuildType === 'gold-mine') {
-            const resourceIndex = this.entities.resources.findIndex(r => Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === 'gold');
-            if (resourceIndex !== -1) {
-                this.entities.resources.splice(resourceIndex, 1);
-                const { GoldMine } = this.entityClasses;
-                this.entities.goldMines.push(new GoldMine(pos.x, pos.y));
-                tileInfo.tile.occupied = true;
-                placed = true;
-                this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
-            }
-        } else if (tileInfo.tile.buildable && !tileInfo.tile.occupied) {
-            if (this.selectedBuildType === 'power-line') {
-                const { PowerLine } = this.entityClasses;
-                this.entities.powerLines.push(new PowerLine(pos.x, pos.y));
-            } else if (this.selectedBuildType === 'pipe-line') {
-                const { PipeLine } = this.entityClasses;
-                this.entities.pipeLines.push(new PipeLine(pos.x, pos.y));
-            } else if (this.selectedBuildType === 'substation') {
-                const { Substation } = this.entityClasses;
-                this.entities.substations.push(new Substation(pos.x, pos.y));
-            } else if (this.selectedBuildType === 'wall') {
-                const { Wall } = this.entityClasses;
-                this.entities.walls.push(new Wall(pos.x, pos.y));
-            } else {
-                const { Turret } = this.entityClasses;
-                const turret = new Turret(pos.x, pos.y, this.selectedBuildType);
-                turret.damage += (this.globalStats.damage - 10);
-                turret.range += (this.globalStats.range - 150);
-                this.entities.turrets.push(turret);
-            }
-            tileInfo.tile.occupied = true;
-            placed = true;
-            this.lastPlacedGrid = { x: tileInfo.x, y: tileInfo.y };
+            if (!canPlace) break;
         }
 
-        if (placed) {
-            this.resources.gold -= cost;
-            if (isFromItem) {
-                this.inventory.splice(this.pendingItemIndex, 1);
-                this.pendingItemIndex = -1;
-                this.cancelBuildMode();
-                this.updateInventoryUI();
-                this.hideUITooltip();
+        // 2. Resource specific check (Generators/Mines)
+        let resourceIndex = -1;
+        if (buildInfo.onResource) {
+            const pos = this.tileMap.gridToWorld(gridX, gridY);
+            resourceIndex = this.entities.resources.findIndex(r => 
+                Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === buildInfo.onResource
+            );
+            if (resourceIndex === -1) canPlace = false;
+        }
+
+        if (canPlace) {
+            let worldPos;
+            if (tw > 1 || th > 1) {
+                worldPos = {
+                    x: (gridX + tw / 2) * this.tileMap.tileSize,
+                    y: (gridY - (th / 2 - 1)) * this.tileMap.tileSize
+                };
+            } else {
+                worldPos = this.tileMap.gridToWorld(gridX, gridY);
             }
-            return true;
+
+            // Instantiate class
+            const ClassRef = this.entityClasses[buildInfo.className];
+            if (ClassRef) {
+                let newEntity;
+                if (buildInfo.className === 'Turret') {
+                    newEntity = new ClassRef(worldPos.x, worldPos.y, this.selectedBuildType);
+                    newEntity.damage += (this.globalStats.damage - 10);
+                    newEntity.range += (this.globalStats.range - 150);
+                } else {
+                    newEntity = new ClassRef(worldPos.x, worldPos.y, this);
+                }
+
+                // Add to appropriate list
+                const listName = buildInfo.list;
+                if (this.entities[listName]) {
+                    this.entities[listName].push(newEntity);
+                }
+
+                // Mark tiles as occupied
+                for (let dy = 0; dy > -th; dy--) {
+                    for (let dx = 0; dx < tw; dx++) {
+                        this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
+                    }
+                }
+
+                // Remove resource if extracted
+                if (resourceIndex !== -1) {
+                    this.entities.resources.splice(resourceIndex, 1);
+                }
+
+                this.resources.gold -= cost;
+                this.lastPlacedGrid = { x: gridX, y: gridY };
+
+                if (isFromItem) {
+                    this.inventory.splice(this.pendingItemIndex, 1);
+                    this.pendingItemIndex = -1;
+                    this.cancelBuildMode();
+                    this.updateInventoryUI();
+                    this.hideUITooltip();
+                }
+                return true;
+            }
         }
         return false;
     }
@@ -1166,18 +1108,15 @@ export class GameEngine {
         let listName = '';
         let foundIdx = -1;
 
-        // 모든 건물 리스트 통합 탐색
-        const lists = ['turrets', 'generators', 'powerLines', 'substations', 'walls', 'airports', 'refineries', 'goldMines', 'storage', 'armories', 'pipeLines'];
+        // All potential building lists
+        const lists = ['turrets', 'generators', 'powerLines', 'substations', 'walls', 'airports', 'refineries', 'goldMines', 'storage', 'armories', 'pipeLines', 'barracks'];
         
         for (const name of lists) {
             const idx = this.entities[name].findIndex(e => {
-                // 건물의 width/height가 있으면 사용, 없으면 기본값 40(1x1) 사용
-                const w = e.width || 40;
-                const h = e.height || 40;
-                
-                // 클릭 지점이 건물의 Bounding Box 안에 있는지 확인
-                return worldX >= e.x - w/2 && worldX <= e.x + w/2 && 
-                       worldY >= e.y - h/2 && worldY <= e.y + h/2;
+                if (!e) return false;
+                const bounds = e.getSelectionBounds();
+                return worldX >= bounds.left && worldX <= bounds.right && 
+                       worldY >= bounds.top && worldY <= bounds.bottom;
             });
 
             if (idx !== -1) {
@@ -1189,38 +1128,26 @@ export class GameEngine {
         }
 
         if (foundEntity) {
-            const cost = this.buildingCosts[foundEntity.type] || 0;
+            const buildInfo = this.buildingRegistry[foundEntity.type];
+            const cost = buildInfo ? buildInfo.cost : 0;
             this.resources.gold += Math.floor(cost * 0.1);
             
-            // 타일 점유 해제 로직 일반화
-            const w = foundEntity.width || 40;
-            const h = foundEntity.height || 40;
-            const tilesW = Math.ceil(w / 40);
-            const tilesH = Math.ceil(h / 40);
-
-            // 건물의 중심점을 기준으로 점유했던 모든 타일 좌표 계산
-            const startX = Math.round(foundEntity.x / 40 - tilesW / 2 + (tilesW % 2 === 0 ? 0 : 0));
-            const startY = Math.round(foundEntity.y / 40 - tilesH / 2 + (tilesH % 2 === 0 ? 0 : 0.5));
-
-            // 대형 건물의 경우 점유한 모든 타일 비우기
-            if (tilesW > 1 || tilesH > 1) {
-                for (let dy = 0; dy < tilesH; dy++) {
-                    for (let dx = 0; dx < tilesW; dx++) {
-                        const ty = Math.floor(foundEntity.y / 40 - tilesH / 2 + dy + (tilesH % 2 === 0 ? 0.5 : 0));
-                        const tx = Math.floor(foundEntity.x / 40 - tilesW / 2 + dx + (tilesW % 2 === 0 ? 0.5 : 0));
-                        if (this.tileMap.grid[ty] && this.tileMap.grid[ty][tx]) {
-                            this.tileMap.grid[ty][tx].occupied = false;
-                        }
+            // Generic tile clearing logic: iterate all tiles and free those belonging to this entity
+            const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
+            
+            for (let ry = 0; ry < this.tileMap.rows; ry++) {
+                for (let rx = 0; rx < this.tileMap.cols; rx++) {
+                    const worldPos = this.tileMap.gridToWorld(rx, ry);
+                    const bounds = foundEntity.getSelectionBounds();
+                    // If tile center is within entity selection bounds, free it
+                    if (worldPos.x >= bounds.left && worldPos.x <= bounds.right && 
+                        worldPos.y >= bounds.top && worldPos.y <= bounds.bottom) {
+                        this.tileMap.grid[ry][rx].occupied = false;
                     }
                 }
-            } else {
-                // 1x1 건물
-                const gp = this.tileMap.worldToGrid(foundEntity.x, foundEntity.y);
-                if (this.tileMap.grid[gp.y] && this.tileMap.grid[gp.y][gp.x])
-                    this.tileMap.grid[gp.y][gp.x].occupied = false;
             }
 
-            // 리스트에서 제거
+            // Remove from list
             this.entities[listName].splice(foundIdx, 1);
         }
     }
@@ -1439,6 +1366,8 @@ export class GameEngine {
                 this.entities.storage = checkDestruction(this.entities.storage);
                 this.entities.armories.forEach(a => a.update(deltaTime, this));
                 this.entities.armories = checkDestruction(this.entities.armories);
+                this.entities.barracks.forEach(b => b.update(deltaTime, this));
+                this.entities.barracks = checkDestruction(this.entities.barracks);
                 this.entities.units.forEach(u => u.update(deltaTime));
                 this.entities.units = this.entities.units.filter(u => u.alive);
                 this.entities.scoutPlanes.forEach(p => p.update(deltaTime));
@@ -1454,7 +1383,7 @@ export class GameEngine {
             return enemy.active;
         });
 
-        const buildings = [...this.entities.turrets, ...this.entities.generators, ...this.entities.powerLines, ...this.entities.substations, ...this.entities.walls, ...this.entities.airports, ...this.entities.refineries, ...this.entities.goldMines, ...this.entities.storage, ...this.entities.armories, ...this.entities.units, ...this.entities.pipeLines, ...this.entities.resources];
+        const buildings = [...this.entities.turrets, ...this.entities.generators, ...this.entities.powerLines, ...this.entities.substations, ...this.entities.walls, ...this.entities.airports, ...this.entities.refineries, ...this.entities.goldMines, ...this.entities.storage, ...this.entities.armories, ...this.entities.barracks, ...this.entities.units, ...this.entities.pipeLines, ...this.entities.resources];
         this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings));
         this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles));
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active);
@@ -1495,6 +1424,7 @@ export class GameEngine {
             ...this.entities.goldMines,
             ...this.entities.storage,
             ...this.entities.armories,
+            ...this.entities.barracks,
             ...this.entities.pipeLines,
             this.entities.base
         ];
@@ -1510,6 +1440,7 @@ export class GameEngine {
         this.entities.goldMines.forEach(gm => gm.draw(this.ctx));
         this.entities.storage.forEach(s => s.draw(this.ctx));
         this.entities.armories.forEach(a => a.draw(this.ctx));
+        this.entities.barracks.forEach(b => b.draw(this.ctx));
         this.entities.units.forEach(u => u.draw(this.ctx));
         this.entities.generators.forEach(g => g.draw(this.ctx));
         this.entities.turrets.forEach(t => t.draw(this.ctx, this.isBuildMode));
@@ -1608,44 +1539,36 @@ export class GameEngine {
         // 4.2 Ghost Preview for Building
         if (this.isBuildMode && this.selectedBuildType) {
             const tileInfo = this.tileMap.getTileAt(mouseWorldX, mouseWorldY);
-            if (tileInfo) {
+            const buildInfo = this.buildingRegistry[this.selectedBuildType];
+            
+            if (tileInfo && buildInfo) {
                 this.ctx.save();
-                this.ctx.globalAlpha = 0.5; // Slightly more visible on fog
-                if (this.selectedBuildType === 'airport') {
-                    const worldPos = {
-                        x: (tileInfo.x + 1) * this.tileMap.tileSize,
-                        y: (tileInfo.y - 0.5) * this.tileMap.tileSize
+                this.ctx.globalAlpha = 0.5;
+
+                const [tw, th] = buildInfo.size;
+                let worldPos;
+
+                if (tw > 1 || th > 1) {
+                    // Generic multi-tile position calculation
+                    worldPos = {
+                        x: (tileInfo.x + tw / 2) * this.tileMap.tileSize,
+                        y: (tileInfo.y - (th / 2 - 1)) * this.tileMap.tileSize
                     };
-                    const temp = new Airport(worldPos.x, worldPos.y);
-                    temp.draw(this.ctx);
-                } else if (this.selectedBuildType === 'storage') {
-                    const worldPos = {
-                        x: (tileInfo.x + 1) * this.tileMap.tileSize,
-                        y: (tileInfo.y) * this.tileMap.tileSize
-                    };
-                    const temp = new Storage(worldPos.x, worldPos.y);
-                    if (temp.draw) temp.draw(this.ctx);
-                } else if (this.selectedBuildType === 'armory') {
-                    const worldPos = {
-                        x: (tileInfo.x + 1) * this.tileMap.tileSize,
-                        y: (tileInfo.y) * this.tileMap.tileSize
-                    };
-                    const temp = new Armory(worldPos.x, worldPos.y);
-                    if (temp.draw) temp.draw(this.ctx);
                 } else {
-                    const pos = this.tileMap.gridToWorld(tileInfo.x, tileInfo.y);
-                    let ghost = null;
-                    if (this.selectedBuildType.startsWith('turret')) ghost = new Turret(pos.x, pos.y, this.selectedBuildType);
-                    else if (this.selectedBuildType === 'power-line') ghost = new PowerLine(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'pipe-line') ghost = new PipeLine(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'substation') ghost = new Substation(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'wall') ghost = new Wall(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'storage') ghost = new Storage(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'refinery') ghost = new Refinery(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'coal-generator') ghost = new CoalGenerator(pos.x, pos.y);
-                    else if (this.selectedBuildType === 'oil-generator') ghost = new OilGenerator(pos.x, pos.y);
-                    if (ghost) {
-                        if (this.selectedBuildType === 'power-line' || this.selectedBuildType === 'pipe-line') {
+                    worldPos = this.tileMap.gridToWorld(tileInfo.x, tileInfo.y);
+                }
+
+                const ClassRef = this.entityClasses[buildInfo.className];
+                if (ClassRef) {
+                    let ghost;
+                    if (buildInfo.className === 'Turret') {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, this.selectedBuildType);
+                    } else {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, this);
+                    }
+
+                    if (ghost.draw) {
+                        if (['PowerLine', 'PipeLine'].includes(buildInfo.className)) {
                             ghost.draw(this.ctx, [...buildingsForPower], this);
                         } else {
                             ghost.draw(this.ctx);
@@ -2124,36 +2047,31 @@ export class GameEngine {
         this.entities.powerLines.forEach(pl => pl.isPowered = false);
         this.entities.substations.forEach(s => s.isPowered = false);
         this.entities.armories.forEach(a => a.isPowered = false);
+        this.entities.barracks.forEach(b => b.isPowered = false);
 
-        // 2. BFS 탐색 준비
-        // 그리드 좌표를 키("x,y")로 사용하여 엔티티 매핑
-        const powerGrid = {}; // 전선 및 변전소 매핑
+        // 모든 전력 전달 가능 객체(전선, 변전소, 모든 건물) 매핑
+        const powerGrid = {}; 
         
+        // 1. 전달자 등록 (전선, 변전소)
         this.entities.powerLines.forEach(pl => {
-            const gridPos = this.tileMap.worldToGrid(pl.x, pl.y);
-            powerGrid[`${gridPos.x},${gridPos.y}`] = pl;
+            const gp = this.tileMap.worldToGrid(pl.x, pl.y);
+            powerGrid[`${gp.x},${gp.y}`] = pl;
         });
         this.entities.substations.forEach(s => {
-            const gridPos = this.tileMap.worldToGrid(s.x, s.y);
-            powerGrid[`${gridPos.x},${gridPos.y}`] = s;
+            const gp = this.tileMap.worldToGrid(s.x, s.y);
+            powerGrid[`${gp.x},${gp.y}`] = s;
         });
 
-        // 대형 건물들도 전력 네트워크의 전송체로 등록 (전선 연결을 위함)
-        const largeBuildings = [
-            ...this.entities.airports,
-            ...this.entities.storage,
-            ...this.entities.armories,
-            ...this.entities.refineries,
-            ...this.entities.goldMines,
-            ...this.entities.generators
+        // 2. 소비자 및 전력 원 등록 (대형 건물 포함 모든 건물)
+        const allBuildings = [
+            ...this.entities.airports, ...this.entities.storage, ...this.entities.armories,
+            ...this.entities.barracks, ...this.entities.refineries, ...this.entities.goldMines,
+            ...this.entities.generators, this.entities.base
         ];
 
-        largeBuildings.forEach(b => {
-            const startX = Math.round(b.x / 40 - (b.width/80));
-            const startY = Math.round(b.y / 40 - (b.height/80 - 0.5));
-            const tilesW = (b.width || 40) / 40;
-            const tilesH = (b.height || 40) / 40;
-
+        allBuildings.forEach(b => {
+            const tilesW = (b.width || b.size || 40) / 40;
+            const tilesH = (b.height || b.size || 40) / 40;
             for(let gy = 0; gy < tilesH; gy++) {
                 for(let gx = 0; gx < tilesW; gx++) {
                     const nx = Math.floor(b.x / 40 - tilesW/2 + gx + (tilesW % 2 === 0 ? 0.5 : 0));
@@ -2163,7 +2081,7 @@ export class GameEngine {
             }
         });
 
-        // 탐색 큐 (발전소 및 기지에서 시작)
+        // 탐색 큐 준비
         const queue = [];
         const visited = new Set();
 
@@ -2177,65 +2095,58 @@ export class GameEngine {
         this.entities.generators.forEach(g => addSource(g.x, g.y));
         addSource(this.entities.base.x, this.entities.base.y);
 
-        // 3. BFS 전파
+        // 3. BFS 전파 (전선과 변전소를 통해서만 전기가 흐름)
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
 
         while (queue.length > 0) {
             const curr = queue.shift();
-            const currKey = `${curr.x},${curr.y}`;
-
             for (const dir of dirs) {
-                const nx = curr.x + dir[0];
-                const ny = curr.y + dir[1];
-                const key = `${nx},${ny}`;
-
-                if (powerGrid[key] && !visited.has(key)) {
-                    powerGrid[key].isPowered = true;
+                const nx = curr.x + dir[0], ny = curr.y + dir[1], key = `${nx},${ny}`;
+                const ent = powerGrid[key];
+                if (ent && !visited.has(key)) {
+                    ent.isPowered = true;
                     visited.add(key);
-                    queue.push({x: nx, y: ny});
+                    
+                    // 핵심 로직: 전선이나 변전소일 때만 다음 이웃으로 전력을 전파 (큐에 추가)
+                    // 일반 건물은 전력을 받기만 하고 전달하지 않음
+                    if (ent.type === 'power-line' || ent.type === 'substation') {
+                        queue.push({x: nx, y: ny});
+                    }
                 }
             }
         }
 
-        // 4. 주변 포탑 활성화 (변전소, 발전소, 기지만 포탑에 전원 공급)
-        // 전선(PowerLine)은 포탑에 직접 공급 불가능
+        // 4. 주변 포탑 활성화 (변전소, 발전소, 기지로부터 직접 전력을 공급받는 포탑)
         const activeSources = [
             ...this.entities.generators,
             ...this.entities.substations.filter(s => s.isPowered),
             this.entities.base
         ];
 
-        const activeSourceKeys = new Set();
-        activeSources.forEach(s => {
-            const gp = this.tileMap.worldToGrid(s.x, s.y);
-            activeSourceKeys.add(`${gp.x},${gp.y}`);
-        });
-
-        this.entities.turrets.forEach(turret => {
-            const gp = this.tileMap.worldToGrid(turret.x, turret.y);
+        const checkAreaPower = (target) => {
+            const targetGp = this.tileMap.worldToGrid(target.x, target.y);
+            const areaDirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1],[0,0]];
             
-            // Area Power check (8 directions: 4 cardinal + 4 diagonal)
-            const areaDirs = [
-                [0, 1], [0, -1], [1, 0], [-1, 0],   // Cardinal
-                [1, 1], [1, -1], [-1, 1], [-1, -1]  // Diagonal
-            ];
-
             for (const dir of areaDirs) {
-                const nx = gp.x + dir[0];
-                const ny = gp.y + dir[1];
-                
-                // Only Substations, Generators, and Base provide AREA power to Turrets
+                const nx = targetGp.x + dir[0], ny = targetGp.y + dir[1];
                 const source = activeSources.find(s => {
-                    const sgp = this.tileMap.worldToGrid(s.x, s.y);
-                    return sgp.x === nx && sgp.y === ny && (s.type !== 'power-line');
+                    const tw = (s.width || s.size || 40) / 40;
+                    const th = (s.height || s.size || 40) / 40;
+                    for(let gy = 0; gy < th; gy++) {
+                        for(let gx = 0; gx < tw; gx++) {
+                            const snx = Math.floor(s.x / 40 - tw/2 + gx + (tw % 2 === 0 ? 0.5 : 0));
+                            const sny = Math.floor(s.y / 40 - th/2 + gy + (th % 2 === 0 ? 0.5 : 0));
+                            if (snx === nx && sny === ny) return true;
+                        }
+                    }
+                    return false;
                 });
-
-                if (source) {
-                    turret.isPowered = true;
-                    break;
-                }
+                if (source) return true;
             }
-        });
+            return false;
+        };
+
+        this.entities.turrets.forEach(t => t.isPowered = checkAreaPower(t));
     }
 
     updateVisibility() {

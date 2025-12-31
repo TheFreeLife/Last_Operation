@@ -621,7 +621,7 @@ export class PowerLine extends Entity {
                 const isAdjacentY = dy <= (otherHH + myHH) + margin && dx < Math.max(otherHW, myHW);
 
                 if (isAdjacentX || isAdjacentY) {
-                    const transmitterTypes = ['power-line', 'generator', 'coal-generator', 'oil-generator', 'substation', 'base', 'airport', 'refinery', 'gold-mine', 'storage', 'armory'];
+                    const transmitterTypes = ['power-line', 'generator', 'coal-generator', 'oil-generator', 'substation', 'base', 'airport', 'refinery', 'gold-mine', 'storage', 'armory', 'barracks'];
                     const isTransmitter = transmitterTypes.includes(other.type) || (other.maxHp === 99999999);
                     
                     if (isTransmitter) {
@@ -1239,6 +1239,186 @@ export class MissileLauncher extends PlayerUnit {
         ctx.fillRect(0, 3, 12, 3);
         
         ctx.restore();
+    }
+}
+
+export class Rifleman extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'rifleman';
+        this.name = '소총병';
+        this.speed = 0.9;
+        this.fireRate = 800;
+        this.damage = 10;
+        this.color = '#e0e0e0';
+        this.attackRange = 180;
+        this.size = 12; // 전차보다 작음
+    }
+
+    attack() {
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate && this.target) {
+            const { Projectile } = this.engine.entityClasses;
+            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color));
+            this.lastFireTime = now;
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        
+        // 몸통
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 총기
+        ctx.fillStyle = '#636e72';
+        ctx.fillRect(2, -1, 10, 2);
+        
+        // 헬멧
+        ctx.fillStyle = '#556644';
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+    }
+}
+
+export class Barracks extends Entity {
+    constructor(x, y) {
+        super(x, y);
+        this.type = 'barracks';
+        this.width = 80;
+        this.height = 80;
+        this.size = 80;
+        this.maxHp = 1000;
+        this.hp = 1000;
+        this.isPowered = false;
+        this.spawnQueue = []; // {type, timer}
+        this.spawnTime = 3000; // 보병은 생산 속도가 빠름 (3초)
+        this.units = [];
+    }
+
+    requestUnit(unitType) {
+        this.spawnQueue.push({ type: unitType, timer: 0 });
+        return true;
+    }
+
+    update(deltaTime, engine) {
+        this.units = this.units.filter(u => u.alive);
+
+        if (this.isPowered && this.spawnQueue.length > 0) {
+            const current = this.spawnQueue[0];
+            current.timer += deltaTime;
+            if (current.timer >= this.spawnTime) {
+                const spawnY = this.y + 45; 
+                let unit = new Rifleman(this.x, spawnY, engine);
+                
+                unit.destination = { x: this.x, y: this.y + 80 };
+                
+                this.units.push(unit);
+                engine.entities.units.push(unit);
+                this.spawnQueue.shift();
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // 1. 건물 메인 바디 (어두운 군색)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-40, -40, 80, 80);
+        ctx.strokeStyle = '#1e272e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-40, -40, 80, 80);
+
+        // 2. 카모플라쥬 패턴 (데코레이션)
+        ctx.fillStyle = '#3b4d3c';
+        ctx.fillRect(-35, -35, 20, 15);
+        ctx.fillRect(10, -25, 25, 20);
+        ctx.fillRect(-30, 10, 15, 25);
+        ctx.fillRect(5, 5, 20, 15);
+
+        // 3. 지붕 디자인 (경사진 막사 지붕)
+        ctx.fillStyle = '#4a5d4b';
+        ctx.beginPath();
+        ctx.moveTo(-45, -30);
+        ctx.lineTo(0, -50);
+        ctx.lineTo(45, -30);
+        ctx.lineTo(40, -25);
+        ctx.lineTo(-40, -25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 4. 창고형 문 및 입구
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-20, 10, 40, 30);
+        ctx.strokeStyle = this.isPowered ? '#39ff14' : '#ff3131';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-20, 10, 40, 30);
+        
+        // 문 장식 (셔터 느낌)
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        for(let i = 15; i < 40; i += 5) {
+            ctx.beginPath();
+            ctx.moveTo(-18, i);
+            ctx.lineTo(18, i);
+            ctx.stroke();
+        }
+
+        // 5. 창문 (작고 빛나는 느낌)
+        const drawWindow = (wx, wy) => {
+            ctx.fillStyle = this.isPowered ? 'rgba(0, 210, 255, 0.3)' : '#111';
+            ctx.fillRect(wx, wy, 12, 8);
+            ctx.strokeStyle = '#555';
+            ctx.strokeRect(wx, wy, 12, 8);
+            if (this.isPowered) {
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = '#00d2ff';
+                ctx.fillStyle = '#00d2ff';
+                ctx.fillRect(wx + 2, wy + 2, 8, 4);
+                ctx.shadowBlur = 0;
+            }
+        };
+        drawWindow(-32, -15);
+        drawWindow(20, -15);
+
+        // 6. 환풍기 또는 안테나
+        ctx.fillStyle = '#555';
+        ctx.fillRect(25, -45, 4, 15);
+        ctx.beginPath();
+        ctx.arc(27, -45, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+
+        // HP 바
+        if (this.hp < this.maxHp) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
+        }
+
+        // 생산 대기열 표시
+        if (this.spawnQueue.length > 0) {
+            const barY = this.y - 75;
+            const progress = this.spawnQueue[0].timer / this.spawnTime;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(this.x - 40, barY, 80, 8);
+            ctx.fillStyle = '#39ff14';
+            ctx.fillRect(this.x - 40, barY, 80 * progress, 8);
+            ctx.shadowBlur = 0;
+        }
     }
 }
 
