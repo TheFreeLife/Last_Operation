@@ -94,6 +94,7 @@ export class GameEngine {
         this.isHoveringUI = false;
         this.pendingItemIndex = -1; // To track which item is being used for building
         this.lastPlacedGrid = { x: -1, y: -1 }; // 연속 건설 버그 방지용 추가
+        this.isEngineerBuilding = false; // 공병 건설 메뉴 오픈 여부
 
         // Camera State (Center on base considering zoom)
         const baseWorldPos = this.entities.base;
@@ -262,7 +263,9 @@ export class GameEngine {
             'back': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
             'menu:main': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
             'toggle:sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`,
-            'sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`
+            'sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`,
+            'menu:engineer_build': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" rx="2" fill="#333" stroke="#f1c40f" stroke-width="2"/><path d="M14 12 V8 H26 V12" fill="none" stroke="#f1c40f" stroke-width="2"/><path d="M12 20 H28 M20 12 V28" stroke="#f1c40f" stroke-width="2" opacity="0.5"/></svg></div>`,
+            'menu:unit_cmds': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`
         };
         return svgs[type] || '';
     }
@@ -277,7 +280,7 @@ export class GameEngine {
         let menuType = 'main';
         let items = [];
 
-        if (this.selectedEntities.length > 0) {
+        if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
             const unitTypes = ['tank', 'missile-launcher', 'rifleman', 'engineer'];
             const allUnits = this.selectedEntities.every(ent => unitTypes.includes(ent.type));
             const firstType = this.selectedEntities[0].type;
@@ -292,8 +295,16 @@ export class GameEngine {
                     { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
                     { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol' },
                     { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack' },
-                    null, null, null, null
+                    null,
+                    null, // 6번 슬롯 (좌측 하단)
+                    null, null
                 ];
+
+                // 공병이 포함되어 있다면 건설 버튼 추가
+                const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
+                if (hasEngineer) {
+                    items[6] = { id: 'engineer_build', name: '건설 (B)', action: 'menu:engineer_build' };
+                }
             } else if (allSameType) {
                 const type = firstType;
                 header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
@@ -335,8 +346,9 @@ export class GameEngine {
                 items = [null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null];
             }
         } else {
-            // 메인 건설 메뉴 (선택된 것 없을 때)
-            header.textContent = '건 설';
+            // 메인 건설 메뉴 (선택된 것 없을 때 또는 공병 건설 모드일 때)
+            header.textContent = this.isEngineerBuilding ? '공병 건설' : '건 설';
+            
             if (this.currentMenuName === 'network') {
                 header.textContent = '네트워크';
                 items = [
@@ -361,8 +373,15 @@ export class GameEngine {
                     { type: 'turret-basic', name: '기본 포탑', cost: 50 }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
                     { type: 'substation', name: '변전소', cost: 100 }, { type: 'menu:power', name: '에너지', action: 'menu:power' },
                     { type: 'wall', name: '벽', cost: 30 }, { type: 'menu:military', name: '군사', action: 'menu:military' },
-                    null, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    null,
+                    null, // 7번
+                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
+
+                // 공병 건설 모드일 경우 6번 슬롯에 '취소(명령으로 복귀)' 버튼 추가
+                if (this.isEngineerBuilding) {
+                    items[6] = { id: 'back_to_unit', name: '명령 (ESC)', icon: '🔙', action: 'menu:unit_cmds' };
+                }
             }
         }
 
@@ -445,10 +464,19 @@ export class GameEngine {
     }
 
     handleMenuAction(action, item) {
-        if (action.startsWith('menu:')) {
+        if (action === 'menu:engineer_build') {
+            this.isEngineerBuilding = true;
+            this.currentMenuName = 'main';
+            this.updateBuildMenu();
+        } else if (action === 'menu:unit_cmds') {
+            this.isEngineerBuilding = false;
+            this.updateBuildMenu();
+        } else if (action.startsWith('menu:')) {
             this.currentMenuName = action.split(':')[1];
-            this.selectedEntity = null;
-            this.selectedEntities = [];
+            if (this.currentMenuName === 'main' && this.selectedEntities.length > 0) {
+                // 공병 건설 메뉴 내에서 '뒤로'를 누르면 유닛 명령으로 갈지, 메인 건설로 갈지 결정
+                // 여기서는 일단 서브메뉴(네트워크 등)에서 메인 건설로 가는 용도로 유지
+            }
             this.updateBuildMenu();
         } else if (action === 'toggle:sell') {
             if (this.isSellMode) this.cancelSellMode();
@@ -484,9 +512,36 @@ export class GameEngine {
     initInput() {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                this.cancelModes();
-                this.unitCommandMode = null;
-                this.updateCursor();
+                // 1. 활성화된 특수 모드(건설, 판매, 스킬, 명령 타겟팅) 취소
+                if (this.isBuildMode || this.isSellMode || this.isSkillMode || this.unitCommandMode) {
+                    this.cancelModes();
+                    this.unitCommandMode = null;
+                    this.updateCursor();
+                    return;
+                }
+
+                // 2. 서브 메뉴(네트워크, 발전소 등)에서 메인 메뉴로 뒤로 가기
+                if (this.currentMenuName !== 'main') {
+                    this.currentMenuName = 'main';
+                    this.updateBuildMenu();
+                    return;
+                }
+
+                // 3. 공병 건설 메뉴에서 유닛 명령 메뉴로 뒤로 가기
+                if (this.isEngineerBuilding) {
+                    this.isEngineerBuilding = false;
+                    this.updateBuildMenu();
+                    return;
+                }
+
+                // 4. 아무것도 없으면 선택 해제 (RTS 기본 조작)
+                if (this.selectedEntities.length > 0) {
+                    this.selectedEntities = [];
+                    this.selectedEntity = null;
+                    this.selectedAirport = null;
+                    this.updateBuildMenu();
+                    this.updateCursor();
+                }
             }
             // 스타크래프트 단축키
             if (this.selectedEntities.length > 0) {
@@ -496,6 +551,14 @@ export class GameEngine {
                 else if (key === 'h') this.executeUnitCommand('hold');
                 else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
+                else if (key === 'b') {
+                    const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
+                    if (hasEngineer) {
+                        this.isEngineerBuilding = true;
+                        this.currentMenuName = 'main';
+                        this.updateBuildMenu();
+                    }
+                }
             }
         });
 
@@ -719,6 +782,7 @@ export class GameEngine {
         this.cancelBuildMode();
         this.cancelSellMode();
         this.cancelSkillMode(false);
+        this.isEngineerBuilding = false;
     }
 
     handleSingleSelection(worldX, worldY, isShiftKey) {
@@ -757,6 +821,8 @@ export class GameEngine {
         } else {
             this.selectedEntities = found ? [found] : [];
         }
+
+        this.isEngineerBuilding = false; // 선택 변경 시 공병 건설 모드 해제
 
         // 편의를 위해 첫 번째 선택된 객체를 selectedEntity로 참조 (기존 코드 호환성)
         this.selectedEntity = this.selectedEntities.length > 0 ? this.selectedEntities[0] : null;
@@ -815,11 +881,8 @@ export class GameEngine {
         });
 
         // Priority: Units > Buildings
-        if (selectedUnits.length > 0) {
-            this.selectedEntities = selectedUnits;
-        } else {
-            this.selectedEntities = selectedBuildings;
-        }
+        this.selectedEntities = selectedUnits.length > 0 ? selectedUnits : selectedBuildings;
+        this.isEngineerBuilding = false; // 선택 변경 시 해제
 
         if (this.selectedEntities.length > 0) {
             this.selectedEntity = this.selectedEntities[0];
