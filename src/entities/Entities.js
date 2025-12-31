@@ -277,6 +277,7 @@ export class PipeLine extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'pipe-line';
+        this.passable = true;
         this.maxHp = 80;
         this.hp = 80;
         this.size = 30;
@@ -594,6 +595,7 @@ export class PowerLine extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'power-line';
+        this.passable = true;
         this.maxHp = 50;
         this.hp = 50;
         this.size = 30;
@@ -999,14 +1001,12 @@ export class PlayerUnit extends Entity {
             ...this.engine.entities.goldMines,
             ...this.engine.entities.storage,
             ...this.engine.entities.armories,
-            ...this.engine.entities.powerLines,
-            ...this.engine.entities.pipeLines,
             ...this.engine.entities.walls,
             this.engine.entities.base
         ];
 
         for (const b of buildings) {
-            if (!b || !b.active) continue;
+            if (!b || !b.active || b.passable) continue;
             const bWidth = b.width || b.size || 40;
             const bHeight = b.height || b.size || 40;
             const halfW = bWidth / 2 + this.size / 2;
