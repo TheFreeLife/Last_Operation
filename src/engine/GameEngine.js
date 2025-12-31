@@ -1476,7 +1476,15 @@ export class GameEngine {
         this.entities.units.forEach(u => u.draw(this.ctx));
         this.entities.generators.forEach(g => g.draw(this.ctx));
         this.entities.turrets.forEach(t => t.draw(this.ctx, this.isBuildMode));
-        this.entities.enemies.forEach(e => e.draw(this.ctx));
+        
+        // 적 유닛은 현재 시야(inSight) 내에 있을 때만 렌더링
+        this.entities.enemies.forEach(e => {
+            const grid = this.tileMap.worldToGrid(e.x, e.y);
+            if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
+                e.draw(this.ctx);
+            }
+        });
+
         this.entities.projectiles.forEach(p => p.draw(this.ctx));
         this.entities.scoutPlanes.forEach(p => p.draw(this.ctx));
         this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
@@ -1795,8 +1803,9 @@ export class GameEngine {
             title = activeUnit.name || '유닛';
             desc = `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${activeUnit.damage}</span></div>
                     <div class="stat-row"><span>🔭 공격 사거리:</span> <span class="highlight">${activeUnit.attackRange}</span></div>
+                    <div class="stat-row"><span>👁️ 시야 범위:</span> <span class="highlight">${activeUnit.visionRange}</span></div>
                     <div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.ceil(activeUnit.hp)}/${activeUnit.maxHp}</span></div>
-                    <div class="stat-row"><span>🏠 소속:</span> <span>병기창 유닛</span></div>`;
+                    <div class="stat-row"><span>🏠 소속:</span> <span>부대 유닛</span></div>`;
         }
 
         if (title) {
@@ -2182,6 +2191,13 @@ export class GameEngine {
     }
 
     updateVisibility() {
+        // 모든 타일의 현재 시야(inSight) 초기화
+        for (let y = 0; y < this.tileMap.rows; y++) {
+            for (let x = 0; x < this.tileMap.cols; x++) {
+                this.tileMap.grid[y][x].inSight = false;
+            }
+        }
+
         const reveal = (worldX, worldY, radius) => {
             const grid = this.tileMap.worldToGrid(worldX, worldY);
             for (let dy = -radius; dy <= radius; dy++) {
@@ -2190,15 +2206,41 @@ export class GameEngine {
                     const ny = grid.y + dy;
                     if (nx >= 0 && nx < this.tileMap.cols && ny >= 0 && ny < this.tileMap.rows) {
                         if (dx * dx + dy * dy <= radius * radius) {
-                            this.tileMap.grid[ny][nx].visible = true;
+                            this.tileMap.grid[ny][nx].visible = true; // 개척됨
+                            this.tileMap.grid[ny][nx].inSight = true; // 현재 보고 있음
                         }
                     }
                 }
             }
         };
 
-        // 오직 기지 주변만 시야를 밝힘 (건물 시야 기능 제거)
+        // 1. 기지 주변 시야
         reveal(this.entities.base.x, this.entities.base.y, 30);
+
+        // 2. 모든 아군 유닛 주변 시야
+        this.entities.units.forEach(unit => {
+            if (unit.alive) {
+                reveal(unit.x, unit.y, unit.visionRange || 5);
+            }
+        });
+
+        // 3. (추가) 모든 건물 주변 시야 - 건물이 있는 곳도 현재 시야를 확보해야 함
+        const buildings = [
+            ...this.entities.turrets,
+            ...this.entities.generators,
+            ...this.entities.airports,
+            ...this.entities.refineries,
+            ...this.entities.goldMines,
+            ...this.entities.storage,
+            ...this.entities.armories,
+            ...this.entities.barracks
+        ];
+        buildings.forEach(b => {
+            if (b.active || b.hp > 0) {
+                // 건물은 기본적으로 자기 자리 주변 1~2칸 시야 확보
+                reveal(b.x, b.y, 3);
+            }
+        });
     }
 
     updateEdgeScroll() {

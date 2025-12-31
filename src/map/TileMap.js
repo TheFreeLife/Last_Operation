@@ -22,7 +22,8 @@ export class TileMap {
                     type: 'empty',
                     occupied: false,
                     buildable: true,
-                    visible: false // 안개 유무
+                    visible: false, // 개척 여부 (Explored)
+                    inSight: false  // 현재 시야 확보 여부 (In Sight)
                 };
             }
         }
@@ -31,6 +32,7 @@ export class TileMap {
         this.grid[this.centerY][this.centerX].occupied = true;
         this.grid[this.centerY][this.centerX].buildable = false;
         this.grid[this.centerY][this.centerX].visible = true;
+        this.grid[this.centerY][this.centerX].inSight = true;
     }
 
     drawGrid() {
@@ -53,11 +55,20 @@ export class TileMap {
     }
 
     drawFog() {
-        this.ctx.fillStyle = '#050505';
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
-                if (!this.grid[y][x].visible) {
-                    this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                const tile = this.grid[y][x];
+                const px = x * this.tileSize;
+                const py = y * this.tileSize;
+
+                if (!tile.visible) {
+                    // 1. 미개척 지역 (완전 어둠)
+                    this.ctx.fillStyle = '#050505';
+                    this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
+                } else if (!tile.inSight) {
+                    // 2. 개척되었으나 시야 밖 (연한 안개)
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
                 }
             }
         }

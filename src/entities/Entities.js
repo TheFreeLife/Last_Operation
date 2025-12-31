@@ -957,6 +957,7 @@ export class PlayerUnit extends Entity {
         super(x, y);
         this.engine = engine;
         this.attackRange = 250; 
+        this.visionRange = 5; // Default vision range in tiles
         this.angle = Math.random() * Math.PI * 2;
         this.speed = 1;
         this.target = null;
@@ -992,8 +993,8 @@ export class PlayerUnit extends Entity {
             }
         }
 
-        // --- Collision Avoidance (Buildings) ---
-        const buildings = [
+        // --- Collision Avoidance (Buildings & Resources) ---
+        const obstacles = [
             ...this.engine.entities.turrets,
             ...this.engine.entities.generators,
             ...this.engine.entities.airports,
@@ -1002,11 +1003,12 @@ export class PlayerUnit extends Entity {
             ...this.engine.entities.storage,
             ...this.engine.entities.armories,
             ...this.engine.entities.walls,
+            ...this.engine.entities.resources, // 자원 추가
             this.engine.entities.base
         ];
 
-        for (const b of buildings) {
-            if (!b || !b.active || b.passable) continue;
+        for (const b of obstacles) {
+            if (!b || (b.active === false && b !== this.engine.entities.base) || b.passable) continue;
             const bWidth = b.width || b.size || 40;
             const bHeight = b.height || b.size || 40;
             const halfW = bWidth / 2 + this.size / 2;
@@ -1093,7 +1095,8 @@ export class Tank extends PlayerUnit {
         this.fireRate = 1000;
         this.damage = 25;
         this.color = '#39ff14';
-        this.attackRange = 80; 
+        this.attackRange = 180; 
+        this.visionRange = 6; // 전차 시야: 보병보다 넓음
     }
 
     attack() {
@@ -1212,6 +1215,7 @@ export class MissileLauncher extends PlayerUnit {
         this.damage = 70;
         this.color = '#ff3131';
         this.attackRange = 400; 
+        this.visionRange = 8; // 미사일 시야: 제일 넓음
     }
 
     attack() {
@@ -1254,6 +1258,7 @@ export class Rifleman extends PlayerUnit {
         this.color = '#e0e0e0';
         this.attackRange = 180;
         this.size = 12; // 전차보다 작음
+        this.visionRange = 4; // 보병 시야: 제일 좁음
     }
 
     attack() {
@@ -2260,7 +2265,8 @@ export class Enemy extends Entity {
             blockedBy = base;
         } else {
             for (const obs of buildings) {
-                if (['ore', 'coal', 'oil', 'gold', 'power-line', 'pipe-line'].includes(obs.type)) continue;
+                // 전선과 파이프라인은 여전히 통과 가능하게 두되, 자원은 통과 대상에서 제외(충돌 발생)
+                if (['power-line', 'pipe-line'].includes(obs.type)) continue;
                 if (obs === base) continue;
                 const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
                 const minDist = (this.size / 2) + (obs.size / 2) + 2;
