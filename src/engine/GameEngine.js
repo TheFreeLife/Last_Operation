@@ -61,22 +61,23 @@ export class GameEngine {
         this.updateVisibility(); // 초기 시야 확보
 
         this.buildingRegistry = {
-            'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets' },
-            'turret-fast': { cost: 100, size: [1, 1], className: 'Turret', list: 'turrets' },
-            'turret-sniper': { cost: 150, size: [1, 1], className: 'Turret', list: 'turrets' },
-            'turret-tesla': { cost: 200, size: [1, 1], className: 'Turret', list: 'turrets' },
-            'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets' },
-            'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines' },
-            'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines' },
-            'wall': { cost: 30, size: [1, 1], className: 'Wall', list: 'walls' },
-            'airport': { cost: 500, size: [2, 3], className: 'Airport', list: 'airports' },
-            'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil' },
-            'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold' },
-            'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage' },
-            'armory': { cost: 600, size: [2, 2], className: 'Armory', list: 'armories' },
-            'barracks': { cost: 400, size: [2, 2], className: 'Barracks', list: 'barracks' },
-            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal' },
-            'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil' }
+            'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 5 },
+            'turret-fast': { cost: 100, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 8 },
+            'turret-sniper': { cost: 150, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 12 },
+            'turret-tesla': { cost: 200, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 10 },
+            'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 10 },
+            'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines', buildTime: 1 },
+            'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
+            'wall': { cost: 30, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 3 },
+            'airport': { cost: 500, size: [2, 3], className: 'Airport', list: 'airports', buildTime: 20 },
+            'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 15 },
+            'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 15 },
+            'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 12 },
+            'armory': { cost: 600, size: [2, 2], className: 'Armory', list: 'armories', buildTime: 18 },
+            'barracks': { cost: 400, size: [2, 2], className: 'Barracks', list: 'barracks', buildTime: 15 },
+            'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, // 크기 업데이트
+            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 10 },
+            'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil', buildTime: 10 }
         };
 
         this.resources = { gold: 999999, oil: 0 };
@@ -295,21 +296,25 @@ export class GameEngine {
             if (allUnits) {
                 menuType = 'unit';
                 header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : this.selectedEntities[0].name;
+                
+                // 1. 모든 유닛 공통 명령 (이동, 정지, 홀드, 패트롤, 어택)
                 items = [
                     { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move' },
                     { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
                     { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
                     { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol' },
                     { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack' },
-                    null,
-                    null, // 6번 슬롯 (좌측 하단)
-                    null, null
+                    null, null, null, null
                 ];
 
-                // 공병이 포함되어 있다면 건설 버튼 추가
-                const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
-                if (hasEngineer) {
-                    items[6] = { id: 'engineer_build', name: '건설 (B)', action: 'menu:engineer_build' };
+                // 2. 고유 스킬 판정: 모든 선택 유닛이 동일한 타입일 때만 활성화 (건물과 동일한 규칙)
+                if (allSameType) {
+                    const unitType = firstType;
+                    if (unitType === 'engineer') {
+                        // 공병 고유 스킬: 건설 (6번 슬롯 - 좌측 하단)
+                        items[6] = { id: 'engineer_build', name: '건설 (B)', action: 'menu:engineer_build' };
+                    }
+                    // 향후 다른 유닛(전차, 미사일 등)의 고유 스킬도 여기에 추가 가능
                 }
             } else if (allSameType) {
                 const type = firstType;
@@ -442,6 +447,11 @@ export class GameEngine {
                 const cost = item.cost || (buildInfo ? buildInfo.cost : null);
                 if (cost) {
                     desc += `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">${cost}G</span></div>`;
+                }
+                
+                // 건설 시간 표시 추가
+                if (buildInfo && buildInfo.buildTime) {
+                    desc += `<div class="stat-row"><span>⏳ 건설 시간:</span> <span class="highlight">${buildInfo.buildTime}s</span></div>`;
                 }
 
                 // Add specialized descriptions
@@ -909,6 +919,10 @@ export class GameEngine {
     }
 
     startBuildMode(type, btn) {
+        if (this.selectedBuildType === type && this.isBuildMode) {
+            this.cancelBuildMode();
+            return;
+        }
         this.isSellMode = false;
         this.isSkillMode = false;
         this.selectedBuildType = type;
@@ -1098,16 +1112,25 @@ export class GameEngine {
         if (canPlace) {
             const engineer = this.selectedEntities.find(u => u.type === 'engineer');
             if (engineer) {
-                // 작업 큐에 추가
+                // 작업 큐에 타일 좌표(gridX, gridY)를 직접 저장
                 engineer.command = 'build';
-                engineer.buildQueue.push({ type: this.selectedBuildType, x: worldX, y: worldY });
+                engineer.buildQueue.push({ 
+                    type: this.selectedBuildType, 
+                    x: worldX, 
+                    y: worldY,
+                    gridX: gridX,
+                    gridY: gridY
+                });
                 
                 // 자원 즉시 차감 및 타일 임시 점유
                 this.resources.gold -= cost;
                 for (let dy = 0; dy > -th; dy--) {
                     for (let dx = 0; dx < tw; dx++) {
-                        this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                        this.tileMap.grid[gridY + dy][gridX + dx].type = 'building';
+                        const nx = gridX + dx, ny = gridY + dy;
+                        if (this.tileMap.grid[ny] && this.tileMap.grid[ny][nx]) {
+                            this.tileMap.grid[ny][nx].occupied = true;
+                            this.tileMap.grid[ny][nx].type = 'building';
+                        }
                     }
                 }
 
@@ -1128,20 +1151,17 @@ export class GameEngine {
     }
 
     // 공병이 도착했을 때 실제로 건물을 생성하는 메서드
-    executeBuildingPlacement(type, worldX, worldY) {
-        const tileInfo = this.tileMap.getTileAt(worldX, worldY);
+    executeBuildingPlacement(type, worldX, worldY, gridX, gridY) {
         const buildInfo = this.buildingRegistry[type];
-        if (!tileInfo || !buildInfo) return;
+        if (!buildInfo) return null;
 
-        const [tw, th] = buildInfo.size;
-        const gridX = tileInfo.x;
-        const gridY = tileInfo.y;
+        const [stw, sth] = buildInfo.size;
 
         let worldPos;
-        if (tw > 1 || th > 1) {
+        if (stw > 1 || sth > 1) {
             worldPos = {
-                x: (gridX + tw / 2) * this.tileMap.tileSize,
-                y: (gridY - (th / 2 - 1)) * this.tileMap.tileSize
+                x: (gridX + stw / 2) * this.tileMap.tileSize,
+                y: (gridY - (sth / 2 - 1)) * this.tileMap.tileSize
             };
         } else {
             worldPos = this.tileMap.gridToWorld(gridX, gridY);
@@ -1158,29 +1178,32 @@ export class GameEngine {
                 newEntity = new ClassRef(worldPos.x, worldPos.y, this);
             }
 
+            // 건설 초기 설정 및 좌표 저장
+            newEntity.isUnderConstruction = true;
+            newEntity.buildProgress = 0;
+            newEntity.totalBuildTime = buildInfo.buildTime || 5;
+            newEntity.hp = 1;
+            newEntity.gridX = gridX; // 원래 타일 좌표 저장
+            newEntity.gridY = gridY;
+
             const listName = buildInfo.list;
             if (this.entities[listName]) {
                 this.entities[listName].push(newEntity);
             }
 
-            // (이미 handleInput에서 점유했으므로 여기선 생략 가능하지만, 
-            // 혹시 모를 로직을 위해 보장함)
-            for (let dy = 0; dy > -th; dy--) {
-                for (let dx = 0; dx < tw; dx++) {
-                    this.tileMap.grid[gridY + dy][gridX + dx].occupied = true;
-                }
-            }
-
-            // 자원 채취 건물인 경우 실제 자원 오브젝트 제거
+            // 자원 채취 건물인 경우 실제 자원 오브젝트 숨김 처리 (삭제 대신)
             if (buildInfo.onResource) {
-                const resourceIndex = this.entities.resources.findIndex(r => 
+                const resource = this.entities.resources.find(r => 
                     Math.abs(r.x - worldPos.x) < 20 && Math.abs(r.y - worldPos.y) < 20
                 );
-                if (resourceIndex !== -1) {
-                    this.entities.resources.splice(resourceIndex, 1);
+                if (resource) {
+                    resource.covered = true; // 화면에서 숨김
+                    newEntity.targetResource = resource; // 건물에 자원 객체 연결
                 }
             }
+            return newEntity;
         }
+        return null;
     }
 
     handleSell(worldX, worldY) {

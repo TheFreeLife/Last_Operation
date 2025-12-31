@@ -28,9 +28,9 @@ export class TileMap {
             }
         }
         
-        // 중앙 총사령부 (3x3) 타일 설정
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
+        // 중앙 총사령부 (5x5) 타일 설정
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
                 const nx = this.centerX + dx;
                 const ny = this.centerY + dy;
                 if (ny >= 0 && ny < this.rows && nx >= 0 && nx < this.cols) {

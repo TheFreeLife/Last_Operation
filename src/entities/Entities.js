@@ -6,6 +6,34 @@ export class Entity {
         this.width = 40;  // Default 1x1
         this.height = 40; // Default 1x1
         this.size = 40;   // Default for circles
+        
+        // 건설 관련 속성
+        this.isUnderConstruction = false;
+        this.buildProgress = 0; // 0 to 1
+        this.totalBuildTime = 0;
+        this.targetResource = null; // 건설 중인 자원 객체 보관용
+    }
+
+    drawConstruction(ctx) {
+        if (!this.isUnderConstruction) return;
+        
+        const w = this.width || this.size || 40;
+        const h = this.height || this.size || 40;
+        
+        // 1. 건설 부지 가이드 (점선)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(this.x - w/2, this.y - h/2, w, h);
+        
+        // 2. 진행 바
+        const barW = w * 0.8;
+        const barH = 6;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(this.x - barW/2, this.y + h/2 + 5, barW, barH);
+        ctx.fillStyle = '#f1c40f'; // 건설은 노란색
+        ctx.fillRect(this.x - barW/2, this.y + h/2 + 5, barW * this.buildProgress, barH);
+        ctx.restore();
     }
 
     getSelectionBounds() {
@@ -27,11 +55,11 @@ export class Base extends Entity {
         this.name = '총사령부';
         this.maxHp = 99999999;
         this.hp = 99999999;
-        this.width = 120;  // 3x3 tiles
-        this.height = 120; // 3x3 tiles
-        this.size = 120;
+        this.width = 200;  // 5x5 tiles
+        this.height = 200; // 5x5 tiles
+        this.size = 200;
         this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 4000; // 공병 생산 시간 (4초)
+        this.spawnTime = 4000;
     }
 
     requestUnit(unitType) {
@@ -44,9 +72,9 @@ export class Base extends Entity {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
-                const spawnY = this.y + 70; // 건물 남쪽 출입구 앞
+                const spawnY = this.y + 110; // 5x5 건물 남쪽 출입구
                 let unit = new CombatEngineer(this.x, spawnY, engine);
-                unit.destination = { x: this.x, y: this.y + 100 };
+                unit.destination = { x: this.x, y: this.y + 150 };
                 engine.entities.units.push(unit);
                 this.spawnQueue.shift();
             }
@@ -56,113 +84,127 @@ export class Base extends Entity {
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
-        // ... (기존 그리기 로직 유지)
 
-        // 1. 메인 대형 빌딩 본체 (석조 건물의 웅장함 - 밝은 회색/베이지)
-        ctx.fillStyle = '#dcdde1';
-        ctx.fillRect(-55, -55, 110, 110);
-        ctx.strokeStyle = '#7f8c8d';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-55, -55, 110, 110);
-
-        // 2. 대칭형 창문 디자인 (현대식 오피스 빌딩 느낌)
-        ctx.fillStyle = 'rgba(44, 62, 80, 0.8)'; // 짙은 창문 색상
-        const winCols = 5;
-        const winRows = 4;
-        const winW = 12;
-        const winH = 15;
-        const spacingX = 20;
-        const spacingY = 22;
-
-        for (let r = 0; r < winRows; r++) {
-            for (let c = 0; c < winCols; c++) {
-                const wx = -40 + c * spacingX;
-                const wy = -40 + r * spacingY;
-                // 창문 본체
-                ctx.fillRect(wx - winW/2, wy - winH/2, winW, winH);
-                // 창문 반사 효과 (디테일)
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.fillRect(wx - winW/2, wy - winH/2, winW, 3);
-                ctx.fillStyle = 'rgba(44, 62, 80, 0.8)';
-            }
-        }
-
-        // 3. 상단 옥상 구조물 및 난간
-        ctx.fillStyle = '#bdc3c7';
-        ctx.fillRect(-58, -58, 116, 15); // 상단 테두리
-        ctx.strokeRect(-58, -58, 116, 15);
-
-        // 4. 옥상 통신 시설 (대형 위성 안테나 및 레이더)
-        // 왼쪽 대형 위성 접시
-        ctx.save();
-        ctx.translate(-30, -45);
-        ctx.fillStyle = '#f5f6fa';
-        ctx.beginPath(); ctx.ellipse(0, 0, 18, 10, 0.2, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#999'; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(5, -12); ctx.stroke();
-        ctx.restore();
-
-        // 오른쪽 레이더 타워
-        ctx.fillStyle = '#2f3640';
-        ctx.fillRect(25, -55, 8, 25);
-        const radarAngle = Date.now() / 800;
-        ctx.save();
-        ctx.translate(29, -55);
-        ctx.rotate(radarAngle);
+        // 1. 거대 하부 요새 플랫폼 (강화 콘크리트 - 밝은 회색)
         ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(-10, -2, 20, 4);
-        ctx.restore();
-
-        // 5. 중앙 입구 및 상징물 (국방부 느낌)
-        // 거대한 중앙 기둥/현관
-        ctx.fillStyle = '#b2bec3';
-        ctx.fillRect(-25, 30, 50, 25);
-        ctx.strokeRect(-25, 30, 50, 25);
-
-        // 부대 마크/엠블럼 (중앙)
-        ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
-        ctx.moveTo(0, 35); ctx.lineTo(8, 42); ctx.lineTo(0, 49); ctx.lineTo(-8, 42);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = '#f1c40f'; // 금색 테두리
-        ctx.lineWidth = 1;
+        const b = 95; // 플랫폼 크기
+        ctx.moveTo(-b, -b+20); ctx.lineTo(-b+20, -b); ctx.lineTo(b-20, -b); ctx.lineTo(b, -b+20);
+        ctx.lineTo(b, b-20); ctx.lineTo(b-20, b); ctx.lineTo(-b+20, b); ctx.lineTo(-b, b-20);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#2c3e50';
+        ctx.lineWidth = 3;
         ctx.stroke();
 
-        // 6. 전면 계단 및 보안 바리케이드
-        ctx.fillStyle = '#95a5a6';
-        for(let i=0; i<3; i++) {
-            ctx.fillRect(-30, 50 + i*3, 60, 2);
+        // 플랫폼 위 구획선 (군용 패널)
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.lineWidth = 1;
+        for(let i=-80; i<=80; i+=40) {
+            ctx.beginPath(); ctx.moveTo(i, -90); ctx.lineTo(i, 90); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-90, i); ctx.lineTo(90, i); ctx.stroke();
         }
 
-        // 7. 항공 장애등 (최상단 양쪽)
-        const blink = Math.sin(Date.now() / 500) > 0;
-        ctx.fillStyle = blink ? '#e74c3c' : '#440000';
-        ctx.beginPath(); ctx.arc(-50, -50, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(50, -50, 3, 0, Math.PI * 2); ctx.fill();
+        // 2. 외곽 방어선 - 모래주머니 및 방벽 (네 구석)
+        const drawDefenses = (dx, dy) => {
+            ctx.save();
+            ctx.translate(dx, dy);
+            // 방벽
+            ctx.fillStyle = '#4b5320'; // Olive Drab
+            ctx.fillRect(-25, -25, 50, 50);
+            ctx.strokeStyle = '#2d3310';
+            ctx.strokeRect(-25, -25, 50, 50);
+            // 모래주머니 (베이지색 작은 곡선들)
+            ctx.fillStyle = '#c2b280';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath(); ctx.arc(-20 + i*15, 30, 8, 0, Math.PI, true); ctx.fill();
+                ctx.beginPath(); ctx.arc(-20 + i*15, -30, 8, Math.PI, 0, true); ctx.fill();
+            }
+            ctx.restore();
+        };
+        drawDefenses(-70, -70); drawDefenses(70, -70);
+        drawDefenses(-70, 70);  drawDefenses(70, 70);
+
+        // 3. 메인 지휘소 건물 (십자형 강화 빌딩)
+        ctx.fillStyle = '#bdc3c7'; // 주 건재색
+        // 십자 형태 본체
+        ctx.fillRect(-60, -30, 120, 60);
+        ctx.fillRect(-30, -60, 60, 120);
+        ctx.strokeStyle = '#7f8c8d';
+        ctx.strokeRect(-60, -30, 120, 60);
+        ctx.strokeRect(-30, -60, 60, 120);
+
+        // 중앙 지휘탑 (3층 구조)
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillRect(-35, -35, 70, 70);
+        ctx.strokeRect(-35, -35, 70, 70);
+        
+        // 옥상 기계 설비 (환풍기, 실외기 등)
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(10, 10, 15, 15); // AC Unit 1
+        ctx.fillRect(-25, 10, 15, 15); // AC Unit 2
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(17.5, 17.5, 4, 0, Math.PI*2); ctx.fill(); // 팬
+
+        // 4. 현대식 통신 어레이 (진짜 안테나 숲)
+        // 메인 통신 마스트 (중앙)
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-2, -55, 4, 40);
+        // 안테나 가로대
+        for(let i=0; i<3; i++) {
+            ctx.beginPath(); ctx.moveTo(-15, -50 + i*10); ctx.lineTo(15, -50 + i*10);
+            ctx.strokeStyle = '#34495e'; ctx.stroke();
+        }
+
+        // 위성 통신 접시 (SE)
+        ctx.save();
+        ctx.translate(45, 45);
+        ctx.rotate(Math.sin(Date.now()/3000)*0.2);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.ellipse(0, 0, 15, 8, 0.5, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#bdc3c7'; ctx.stroke();
+        ctx.restore();
+
+        // 5. 입구 광장 및 국기 게양대
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(-20, 80, 40, 20); // 진입 램프
+        
+        // 국기 게양대 (작은 디테일)
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-30, 70, 2, 25); // 깃대
+        ctx.fillStyle = '#c0392b'; // 펄럭이는 깃발 느낌
+        ctx.fillRect(-30, 70, 10, 6);
+
+        // 6. 야간 작전용 항공 장애등 (Red Safety Lights)
+        const blink = Math.sin(Date.now() / 600) > 0;
+        ctx.fillStyle = blink ? '#ff0000' : '#440000';
+        const lightPos = [[-55, -25], [55, -25], [0, -55], [-30, 55], [30, 55]];
+        lightPos.forEach(p => {
+            ctx.beginPath(); ctx.arc(p[0], p[1], 3, 0, Math.PI*2); ctx.fill();
+        });
 
         ctx.restore();
 
-        // HP Bar
-        const barWidth = 110;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(this.x - barWidth/2, this.y - 80, barWidth, 8);
-        ctx.fillStyle = '#27ae60';
-        ctx.fillRect(this.x - barWidth/2, this.y - 80, (this.hp / this.maxHp) * barWidth, 8);
+        // UI (HP & 생산)
+        const barWidth = 180;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(this.x - barWidth/2, this.y - 125, barWidth, 10);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barWidth/2, this.y - 125, (this.hp / this.maxHp) * barWidth, 10);
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(this.x - barWidth/2, this.y - 80, barWidth, 8);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x - barWidth/2, this.y - 125, barWidth, 10);
 
-        // 생산 대기열 표시
         if (this.spawnQueue.length > 0) {
             const progress = this.spawnQueue[0].timer / this.spawnTime;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(this.x - 40, this.y - 95, 80, 8);
-            ctx.fillStyle = '#f1c40f'; // 공병은 노란색 바
-            ctx.fillRect(this.x - 40, this.y - 95, 80 * progress, 8);
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(this.x - 60, this.y - 140, 120, 8);
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(this.x - 60, this.y - 140, 120 * progress, 8);
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 11px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(`공병 생산 중 x${this.spawnQueue.length}`, this.x, this.y - 100);
+            ctx.fillText(`공병 대기 중...`, this.x, this.y - 145);
         }
     }
 }
@@ -221,7 +263,7 @@ export class Turret extends Entity {
     }
 
     update(deltaTime, enemies, projectiles) {
-        if (!this.isPowered) return; // 전기가 없으면 작동 중지
+        if (!this.isPowered || this.isUnderConstruction) return; // 건설 중이거나 전기가 없으면 작동 중지
         const now = Date.now();
 
         // 타겟 찾기 (가장 가까운 적)
@@ -313,6 +355,11 @@ export class Turret extends Entity {
     }
 
     draw(ctx, showRange = false) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+
         if (showRange) {
             ctx.save();
             ctx.beginPath();
@@ -520,6 +567,10 @@ export class Wall extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = '#4a4a4a';
@@ -579,6 +630,10 @@ export class CoalGenerator extends Generator {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = '#444';
@@ -635,6 +690,10 @@ export class OilGenerator extends Generator {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = '#333';
@@ -788,6 +847,10 @@ export class Refinery extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = '#333';
@@ -850,6 +913,10 @@ export class GoldMine extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = '#333';
@@ -938,6 +1005,10 @@ export class Storage extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         
@@ -1190,6 +1261,10 @@ export class Tank extends PlayerUnit {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -1310,6 +1385,10 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -1354,6 +1433,10 @@ export class Rifleman extends PlayerUnit {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -1394,25 +1477,73 @@ export class CombatEngineer extends PlayerUnit {
         this.state = 'idle'; // idle, repairing, harvesting
         this.targetObject = null;
         this.buildQueue = []; // [{ type, x, y }]
+        this.buildingTarget = null; // 현재 짓고 있는 건물 객체
     }
 
     clearBuildQueue() {
+        // 1. 현재 짓고 있는 건물 취소
+        if (this.buildingTarget && this.buildingTarget.isUnderConstruction) {
+            const type = this.buildingTarget.type;
+            const buildInfo = this.engine.buildingRegistry[type];
+            if (buildInfo) {
+                this.engine.resources.gold += buildInfo.cost;
+                if (this.buildingTarget.targetResource) this.buildingTarget.targetResource.covered = false;
+
+                const [tw, th] = buildInfo.size;
+                const gx = this.buildingTarget.gridX;
+                const gy = this.buildingTarget.gridY;
+
+                for (let dy = 0; dy > -th; dy--) {
+                    for (let dx = 0; dx < tw; dx++) {
+                        const nx = gx + dx, ny = gy + dy;
+                        if (this.engine.tileMap.grid[ny] && this.engine.tileMap.grid[ny][nx]) {
+                            // 해당 타일에 자원이 있는지 확인하여 복구
+                            const worldPos = this.engine.tileMap.gridToWorld(nx, ny);
+                            const hasResource = this.engine.entities.resources.some(r => 
+                                Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
+                            );
+                            if (hasResource) {
+                                this.engine.tileMap.grid[ny][nx].type = 'resource';
+                                this.engine.tileMap.grid[ny][nx].occupied = true;
+                            } else {
+                                this.engine.tileMap.grid[ny][nx].type = 'empty';
+                                this.engine.tileMap.grid[ny][nx].occupied = false;
+                            }
+                        }
+                    }
+                }
+                const list = this.engine.entities[buildInfo.list];
+                if (list) {
+                    const idx = list.indexOf(this.buildingTarget);
+                    if (idx !== -1) list.splice(idx, 1);
+                }
+            }
+            this.buildingTarget = null;
+        }
+
+        // 2. 대기 중인 큐 취소
         if (this.buildQueue.length > 0) {
             this.buildQueue.forEach(task => {
                 const buildInfo = this.engine.buildingRegistry[task.type];
                 if (buildInfo) {
-                    // 1. 자원 환불 (100%)
                     this.engine.resources.gold += buildInfo.cost;
-
-                    // 2. 점유했던 타일 해제
                     const [tw, th] = buildInfo.size;
-                    const tileInfo = this.engine.tileMap.getTileAt(task.x, task.y);
-                    if (tileInfo) {
-                        for (let dy = 0; dy > -th; dy--) {
-                            for (let dx = 0; dx < tw; dx++) {
-                                const nx = tileInfo.x + dx;
-                                const ny = tileInfo.y + dy;
-                                if (this.engine.tileMap.grid[ny] && this.engine.tileMap.grid[ny][nx]) {
+                    const gx = task.gridX;
+                    const gy = task.gridY;
+
+                    for (let dy = 0; dy > -th; dy--) {
+                        for (let dx = 0; dx < tw; dx++) {
+                            const nx = gx + dx, ny = gy + dy;
+                            if (this.engine.tileMap.grid[ny] && this.engine.tileMap.grid[ny][nx]) {
+                                const worldPos = this.engine.tileMap.gridToWorld(nx, ny);
+                                const hasResource = this.engine.entities.resources.some(r => 
+                                    Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
+                                );
+                                if (hasResource) {
+                                    this.engine.tileMap.grid[ny][nx].type = 'resource';
+                                    this.engine.tileMap.grid[ny][nx].occupied = true;
+                                } else {
+                                    this.engine.tileMap.grid[ny][nx].type = 'empty';
                                     this.engine.tileMap.grid[ny][nx].occupied = false;
                                 }
                             }
@@ -1427,38 +1558,55 @@ export class CombatEngineer extends PlayerUnit {
     update(deltaTime) {
         super.update(deltaTime);
         if (!this.alive) {
-            // 죽었을 때도 예약된 건물을 취소하고 자원 반환
             this.clearBuildQueue();
             return;
         }
 
-        // 건설 중이 아닌데 큐에 작업이 있다면 (다른 명령을 받았을 때)
-        if (this.command !== 'build' && this.buildQueue.length > 0) {
+        if (this.command !== 'build' && (this.buildQueue.length > 0 || this.buildingTarget)) {
             this.clearBuildQueue();
         }
 
-        // 건설 로직 (작업 예약 방식)
+        if (this.command === 'build' && this.buildingTarget) {
+            if (this.buildingTarget.isUnderConstruction) {
+                const progressPerFrame = deltaTime / (this.buildingTarget.totalBuildTime * 1000);
+                this.buildingTarget.buildProgress += progressPerFrame;
+                this.buildingTarget.hp = Math.max(1, this.buildingTarget.maxHp * this.buildingTarget.buildProgress);
+                if (this.buildingTarget.buildProgress >= 1) {
+                    this.buildingTarget.buildProgress = 1;
+                    this.buildingTarget.isUnderConstruction = false;
+                    this.buildingTarget.hp = this.buildingTarget.maxHp;
+                    if (this.buildingTarget.targetResource) {
+                        const resList = this.engine.entities.resources;
+                        const resIdx = resList.indexOf(this.buildingTarget.targetResource);
+                        if (resIdx !== -1) resList.splice(resIdx, 1);
+                    }
+                    this.buildingTarget = null;
+                }
+                return;
+            } else {
+                this.buildingTarget = null;
+            }
+        }
+
         if (this.command === 'build' && this.buildQueue.length > 0) {
             const currentTask = this.buildQueue[0];
             const buildInfo = this.engine.buildingRegistry[currentTask.type];
             const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
-            
-            // 건물 크기에 따른 판정 거리 계산 (타일 크기 기반)
             const targetDistX = (tw * 40) / 2 + this.size / 2 + 5;
             const targetDistY = (th * 40) / 2 + this.size / 2 + 5;
-            
-            const dx = Math.abs(this.x - currentTask.x);
-            const dy = Math.abs(this.y - currentTask.y);
-            
-            // 타겟 위치에 인접했는지 확인 (박스 범위 기반)
+            const dx = Math.abs(this.x - currentTask.x), dy = Math.abs(this.y - currentTask.y);
             if (dx <= targetDistX && dy <= targetDistY) {
-                // 인접 완료! 건설 실행
-                this.engine.executeBuildingPlacement(currentTask.type, currentTask.x, currentTask.y);
-                this.buildQueue.shift(); // 완료된 작업 제거
-                
-                if (this.buildQueue.length === 0) {
-                    this.command = 'stop';
+                // 저장된 gridX, gridY를 사용하여 건물 생성
+                const building = this.engine.executeBuildingPlacement(
+                    currentTask.type, currentTask.x, currentTask.y, currentTask.gridX, currentTask.gridY
+                );
+                if (building) {
+                    this.buildingTarget = building;
+                    this.buildQueue.shift();
+                } else {
+                    this.buildQueue.shift();
                 }
+                if (this.buildQueue.length === 0 && !this.buildingTarget) this.command = 'stop';
             } else {
                 this.destination = { x: currentTask.x, y: currentTask.y };
             }
@@ -1483,6 +1631,10 @@ export class CombatEngineer extends PlayerUnit {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -1583,6 +1735,10 @@ export class Barracks extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         
@@ -1720,6 +1876,10 @@ export class Armory extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         
@@ -1807,6 +1967,10 @@ export class Airport extends Entity {
     }
 
     draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = '#2a2a2a';
@@ -2594,6 +2758,7 @@ export class Resource extends Entity {
         super(x, y);
         this.type = type;
         this.size = 25;
+        this.covered = false; // 건설 중일 때 숨김 처리
         this.initType();
     }
 
@@ -2607,6 +2772,7 @@ export class Resource extends Entity {
     }
 
     draw(ctx) {
+        if (this.covered) return; // 건물에 의해 가려졌으면 그리지 않음
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.fillStyle = this.color;
