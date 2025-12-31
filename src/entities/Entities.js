@@ -68,6 +68,7 @@ export class Base extends Entity {
     }
 
     update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
         if (this.spawnQueue.length > 0) {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
@@ -309,7 +310,7 @@ export class Turret extends Entity {
     }
 
     fire(projectiles) {
-        projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color));
+        projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color, this));
     }
 
     drawLightning(ctx, startX, startY, length) {
@@ -422,12 +423,11 @@ export class Turret extends Entity {
 
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 15, this.y - 25, 30, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 15, this.y - 25, (this.hp / this.maxHp) * 30, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 25, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 25, (this.hp / this.maxHp) * 30, 3);
     }
 }
 
@@ -456,6 +456,10 @@ export class PipeLine extends Entity {
     update() {}
 
     draw(ctx, allEntities, engine) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         const neighbors = { n: null, s: null, e: null, w: null };
         if (allEntities && engine) {
             allEntities.forEach(other => {
@@ -545,12 +549,11 @@ export class PipeLine extends Entity {
 
         ctx.restore();
         
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * 20, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * 20, 3);
     }
 }
 
@@ -600,12 +603,11 @@ export class Wall extends Entity {
         ctx.stroke();
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 15, this.y - 25, 30, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 15, this.y - 25, (this.hp / this.maxHp) * 30, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 25, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 25, (this.hp / this.maxHp) * 30, 3);
     }
 }
 
@@ -618,8 +620,8 @@ export class CoalGenerator extends Generator {
         this.height = 40;
         this.maxHp = 150;
         this.hp = 150;
-        this.maxFuel = 50;
-        this.fuel = 50;
+        this.maxFuel = 500;
+        this.fuel = 500;
     }
 
     update(deltaTime) {
@@ -656,12 +658,12 @@ export class CoalGenerator extends Generator {
         }
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
+
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
         ctx.fillStyle = '#ffd700';
@@ -678,8 +680,8 @@ export class OilGenerator extends Generator {
         this.height = 40;
         this.maxHp = 150;
         this.hp = 150;
-        this.maxFuel = 80;
-        this.fuel = 80;
+        this.maxFuel = 800;
+        this.fuel = 800;
     }
 
     update(deltaTime) {
@@ -714,12 +716,12 @@ export class OilGenerator extends Generator {
         ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-18, 0); ctx.stroke();
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
+
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
         ctx.fillStyle = '#9370DB';
@@ -741,6 +743,10 @@ export class PowerLine extends Entity {
     update() {}
 
     draw(ctx, allEntities, engine) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         const neighbors = { n: null, s: null, e: null, w: null };
         if (allEntities && engine) {
             allEntities.forEach(other => {
@@ -800,20 +806,13 @@ export class PowerLine extends Entity {
             ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI * 2); ctx.fill();
         }
 
-        if (this.isPowered) {
-            ctx.fillStyle = '#ffff00';
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#ffff00';
-            ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI * 2); ctx.fill();
-        }
         ctx.restore();
         
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * 20, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * 20, 3);
     }
 }
 
@@ -826,8 +825,8 @@ export class Refinery extends Entity {
         this.height = 40;
         this.maxHp = 200;
         this.hp = 200;
-        this.maxFuel = 80;
-        this.fuel = 80;
+        this.maxFuel = 800;
+        this.fuel = 800;
         this.productionRate = 5;
         this.color = '#32cd32';
         this.isConnectedToBase = false; 
@@ -835,6 +834,7 @@ export class Refinery extends Entity {
     }
 
     update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
         if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('oil', amount, this);
@@ -870,12 +870,12 @@ export class Refinery extends Entity {
         }
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
+
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
         ctx.fillStyle = '#32cd32';
@@ -892,8 +892,8 @@ export class GoldMine extends Entity {
         this.height = 40;
         this.maxHp = 250;
         this.hp = 250;
-        this.maxFuel = 100; // 자원 매장량
-        this.fuel = 100;
+        this.maxFuel = 1000; // 자원 매장량
+        this.fuel = 1000;
         this.productionRate = 8; // 초당 골드 생산량
         this.color = '#FFD700';
         this.isConnectedToBase = false;
@@ -901,6 +901,7 @@ export class GoldMine extends Entity {
     }
 
     update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
         if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('gold', amount, this);
@@ -939,12 +940,12 @@ export class GoldMine extends Entity {
 
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
+
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
         ctx.fillStyle = '#FFD700';
@@ -976,6 +977,7 @@ export class Storage extends Entity {
     }
 
     update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
         // ... 기존 로직 동일 (수송기 생산 및 자원 전송)
         if (this.spawnQueue > 0) {
             this.spawnTimer += deltaTime;
@@ -1077,17 +1079,15 @@ export class Storage extends Entity {
 
         ctx.restore();
 
-        // 7. HP 바 (기존)
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
-        }
+        // 7. HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x -30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
 
-        // 8. 생산 대기열 표시
+        // 8. 생산 대기열 표시 (HP 바 위로 위치 고정)
         if (this.spawnQueue > 0) {
-            const barY = this.hp < this.maxHp ? this.y - 75 : this.y - 65;
+            const barY = this.y - 75;
             const progress = this.spawnTimer / this.spawnTimeRequired;
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(this.x - 30, barY, 60, 8);
@@ -1202,7 +1202,7 @@ export class PlayerUnit extends Entity {
         }
 
         for (const b of obstacles) {
-            if (!b || (b.active === false && b.hp !== 99999999) || b.passable) continue;
+            if (!b || (b.active === false && b.hp !== 99999999) || b.passable || b.isUnderConstruction) continue;
 
             const bWidth = b.width || b.size || 40;
             const bHeight = b.height || b.size || 40;
@@ -1258,7 +1258,7 @@ export class Tank extends PlayerUnit {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate) {
             const { Projectile } = this.engine.entityClasses;
-            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color));
+            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color, this));
             this.lastFireTime = now;
         }
     }
@@ -1290,6 +1290,14 @@ export class Tank extends PlayerUnit {
         ctx.fillRect(0, -2, 15, 4);
         
         ctx.restore();
+
+        // 아군 체력 바 (초록색) 상시 표시
+        const barW = 30;
+        const barY = this.y - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
@@ -1409,6 +1417,14 @@ export class MissileLauncher extends PlayerUnit {
         ctx.fillRect(0, 3, 12, 3);
         
         ctx.restore();
+
+        // 아군 체력 바 (초록색) 상시 표시
+        const barW = 30;
+        const barY = this.y - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
@@ -1418,7 +1434,7 @@ export class Rifleman extends PlayerUnit {
         this.type = 'rifleman';
         this.name = '소총병';
         this.speed = 0.9;
-        this.fireRate = 800;
+        this.fireRate = 100;
         this.damage = 10;
         this.color = '#e0e0e0';
         this.attackRange = 180;
@@ -1430,7 +1446,7 @@ export class Rifleman extends PlayerUnit {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate && this.target) {
             const { Projectile } = this.engine.entityClasses;
-            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color));
+            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color, this));
             this.lastFireTime = now;
         }
     }
@@ -1462,6 +1478,14 @@ export class Rifleman extends PlayerUnit {
         ctx.fill();
         
         ctx.restore();
+
+        // 아군 체력 바 (초록색) 상시 표시
+        const barW = 20;
+        const barY = this.y - 20;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
     }
 }
 
@@ -1483,36 +1507,14 @@ export class CombatEngineer extends PlayerUnit {
     }
 
     clearBuildQueue() {
-        // 1. 현재 짓고 있는 건물 취소
+        // 1. 현재 짓고 있는 실체화된 건물 취소
         if (this.buildingTarget && this.buildingTarget.isUnderConstruction) {
-            const type = this.buildingTarget.type;
-            const buildInfo = this.engine.buildingRegistry[type];
+            const buildInfo = this.engine.buildingRegistry[this.buildingTarget.type];
             if (buildInfo) {
                 this.engine.resources.gold += buildInfo.cost;
-                if (this.buildingTarget.targetResource) this.buildingTarget.targetResource.covered = false;
-
-                const [tw, th] = buildInfo.size;
-                const gx = this.buildingTarget.gridX;
-                const gy = this.buildingTarget.gridY;
-
-                for (let dy = 0; dy > -th; dy--) {
-                    for (let dx = 0; dx < tw; dx++) {
-                        const nx = gx + dx, ny = gy + dy;
-                        if (this.engine.tileMap.grid[ny] && this.engine.tileMap.grid[ny][nx]) {
-                            const worldPos = this.engine.tileMap.gridToWorld(nx, ny);
-                            const hasResource = this.engine.entities.resources.some(r => 
-                                Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
-                            );
-                            if (hasResource) {
-                                this.engine.tileMap.grid[ny][nx].type = 'resource';
-                                this.engine.tileMap.grid[ny][nx].occupied = true;
-                            } else {
-                                this.engine.tileMap.grid[ny][nx].type = 'empty';
-                                this.engine.tileMap.grid[ny][nx].occupied = false;
-                            }
-                        }
-                    }
-                }
+                this.engine.clearBuildingTiles(this.buildingTarget);
+                
+                // 엔티티 목록에서 제거
                 const list = this.engine.entities[buildInfo.list];
                 if (list) {
                     const idx = list.indexOf(this.buildingTarget);
@@ -1522,14 +1524,32 @@ export class CombatEngineer extends PlayerUnit {
             this.buildingTarget = null;
         }
 
-        // 2. 현재 맡고 있던 공유 작업 반납
+        // 2. 현재 맡고 있던 공유 작업(예약) 반납
         if (this.currentSharedTask) {
             this.currentSharedTask.assignedEngineer = null;
             this.currentSharedTask = null;
         }
 
-        // 3. 그룹 큐 탈퇴
+        // 3. 그룹 큐 탈퇴 및 오크 큐(아무도 안 하는 큐) 정리
+        const queueToAbandon = this.myGroupQueue;
         this.myGroupQueue = null;
+
+        if (queueToAbandon) {
+            // 이 큐를 여전히 참조하고 있는 다른 공병이 있는지 확인
+            const othersUsingIt = this.engine.entities.units.some(u => 
+                u !== this && u.alive && u.type === 'engineer' && u.myGroupQueue === queueToAbandon
+            );
+
+            if (!othersUsingIt) {
+                // 더 이상 이 건설 큐를 수행할 공병이 없으면 모든 예약 작업 취소 및 자원 환불
+                queueToAbandon.forEach(task => {
+                    this.engine.clearBuildingTiles(task);
+                    const cost = this.engine.buildingRegistry[task.type]?.cost || 0;
+                    this.engine.resources.gold += cost;
+                });
+                queueToAbandon.length = 0; // 배열 비움
+            }
+        }
     }
 
     update(deltaTime) {
@@ -1582,22 +1602,41 @@ export class CombatEngineer extends PlayerUnit {
                 const task = this.currentSharedTask;
                 const buildInfo = this.engine.buildingRegistry[task.type];
                 const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
-                const targetDistX = (tw * 40) / 2 + this.size / 2 + 5;
-                const targetDistY = (th * 40) / 2 + this.size / 2 + 5;
+                
+                // 건물의 크기에 상관없이 넉넉하게 인식 범위를 잡음 (건물 절반 크기 + 유닛 크기 + 여유 30px)
+                const targetDistX = (tw * 40) / 2 + this.size / 2 + 30;
+                const targetDistY = (th * 40) / 2 + this.size / 2 + 30;
                 const dx = Math.abs(this.x - task.x), dy = Math.abs(this.y - task.y);
 
                 if (dx <= targetDistX && dy <= targetDistY) {
-                    const building = this.engine.executeBuildingPlacement(
-                        task.type, task.x, task.y, task.gridX, task.gridY
-                    );
-                    if (building) {
-                        this.buildingTarget = building;
-                        // 자신의 그룹 큐에서 해당 작업 제거
+                    // 이미 해당 위치에 건설 중인 건물이 있는지 먼저 확인 (중복 생성 방지)
+                    let existingBuilding = null;
+                    const listName = buildInfo.list;
+                    if (this.engine.entities[listName]) {
+                        existingBuilding = this.engine.entities[listName].find(b => 
+                            b.gridX === task.gridX && b.gridY === task.gridY && b.isUnderConstruction
+                        );
+                    }
+
+                    if (existingBuilding) {
+                        this.buildingTarget = existingBuilding;
+                    } else {
+                        const building = this.engine.executeBuildingPlacement(
+                            task.type, task.x, task.y, task.gridX, task.gridY
+                        );
+                        if (building) {
+                            this.buildingTarget = building;
+                        }
+                    }
+
+                    if (this.buildingTarget) {
+                        // 성공적으로 할당받거나 생성했으면 큐에서 제거
                         const taskIdx = this.myGroupQueue.indexOf(task);
                         if (taskIdx !== -1) this.myGroupQueue.splice(taskIdx, 1);
                         this.currentSharedTask = null;
                         this.destination = null;
                     } else {
+                        // 실패 시 (드문 경우) 작업을 포기하고 다음으로
                         const taskIdx = this.myGroupQueue.indexOf(task);
                         if (taskIdx !== -1) this.myGroupQueue.splice(taskIdx, 1);
                         this.currentSharedTask = null;
@@ -1691,6 +1730,14 @@ export class CombatEngineer extends PlayerUnit {
                 }
             }
         }
+
+        // 아군 체력 바 (초록색) 상시 표시
+        const barW = 20;
+        const barY = this.y - 25;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
     }
 }
 
@@ -1811,13 +1858,11 @@ export class Barracks extends Entity {
 
         ctx.restore();
 
-        // HP 바
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
 
         // 생산 대기열 표시
         if (this.spawnQueue.length > 0) {
@@ -1854,6 +1899,7 @@ export class Armory extends Entity {
     }
 
     update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
         this.units = this.units.filter(u => u.alive);
 
         if (this.isPowered && this.spawnQueue.length > 0) {
@@ -1910,13 +1956,11 @@ export class Armory extends Entity {
 
         ctx.restore();
 
-        // HP 바
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
 
         // 상세 생산 대기열 표시
         if (this.spawnQueue.length > 0) {
@@ -1964,6 +2008,7 @@ export class Airport extends Entity {
         this.maxHp = 2000;
         this.hp = 2000;
         this.color = '#aaaaaa';
+        this.isPowered = false;
     }
 
     draw(ctx) {
@@ -1980,27 +2025,35 @@ export class Airport extends Entity {
         ctx.strokeRect(-40, -60, 80, 120);
         ctx.fillStyle = '#1a1c23';
         ctx.fillRect(-10, -55, 20, 110);
-        ctx.strokeStyle = '#ffff00';
+        ctx.strokeStyle = this.isPowered ? '#ffff00' : '#444';
         ctx.setLineDash([10, 10]);
         ctx.beginPath(); ctx.moveTo(0, -50); ctx.lineTo(0, 50); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = '#444';
         ctx.fillRect(-35, -20, 25, 50);
         ctx.strokeStyle = '#888'; ctx.strokeRect(-35, -20, 25, 50);
+        
+        // 관제탑 조명
         ctx.fillStyle = '#666';
         ctx.fillRect(15, -40, 15, 15);
-        ctx.fillStyle = '#00d2ff';
-        ctx.shadowBlur = 5; ctx.shadowColor = '#00d2ff';
+        ctx.fillStyle = this.isPowered ? '#00d2ff' : '#222';
+        if (this.isPowered) {
+            ctx.shadowBlur = 5; ctx.shadowColor = '#00d2ff';
+        }
         ctx.fillRect(17, -38, 11, 5);
         ctx.shadowBlur = 0;
+
+        // 상태 표시등
+        ctx.fillStyle = this.isPowered ? '#39ff14' : '#ff3131';
+        ctx.beginPath(); ctx.arc(-30, 40, 4, 0, Math.PI * 2); ctx.fill();
+
         ctx.restore();
 
-        if (this.hp < this.maxHp) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(this.x - 30, this.y - 75, 60, 5);
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(this.x - 30, this.y - 75, (this.hp / this.maxHp) * 60, 5);
-        }
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 30, this.y - 75, 60, 5);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 30, this.y - 75, (this.hp / this.maxHp) * 60, 5);
     }
 }
 
@@ -2642,15 +2695,427 @@ export class CargoPlane extends Entity {
 
 
 
-                ctx.restore();
+                                ctx.restore();
 
 
 
-            }
+                
 
-}
 
-export class Enemy extends Entity {
+
+                
+
+
+
+                
+
+
+
+                            }
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                }
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                export class Sandbag extends Entity {
+
+
+
+                
+
+
+
+                    constructor(x, y) {
+
+
+
+                
+
+
+
+                        super(x, y);
+
+
+
+                
+
+
+
+                        this.name = '샌드백';
+
+
+
+                
+
+
+
+                        this.type = 'sandbag';
+
+
+
+                
+
+
+
+                        this.maxHp = 1000000;
+
+
+
+                
+
+
+
+                        this.hp = this.maxHp;
+
+
+
+                
+
+
+
+                        this.speed = 0;
+
+
+
+                
+
+
+
+                        this.damage = 0;
+
+
+
+                
+
+
+
+                        this.size = 60;
+
+
+
+                
+
+
+
+                        this.active = true;
+
+
+
+                
+
+
+
+                    }
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                    update() {
+
+
+
+                
+
+
+
+                        // 샌드백은 움직이지 않고 공격하지 않음
+
+
+
+                
+
+
+
+                    }
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                    draw(ctx) {
+
+
+
+                
+
+
+
+                        ctx.save();
+
+
+
+                
+
+
+
+                        ctx.translate(this.x, this.y);
+
+
+
+                
+
+
+
+                        
+
+
+
+                
+
+
+
+                        // 모래주머니 뭉치 표현
+
+
+
+                
+
+
+
+                        const drawBag = (dx, dy, rot) => {
+
+
+
+                
+
+
+
+                            ctx.save();
+
+
+
+                
+
+
+
+                            ctx.translate(dx, dy);
+
+
+
+                
+
+
+
+                            ctx.rotate(rot);
+
+
+
+                
+
+
+
+                            ctx.fillStyle = '#c2b280';
+
+
+
+                
+
+
+
+                            ctx.beginPath();
+
+
+
+                
+
+
+
+                            ctx.ellipse(0, 0, 20, 12, 0, 0, Math.PI * 2);
+
+
+
+                
+
+
+
+                            ctx.fill();
+
+
+
+                
+
+
+
+                            ctx.strokeStyle = '#8b7d50';
+
+
+
+                
+
+
+
+                            ctx.lineWidth = 2;
+
+
+
+                
+
+
+
+                            ctx.stroke();
+
+
+
+                
+
+
+
+                            ctx.restore();
+
+
+
+                
+
+
+
+                        };
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                        drawBag(-10, 5, 0.2);
+
+
+
+                
+
+
+
+                        drawBag(10, 5, -0.2);
+
+
+
+                
+
+
+
+                        drawBag(0, -5, 0);
+
+
+
+                
+
+
+
+                        
+
+
+
+                
+
+
+
+                        ctx.restore();
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                        // 체력 바 상시 표시
+                        const barW = 50;
+                        const barY = this.y - 30;
+                        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                        ctx.fillRect(this.x - barW/2, barY, barW, 5);
+                        ctx.fillStyle = '#ff3131'; // 적군은 빨간색
+                        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(this.x - barW/2, barY, barW, 5);
+                    }
+
+                    getSelectionBounds() {
+                        return {
+                            left: this.x - 30,
+                            right: this.x + 30,
+                            top: this.y - 30,
+                            bottom: this.y + 30
+                        };
+                    }
+                }
+
+
+
+                
+
+
+
+                
+
+
+
+                
+
+
+
+                export class Enemy extends Entity {
     constructor(x, y) {
         super(x, y);
         this.speed = 1.8;
@@ -2710,37 +3175,134 @@ export class Enemy extends Entity {
     }
 
     draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // 적군 외형: 육각형 모양의 위협적인 기계 유닛
+        ctx.fillStyle = '#441111';
+        ctx.strokeStyle = '#ff3131';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3;
+            const px = Math.cos(angle) * (this.size / 2.5);
+            const py = Math.sin(angle) * (this.size / 2.5);
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 중앙 '코어' (빛남)
         ctx.fillStyle = '#ff3131';
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ff3131';
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+
+        // HP 바 (적군은 빨간색)
         const barY = this.y + this.size / 2 + 5;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 10, barY, 20, 3);
+        ctx.fillRect(this.x - 15, barY, 30, 4);
         ctx.fillStyle = '#ff3131';
-        ctx.fillRect(this.x - 10, barY, (this.hp / this.maxHp) * 20, 3);
+        ctx.fillRect(this.x - 15, barY, (this.hp / this.maxHp) * 30, 4);
     }
 }
 
 export class Projectile extends Entity {
-    constructor(x, y, target, damage, color = '#ffff00') {
+    constructor(x, y, target, damage, color = '#ffff00', source) {
         super(x, y);
         this.target = target;
         this.damage = damage;
         this.color = color;
+        this.source = source;
         this.speed = 8;
         this.size = 6;
     }
 
-    update(deltaTime) {
+    update(deltaTime, engine) {
+        if (!this.active) return;
         if (!this.target || !this.target.active) {
             this.active = false;
             return;
         }
+
         const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
         this.x += Math.cos(angle) * this.speed;
         this.y += Math.sin(angle) * this.speed;
+
+        if (!engine) return;
+
+        // 충돌 체크 함수
+        const checkCollision = (other) => {
+            if (other === this.source || !other.active || other.passable) return false;
+            
+            const bounds = other.getSelectionBounds ? other.getSelectionBounds() : null;
+            if (bounds) {
+                return this.x >= bounds.left && this.x <= bounds.right && 
+                       this.y >= bounds.top && this.y <= bounds.bottom;
+            }
+            const dist = Math.hypot(this.x - other.x, this.y - other.y);
+            const otherSize = other.size || 40;
+            return dist < (this.size / 2 + otherSize / 2);
+        };
+
+        // 1. 적 유닛/건물 체크 (데미지 입힘)
+        for (const enemy of engine.entities.enemies) {
+            if (checkCollision(enemy)) {
+                enemy.hp -= this.damage;
+                if (enemy.hp <= 0) enemy.active = false;
+                this.active = false;
+                return;
+            }
+        }
+
+        // 2. 아군 유닛 체크 (사라짐)
+        for (const unit of engine.entities.units) {
+            if (checkCollision(unit)) {
+                this.active = false;
+                return;
+            }
+        }
+
+        // 3. 아군 건물 체크 (사라짐)
+        const buildingKeys = [
+            'turrets', 'generators', 'walls', 'airports', 
+            'refineries', 'goldMines', 'storage', 'armories', 'barracks'
+        ];
+        
+        if (checkCollision(engine.entities.base)) {
+            this.active = false;
+            return;
+        }
+
+        for (const key of buildingKeys) {
+            for (const b of engine.entities[key]) {
+                if (checkCollision(b)) {
+                    this.active = false;
+                    return;
+                }
+            }
+        }
+
+        // 4. 자원 체크 (사라짐)
+        for (const res of engine.entities.resources) {
+            if (!res.covered && checkCollision(res)) {
+                this.active = false;
+                return;
+            }
+        }
+
+        // 목표 도달 체크
         if (Math.hypot(this.x - this.target.x, this.y - this.target.y) < 15) {
-            this.target.hp -= this.damage;
-            if (this.target.hp <= 0) this.target.active = false;
+            if (this.target.hp !== undefined) {
+                this.target.hp -= this.damage;
+                if (this.target.hp <= 0) this.target.active = false;
+            }
             this.active = false;
         }
     }

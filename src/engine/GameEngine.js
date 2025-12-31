@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
@@ -35,7 +35,19 @@ export class GameEngine {
             scoutPlanes: [],
             cargoPlanes: [],
             resources: [],
-            base: new Base(basePos.x, basePos.y)
+            base: (() => {
+                const b = new Base(basePos.x, basePos.y);
+                b.gridX = this.tileMap.centerX - 2;
+                b.gridY = this.tileMap.centerY + 2; // gridY는 위쪽이 작은 값이므로 +2 (5x5 기준 좌측 상단 타일 좌표)
+                // 실제 TileMap.js의 initGrid 로직 확인 필요:
+                // for (let dy = -2; dy <= 2; dy++) { for (let dx = -2; dx <= 2; dx++) { ... ny = centerY + dy; nx = centerX + dx; }}
+                // ny가 centerY-2 ~ centerY+2 까지임. 따라서 좌상단은 (centerX-2, centerY-2). 
+                // 하지만 buildingRegistry에서는 sth가 높이이고 dy 루프가 0 ~ -th 임. 
+                // 즉, (gridX, gridY)를 기준으로 dx는 +방향, dy는 -방향으로 점유함.
+                // 5x5 건물의 경우 gridX = centerX-2, gridY = centerY+2 이어야 
+                // x: centerX-2 ~ centerX+2, y: centerY+2 ~ centerY-2 범위를 가짐.
+                return b;
+            })()
         };
 
         this.initResources();
@@ -58,6 +70,10 @@ export class GameEngine {
         startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
         
         this.entities.units.push(startTank, startMissile, startInfantry, ...startEngineers);
+
+        // 아군이 공격 연습을 할 수 있는 샌드백 유닛 배치 (적군 배열에 추가하여 공격 가능하게 함)
+        const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
+        this.entities.enemies.push(sandbag);
 
         this.updateVisibility(); // 초기 시야 확보
 
@@ -458,8 +474,14 @@ export class GameEngine {
             else this.startSellMode();
         } else if (action.startsWith('skill:')) {
             const skill = action.split(':')[1];
+            const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
+            
+            // 건설 중인 건물은 스킬이나 유닛 생산 불가
+            if (target && target.isUnderConstruction) {
+                return;
+            }
+
             if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer') {
-                const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
                 if (target && target.requestUnit) {
                     const cost = item.cost || 0;
                     if (this.resources.gold >= cost) {
@@ -976,10 +998,15 @@ export class GameEngine {
 
         if (this.selectedSkill === 'scout') {
             // Find nearest airport to launch from
-            let nearestAirport = this.entities.airports[0];
+            const airport = this.selectedAirport || this.entities.airports.find(a => a.active && a.isPowered);
             
-            if (nearestAirport) {
-                this.entities.scoutPlanes.push(new ScoutPlane(nearestAirport.x, nearestAirport.y, worldX, worldY, this));
+            if (airport) {
+                if (!airport.isPowered) {
+                    alert('공항에 전력이 공급되지 않고 있습니다!');
+                    this.cancelSkillMode(true);
+                    return;
+                }
+                this.entities.scoutPlanes.push(new ScoutPlane(airport.x, airport.y, worldX, worldY, this));
                 this.resources.gold -= cost;
                 this.cancelSkillMode(true); // Exit skill mode but keep airport selection
             }
@@ -1071,7 +1098,15 @@ export class GameEngine {
             const engineers = this.selectedEntities.filter(u => u.type === 'engineer');
             
             if (engineers.length > 0) {
-                const centerPos = this.tileMap.gridToWorld(gridX, gridY);
+                let centerPos;
+                if (tw > 1 || th > 1) {
+                    centerPos = {
+                        x: (gridX + tw / 2) * this.tileMap.tileSize,
+                        y: (gridY - (th / 2 - 1)) * this.tileMap.tileSize
+                    };
+                } else {
+                    centerPos = this.tileMap.gridToWorld(gridX, gridY);
+                }
                 
                 // 1. 현재 세션 큐가 없으면 생성 (새로운 드래그나 클릭의 시작)
                 if (!this.currentBuildSessionQueue) {
@@ -1211,20 +1246,8 @@ export class GameEngine {
             const cost = buildInfo ? buildInfo.cost : 0;
             this.resources.gold += Math.floor(cost * 0.1);
             
-            // Generic tile clearing logic: iterate all tiles and free those belonging to this entity
-            const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
-            
-            for (let ry = 0; ry < this.tileMap.rows; ry++) {
-                for (let rx = 0; rx < this.tileMap.cols; rx++) {
-                    const worldPos = this.tileMap.gridToWorld(rx, ry);
-                    const bounds = foundEntity.getSelectionBounds();
-                    // If tile center is within entity selection bounds, free it
-                    if (worldPos.x >= bounds.left && worldPos.x <= bounds.right && 
-                        worldPos.y >= bounds.top && worldPos.y <= bounds.bottom) {
-                        this.tileMap.grid[ry][rx].occupied = false;
-                    }
-                }
-            }
+            // 전용 헬퍼 함수를 사용하여 점유된 타일 해제
+            this.clearBuildingTiles(foundEntity);
 
             // Remove from list
             this.entities[listName].splice(foundIdx, 1);
@@ -1381,6 +1404,41 @@ export class GameEngine {
         return false;
     }
 
+    clearBuildingTiles(obj) {
+        if (!obj) return;
+        const buildInfo = this.buildingRegistry[obj.type];
+        if (!buildInfo) return;
+
+        const [tw, th] = buildInfo.size;
+        const gridX = obj.gridX;
+        const gridY = obj.gridY;
+
+        if (gridX === undefined || gridY === undefined) return;
+
+        for (let dy = 0; dy > -th; dy--) {
+            for (let dx = 0; dx < tw; dx++) {
+                const nx = gridX + dx;
+                const ny = gridY + dy;
+                if (this.tileMap.grid[ny] && this.tileMap.grid[ny][nx]) {
+                    const worldPos = this.tileMap.gridToWorld(nx, ny);
+                    // 해당 위치에 실제 자원이 있는지 확인
+                    const resource = this.entities.resources.find(r => 
+                        Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
+                    );
+
+                    if (resource) {
+                        this.tileMap.grid[ny][nx].occupied = true;
+                        this.tileMap.grid[ny][nx].type = 'resource';
+                        if (obj.targetResource === resource) resource.covered = false;
+                    } else {
+                        this.tileMap.grid[ny][nx].occupied = false;
+                        this.tileMap.grid[ny][nx].type = 'empty';
+                    }
+                }
+            }
+        }
+    }
+
     update(deltaTime) {
         if (this.gameState !== 'playing') return;
 
@@ -1392,10 +1450,7 @@ export class GameEngine {
         const checkDestruction = (list) => {
             return list.filter(obj => {
                 if (obj.hp <= 0) {
-                    const grid = this.tileMap.worldToGrid(obj.x, obj.y);
-                    if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x]) {
-                        this.tileMap.grid[grid.y][grid.x].occupied = false;
-                    }
+                    this.clearBuildingTiles(obj);
                     return false;
                 }
                 return true;
@@ -1405,11 +1460,8 @@ export class GameEngine {
         this.entities.turrets = checkDestruction(this.entities.turrets);
         this.entities.generators = this.entities.generators.filter(obj => {
             obj.update(deltaTime);
-            if (obj.fuel <= 0 || obj.hp <= 0) {
-                const grid = this.tileMap.worldToGrid(obj.x, obj.y);
-                if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x]) {
-                    this.tileMap.grid[grid.y][grid.x].occupied = false;
-                }
+            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+                this.clearBuildingTiles(obj);
                 return false;
             }
             return true;
@@ -1420,22 +1472,16 @@ export class GameEngine {
         this.entities.pipeLines = checkDestruction(this.entities.pipeLines);
         this.entities.refineries = this.entities.refineries.filter(obj => {
             obj.update(deltaTime, this);
-            if (obj.fuel <= 0 || obj.hp <= 0) {
-                const grid = this.tileMap.worldToGrid(obj.x, obj.y);
-                if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x]) {
-                    this.tileMap.grid[grid.y][grid.x].occupied = false;
-                }
+            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+                this.clearBuildingTiles(obj);
                 return false;
             }
             return true;
         });
                 this.entities.goldMines = this.entities.goldMines.filter(obj => {
                     obj.update(deltaTime, this);
-                    if (obj.fuel <= 0 || obj.hp <= 0) {
-                        const grid = this.tileMap.worldToGrid(obj.x, obj.y);
-                        if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x]) {
-                            this.tileMap.grid[grid.y][grid.x].occupied = false;
-                        }
+                    if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+                        this.clearBuildingTiles(obj);
                         return false;
                     }
                     return true;
@@ -1475,7 +1521,7 @@ export class GameEngine {
         this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings));
         this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles));
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active);
-        this.entities.projectiles.forEach(proj => proj.update(deltaTime));
+        this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
 
         if (this.entities.base.hp <= 0) {
             this.gameState = 'gameOver';
@@ -1898,14 +1944,68 @@ export class GameEngine {
                 productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">${typeName} ${progress}% (대기 ${hoveredArmory.spawnQueue.length})</span></div>`;
             }
 
-            desc = `<div class="stat-row"><span>🛡️ 수비 유닛:</span> <span class="highlight">${hoveredArmory.units.length}/${hoveredArmory.maxUnits}대</span></div>
+            desc = `<div class="stat-row"><span>🛡️ 수비 유닛:</span> <span class="highlight">${hoveredArmory.units.length}/${hoveredArmory.maxUnits || 10}대</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredArmory.hp)}/${hoveredArmory.maxHp}</span></div>
                     <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredArmory.isPowered ? 'text-green' : 'text-red'}">${hoveredArmory.isPowered ? '공급 중' : '중단됨'}</span></div>
                     ${productionInfo}
                     <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 스킬 메뉴</span></div>`;
         }
 
-        // 11. Check Units
+        // 11. Check Barracks
+        const hoveredBarracks = this.entities.barracks.find(b => Math.abs(b.x - worldX) < 40 && Math.abs(b.y - worldY) < 40);
+        if (hoveredBarracks) {
+            title = '병영';
+            let productionInfo = '';
+            if (hoveredBarracks.spawnQueue.length > 0) {
+                const current = hoveredBarracks.spawnQueue[0];
+                const progress = Math.floor((current.timer / hoveredBarracks.spawnTime) * 100);
+                productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">소총병 ${progress}% (대기 ${hoveredBarracks.spawnQueue.length})</span></div>`;
+            }
+
+            desc = `<div class="stat-row"><span>🛡️ 기능:</span> <span>보병 유닛 생산</span></div>
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredBarracks.hp)}/${hoveredBarracks.maxHp}</span></div>
+                    <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredBarracks.isPowered ? 'text-green' : 'text-red'}">${hoveredBarracks.isPowered ? '공급 중' : '중단됨'}</span></div>
+                    ${productionInfo}
+                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 유닛 생산</span></div>`;
+        }
+
+        // 12. Check Refinery
+        const hoveredRefinery = this.entities.refineries.find(r => Math.hypot(r.x - worldX, r.y - worldY) < 15);
+        if (hoveredRefinery) {
+            title = '정제소';
+            desc = `<div class="stat-row"><span>⛽ 남은 자원:</span> <span class="highlight">${Math.ceil(hoveredRefinery.fuel)}</span></div>
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredRefinery.hp)}/${hoveredRefinery.maxHp}</span></div>
+                    <div class="stat-row"><span>🔌 연결 상태:</span> <span class="${hoveredRefinery.isConnectedToBase || hoveredRefinery.connectedTarget ? 'text-green' : 'text-red'}">${hoveredRefinery.isConnectedToBase || hoveredRefinery.connectedTarget ? '허브 연결됨' : '연결 안됨'}</span></div>`;
+        }
+
+        // 13. Check PipeLine
+        const hoveredPipe = this.entities.pipeLines.find(p => Math.hypot(p.x - worldX, p.y - worldY) < 10);
+        if (hoveredPipe) {
+            title = '파이프라인';
+            desc = `<div class="stat-row"><span>🛢️ 기능:</span> <span>자원(석유/골드) 수송</span></div>
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredPipe.hp)}/${hoveredPipe.maxHp}</span></div>
+                    <div class="stat-row"><span>🔌 연결 상태:</span> <span class="${hoveredPipe.isConnected ? 'text-green' : 'text-red'}">${hoveredPipe.isConnected ? '활성화됨' : '단절됨'}</span></div>`;
+        }
+
+        // 14. Check Base
+        const hoveredBase = Math.abs(this.entities.base.x - worldX) < 100 && Math.abs(this.entities.base.y - worldY) < 100;
+        if (hoveredBase) {
+            const b = this.entities.base;
+            title = '총사령부';
+            let productionInfo = '';
+            if (b.spawnQueue.length > 0) {
+                const current = b.spawnQueue[0];
+                const progress = Math.floor((current.timer / b.spawnTime) * 100);
+                productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">공병 ${progress}% (대기 ${b.spawnQueue.length})</span></div>`;
+            }
+
+            desc = `<div class="stat-row"><span>🏰 기능:</span> <span>중앙 지휘 통제 및 공병 생산</span></div>
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(b.hp)}/${b.maxHp}</span></div>
+                    ${productionInfo}
+                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 공병 생산</span></div>`;
+        }
+
+        // 15. Check Units
         const hoveredUnit = this.entities.units.find(u => Math.hypot(u.x - worldX, u.y - worldY) < 15);
         const activeUnit = hoveredUnit || (this.selectedEntity && this.entities.units.includes(this.selectedEntity) ? this.selectedEntity : null);
         
@@ -2060,7 +2160,7 @@ export class GameEngine {
         // 1. 초기화
         this.entities.pipeLines.forEach(p => {
             p.isConnected = false;
-            p.canReachHub = false; // 허브(기지/창고)에 닿을 수 있는지 여부
+            p.canReachHub = false; 
         });
         this.entities.refineries.forEach(r => { 
             r.isConnectedToBase = false; 
@@ -2072,123 +2172,94 @@ export class GameEngine {
         });
         this.entities.storage.forEach(s => s.isConnectedToBase = false);
 
-        // 2. 그리드 매핑
-        const oilGrid = {};
+        // 2. 그리드 매핑 (오직 파이프만 등록)
+        const pipeGrid = {};
         this.entities.pipeLines.forEach(p => {
             const gp = this.tileMap.worldToGrid(p.x, p.y);
-            oilGrid[`${gp.x},${gp.y}`] = p;
+            pipeGrid[`${gp.x},${gp.y}`] = p;
         });
-        
-        const baseGp = this.tileMap.worldToGrid(this.entities.base.x, this.entities.base.y);
-        const hubGps = [baseGp];
-        this.entities.storage.forEach(s => hubGps.push(this.tileMap.worldToGrid(s.x, s.y)));
 
-        // 3. Step 1: 허브로부터 역추적하여 도달 가능한 모든 파이프/생산업체 찾기 (canReachHub)
+        // 헬퍼: 특정 건물이 점유하는 모든 타일 좌표 가져오기
+        const getOccupiedTiles = (obj) => {
+            const tiles = [];
+            const info = this.buildingRegistry[obj.type] || { size: [1, 1] };
+            const [tw, th] = info.size;
+            if (obj.gridX !== undefined && obj.gridY !== undefined) {
+                for (let dy = 0; dy > -th; dy--) {
+                    for (let dx = 0; dx < tw; dx++) {
+                        tiles.push({ x: obj.gridX + dx, y: obj.gridY + dy });
+                    }
+                }
+            } else {
+                tiles.push(this.tileMap.worldToGrid(obj.x, obj.y));
+            }
+            return tiles;
+        };
+
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-        const findReachablePipes = (startHubGps, hubObj) => {
-            const queue = [...startHubGps];
-            const visited = new Set(startHubGps.map(gp => `${gp.x},${gp.y}`));
+
+        // BFS 탐색 함수
+        const findReachablePipes = (startTiles, hubObj) => {
+            const queue = [...startTiles];
+            const visited = new Set(startTiles.map(t => `${t.x},${t.y}`));
+            const isBase = hubObj.maxHp === 99999999;
+
             while (queue.length > 0) {
                 const curr = queue.shift();
                 for (const dir of dirs) {
                     const nx = curr.x + dir[0], ny = curr.y + dir[1], key = `${nx},${ny}`;
                     if (visited.has(key)) continue;
 
-                    const pipe = oilGrid[key];
+                    // 1. 파이프 체크
+                    const pipe = pipeGrid[key];
                     if (pipe) {
                         pipe.canReachHub = true;
+                        pipe.isConnected = true;
                         visited.add(key);
                         queue.push({x: nx, y: ny});
                         continue;
                     }
                     
-                    // 생산업체(정제소, 금 채굴장) 확인
-                    const producer = [...this.entities.refineries, ...this.entities.goldMines].find(p => {
-                        const pgp = this.tileMap.worldToGrid(p.x, p.y);
-                        return pgp.x === nx && pgp.y === ny;
+                    // 2. 생산업체(정제소, 금 채굴장) 체크
+                    const producers = [...this.entities.refineries, ...this.entities.goldMines];
+                    const producer = producers.find(p => {
+                        return getOccupiedTiles(p).some(t => t.x === nx && t.y === ny);
                     });
 
                     if (producer) {
-                        if (hubObj.maxHp === 99999999) producer.isConnectedToBase = true;
+                        if (isBase) producer.isConnectedToBase = true;
                         else producer.connectedTarget = hubObj;
                         visited.add(key);
+                        // 건물은 자원을 받기만 하고 전달하지 않으므로 큐에 추가하지 않음
                         continue;
                     }
 
-                    // 창고 확인 (기지에서 시작했을 때만)
-                    if (hubObj.maxHp === 99999999) {
+                    // 3. 창고 체크 (기지로부터 탐색 중일 때만)
+                    if (isBase) {
                         const storage = this.entities.storage.find(s => {
-                            const startX = Math.round(s.x / 40 - 1);
-                            const startY = Math.round(s.y / 40);
-                            // 2x2 타일 중 하나라도 닿으면 연결
-                            return nx >= startX && nx <= startX + 1 && ny >= startY - 1 && ny <= startY;
+                            return getOccupiedTiles(s).some(t => t.x === nx && t.y === ny);
                         });
                         if (storage) {
                             storage.isConnectedToBase = true;
                             visited.add(key);
-                            // 창고의 모든 타일을 큐에 추가하여 탐색 확장
-                            const startX = Math.round(storage.x / 40 - 1);
-                            const startY = Math.round(storage.y / 40);
-                            for(let gy = startY - 1; gy <= startY; gy++) {
-                                for(let gx = startX; gx <= startX + 1; gx++) {
-                                    const skey = `${gx},${gy}`;
-                                    if(!visited.has(skey)) {
-                                        visited.add(skey);
-                                        queue.push({x: gx, y: gy});
-                                    }
-                                }
-                            }
+                            // 창고 역시 자원을 받기만 하고 전달하지 않음
                         }
                     }
                 }
             }
         };
 
-        // 기지 탐색 (기지는 1x1이므로 단일 좌표 전달)
-        findReachablePipes([baseGp], this.entities.base);
+        // 기지 탐색 시작
+        findReachablePipes(getOccupiedTiles(this.entities.base), this.entities.base);
 
-        // 각 창고로부터 탐색 시작 (창고는 2x2이므로 모든 타일 좌표 전달)
+        // 창고 탐색 시작
         this.entities.storage.forEach(s => {
-            const startX = Math.round(s.x / 40 - 1);
-            const startY = Math.round(s.y / 40);
-            const storageGps = [];
-            for(let gy = startY - 1; gy <= startY; gy++) {
-                for(let gx = startX; gx <= startX + 1; gx++) {
-                    storageGps.push({x: gx, y: gy});
-                }
-            }
-            findReachablePipes(storageGps, s);
-        });
-
-        // 4. Step 2: 작동 중인 생산업체로부터 허브로 가는 경로의 파이프 활성화 (isConnected)
-        const activeProducers = [
-            ...this.entities.refineries.filter(r => r.fuel > 0 && (r.isConnectedToBase || r.connectedTarget)),
-            ...this.entities.goldMines.filter(gm => gm.fuel > 0 && (gm.isConnectedToBase || gm.connectedTarget))
-        ];
-
-        activeProducers.forEach(prod => {
-            const startGp = this.tileMap.worldToGrid(prod.x, prod.y);
-            const queue = [startGp];
-            const visited = new Set([`${startGp.x},${startGp.y}`]);
-            while (queue.length > 0) {
-                const curr = queue.shift();
-                for (const dir of dirs) {
-                    const nx = curr.x + dir[0], ny = curr.y + dir[1], key = `${nx},${ny}`;
-                    if (visited.has(key)) continue;
-                    const pipe = oilGrid[key];
-                    // 허브에 닿을 수 있는 파이프만 활성화
-                    if (pipe && pipe.canReachHub) {
-                        pipe.isConnected = true;
-                        visited.add(key);
-                        queue.push({x: nx, y: ny});
-                    }
-                }
-            }
+            findReachablePipes(getOccupiedTiles(s), s);
         });
     }
 
     updatePower() {
-        // 1. 모든 전력 기기 및 소비자 초기화
+        // 1. 초기화
         const consumers = [
             ...this.entities.turrets,
             ...this.entities.armories,
@@ -2199,7 +2270,24 @@ export class GameEngine {
         consumers.forEach(c => c.isPowered = false);
         this.entities.powerLines.forEach(pl => pl.isPowered = false);
 
-        // 모든 전력 객체 매핑
+        // 헬퍼: 건물 점유 타일 가져오기
+        const getOccupiedTiles = (obj) => {
+            const tiles = [];
+            const info = this.buildingRegistry[obj.type] || { size: [1, 1] };
+            const [tw, th] = info.size;
+            if (obj.gridX !== undefined && obj.gridY !== undefined) {
+                for (let dy = 0; dy > -th; dy--) {
+                    for (let dx = 0; dx < tw; dx++) {
+                        tiles.push({ x: obj.gridX + dx, y: obj.gridY + dy });
+                    }
+                }
+            } else {
+                tiles.push(this.tileMap.worldToGrid(obj.x, obj.y));
+            }
+            return tiles;
+        };
+
+        // 2. 전력망 매핑
         const powerGrid = {}; 
         
         // 전선 등록
@@ -2208,7 +2296,7 @@ export class GameEngine {
             powerGrid[`${gp.x},${gp.y}`] = pl;
         });
 
-        // 소비자 및 전력 원 등록
+        // 모든 건물 등록 (모든 점유 타일에 등록)
         const allBuildings = [
             ...consumers,
             ...this.entities.refineries, ...this.entities.goldMines,
@@ -2216,80 +2304,58 @@ export class GameEngine {
         ];
 
         allBuildings.forEach(b => {
-            const tilesW = (b.width || b.size || 40) / 40;
-            const tilesH = (b.height || b.size || 40) / 40;
-            for(let gy = 0; gy < tilesH; gy++) {
-                for(let gx = 0; gx < tilesW; gx++) {
-                    const nx = Math.floor(b.x / 40 - tilesW/2 + gx + (tilesW % 2 === 0 ? 0.5 : 0));
-                    const ny = Math.floor(b.y / 40 - tilesH/2 + gy + (tilesH % 2 === 0 ? 0.5 : 0));
-                    powerGrid[`${nx},${ny}`] = b;
-                }
-            }
+            const tiles = getOccupiedTiles(b);
+            tiles.forEach(t => {
+                powerGrid[`${t.x},${t.y}`] = b;
+            });
         });
 
-        // 탐색 큐 (발전소 및 기지에서 시작)
+        // 3. BFS 탐색
         const queue = [];
         const visited = new Set();
 
-        const addSource = (x, y) => {
-            const gridPos = this.tileMap.worldToGrid(x, y);
-            const key = `${gridPos.x},${gridPos.y}`;
-            queue.push(gridPos);
-            visited.add(key);
+        const addToQueue = (tiles) => {
+            tiles.forEach(t => {
+                const key = `${t.x},${t.y}`;
+                if (!visited.has(key)) {
+                    visited.add(key);
+                    queue.push(t);
+                    // 타일에 있는 건물이 있으면 전력 공급 상태로 (전선 제외)
+                    const ent = powerGrid[key];
+                    if (ent && ent.type !== 'power-line') {
+                        ent.isPowered = true;
+                    }
+                }
+            });
         };
 
-        this.entities.generators.forEach(g => addSource(g.x, g.y));
-        addSource(this.entities.base.x, this.entities.base.y);
+        // 시작점: 가동 중인 발전소 및 기지
+        this.entities.generators.forEach(g => {
+            if (g.fuel > 0 || g.type === 'generator') {
+                addToQueue(getOccupiedTiles(g));
+            }
+        });
+        addToQueue(getOccupiedTiles(this.entities.base));
 
-        // 3. BFS 전파 (전선망 활성화)
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
         while (queue.length > 0) {
             const curr = queue.shift();
             for (const dir of dirs) {
                 const nx = curr.x + dir[0], ny = curr.y + dir[1], key = `${nx},${ny}`;
                 const ent = powerGrid[key];
+                
                 if (ent && !visited.has(key)) {
-                    ent.isPowered = true;
                     visited.add(key);
+                    ent.isPowered = true;
+                    
+                    // 오직 전선(power-line)을 통해서만 전력이 전파되도록 수정
+                    // 일반 건물은 전력을 받기만 하고 다른 곳으로 전달하지 않음
                     if (ent.type === 'power-line') {
                         queue.push({x: nx, y: ny});
                     }
                 }
             }
         }
-
-        // 4. 소비자 건물 활성화 (인접 전력원 체크)
-        const activeSources = [
-            ...this.entities.generators,
-            ...this.entities.powerLines.filter(pl => pl.isPowered),
-            this.entities.base
-        ];
-
-        const checkAreaPower = (target) => {
-            const targetGp = this.tileMap.worldToGrid(target.x, target.y);
-            // 대각선 제거: 오직 상하좌우(4방향) 및 자기 자신(0,0)만 허용
-            const areaDirs = [[0,1],[0,-1],[1,0],[-1,0],[0,0]];
-            
-            for (const dir of areaDirs) {
-                const nx = targetGp.x + dir[0], ny = targetGp.y + dir[1];
-                const source = activeSources.find(s => {
-                    const tw = (s.width || s.size || 40) / 40;
-                    const th = (s.height || s.size || 40) / 40;
-                    for(let gy = 0; gy < th; gy++) {
-                        for(let gx = 0; gx < tw; gx++) {
-                            const snx = Math.floor(s.x / 40 - tw/2 + gx + (tw % 2 === 0 ? 0.5 : 0));
-                            const sny = Math.floor(s.y / 40 - th/2 + gy + (th % 2 === 0 ? 0.5 : 0));
-                            if (snx === nx && sny === ny) return true;
-                        }
-                    }
-                    return false;
-                });
-                if (source) return true;
-            }
-            return false;
-        };
-
-        consumers.forEach(c => c.isPowered = checkAreaPower(c));
     }
 
     updateVisibility() {
