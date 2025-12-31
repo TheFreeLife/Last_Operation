@@ -1247,18 +1247,22 @@ export class Tank extends PlayerUnit {
         this.type = 'tank';
         this.name = '전차';
         this.speed = 1.2;
-        this.fireRate = 1000;
-        this.damage = 25;
+        this.fireRate = 1800; // 공격 속도 살짝 낮춤 (1.0s -> 1.8s)
+        this.damage = 45;     // 데미지 증가 (25 -> 45)
         this.color = '#39ff14';
-        this.attackRange = 180; 
+        this.attackRange = 360; 
         this.visionRange = 6; // 전차 시야: 보병보다 넓음
+        this.explosionRadius = 40; // 폭발 반경 추가
     }
 
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate) {
             const { Projectile } = this.engine.entityClasses;
-            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color, this));
+            const p = new Projectile(this.x, this.y, this.target, this.damage, this.color, this);
+            p.type = 'shell'; // 포탄 타입 지정
+            p.explosionRadius = this.explosionRadius; 
+            this.engine.entities.projectiles.push(p);
             this.lastFireTime = now;
         }
     }
@@ -1304,34 +1308,49 @@ export class Tank extends PlayerUnit {
 export class Missile extends Entity {
     constructor(startX, startY, targetX, targetY, damage, engine) {
         super(startX, startY);
+        this.startX = startX;
+        this.startY = startY;
         this.targetX = targetX;
         this.targetY = targetY;
         this.damage = damage;
         this.engine = engine;
-        this.speed = 5;
+        this.speed = 4;
         this.angle = Math.atan2(targetY - startY, targetX - startX);
+        this.totalDistance = Math.hypot(targetX - startX, targetY - startY);
         this.active = true;
-        this.explosionRadius = 40; // 반경 1칸 (40px)
+        this.explosionRadius = 40; 
         this.arrived = false;
+        this.peakHeight = Math.min(this.totalDistance * 0.5, 200); // 거리에 비례하되 최대 높이 제한
+        this.trail = []; // 연기 효과용
     }
 
     update(deltaTime) {
         if (!this.active) return;
 
-        const d = Math.hypot(this.targetX - this.x, this.targetY - this.y);
-        if (d < 10) {
+        const currentDist = Math.hypot(this.x - this.startX, this.y - this.startY);
+        const progress = Math.min(currentDist / this.totalDistance, 1);
+
+        if (progress >= 1) {
             this.explode();
         } else {
             this.x += Math.cos(this.angle) * this.speed;
             this.y += Math.sin(this.angle) * this.speed;
+            
+            // 연기 트레일 추가
+            const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
+            this.trail.push({x: this.x, y: this.y - altitude, alpha: 1.0});
+            if (this.trail.length > 20) this.trail.shift();
         }
+        
+        // 연기 서서히 사라짐
+        this.trail.forEach(p => p.alpha -= 0.05);
+        this.trail = this.trail.filter(p => p.alpha > 0);
     }
 
     explode() {
         this.active = false;
         this.arrived = true;
         
-        // 범위 내 모든 적에게 데미지
         const enemies = this.engine.entities.enemies;
         enemies.forEach(enemy => {
             const dist = Math.hypot(enemy.x - this.targetX, enemy.y - this.targetY);
@@ -1345,20 +1364,66 @@ export class Missile extends Entity {
     draw(ctx) {
         if (!this.active && !this.arrived) return;
 
-        if (this.active) {
+        // 1. 연기 트레일 그리기
+        this.trail.forEach(p => {
             ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
+            ctx.globalAlpha = p.alpha * 0.5;
+            ctx.fillStyle = '#bdc3c7';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        if (this.active) {
+            const currentDist = Math.hypot(this.x - this.startX, this.y - this.startY);
+            const progress = currentDist / this.totalDistance;
+            const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
+
+            // 2. 그림자
+            ctx.save();
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(this.x, this.y, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // 3. 미사일 본체
+            ctx.save();
+            ctx.translate(this.x, this.y - altitude);
+            
+            // 포물선 각도 계산 (상승 시 위로, 하강 시 아래로)
+            // progress 0->0.5: 상승, 0.5->1: 하강
+            // 미사일 본체의 기본 방향(0도)이 오른쪽을 향하므로, 여기에 궤적 기울기를 더함
+            const dx = this.speed * Math.cos(this.angle);
+            const dy = this.speed * Math.sin(this.angle);
+            
+            // 고도 변화량 계산
+            const h1 = Math.sin(progress * Math.PI) * this.peakHeight;
+            const h2 = Math.sin(Math.min(progress + 0.01, 1) * Math.PI) * this.peakHeight;
+            const dh = h2 - h1; // 고도 차이 (상승 시 +, 하강 시 -)
+
+            // 최종 3D 궤적 각도 (수평 이동과 수직 이동의 합성)
+            const flightAngle = Math.atan2(dy - dh, dx);
+            
+            ctx.rotate(flightAngle);
+            
+            // 미사일 디자인
             ctx.fillStyle = '#ff3131';
             ctx.beginPath();
-            ctx.moveTo(10, 0); ctx.lineTo(-10, -5); ctx.lineTo(-10, 5);
+            ctx.moveTo(12, 0); ctx.lineTo(-8, -5); ctx.lineTo(-12, -5); ctx.lineTo(-12, 5); ctx.lineTo(-8, 5);
+            ctx.closePath();
             ctx.fill();
-            // 미사일 연기 효과
-            ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
-            ctx.beginPath(); ctx.arc(-15, 0, 4, 0, Math.PI * 2); ctx.fill();
+            
+            // 엔진 불꽃
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath();
+            ctx.arc(-13, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
             ctx.restore();
         } else if (this.arrived) {
-            // 폭발 이펙트 (잠깐 표시)
             ctx.save();
             ctx.beginPath();
             ctx.arc(this.targetX, this.targetY, this.explosionRadius, 0, Math.PI * 2);
@@ -1367,7 +1432,6 @@ export class Missile extends Entity {
             ctx.strokeStyle = '#ff4500';
             ctx.stroke();
             ctx.restore();
-            // 다음 프레임에 소멸되도록 arrived 해제
             this.arrived = false;
         }
     }
@@ -1382,7 +1446,7 @@ export class MissileLauncher extends PlayerUnit {
         this.fireRate = 2500;
         this.damage = 70;
         this.color = '#ff3131';
-        this.attackRange = 400; 
+        this.attackRange = 600; 
         this.visionRange = 8; // 미사일 시야: 제일 넓음
     }
 
@@ -3222,18 +3286,47 @@ export class Projectile extends Entity {
         this.source = source;
         this.speed = 8;
         this.size = 6;
+        this.type = 'normal'; // 'shell', 'normal', etc.
+        this.angle = 0;
+        this.explosionRadius = 0; // 0이면 단일 타겟, >0 이면 범위 공격
+        this.exploding = false; // 폭발 연출 중인지 여부
+        this.explosionTimer = 0;
+    }
+
+    explode(engine) {
+        if (this.explosionRadius > 0) {
+            // 범위 내 모든 적에게 데미지
+            engine.entities.enemies.forEach(enemy => {
+                const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+                if (dist <= this.explosionRadius) {
+                    enemy.hp -= this.damage;
+                    if (enemy.hp <= 0) enemy.active = false;
+                }
+            });
+            this.exploding = true;
+            this.explosionTimer = 150; // 150ms 동안 폭발 연출
+        } else {
+            // 단일 타겟 처리 (이미 hit 체크에서 처리됨)
+            this.active = false;
+        }
     }
 
     update(deltaTime, engine) {
+        if (this.exploding) {
+            this.explosionTimer -= deltaTime;
+            if (this.explosionTimer <= 0) this.active = false;
+            return;
+        }
+
         if (!this.active) return;
         if (!this.target || !this.target.active) {
             this.active = false;
             return;
         }
 
-        const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-        this.x += Math.cos(angle) * this.speed;
-        this.y += Math.sin(angle) * this.speed;
+        this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
 
         if (!engine) return;
 
@@ -3251,67 +3344,108 @@ export class Projectile extends Entity {
             return dist < (this.size / 2 + otherSize / 2);
         };
 
-        // 1. 적 유닛/건물 체크 (데미지 입힘)
+        // 1. 적 유닛/건물 체크 (범위 공격 시 폭발, 단일 공격 시 데미지 후 소멸)
         for (const enemy of engine.entities.enemies) {
             if (checkCollision(enemy)) {
-                enemy.hp -= this.damage;
-                if (enemy.hp <= 0) enemy.active = false;
-                this.active = false;
-                return;
-            }
-        }
-
-        // 2. 아군 유닛 체크 (사라짐)
-        for (const unit of engine.entities.units) {
-            if (checkCollision(unit)) {
-                this.active = false;
-                return;
-            }
-        }
-
-        // 3. 아군 건물 체크 (사라짐)
-        const buildingKeys = [
-            'turrets', 'generators', 'walls', 'airports', 
-            'refineries', 'goldMines', 'storage', 'armories', 'barracks'
-        ];
-        
-        if (checkCollision(engine.entities.base)) {
-            this.active = false;
-            return;
-        }
-
-        for (const key of buildingKeys) {
-            for (const b of engine.entities[key]) {
-                if (checkCollision(b)) {
+                if (this.explosionRadius > 0) {
+                    this.explode(engine);
+                } else {
+                    enemy.hp -= this.damage;
+                    if (enemy.hp <= 0) enemy.active = false;
                     this.active = false;
-                    return;
                 }
+                return;
             }
         }
 
-        // 4. 자원 체크 (사라짐)
-        for (const res of engine.entities.resources) {
-            if (!res.covered && checkCollision(res)) {
-                this.active = false;
+        // 2. 아군 유닛/건물/자원 체크 (사라짐)
+        const friendlyObstacles = [
+            engine.entities.base,
+            ...engine.entities.units,
+            ...engine.entities.turrets, ...engine.entities.generators, ...engine.entities.walls, 
+            ...engine.entities.airports, ...engine.entities.refineries, ...engine.entities.goldMines, 
+            ...engine.entities.storage, ...engine.entities.armories, ...engine.entities.barracks,
+            ...engine.entities.resources.filter(r => !r.covered)
+        ];
+
+        for (const b of friendlyObstacles) {
+            if (checkCollision(b)) {
+                if (this.explosionRadius > 0) {
+                    this.explode(engine);
+                } else {
+                    this.active = false;
+                }
                 return;
             }
         }
 
         // 목표 도달 체크
         if (Math.hypot(this.x - this.target.x, this.y - this.target.y) < 15) {
-            if (this.target.hp !== undefined) {
-                this.target.hp -= this.damage;
-                if (this.target.hp <= 0) this.target.active = false;
+            if (this.explosionRadius > 0) {
+                this.explode(engine);
+            } else {
+                if (this.target.hp !== undefined) {
+                    this.target.hp -= this.damage;
+                    if (this.target.hp <= 0) this.target.active = false;
+                }
+                this.active = false;
             }
-            this.active = false;
         }
     }
 
     draw(ctx) {
-        ctx.fillStyle = this.color;
-        ctx.shadowBlur = 10; ctx.shadowColor = this.color;
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
+        if (this.exploding) {
+            // 폭발 이펙트
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.explosionRadius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 165, 0, ${this.explosionTimer / 150})`;
+            ctx.fill();
+            ctx.strokeStyle = `rgba(255, 69, 0, ${this.explosionTimer / 150})`;
+            ctx.stroke();
+            ctx.restore();
+            return;
+        }
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        if (this.type === 'shell') {
+            // 전차 포탄 외형
+            ctx.fillStyle = '#7f8c8d'; // 금속 회색
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 1;
+            
+            // 포탄 몸체 (길쭉한 타원/사각형 조합)
+            ctx.beginPath();
+            ctx.moveTo(8, 0);
+            ctx.lineTo(-4, -3);
+            ctx.lineTo(-8, -3);
+            ctx.lineTo(-8, 3);
+            ctx.lineTo(-4, 3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 추진체 불꽃/빛 (뒤쪽)
+            ctx.fillStyle = '#e67e22';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#f39c12';
+            ctx.beginPath();
+            ctx.arc(-8, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // 일반 발사체 (빛나는 구체)
+            ctx.fillStyle = this.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = this.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        ctx.restore();
     }
 }
 
