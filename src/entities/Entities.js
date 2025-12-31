@@ -1476,11 +1476,10 @@ export class CombatEngineer extends PlayerUnit {
         this.size = 30; // 15 -> 30
         this.visionRange = 5;
         this.repairRate = 20; // 초당 수리량
-        this.harvestRate = 5; // 초당 자원 채취량
-        this.state = 'idle'; // idle, repairing, harvesting
         this.targetObject = null;
-        this.buildQueue = []; // [{ type, x, y }]
+        this.currentSharedTask = null; // 현재 맡은 공유 작업
         this.buildingTarget = null; // 현재 짓고 있는 건물 객체
+        this.myGroupQueue = null; // 이 유닛이 속한 건설 그룹의 큐 (배열 참조)
     }
 
     clearBuildQueue() {
@@ -1500,7 +1499,6 @@ export class CombatEngineer extends PlayerUnit {
                     for (let dx = 0; dx < tw; dx++) {
                         const nx = gx + dx, ny = gy + dy;
                         if (this.engine.tileMap.grid[ny] && this.engine.tileMap.grid[ny][nx]) {
-                            // 해당 타일에 자원이 있는지 확인하여 복구
                             const worldPos = this.engine.tileMap.gridToWorld(nx, ny);
                             const hasResource = this.engine.entities.resources.some(r => 
                                 Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
@@ -1524,38 +1522,14 @@ export class CombatEngineer extends PlayerUnit {
             this.buildingTarget = null;
         }
 
-        // 2. 대기 중인 큐 취소
-        if (this.buildQueue.length > 0) {
-            this.buildQueue.forEach(task => {
-                const buildInfo = this.engine.buildingRegistry[task.type];
-                if (buildInfo) {
-                    this.engine.resources.gold += buildInfo.cost;
-                    const [tw, th] = buildInfo.size;
-                    const gx = task.gridX;
-                    const gy = task.gridY;
-
-                    for (let dy = 0; dy > -th; dy--) {
-                        for (let dx = 0; dx < tw; dx++) {
-                            const nx = gx + dx, ny = gy + dy;
-                            if (this.engine.tileMap.grid[ny] && this.engine.tileMap.grid[ny][nx]) {
-                                const worldPos = this.engine.tileMap.gridToWorld(nx, ny);
-                                const hasResource = this.engine.entities.resources.some(r => 
-                                    Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
-                                );
-                                if (hasResource) {
-                                    this.engine.tileMap.grid[ny][nx].type = 'resource';
-                                    this.engine.tileMap.grid[ny][nx].occupied = true;
-                                } else {
-                                    this.engine.tileMap.grid[ny][nx].type = 'empty';
-                                    this.engine.tileMap.grid[ny][nx].occupied = false;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            this.buildQueue = [];
+        // 2. 현재 맡고 있던 공유 작업 반납
+        if (this.currentSharedTask) {
+            this.currentSharedTask.assignedEngineer = null;
+            this.currentSharedTask = null;
         }
+
+        // 3. 그룹 큐 탈퇴
+        this.myGroupQueue = null;
     }
 
     update(deltaTime) {
@@ -1565,10 +1539,12 @@ export class CombatEngineer extends PlayerUnit {
             return;
         }
 
-        if (this.command !== 'build' && (this.buildQueue.length > 0 || this.buildingTarget)) {
+        // 건설 중이 아닌데 그룹 큐에 있거나 빌딩 타겟이 있다면 (강제 이동 등)
+        if (this.command !== 'build' && (this.myGroupQueue || this.buildingTarget)) {
             this.clearBuildQueue();
         }
 
+        // 1단계: 건설 진행
         if (this.command === 'build' && this.buildingTarget) {
             if (this.buildingTarget.isUnderConstruction) {
                 const progressPerFrame = deltaTime / (this.buildingTarget.totalBuildTime * 1000);
@@ -1591,32 +1567,52 @@ export class CombatEngineer extends PlayerUnit {
             }
         }
 
-        if (this.command === 'build' && this.buildQueue.length > 0) {
-            const currentTask = this.buildQueue[0];
-            const buildInfo = this.engine.buildingRegistry[currentTask.type];
-            const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
-            const targetDistX = (tw * 40) / 2 + this.size / 2 + 5;
-            const targetDistY = (th * 40) / 2 + this.size / 2 + 5;
-            const dx = Math.abs(this.x - currentTask.x), dy = Math.abs(this.y - currentTask.y);
-            if (dx <= targetDistX && dy <= targetDistY) {
-                // 인접 완료! 건물 기초 공사 시작
-                const building = this.engine.executeBuildingPlacement(
-                    currentTask.type, currentTask.x, currentTask.y, currentTask.gridX, currentTask.gridY
-                );
-                if (building) {
-                    this.buildingTarget = building;
-                    this.buildQueue.shift();
-                    this.destination = null; // 이동 완료 처리를 막기 위해 목적지 제거
-                } else {
-                    this.buildQueue.shift();
+        // 2단계: 작업 분담 및 이동 (자신의 그룹 큐에서 일감 찾기)
+        if (this.command === 'build' && this.myGroupQueue) {
+            // 아직 맡은 일이 없다면 큐에서 첫 번째 비어있는 작업 할당
+            if (!this.currentSharedTask) {
+                const nextTask = this.myGroupQueue.find(task => task.assignedEngineer === null);
+                if (nextTask) {
+                    this.currentSharedTask = nextTask;
+                    nextTask.assignedEngineer = this;
                 }
-                if (this.buildQueue.length === 0 && !this.buildingTarget) this.command = 'stop';
-            } else {
-                this.destination = { x: currentTask.x, y: currentTask.y };
+            }
+
+            if (this.currentSharedTask) {
+                const task = this.currentSharedTask;
+                const buildInfo = this.engine.buildingRegistry[task.type];
+                const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
+                const targetDistX = (tw * 40) / 2 + this.size / 2 + 5;
+                const targetDistY = (th * 40) / 2 + this.size / 2 + 5;
+                const dx = Math.abs(this.x - task.x), dy = Math.abs(this.y - task.y);
+
+                if (dx <= targetDistX && dy <= targetDistY) {
+                    const building = this.engine.executeBuildingPlacement(
+                        task.type, task.x, task.y, task.gridX, task.gridY
+                    );
+                    if (building) {
+                        this.buildingTarget = building;
+                        // 자신의 그룹 큐에서 해당 작업 제거
+                        const taskIdx = this.myGroupQueue.indexOf(task);
+                        if (taskIdx !== -1) this.myGroupQueue.splice(taskIdx, 1);
+                        this.currentSharedTask = null;
+                        this.destination = null;
+                    } else {
+                        const taskIdx = this.myGroupQueue.indexOf(task);
+                        if (taskIdx !== -1) this.myGroupQueue.splice(taskIdx, 1);
+                        this.currentSharedTask = null;
+                    }
+                } else {
+                    this.destination = { x: task.x, y: task.y };
+                }
+            } else if (!this.buildingTarget && this.myGroupQueue.length === 0) {
+                // 더 이상 할 일이 없으면 정지
+                this.command = 'stop';
+                this.myGroupQueue = null;
             }
         }
 
-        // 수리 로직
+        // 수리 로직 (이제 정상적으로 update 내부로 통합됨)
         if (this.command === 'repair' && this.targetObject) {
             const dist = Math.hypot(this.x - this.targetObject.x, this.y - this.targetObject.y);
             const range = (this.size + (this.targetObject.width || this.targetObject.size || 40)) / 2 + 10;

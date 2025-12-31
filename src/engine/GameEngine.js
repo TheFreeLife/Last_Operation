@@ -103,6 +103,7 @@ export class GameEngine {
         this.pendingItemIndex = -1; // To track which item is being used for building
         this.lastPlacedGrid = { x: -1, y: -1 }; // 연속 건설 버그 방지용 추가
         this.isEngineerBuilding = false; // 공병 건설 메뉴 오픈 여부
+        this.currentBuildSessionQueue = null; // 현재 건설 클릭/드래그 세션용 큐
 
         // Camera State (Center on base considering zoom)
         const baseWorldPos = this.entities.base;
@@ -891,6 +892,7 @@ export class GameEngine {
         this.selectedBuildType = null;
         this.selectedAirport = null;
         this.pendingItemIndex = -1;
+        this.currentBuildSessionQueue = null; // 세션 큐 초기화
         this.updateCursor();
         this.updateBuildMenu();
         this.updateInventoryUI(); // Refresh inventory highlights
@@ -1065,22 +1067,38 @@ export class GameEngine {
         }
 
         if (canPlace) {
-            const engineer = this.selectedEntities.find(u => u.type === 'engineer');
-            if (engineer) {
-                // 타일 중앙 좌표 계산
+            // 선택된 모든 공병 수집
+            const engineers = this.selectedEntities.filter(u => u.type === 'engineer');
+            
+            if (engineers.length > 0) {
                 const centerPos = this.tileMap.gridToWorld(gridX, gridY);
                 
-                // 작업 큐에 정규화된 좌표 저장
-                engineer.command = 'build';
-                engineer.buildQueue.push({ 
+                // 1. 현재 세션 큐가 없으면 생성 (새로운 드래그나 클릭의 시작)
+                if (!this.currentBuildSessionQueue) {
+                    this.currentBuildSessionQueue = [];
+                }
+
+                // 2. 새로운 작업 생성
+                const newTask = { 
                     type: this.selectedBuildType, 
                     x: centerPos.x, 
                     y: centerPos.y,
                     gridX: gridX,
-                    gridY: gridY
+                    gridY: gridY,
+                    assignedEngineer: null 
+                };
+                this.currentBuildSessionQueue.push(newTask);
+                
+                // 3. 모든 선택된 공병에게 이 큐를 할당 (이미 이 그룹 작업 중이면 유지)
+                engineers.forEach(eng => {
+                    if (eng.myGroupQueue !== this.currentBuildSessionQueue) {
+                        eng.clearBuildQueue(); // 기존 작업 취소
+                        eng.myGroupQueue = this.currentBuildSessionQueue;
+                        eng.command = 'build';
+                    }
                 });
                 
-                // 자원 즉시 차감 및 타일 임시 점유
+                // 자원 차감 및 타일 점유
                 this.resources.gold -= cost;
                 for (let dy = 0; dy > -th; dy--) {
                     for (let dx = 0; dx < tw; dx++) {
@@ -1093,15 +1111,12 @@ export class GameEngine {
                 }
 
                 this.lastPlacedGrid = { x: gridX, y: gridY };
-
                 if (isFromItem) {
                     this.inventory.splice(this.pendingItemIndex, 1);
                     this.pendingItemIndex = -1;
                     this.updateInventoryUI();
-                    this.cancelBuildMode(); // 아이템 건설은 단발성으로 유지
+                    this.cancelBuildMode();
                 }
-                
-                // 일반 건설은 cancelBuildMode를 호출하지 않아 드래그 연속 건설 가능
                 return true;
             }
         }
@@ -1708,68 +1723,61 @@ export class GameEngine {
     }
 
     renderBuildQueue() {
+        // 모든 공병을 순회하며 유니크한 그룹 큐들을 수집
+        const uniqueQueues = new Set();
+        this.entities.units.forEach(u => {
+            if (u.type === 'engineer' && u.myGroupQueue) {
+                uniqueQueues.add(u.myGroupQueue);
+            }
+        });
+
+        if (uniqueQueues.size === 0) return;
+
         this.ctx.save();
         this.ctx.translate(this.camera.x, this.camera.y);
         this.ctx.scale(this.camera.zoom, this.camera.zoom);
 
-        this.entities.units.forEach(unit => {
-            if (unit.type === 'engineer' && unit.buildQueue.length > 0) {
-                let lastX = unit.x;
-                let lastY = unit.y;
+        uniqueQueues.forEach(queue => {
+            queue.forEach((task, index) => {
+                const buildInfo = this.buildingRegistry[task.type];
+                if (!buildInfo) return;
 
-                unit.buildQueue.forEach((task, index) => {
-                    const buildInfo = this.buildingRegistry[task.type];
-                    if (!buildInfo) return;
+                // 1. 청사진 건물 그리기
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.3; 
+                
+                const size = buildInfo.size;
+                const stw = size[0], sth = size[1];
+                let worldPos;
+                const gx = task.gridX, gy = task.gridY;
 
-                    // 1. 청사진 건물 그리기
-                    this.ctx.save();
-                    this.ctx.globalAlpha = 0.3; // 반투명
-                    
-                    const [tw, th] = buildInfo.size;
-                    let worldPos;
-                    const tileInfo = this.tileMap.getTileAt(task.x, task.y);
-                    if (tileInfo) {
-                        if (tw > 1 || th > 1) {
-                            worldPos = {
-                                x: (tileInfo.x + tw / 2) * this.tileMap.tileSize,
-                                y: (tileInfo.y - (th / 2 - 1)) * this.tileMap.tileSize
-                            };
-                        } else {
-                            worldPos = this.tileMap.gridToWorld(tileInfo.x, tileInfo.y);
-                        }
+                if (stw > 1 || sth > 1) {
+                    worldPos = {
+                        x: (gx + stw / 2) * this.tileMap.tileSize,
+                        y: (gy - (sth / 2 - 1)) * this.tileMap.tileSize
+                    };
+                } else {
+                    worldPos = this.tileMap.gridToWorld(gx, gy);
+                }
 
-                        const ClassRef = this.entityClasses[buildInfo.className];
-                        if (ClassRef) {
-                            let ghost;
-                            if (buildInfo.className === 'Turret') {
-                                ghost = new ClassRef(worldPos.x, worldPos.y, task.type);
-                            } else {
-                                ghost = new ClassRef(worldPos.x, worldPos.y, this);
-                            }
-                            if (ghost.draw) ghost.draw(this.ctx);
-                        }
+                const ClassRef = this.entityClasses[buildInfo.className];
+                if (ClassRef) {
+                    let ghost;
+                    if (buildInfo.className === 'Turret') {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, task.type);
+                    } else {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, this);
                     }
-                    this.ctx.restore();
+                    if (ghost.draw) ghost.draw(this.ctx);
+                }
+                this.ctx.restore();
 
-                    // 2. 예약 순서 연결선
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(lastX, lastY);
-                    this.ctx.lineTo(task.x, task.y);
-                    this.ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
-                    this.ctx.setLineDash([5, 5]);
-                    this.ctx.lineWidth = 2;
-                    this.ctx.stroke();
-
-                    // 3. 순서 번호 표시
-                    this.ctx.fillStyle = '#00ffcc';
-                    this.ctx.font = 'bold 12px Arial';
-                    this.ctx.textAlign = 'center';
-                    this.ctx.fillText(index + 1, task.x, task.y - 20);
-
-                    lastX = task.x;
-                    lastY = task.y;
-                });
-            }
+                // 2. 예약 정보 표시
+                this.ctx.fillStyle = task.assignedEngineer ? '#39ff14' : '#00ffcc';
+                this.ctx.font = 'bold 12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(task.assignedEngineer ? `작업 중` : `대기 (${index + 1})`, task.x, task.y - 20);
+            });
         });
 
         this.ctx.restore();
