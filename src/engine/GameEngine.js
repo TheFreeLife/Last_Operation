@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks } from '../entities/Entities.js';
+import { Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 
 export class GameEngine {
@@ -12,7 +12,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Base, Turret, Enemy, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks };
+        this.entityClasses = { Base, Turret, Enemy, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Substation, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
@@ -253,6 +253,7 @@ export class GameEngine {
             'skill:rifleman': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><circle cx="20" cy="15" r="6" fill="#2d3436"/><path d="M12 25 L28 25 L20 15 Z" fill="#556644"/><rect x="22" y="20" width="8" height="2" fill="#636e72"/></svg></div>`,
             'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
             'skill:scout': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="#00d2ff" stroke-width="2"/><path d="M20 10 V30 M10 20 H30" stroke="#00d2ff" stroke-width="1"/><circle cx="20" cy="20" r="5" fill="#00d2ff" opacity="0.5"/></svg></div>`,
+            'skill:engineer': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#f1c40f"/><path d="M15 15 L25 25 M25 15 L15 25" stroke="#333" stroke-width="2"/><circle cx="20" cy="20" r="4" fill="#3498db"/></svg></div>`,
             'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
             'unit:stop': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#ff3131"/></svg></div>`,
             'unit:hold': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M20 5 L32 12 V25 L20 35 L8 25 V12 Z" fill="#333" stroke="#ffff00" stroke-width="2"/></svg></div>`,
@@ -273,15 +274,12 @@ export class GameEngine {
         const header = document.querySelector('.panel-header');
         if (!header) return;
         
-        // 1. Determine which menu to show based on selection
         let menuType = 'main';
         let items = [];
 
         if (this.selectedEntities.length > 0) {
-            // Check if all selected entities are units
-            const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
+            const unitTypes = ['tank', 'missile-launcher', 'rifleman', 'engineer'];
             const allUnits = this.selectedEntities.every(ent => unitTypes.includes(ent.type));
-            // Check if all selected entities are of the same building type
             const firstType = this.selectedEntities[0].type;
             const allSameType = this.selectedEntities.every(ent => ent.type === firstType);
 
@@ -298,155 +296,72 @@ export class GameEngine {
                 ];
             } else if (allSameType) {
                 const type = firstType;
+                header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
+                
                 if (type === 'armory') {
-                    menuType = 'armory';
-                    header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
                     items = [
-                        { type: 'skill-tank', name: '전차 생산', cost: 300, icon: '🚜', action: 'skill:tank' },
-                        { type: 'skill-missile', name: '미사일 생산', cost: 500, icon: '🚀', action: 'skill:missile' },
-                        null, null, null, null,
-                        { type: 'menu:main', name: '취소', action: 'menu:main' },
-                        null, null
+                        { type: 'skill-tank', name: '전차 생산', cost: 300, action: 'skill:tank' },
+                        { type: 'skill-missile', name: '미사일 생산', cost: 500, action: 'skill:missile' },
+                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'barracks') {
-                    menuType = 'barracks';
-                    header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
                     items = [
-                        { type: 'skill-rifleman', name: '소총병 생산', cost: 100, icon: '💂', action: 'skill:rifleman' },
-                        null, null, null, null, null,
-                        { type: 'menu:main', name: '취소', action: 'menu:main' },
-                        null, null
+                        { type: 'skill-rifleman', name: '소총병 생산', cost: 100, action: 'skill:rifleman' },
+                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'airport') {
-                    menuType = 'airport';
-                    header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
                     items = [
-                        { type: 'skill-scout', name: '정찰', cost: 100, icon: '✈️', action: 'skill:scout' },
-                        null, null, null, null, null,
-                        { type: 'menu:main', name: '취소', action: 'menu:main' },
-                        null, null
+                        { type: 'skill-scout', name: '정찰', cost: 100, action: 'skill:scout' },
+                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'storage') {
-                    menuType = 'storage';
-                    header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
                     items = [
-                        { type: 'skill-cargo', name: '수송기 생산', cost: 100, icon: '📦', action: 'skill:cargo' },
-                        null, null, null, null, null,
-                        { type: 'menu:main', name: '취소', action: 'menu:main' },
-                        null, null
+                        { type: 'skill-cargo', name: '수송기 생산', cost: 100, action: 'skill:cargo' },
+                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                    ];
+                } else if (type === 'base') {
+                    items = [
+                        { type: 'skill-engineer', name: '공병 생산', cost: 150, action: 'skill:engineer' },
+                        null, null, null, null, null, null, null, null
                     ];
                 } else {
-                    menuType = 'building';
-                    header.textContent = allSameType ? `${this.selectedEntities[0].name || '건물'} (${this.selectedEntities.length})` : '건물 정보';
                     items = [
-                        null, null, null, null, null, null,
-                        { type: 'menu:main', name: '취소', action: 'menu:main' },
-                        null,
+                        null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null,
                         { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                     ];
                 }
             } else {
-                // Mixed types selected (e.g., a unit and a building, or two different buildings)
-                menuType = 'mixed';
                 header.textContent = `다중 선택 (${this.selectedEntities.length})`;
                 items = [null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null];
             }
-        } else if (this.selectedEntity) {
-            const type = this.selectedEntity.type;
-            if (type === 'armory') {
-                menuType = 'armory';
-                header.textContent = this.selectedEntity.name;
-                items = [
-                    { type: 'skill-tank', name: '전차 생산', cost: 300, icon: '🚜', action: 'skill:tank' },
-                    { type: 'skill-missile', name: '미사일 생산', cost: 500, icon: '🚀', action: 'skill:missile' },
-                    null, null, null, null,
-                    { type: 'menu:main', name: '취소', action: 'menu:main' },
-                    null, null
-                ];
-            } else if (type === 'barracks') {
-                menuType = 'barracks';
-                header.textContent = this.selectedEntity.name;
-                items = [
-                    { type: 'skill-rifleman', name: '소총병 생산', cost: 100, icon: '💂', action: 'skill:rifleman' },
-                    null, null, null, null, null,
-                    { type: 'menu:main', name: '취소', action: 'menu:main' },
-                    null, null
-                ];
-            } else if (type === 'airport') {
-                menuType = 'airport';
-                header.textContent = this.selectedEntity.name;
-                items = [
-                    { type: 'skill-scout', name: '정찰', cost: 100, icon: '✈️', action: 'skill:scout' },
-                    null, null, null, null, null,
-                    { type: 'menu:main', name: '취소', action: 'menu:main' },
-                    null, null
-                ];
-            } else if (type === 'storage') {
-                menuType = 'storage';
-                header.textContent = this.selectedEntity.name;
-                items = [
-                    { type: 'skill-cargo', name: '수송기 생산', cost: 100, icon: '📦', action: 'skill:cargo' },
-                    null, null, null, null, null,
-                    { type: 'menu:main', name: '취소', action: 'menu:main' },
-                    null, null
-                ];
-            } else {
-                menuType = 'building';
-                header.textContent = this.selectedEntity.name || '건물 정보';
-                items = [
-                    null, null, null, null, null, null,
-                    { type: 'menu:main', name: '취소', action: 'menu:main' },
-                    null,
-                    { type: 'sell', name: '판매', action: 'toggle:sell', icon: '💰' }
-                ];
-            }
         } else {
+            // 메인 건설 메뉴 (선택된 것 없을 때)
             header.textContent = '건 설';
             if (this.currentMenuName === 'network') {
                 header.textContent = '네트워크';
                 items = [
-                    { type: 'power-line', name: '전선', cost: 10 },
-                    { type: 'pipe-line', name: '파이프', cost: 10 },
-                    null, null, null, null,
-                    { type: 'menu:main', name: '뒤로', action: 'menu:main' },
-                    null,
-                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'power-line', name: '전선', cost: 10 }, { type: 'pipe-line', name: '파이프', cost: 10 },
+                    null, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'power') {
                 header.textContent = '발전소';
                 items = [
-                    { type: 'coal-generator', name: '석탄 발전', cost: 200 },
-                    { type: 'oil-generator', name: '석유 발전', cost: 200 },
-                    { type: 'refinery', name: '정제소', cost: 300 },
-                    { type: 'gold-mine', name: '금 채굴장', cost: 400 },
-                    { type: 'storage', name: '창고', cost: 200 },
-                    null,
-                    { type: 'menu:main', name: '뒤로', action: 'menu:main' },
-                    null,
-                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'coal-generator', name: '석탄 발전', cost: 200 }, { type: 'oil-generator', name: '석유 발전', cost: 200 },
+                    { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
+                    { type: 'storage', name: '창고', cost: 200 }, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'military') {
                 header.textContent = '군사 시설';
                 items = [
-                    { type: 'armory', name: '병기창', cost: 600 },
-                    { type: 'airport', name: '공항', cost: 500 },
-                    { type: 'barracks', name: '병영', cost: 400 },
-                    null, null, null,
-                    { type: 'menu:main', name: '뒤로', action: 'menu:main' },
-                    null,
-                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'armory', name: '병기창', cost: 600 }, { type: 'airport', name: '공항', cost: 500 },
+                    { type: 'barracks', name: '병영', cost: 400 }, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else {
                 items = [
-                    { type: 'turret-basic', name: '기본 포탑', cost: 50 },
-                    { type: 'menu:network', name: '네트워크', action: 'menu:network' },
-                    { type: 'substation', name: '변전소', cost: 100 },
-                    { type: 'menu:power', name: '에너지', action: 'menu:power' },
-                    { type: 'wall', name: '벽', cost: 30 },
-                    { type: 'menu:military', name: '군사', action: 'menu:military' },
-                    null,
-                    null,
-                    { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'turret-basic', name: '기본 포탑', cost: 50 }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
+                    { type: 'substation', name: '변전소', cost: 100 }, { type: 'menu:power', name: '에너지', action: 'menu:power' },
+                    { type: 'wall', name: '벽', cost: 30 }, { type: 'menu:military', name: '군사', action: 'menu:military' },
+                    null, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             }
         }
@@ -540,12 +455,15 @@ export class GameEngine {
             else this.startSellMode();
         } else if (action.startsWith('skill:')) {
             const skill = action.split(':')[1];
-            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman') {
-                if (this.selectedEntity && this.selectedEntity.requestUnit) {
+            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer') {
+                const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
+                if (target && target.requestUnit) {
                     const cost = item.cost || 0;
                     if (this.resources.gold >= cost) {
-                        if (this.selectedEntity.requestUnit(skill === 'missile' ? 'missile-launcher' : skill)) {
+                        const unitKey = (skill === 'missile') ? 'missile-launcher' : skill;
+                        if (target.requestUnit(unitKey)) {
                             this.resources.gold -= cost;
+                            this.updateBuildMenu();
                         }
                     }
                 }
@@ -652,6 +570,32 @@ export class GameEngine {
                     this.cancelModes();
                     this.updateCursor();
                 } else if (this.selectedEntities.length > 0) {
+                    // Check if any selected unit is an engineer and right-clicked a building
+                    const engineer = this.selectedEntities.find(u => u.type === 'engineer');
+                    if (engineer) {
+                        const buildings = [
+                            ...this.entities.turrets, ...this.entities.generators, ...this.entities.airports,
+                            ...this.entities.refineries, ...this.entities.goldMines, ...this.entities.storage,
+                            ...this.entities.armories, ...this.entities.barracks, ...this.entities.walls, this.entities.base
+                        ];
+                        const targetBuilding = buildings.find(b => {
+                            const bounds = b.getSelectionBounds();
+                            return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
+                        });
+                        
+                        if (targetBuilding && targetBuilding.hp < targetBuilding.maxHp) {
+                            this.selectedEntities.forEach(u => {
+                                if (u.type === 'engineer') {
+                                    u.command = 'repair';
+                                    u.targetObject = targetBuilding;
+                                } else {
+                                    u.executeCommand('move', worldX, worldY);
+                                }
+                            });
+                            return;
+                        }
+                    }
+
                     // SC Style Move command (ignores enemies)
                     this.executeUnitCommand('move', worldX, worldY);
                 }
@@ -803,38 +747,20 @@ export class GameEngine {
 
         if (isShiftKey) {
             if (found) {
-                // Check if already selected
                 const idx = this.selectedEntities.indexOf(found);
                 if (idx !== -1) {
-                    // Deselect
                     this.selectedEntities.splice(idx, 1);
-                    if (this.selectedEntity === found) {
-                        this.selectedEntity = this.selectedEntities.length > 0 ? this.selectedEntities[this.selectedEntities.length - 1] : null;
-                    }
                 } else {
-                    // Select
-                    // Ensure existing selectedEntity is in list if it wasn't (e.g. single building selected previously)
-                    if (this.selectedEntities.length === 0 && this.selectedEntity) {
-                        this.selectedEntities.push(this.selectedEntity);
-                    }
                     this.selectedEntities.push(found);
-                    this.selectedEntity = found;
                 }
             }
         } else {
-            this.selectedEntity = null;
-            this.selectedEntities = [];
-            this.selectedAirport = null;
-
-            if (found) {
-                this.selectedEntity = found;
-                const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
-                if (unitTypes.includes(found.type)) {
-                    this.selectedEntities = [found];
-                }
-                if (found.type === 'airport') this.selectedAirport = found;
-            }
+            this.selectedEntities = found ? [found] : [];
         }
+
+        // 편의를 위해 첫 번째 선택된 객체를 selectedEntity로 참조 (기존 코드 호환성)
+        this.selectedEntity = this.selectedEntities.length > 0 ? this.selectedEntities[0] : null;
+        this.selectedAirport = (this.selectedEntity && this.selectedEntity.type === 'airport') ? this.selectedEntity : null;
 
         this.updateCursor();
         this.updateBuildMenu();
@@ -1398,6 +1324,7 @@ export class GameEngine {
                 });
                 this.entities.storage.forEach(s => s.update(deltaTime, this));
                 this.entities.storage = checkDestruction(this.entities.storage);
+                this.entities.base.update(deltaTime, this); // 총사령부 업데이트 추가
                 this.entities.armories.forEach(a => a.update(deltaTime, this));
                 this.entities.armories = checkDestruction(this.entities.armories);
                 this.entities.barracks.forEach(b => b.update(deltaTime, this));

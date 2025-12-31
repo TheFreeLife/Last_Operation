@@ -30,11 +30,33 @@ export class Base extends Entity {
         this.width = 120;  // 3x3 tiles
         this.height = 120; // 3x3 tiles
         this.size = 120;
+        this.spawnQueue = []; // {type, timer}
+        this.spawnTime = 4000; // 공병 생산 시간 (4초)
+    }
+
+    requestUnit(unitType) {
+        this.spawnQueue.push({ type: unitType, timer: 0 });
+        return true;
+    }
+
+    update(deltaTime, engine) {
+        if (this.spawnQueue.length > 0) {
+            const current = this.spawnQueue[0];
+            current.timer += deltaTime;
+            if (current.timer >= this.spawnTime) {
+                const spawnY = this.y + 70; // 건물 남쪽 출입구 앞
+                let unit = new CombatEngineer(this.x, spawnY, engine);
+                unit.destination = { x: this.x, y: this.y + 100 };
+                engine.entities.units.push(unit);
+                this.spawnQueue.shift();
+            }
+        }
     }
 
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
+        // ... (기존 그리기 로직 유지)
 
         // 1. 메인 대형 빌딩 본체 (석조 건물의 웅장함 - 밝은 회색/베이지)
         ctx.fillStyle = '#dcdde1';
@@ -120,7 +142,7 @@ export class Base extends Entity {
 
         ctx.restore();
 
-        // HP Bar - 깔끔하고 현대적인 디자인
+        // HP Bar
         const barWidth = 110;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.fillRect(this.x - barWidth/2, this.y - 80, barWidth, 8);
@@ -129,6 +151,19 @@ export class Base extends Entity {
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
         ctx.strokeRect(this.x - barWidth/2, this.y - 80, barWidth, 8);
+
+        // 생산 대기열 표시
+        if (this.spawnQueue.length > 0) {
+            const progress = this.spawnQueue[0].timer / this.spawnTime;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(this.x - 40, this.y - 95, 80, 8);
+            ctx.fillStyle = '#f1c40f'; // 공병은 노란색 바
+            ctx.fillRect(this.x - 40, this.y - 95, 80 * progress, 8);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`공병 생산 중 x${this.spawnQueue.length}`, this.x, this.y - 100);
+        }
     }
 }
 
@@ -1379,6 +1414,84 @@ export class Rifleman extends PlayerUnit {
         ctx.fill();
         
         ctx.restore();
+    }
+}
+
+export class CombatEngineer extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'engineer';
+        this.name = '공병';
+        this.speed = 1.5;
+        this.hp = 60;
+        this.maxHp = 60;
+        this.size = 15;
+        this.visionRange = 5;
+        this.repairRate = 20; // 초당 수리량
+        this.harvestRate = 5; // 초당 자원 채취량
+        this.state = 'idle'; // idle, repairing, harvesting
+        this.targetObject = null;
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (!this.alive) return;
+
+        // 수리 로직
+        if (this.command === 'repair' && this.targetObject) {
+            const dist = Math.hypot(this.x - this.targetObject.x, this.y - this.targetObject.y);
+            const range = (this.size + (this.targetObject.width || this.targetObject.size || 40)) / 2 + 10;
+            
+            if (dist <= range) {
+                if (this.targetObject.hp < this.targetObject.maxHp) {
+                    this.targetObject.hp = Math.min(this.targetObject.maxHp, this.targetObject.hp + (this.repairRate * deltaTime / 1000));
+                } else {
+                    this.command = 'stop';
+                    this.targetObject = null;
+                }
+            } else {
+                this.destination = { x: this.targetObject.x, y: this.targetObject.y };
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // 공병 외형 (작은 중장비 느낌)
+        ctx.fillStyle = '#f1c40f'; // 노란색 (중장비 컬러)
+        ctx.fillRect(-8, -8, 16, 16);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-8, -8, 16, 16);
+        
+        // 집게/수리 도구
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(6, -4, 6, 2);
+        ctx.fillRect(6, 2, 6, 2);
+        
+        // 운전석 창문
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(0, -5, 4, 10);
+
+        ctx.restore();
+
+        // 수리 이펙트 (불꽃)
+        if (this.command === 'repair' && this.targetObject) {
+            const dist = Math.hypot(this.x - this.targetObject.x, this.y - this.targetObject.y);
+            const range = (this.size + (this.targetObject.width || this.targetObject.size || 40)) / 2 + 15;
+            if (dist <= range) {
+                for(let i=0; i<3; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#f1c40f' : '#e67e22';
+                    ctx.beginPath();
+                    ctx.arc(this.x + Math.cos(this.angle)*10 + (Math.random()-0.5)*10, 
+                            this.y + Math.sin(this.angle)*10 + (Math.random()-0.5)*10, 2, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
     }
 }
 
