@@ -807,6 +807,7 @@ export class Storage extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'storage';
+        this.name = '창고';
         this.width = 80;
         this.height = 80;
         this.size = 80;
@@ -1293,6 +1294,7 @@ export class Barracks extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'barracks';
+        this.name = '병영';
         this.width = 80;
         this.height = 80;
         this.size = 80;
@@ -1426,6 +1428,7 @@ export class Armory extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'armory';
+        this.name = '병기창';
         this.size = 80;
         this.width = 80;
         this.height = 80;
@@ -1542,6 +1545,7 @@ export class Airport extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'airport';
+        this.name = '공항';
         this.width = 80;
         this.height = 120;
         this.size = 80;
