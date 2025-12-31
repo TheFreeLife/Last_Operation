@@ -23,25 +23,112 @@ export class Entity {
 export class Base extends Entity {
     constructor(x, y) {
         super(x, y);
+        this.type = 'base';
+        this.name = '총사령부';
         this.maxHp = 99999999;
         this.hp = 99999999;
-        this.size = 30;
+        this.width = 120;  // 3x3 tiles
+        this.height = 120; // 3x3 tiles
+        this.size = 120;
     }
 
     draw(ctx) {
-        ctx.fillStyle = '#00d2ff';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#00d2ff';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.save();
+        ctx.translate(this.x, this.y);
 
-        // HP Bar (Top)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.fillRect(this.x - 20, this.y - 25, 40, 5);
-        ctx.fillStyle = '#00d2ff';
-        ctx.fillRect(this.x - 20, this.y - 25, (this.hp / this.maxHp) * 40, 5);
+        // 1. 메인 대형 빌딩 본체 (석조 건물의 웅장함 - 밝은 회색/베이지)
+        ctx.fillStyle = '#dcdde1';
+        ctx.fillRect(-55, -55, 110, 110);
+        ctx.strokeStyle = '#7f8c8d';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-55, -55, 110, 110);
+
+        // 2. 대칭형 창문 디자인 (현대식 오피스 빌딩 느낌)
+        ctx.fillStyle = 'rgba(44, 62, 80, 0.8)'; // 짙은 창문 색상
+        const winCols = 5;
+        const winRows = 4;
+        const winW = 12;
+        const winH = 15;
+        const spacingX = 20;
+        const spacingY = 22;
+
+        for (let r = 0; r < winRows; r++) {
+            for (let c = 0; c < winCols; c++) {
+                const wx = -40 + c * spacingX;
+                const wy = -40 + r * spacingY;
+                // 창문 본체
+                ctx.fillRect(wx - winW/2, wy - winH/2, winW, winH);
+                // 창문 반사 효과 (디테일)
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(wx - winW/2, wy - winH/2, winW, 3);
+                ctx.fillStyle = 'rgba(44, 62, 80, 0.8)';
+            }
+        }
+
+        // 3. 상단 옥상 구조물 및 난간
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(-58, -58, 116, 15); // 상단 테두리
+        ctx.strokeRect(-58, -58, 116, 15);
+
+        // 4. 옥상 통신 시설 (대형 위성 안테나 및 레이더)
+        // 왼쪽 대형 위성 접시
+        ctx.save();
+        ctx.translate(-30, -45);
+        ctx.fillStyle = '#f5f6fa';
+        ctx.beginPath(); ctx.ellipse(0, 0, 18, 10, 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#999'; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(5, -12); ctx.stroke();
+        ctx.restore();
+
+        // 오른쪽 레이더 타워
+        ctx.fillStyle = '#2f3640';
+        ctx.fillRect(25, -55, 8, 25);
+        const radarAngle = Date.now() / 800;
+        ctx.save();
+        ctx.translate(29, -55);
+        ctx.rotate(radarAngle);
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(-10, -2, 20, 4);
+        ctx.restore();
+
+        // 5. 중앙 입구 및 상징물 (국방부 느낌)
+        // 거대한 중앙 기둥/현관
+        ctx.fillStyle = '#b2bec3';
+        ctx.fillRect(-25, 30, 50, 25);
+        ctx.strokeRect(-25, 30, 50, 25);
+
+        // 부대 마크/엠블럼 (중앙)
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath();
+        ctx.moveTo(0, 35); ctx.lineTo(8, 42); ctx.lineTo(0, 49); ctx.lineTo(-8, 42);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#f1c40f'; // 금색 테두리
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 6. 전면 계단 및 보안 바리케이드
+        ctx.fillStyle = '#95a5a6';
+        for(let i=0; i<3; i++) {
+            ctx.fillRect(-30, 50 + i*3, 60, 2);
+        }
+
+        // 7. 항공 장애등 (최상단 양쪽)
+        const blink = Math.sin(Date.now() / 500) > 0;
+        ctx.fillStyle = blink ? '#e74c3c' : '#440000';
+        ctx.beginPath(); ctx.arc(-50, -50, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(50, -50, 3, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+
+        // HP Bar - 깔끔하고 현대적인 디자인
+        const barWidth = 110;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(this.x - barWidth/2, this.y - 80, barWidth, 8);
+        ctx.fillStyle = '#27ae60';
+        ctx.fillRect(this.x - barWidth/2, this.y - 80, (this.hp / this.maxHp) * barWidth, 8);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.x - barWidth/2, this.y - 80, barWidth, 8);
     }
 }
 

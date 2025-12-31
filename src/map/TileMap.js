@@ -27,12 +27,21 @@ export class TileMap {
                 };
             }
         }
-        // 중앙 기지 타일 설정
-        this.grid[this.centerY][this.centerX].type = 'base';
-        this.grid[this.centerY][this.centerX].occupied = true;
-        this.grid[this.centerY][this.centerX].buildable = false;
-        this.grid[this.centerY][this.centerX].visible = true;
-        this.grid[this.centerY][this.centerX].inSight = true;
+        
+        // 중앙 총사령부 (3x3) 타일 설정
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const nx = this.centerX + dx;
+                const ny = this.centerY + dy;
+                if (ny >= 0 && ny < this.rows && nx >= 0 && nx < this.cols) {
+                    this.grid[ny][nx].type = 'base';
+                    this.grid[ny][nx].occupied = true;
+                    this.grid[ny][nx].buildable = false;
+                    this.grid[ny][nx].visible = true;
+                    this.grid[ny][nx].inSight = true;
+                }
+            }
+        }
     }
 
     drawGrid() {

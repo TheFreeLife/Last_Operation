@@ -40,13 +40,15 @@ export class GameEngine {
 
         this.initResources();
         
-        // Spawn starting units near base
-        const startTank = new Tank(basePos.x - 60, basePos.y + 60, this);
-        const startMissile = new MissileLauncher(basePos.x + 60, basePos.y + 60, this);
-        const startInfantry = new Rifleman(basePos.x, basePos.y + 80, this);
-        startTank.destination = { x: basePos.x - 100, y: basePos.y + 100 };
-        startMissile.destination = { x: basePos.x + 100, y: basePos.y + 100 };
-        startInfantry.destination = { x: basePos.x, y: basePos.y + 120 };
+        // Spawn starting units near base (3x3 base is 120px wide, so offset needs to be larger)
+        const spawnOffset = 100;
+        const startTank = new Tank(basePos.x - spawnOffset, basePos.y + spawnOffset, this);
+        const startMissile = new MissileLauncher(basePos.x + spawnOffset, basePos.y + spawnOffset, this);
+        const startInfantry = new Rifleman(basePos.x, basePos.y + spawnOffset + 20, this);
+        
+        startTank.destination = { x: basePos.x - spawnOffset - 40, y: basePos.y + spawnOffset + 40 };
+        startMissile.destination = { x: basePos.x + spawnOffset + 40, y: basePos.y + spawnOffset + 40 };
+        startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
         this.entities.units.push(startTank, startMissile, startInfantry);
 
         this.updateVisibility(); // 초기 시야 확보
