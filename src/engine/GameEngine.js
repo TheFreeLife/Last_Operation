@@ -486,7 +486,8 @@ export class GameEngine {
                 let desc = '';
 
                 // Add cost if applicable
-                const cost = item.cost || (item.type ? this.buildingCosts[item.type] : null);
+                const buildInfo = item.type ? this.buildingRegistry[item.type] : null;
+                const cost = item.cost || (buildInfo ? buildInfo.cost : null);
                 if (cost) {
                     desc += `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">${cost}G</span></div>`;
                 }
