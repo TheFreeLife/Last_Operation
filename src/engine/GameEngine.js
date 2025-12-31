@@ -682,7 +682,7 @@ export class GameEngine {
                     } else {
                         // Small distance = Single Click action
                         if (!this.isBuildMode && !this.isSellMode && !this.isSkillMode) {
-                            this.handleSingleSelection(worldX, worldY);
+                            this.handleSingleSelection(worldX, worldY, e.shiftKey);
                         }
                     }
                     this.camera.selectionBox = null;
@@ -766,11 +766,7 @@ export class GameEngine {
         this.cancelSkillMode(false);
     }
 
-    handleSingleSelection(worldX, worldY) {
-        this.selectedEntity = null;
-        this.selectedEntities = [];
-        this.selectedAirport = null;
-
+    handleSingleSelection(worldX, worldY, isShiftKey) {
         // Collect all potential entities to check
         const potentialEntities = [
             ...this.entities.units,
@@ -794,13 +790,39 @@ export class GameEngine {
                    worldY >= bounds.top && worldY <= bounds.bottom;
         });
 
-        if (found) {
-            this.selectedEntity = found;
-            const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
-            if (unitTypes.includes(found.type)) {
-                this.selectedEntities = [found];
+        if (isShiftKey) {
+            if (found) {
+                // Check if already selected
+                const idx = this.selectedEntities.indexOf(found);
+                if (idx !== -1) {
+                    // Deselect
+                    this.selectedEntities.splice(idx, 1);
+                    if (this.selectedEntity === found) {
+                        this.selectedEntity = this.selectedEntities.length > 0 ? this.selectedEntities[this.selectedEntities.length - 1] : null;
+                    }
+                } else {
+                    // Select
+                    // Ensure existing selectedEntity is in list if it wasn't (e.g. single building selected previously)
+                    if (this.selectedEntities.length === 0 && this.selectedEntity) {
+                        this.selectedEntities.push(this.selectedEntity);
+                    }
+                    this.selectedEntities.push(found);
+                    this.selectedEntity = found;
+                }
             }
-            if (found.type === 'airport') this.selectedAirport = found;
+        } else {
+            this.selectedEntity = null;
+            this.selectedEntities = [];
+            this.selectedAirport = null;
+
+            if (found) {
+                this.selectedEntity = found;
+                const unitTypes = ['tank', 'missile-launcher', 'rifleman'];
+                if (unitTypes.includes(found.type)) {
+                    this.selectedEntities = [found];
+                }
+                if (found.type === 'airport') this.selectedAirport = found;
+            }
         }
 
         this.updateCursor();
