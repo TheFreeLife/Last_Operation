@@ -1706,6 +1706,110 @@ export class MissileLauncher extends PlayerUnit {
     }
 }
 
+export class Artillery extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'artillery';
+        this.name = '자주포';
+        this.speed = 0.9;
+        this.fireRate = 4000; // 매우 느린 연사
+        this.damage = 100;    // 강력한 한 방
+        this.attackRange = 1000;
+        this.visionRange = 7;
+        this.explosionRadius = 60;
+        this.attackTargets = ['ground', 'sea'];
+    }
+
+    attack() {
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate && this.target) {
+            const shell = new Projectile(this.x, this.y, this.target, this.damage, '#f1c40f', this);
+            shell.type = 'shell';
+            shell.explosionRadius = this.explosionRadius;
+            shell.speed = 6;
+            this.engine.entities.projectiles.push(shell);
+            this.lastFireTime = now;
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.scale(2, 2);
+        // 차체
+        ctx.fillStyle = '#34495e';
+        ctx.fillRect(-12, -10, 24, 20);
+        // 긴 포신
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(0, -2, 22, 4);
+        // 포탑
+        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        this.drawHealthBar(ctx);
+    }
+
+    drawHealthBar(ctx) {
+        const barW = 30;
+        const barY = this.y - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+    }
+}
+
+export class AntiAirVehicle extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'anti-air';
+        this.name = '대공 차량';
+        this.speed = 1.3;
+        this.fireRate = 800; // 빠른 연사
+        this.damage = 30;
+        this.attackRange = 500;
+        this.visionRange = 8;
+        this.attackTargets = ['air']; // 공중 유닛만 공격 가능
+    }
+
+    attack() {
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate && this.target) {
+            const missile = new Projectile(this.x, this.y, this.target, this.damage, '#00d2ff', this);
+            missile.speed = 10;
+            this.engine.entities.projectiles.push(missile);
+            this.lastFireTime = now;
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.scale(2, 2);
+        // 차체
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-10, -8, 20, 16);
+        // 레이더/미사일 팩
+        ctx.fillStyle = '#00d2ff';
+        ctx.fillRect(-4, -6, 8, 12);
+        ctx.fillRect(2, -5, 6, 2); ctx.fillRect(2, 3, 6, 2);
+        ctx.restore();
+        this.drawHealthBar(ctx);
+    }
+
+    drawHealthBar(ctx) {
+        const barW = 30;
+        const barY = this.y - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+    }
+}
+
 export class Rifleman extends PlayerUnit {
     constructor(x, y, engine) {
         super(x, y, engine);
@@ -2190,16 +2294,18 @@ export class Armory extends Entity {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
-                const spawnY = this.y + 45; // 병기창 아래쪽 문 앞
+                const spawnY = this.y + 45; 
                 let unit;
                 if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);
-                else unit = new MissileLauncher(this.x, spawnY, engine);
+                else if (current.type === 'missile-launcher') unit = new MissileLauncher(this.x, spawnY, engine);
+                else if (current.type === 'artillery') unit = new Artillery(this.x, spawnY, engine);
+                else if (current.type === 'anti-air') unit = new AntiAirVehicle(this.x, spawnY, engine);
                 
-                // 생성되자마자 문 밖으로 조금 더 나가도록 목적지 설정 (건물 겹침 방지)
-                unit.destination = { x: this.x, y: this.y + 80 };
-                
-                this.units.push(unit);
-                engine.entities.units.push(unit);
+                if (unit) {
+                    unit.destination = { x: this.x, y: this.y + 80 };
+                    this.units.push(unit);
+                    engine.entities.units.push(unit);
+                }
                 this.spawnQueue.shift();
             }
         }
@@ -2646,25 +2752,259 @@ export class Sandbag extends Entity {
 
 
 
-        // 3단 쌓기
+                // 3단 쌓기
 
-        drawBag(-10, 5, -0.2);
 
-        drawBag(10, 5, 0.2);
 
-        drawBag(0, -2, 0);
+                drawBag(-10, 5, -0.2);
+
+
+
+                drawBag(10, 5, 0.2);
+
+
+
+                drawBag(0, -2, 0);
+
+
+
+                
+
+
+
+                ctx.restore();
+
+
+
+            }
+
+
+
+        }
+
+
 
         
 
-        ctx.restore();
 
-    }
 
-}
+        export class AirSandbag extends Entity {
 
 
 
-export class Enemy extends Entity {
+            constructor(x, y) {
+
+
+
+                super(x, y);
+
+
+
+                this.name = '공중 샌드백';
+
+
+
+                this.type = 'air-sandbag';
+
+
+
+                this.domain = 'air'; // 공중 유닛 판정
+
+
+
+                this.maxHp = 1000000;
+
+
+
+                this.hp = this.maxHp;
+
+
+
+                this.speed = 0;
+
+
+
+                this.damage = 0;
+
+
+
+                this.size = 60;
+
+
+
+                this.active = true;
+
+
+
+                this.floatOffset = 0;
+
+
+
+            }
+
+
+
+        
+
+
+
+            update(deltaTime) {
+
+
+
+                // 공중에서 둥실둥실 떠있는 효과
+
+
+
+                this.floatOffset = Math.sin(Date.now() / 500) * 10;
+
+
+
+            }
+
+
+
+        
+
+
+
+            draw(ctx) {
+
+
+
+                ctx.save();
+
+
+
+                ctx.translate(this.x, this.y + this.floatOffset);
+
+
+
+                
+
+
+
+                // 1. 메인 풍선 (타겟 느낌)
+
+
+
+                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 25);
+
+
+
+                grad.addColorStop(0, '#ff7675');
+
+
+
+                grad.addColorStop(1, '#d63031');
+
+
+
+                ctx.fillStyle = grad;
+
+
+
+                ctx.beginPath();
+
+
+
+                ctx.arc(0, 0, 25, 0, Math.PI * 2);
+
+
+
+                ctx.fill();
+
+
+
+                
+
+
+
+                // 2. 조준 과녁 (Crosshair pattern)
+
+
+
+                ctx.strokeStyle = '#fff';
+
+
+
+                ctx.lineWidth = 2;
+
+
+
+                ctx.beginPath();
+
+
+
+                ctx.arc(0, 0, 15, 0, Math.PI * 2);
+
+
+
+                ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
+
+
+
+                ctx.moveTo(0, -20); ctx.lineTo(0, 20);
+
+
+
+                ctx.stroke();
+
+
+
+        
+
+
+
+                // 3. 고정 줄 (아래로 뻗어가는 느낌)
+
+
+
+                ctx.setLineDash([5, 5]);
+
+
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+
+
+
+                ctx.beginPath();
+
+
+
+                ctx.moveTo(0, 25);
+
+
+
+                ctx.lineTo(0, 100);
+
+
+
+                ctx.stroke();
+
+
+
+                
+
+
+
+                ctx.restore();
+
+
+
+            }
+
+
+
+        }
+
+
+
+        
+
+
+
+        export class Enemy extends Entity {
     constructor(x, y) {
         super(x, y);
         this.speed = 1.8;
@@ -2815,10 +3155,17 @@ export class Projectile extends Entity {
 
         if (!engine) return;
 
-        // 충돌 체크 함수
+        // 충돌 체크 함수 (공격 대상 도메인 필터링 포함)
         const checkCollision = (other) => {
             if (other === this.source || !other.active || other.passable) return false;
             
+            // 소스 유닛의 공격 대상 도메인 확인 (없으면 지상만 공격하는 것으로 간주)
+            const attackTargets = this.source?.attackTargets || ['ground', 'sea'];
+            const targetDomain = other.domain || 'ground';
+            
+            // 공격 대상 도메인이 아니면 통과 (높이 차이 구현)
+            if (!attackTargets.includes(targetDomain)) return false;
+
             const bounds = other.getSelectionBounds ? other.getSelectionBounds() : null;
             if (bounds) {
                 return this.x >= bounds.left && this.x <= bounds.right && 

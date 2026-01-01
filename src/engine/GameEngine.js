@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
@@ -72,7 +72,8 @@ export class GameEngine {
 
         // 아군이 공격 연습을 할 수 있는 샌드백 유닛 배치 (적군 배열에 추가하여 공격 가능하게 함)
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
-        this.entities.enemies.push(sandbag);
+        const airSandbag = new AirSandbag(basePos.x + 250, basePos.y - 150);
+        this.entities.enemies.push(sandbag, airSandbag);
 
         this.updateVisibility(); // 초기 시야 확보
 
@@ -300,7 +301,9 @@ export class GameEngine {
                     items = [
                         { type: 'skill-tank', name: '전차 생산', cost: 300, action: 'skill:tank' },
                         { type: 'skill-missile', name: '미사일 생산', cost: 500, action: 'skill:missile' },
-                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                        { type: 'skill-artillery', name: '자주포 생산', cost: 800, action: 'skill:artillery' },
+                        { type: 'skill-anti-air', name: '대공차량 생산', cost: 400, action: 'skill:anti-air' },
+                        null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'barracks') {
                     items = [
@@ -487,11 +490,12 @@ export class GameEngine {
                 return;
             }
 
-            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane') {
+            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane' || skill === 'artillery' || skill === 'anti-air') {
                 if (target && target.requestUnit) {
                     const cost = item.cost || 0;
                     if (this.resources.gold >= cost) {
-                        const unitKey = (skill === 'missile') ? 'missile-launcher' : skill;
+                        let unitKey = skill;
+                        if (skill === 'missile') unitKey = 'missile-launcher';
                         if (target.requestUnit(unitKey)) {
                             this.resources.gold -= cost;
                             this.updateBuildMenu();
@@ -641,7 +645,20 @@ export class GameEngine {
                     this.cancelModes();
                     this.updateCursor();
                 } else if (this.selectedEntities.length > 0) {
-                    // Check if any selected unit is an engineer and right-clicked a building
+                    // 1. 적 유닛 클릭 여부 확인 (스타크래프트 스타일 자동 공격)
+                    const clickedEnemy = this.entities.enemies.find(enemy => {
+                        const bounds = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
+                            left: enemy.x - 20, right: enemy.x + 20, top: enemy.y - 20, bottom: enemy.y + 20
+                        };
+                        return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
+                    });
+
+                    if (clickedEnemy) {
+                        this.executeUnitCommand('attack', clickedEnemy.x, clickedEnemy.y, clickedEnemy);
+                        return;
+                    }
+
+                    // 2. 공병 수리 로직 (기존 유지)
                     const engineer = this.selectedEntities.find(u => u.type === 'engineer');
                     if (engineer) {
                         const buildings = [
@@ -657,18 +674,19 @@ export class GameEngine {
                         if (targetBuilding && targetBuilding.hp < targetBuilding.maxHp) {
                             this.selectedEntities.forEach(u => {
                                 if (u.type === 'engineer') {
-                                    if (u.clearBuildQueue) u.clearBuildQueue(); // 수리 명령 시에도 건설 예약 취소
+                                    if (u.clearBuildQueue) u.clearBuildQueue();
                                     u.command = 'repair';
                                     u.targetObject = targetBuilding;
                                 } else {
-                                    u.executeCommand('move', worldX, worldY);
+                                    // 일반 유닛은 수리 대상 위치로 이동 (또는 공격 보호)
+                                    this.executeUnitCommand('move', worldX, worldY);
                                 }
                             });
                             return;
                         }
                     }
 
-                    // SC Style Move command (ignores enemies)
+                    // 3. 기본 이동 명령
                     this.executeUnitCommand('move', worldX, worldY);
                 }
             }
@@ -759,11 +777,13 @@ export class GameEngine {
         }
     }
 
-    executeUnitCommand(cmd, worldX = null, worldY = null) {
+    executeUnitCommand(cmd, worldX = null, worldY = null, targetObject = null) {
         if (this.selectedEntities.length === 0) return;
 
         this.selectedEntities.forEach(unit => {
-            // 명령 변경 시 예약된 건설 취소
+            // 명령 변경 시 기존 수동 타겟 및 예약 건설 취소
+            unit.manualTarget = (cmd === 'attack') ? targetObject : null;
+            
             if (unit.type === 'engineer' && unit.clearBuildQueue) {
                 unit.clearBuildQueue();
             }
@@ -774,10 +794,12 @@ export class GameEngine {
                 return;
             }
 
-            // 미사일 수동 발사 처리
+            // 미사일 수동 발사 처리 (여기서도 타겟 지정 가능)
             if (cmd === 'manual_fire' && unit.type === 'missile-launcher' && unit.fireAt) {
                 if (worldX !== null) {
                     unit.fireAt(worldX, worldY);
+                    // 수동 발사 시에도 타겟 하이라이트를 위해 저장
+                    if (targetObject) unit.manualTarget = targetObject;
                 }
                 return;
             }
@@ -788,6 +810,7 @@ export class GameEngine {
                 const canAttack = (unit.type === 'missile-launcher' ? unit.isSieged : (typeof unit.attack === 'function' && unit.type !== 'engineer'));
                 if (!canAttack) {
                     finalCmd = 'move';
+                    unit.manualTarget = null;
                 }
             }
 
@@ -1676,6 +1699,60 @@ export class GameEngine {
                 }
             });
             this.ctx.restore();
+
+            // --- [독립 블록] 공격 대상 하이라이트 (Target Highlight) ---
+            const targetsToHighlight = new Set();
+            this.selectedEntities.forEach(selUnit => {
+                if (selUnit.manualTarget && selUnit.manualTarget.alive) targetsToHighlight.add(selUnit.manualTarget);
+                if (selUnit.target && selUnit.target.alive) targetsToHighlight.add(selUnit.target);
+                
+                if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
+                    const fireEnemy = this.entities.enemies.find(enemy => 
+                        Math.hypot(enemy.x - selUnit.pendingFirePos.x, enemy.y - selUnit.pendingFirePos.y) < 50
+                    );
+                    if (fireEnemy) targetsToHighlight.add(fireEnemy);
+                }
+            });
+
+            if (this.unitCommandMode === 'manual_fire') {
+                const hoverEnemy = this.entities.enemies.find(enemy => {
+                    const b = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
+                        left: enemy.x-20, right: enemy.x+20, top: enemy.y-20, bottom: enemy.y+20
+                    };
+                    return mouseWorldX >= b.left && mouseWorldX <= b.right && mouseWorldY >= b.top && mouseWorldY <= b.bottom;
+                });
+                if (hoverEnemy) targetsToHighlight.add(hoverEnemy);
+            }
+
+            targetsToHighlight.forEach(target => {
+                const bounds = target.getSelectionBounds ? target.getSelectionBounds() : {
+                    left: target.x - 20, right: target.x + 20, top: target.y - 20, bottom: target.y + 20
+                };
+                const padding = 6;
+                const tW = (bounds.right - bounds.left) + padding * 2;
+                const tH = (bounds.bottom - bounds.top) + padding * 2;
+                const tX = bounds.left - padding;
+                const tY = bounds.top - padding;
+
+                this.ctx.save();
+                this.ctx.strokeStyle = '#ff3131';
+                this.ctx.lineWidth = 3;
+                const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
+                this.ctx.globalAlpha = 0.4 + pulse * 0.6;
+                this.ctx.strokeRect(tX, tY, tW, tH);
+                const len = 12;
+                this.ctx.beginPath();
+                this.ctx.moveTo(tX, tY + len); this.ctx.lineTo(tX, tY); this.ctx.lineTo(tX + len, tY);
+                this.ctx.moveTo(tX + tW - len, tY); this.ctx.lineTo(tX + tW, tY); this.ctx.lineTo(tX + tW, tY + len);
+                this.ctx.moveTo(tX, tY + tH - len); this.ctx.lineTo(tX, tY + tH); this.ctx.lineTo(tX + len, tY + tH);
+                this.ctx.moveTo(tX + tW - len, tY + tH); this.ctx.lineTo(tX + tW, tY + tH); this.ctx.lineTo(tX + tW, tY + tH - len);
+                this.ctx.stroke();
+                this.ctx.fillStyle = '#ff3131';
+                this.ctx.font = 'bold 12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('TARGET', tX + tW / 2, tY - 10);
+                this.ctx.restore();
+            });
         }
 
         if (this.selectedEntity && !this.selectedEntities.includes(this.selectedEntity)) {
