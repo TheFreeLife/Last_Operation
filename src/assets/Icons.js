@@ -71,6 +71,11 @@ export const ICONS = {
         <path d="M20 5 L35 30 L20 25 L5 30 Z" fill="#2d3436" stroke="#ff3131" stroke-width="2"/>
         <circle cx="20" cy="18" r="4" fill="#ff3131" opacity="0.6"/>
     </svg></div>`,
+    'unit:bombing': `<div class="btn-icon red"><svg viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="15" fill="none" stroke="#ff3131" stroke-width="2" stroke-dasharray="4,2"/>
+        <path d="M15 15 L25 25 M25 15 L15 25" stroke="#ff3131" stroke-width="3"/>
+        <path d="M20 10 V30 M10 20 H30" stroke="#ff3131" stroke-width="1" opacity="0.5"/>
+    </svg></div>`,
     'skill:engineer': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#f1c40f"/><path d="M15 15 L25 25 M25 15 L15 25" stroke="#333" stroke-width="2"/><circle cx="20" cy="20" r="4" fill="#3498db"/></svg></div>`,
     'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
     'unit:stop': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#ff3131"/></svg></div>`,

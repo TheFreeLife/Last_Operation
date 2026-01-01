@@ -312,6 +312,8 @@ export class GameEngine {
                     } else if (unitType === 'missile-launcher') {
                         items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege' };
                         items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire' };
+                    } else if (unitType === 'bomber') {
+                        items[6] = { id: 'bombing', name: '폭격 (B)', action: 'unit:bombing' };
                     }
                 }
             } else if (isEnemy) {
@@ -595,7 +597,12 @@ export class GameEngine {
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
                 else if (key === 'b') {
                     const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
-                    if (hasEngineer) {
+                    const hasBomber = this.selectedEntities.some(ent => ent.type === 'bomber');
+                    
+                    if (hasBomber) {
+                        this.unitCommandMode = 'bombing';
+                        this.updateCursor();
+                    } else if (hasEngineer) {
                         this.isEngineerBuilding = true;
                         this.currentMenuName = 'main';
                         this.updateBuildMenu();
@@ -888,6 +895,15 @@ export class GameEngine {
                     unit.fireAt(worldX, worldY);
                     // 수동 발사 시에도 타겟 하이라이트를 위해 저장
                     if (targetObject) unit.manualTarget = targetObject;
+                }
+                return;
+            }
+
+            // 폭격기 폭격 명령 처리
+            if (cmd === 'bombing' && unit.type === 'bomber' && unit.startBombing) {
+                if (worldX !== null) {
+                    unit.command = 'bombing';
+                    unit.startBombing(worldX, worldY);
                 }
                 return;
             }
