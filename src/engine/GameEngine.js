@@ -56,6 +56,9 @@ export class GameEngine {
         const startTank = new Tank(basePos.x - spawnOffset, basePos.y + spawnOffset, this);
         const startMissile = new MissileLauncher(basePos.x + spawnOffset, basePos.y + spawnOffset, this);
         const startInfantry = new Rifleman(basePos.x, basePos.y + spawnOffset + 20, this);
+        const startArtillery = new Artillery(basePos.x - spawnOffset - 40, basePos.y + spawnOffset + 20, this);
+        const startAntiAir = new AntiAirVehicle(basePos.x + spawnOffset + 40, basePos.y + spawnOffset + 20, this);
+        const startScout = new ScoutPlane(basePos.x, basePos.y + spawnOffset + 80, this);
         
         // 공병 3마리 기본 제공
         const startEngineers = [
@@ -68,7 +71,7 @@ export class GameEngine {
         startMissile.destination = { x: basePos.x + spawnOffset + 40, y: basePos.y + spawnOffset + 40 };
         startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
         
-        this.entities.units.push(startTank, startMissile, startInfantry, ...startEngineers);
+        this.entities.units.push(startTank, startMissile, startInfantry, startArtillery, startAntiAir, startScout, ...startEngineers);
 
         // 아군이 공격 연습을 할 수 있는 샌드백 유닛 배치 (적군 배열에 추가하여 공격 가능하게 함)
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);

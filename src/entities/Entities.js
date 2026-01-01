@@ -1114,6 +1114,7 @@ export class PlayerUnit extends Entity {
         this.patrolEnd = null;
         this.domain = 'ground'; // 'ground', 'air', 'sea'
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
+        this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
     }
 
     update(deltaTime) {
@@ -1230,9 +1231,9 @@ export class Tank extends PlayerUnit {
         super(x, y, engine);
         this.type = 'tank';
         this.name = '전차';
-        this.speed = 1.2;
-        this.fireRate = 1800; // 공격 속도 살짝 낮춤 (1.0s -> 1.8s)
-        this.damage = 45;     // 데미지 증가 (25 -> 45)
+        this.speed = 1.8; // 1.2 -> 1.8 (1.5배 상향)
+        this.fireRate = 1800; 
+        this.damage = 45;     
         this.color = '#39ff14';
         this.attackRange = 360; 
         this.visionRange = 6; // 전차 시야: 보병보다 넓음
@@ -1495,6 +1496,7 @@ export class MissileLauncher extends PlayerUnit {
         this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
         this.visionRange = 8;
         this.recoil = 0;
+        this.canBypassObstacles = true; // 장애물 통과 가능
         
         // 시즈 모드 관련 상태
         this.isSieged = false;
@@ -1718,6 +1720,7 @@ export class Artillery extends PlayerUnit {
         this.visionRange = 7;
         this.explosionRadius = 60;
         this.attackTargets = ['ground', 'sea'];
+        this.canBypassObstacles = true;
     }
 
     attack() {
@@ -3214,11 +3217,14 @@ export class Projectile extends Entity {
 
         if (!engine) return;
 
-        // 충돌 체크 함수 (공격 대상 도메인 필터링 포함)
+        // 충돌 체크 함수 (공격 대상 도메인 필터링 및 장애물 통과 여부 포함)
         const checkCollision = (other) => {
             if (other === this.source || !other.active || other.passable) return false;
             
-            // 소스 유닛의 공격 대상 도메인 확인 (없으면 지상만 공격하는 것으로 간주)
+            // 소스 유닛이 장애물 통과 능력이 있으면 비행 중 충돌 무시 (곡사/미사일 등)
+            if (this.source && this.source.canBypassObstacles) return false;
+
+            // 소스 유닛의 공격 대상 도메인 확인
             const attackTargets = this.source?.attackTargets || ['ground', 'sea'];
             const targetDomain = other.domain || 'ground';
             
