@@ -557,12 +557,12 @@ export class Wall extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'wall';
+        this.name = '철조망';
         this.size = 30;
         this.width = 40;
         this.height = 40;
-        this.maxHp = 500;
-        this.hp = 500;
-        this.color = '#888';
+        this.maxHp = 200; // 벽보다 내구도 하향
+        this.hp = 200;
     }
 
     draw(ctx) {
@@ -572,34 +572,62 @@ export class Wall extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.fillStyle = '#4a4a4a';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.strokeStyle = '#222';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -15, 30, 30);
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
+
+        // 1. 바닥 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(-18, 5, 36, 12);
+
+        // 2. 수직 지지대 (Posts - 2.5D)
+        const drawPost = (px, py) => {
+            const pHeight = 25;
+            // 벽면 (깊이)
+            ctx.fillStyle = '#3a2a1a'; // 어두운 나무색
+            ctx.fillRect(px, py - pHeight, 4, pHeight);
+            // 앞면
+            ctx.fillStyle = '#5d4037'; // 밝은 나무색
+            ctx.fillRect(px - 2, py - pHeight - 2, 4, pHeight);
+            // 윗면 (입체)
+            ctx.fillStyle = '#8d6e63';
+            ctx.fillRect(px - 2, py - pHeight - 2, 4, 2);
+        };
+
+        drawPost(-15, 10); // 좌측 기둥
+        drawPost(15, 10);  // 우측 기둥
+
+        // 3. 가시 철사 (Barbed Wires - X자 교차)
+        ctx.strokeStyle = '#95a5a6';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 1]); // 가시 느낌을 위한 점선
+
+        // 상단 가로선
         ctx.beginPath();
-        ctx.moveTo(-15, -5); ctx.lineTo(15, -5);
-        ctx.moveTo(-15, 5); ctx.lineTo(15, 5);
+        ctx.moveTo(-15, -12); ctx.lineTo(15, -12);
         ctx.stroke();
+
+        // 중앙 X자 교차선
         ctx.beginPath();
-        ctx.moveTo(-5, -15); ctx.lineTo(-5, -5);
-        ctx.moveTo(10, -15); ctx.lineTo(10, -5);
-        ctx.moveTo(-10, -5); ctx.lineTo(-10, 5);
-        ctx.moveTo(5, -5); ctx.lineTo(5, 5);
-        ctx.moveTo(-5, 5); ctx.lineTo(-5, 15);
-        ctx.moveTo(10, 5); ctx.lineTo(10, 15);
+        ctx.moveTo(-15, -12); ctx.lineTo(15, 8);
+        ctx.moveTo(15, -12); ctx.lineTo(-15, 8);
         ctx.stroke();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
+
+        // 하단 가로선
         ctx.beginPath();
-        ctx.moveTo(-14, -14); ctx.lineTo(14, -14);
-        ctx.moveTo(-14, -14); ctx.lineTo(-14, 14);
+        ctx.moveTo(-15, 8); ctx.lineTo(15, 8);
         ctx.stroke();
+
+        ctx.setLineDash([]);
+
+        // 4. 가시 디테일 (작은 점들)
+        ctx.fillStyle = '#bdc3c7';
+        for(let i=0; i<5; i++) {
+            const tx = -15 + i*7.5;
+            ctx.fillRect(tx, -13, 2, 2);
+            ctx.fillRect(tx, 7, 2, 2);
+        }
+
         ctx.restore();
 
-        // HP 바 상시 표시
+        // HP 바
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(this.x - 15, this.y - 25, 30, 3);
         ctx.fillStyle = '#2ecc71';
@@ -2296,14 +2324,14 @@ export class Barracks extends Entity {
         super(x, y);
         this.type = 'barracks';
         this.name = '병영';
-        this.width = 80;
-        this.height = 80;
-        this.size = 80;
-        this.maxHp = 1000;
-        this.hp = 1000;
+        this.width = 120; // 3 tiles
+        this.height = 120; // 3 tiles
+        this.size = 120;
+        this.maxHp = 1500;
+        this.hp = 1500;
         this.isPowered = false;
         this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 1000; // 보병 생산 속도 1초
+        this.spawnTime = 1000; 
         this.units = [];
     }
 
@@ -2313,17 +2341,16 @@ export class Barracks extends Entity {
     }
 
     update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
         this.units = this.units.filter(u => u.alive);
 
         if (this.isPowered && this.spawnQueue.length > 0) {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
-                const spawnY = this.y + 45; 
+                const spawnY = this.y + 65; 
                 let unit = new Rifleman(this.x, spawnY, engine);
-                
-                unit.destination = { x: this.x, y: this.y + 80 };
-                
+                unit.destination = { x: this.x, y: this.y + 100 };
                 this.units.push(unit);
                 engine.entities.units.push(unit);
                 this.spawnQueue.shift();
@@ -2339,90 +2366,119 @@ export class Barracks extends Entity {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // 1. 건물 메인 바디 (어두운 군색)
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-40, -40, 80, 80);
-        ctx.strokeStyle = '#1e272e';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-40, -40, 80, 80);
-
-        // 2. 카모플라쥬 패턴 (데코레이션)
+        // 1. 부지 기반
         ctx.fillStyle = '#3b4d3c';
-        ctx.fillRect(-35, -35, 20, 15);
-        ctx.fillRect(10, -25, 25, 20);
-        ctx.fillRect(-30, 10, 15, 25);
-        ctx.fillRect(5, 5, 20, 15);
+        ctx.fillRect(-60, -60, 120, 120);
+        ctx.strokeStyle = '#2d3e2d';
+        ctx.strokeRect(-60, -60, 120, 120);
 
-        // 3. 지붕 디자인 (경사진 막사 지붕)
-        ctx.fillStyle = '#4a5d4b';
-        ctx.beginPath();
-        ctx.moveTo(-45, -30);
-        ctx.lineTo(0, -50);
-        ctx.lineTo(45, -30);
-        ctx.lineTo(40, -25);
-        ctx.lineTo(-40, -25);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        // 2. 군 막사 건물 2동 (2.5D 입체화)
+        const draw3DHut = (hx, hy) => {
+            const depth = 12;
+            ctx.save();
+            ctx.translate(hx, hy);
+            
+            // 건물 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(-48, -10, 96, 35);
 
-        // 4. 창고형 문 및 입구
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-20, 10, 40, 30);
-        ctx.strokeStyle = this.isPowered ? '#39ff14' : '#ff3131';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-20, 10, 40, 30);
-        
-        // 문 장식 (셔터 느낌)
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        for(let i = 15; i < 40; i += 5) {
+            // 2.5D 벽면 (어두운 부분)
+            ctx.fillStyle = '#2d3310';
+            ctx.fillRect(-45, 15, 90, depth); // 정면 벽
+            // 우측 벽
             ctx.beginPath();
-            ctx.moveTo(-18, i);
-            ctx.lineTo(18, i);
-            ctx.stroke();
-        }
+            ctx.moveTo(45, -15); ctx.lineTo(45, 15);
+            ctx.lineTo(45 + 3, 15 + depth); ctx.lineTo(45 + 3, -15 + depth);
+            ctx.closePath(); ctx.fill();
+            
+            // 건물 본체 (윗면/옆면)
+            ctx.fillStyle = '#4b5320';
+            ctx.fillRect(-45, -15, 90, 30);
+            
+            // 박공 지붕 (Gabled Roof - 입체감 추가)
+            // 지붕의 어두운 쪽 (서쪽/북쪽)
+            ctx.fillStyle = '#3a4118';
+            ctx.beginPath();
+            ctx.moveTo(-45, -15); ctx.lineTo(0, -25); ctx.lineTo(45, -15);
+            ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+            // 지붕의 밝은 쪽 (동쪽/남쪽)
+            ctx.fillStyle = '#556644';
+            ctx.beginPath();
+            ctx.moveTo(-45, 15); ctx.lineTo(0, 25); ctx.lineTo(45, 15);
+            ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
 
-        // 5. 창문 (작고 빛나는 느낌)
-        const drawWindow = (wx, wy) => {
-            ctx.fillStyle = this.isPowered ? 'rgba(0, 210, 255, 0.3)' : '#111';
-            ctx.fillRect(wx, wy, 12, 8);
-            ctx.strokeStyle = '#555';
-            ctx.strokeRect(wx, wy, 12, 8);
-            if (this.isPowered) {
-                ctx.shadowBlur = 5;
-                ctx.shadowColor = '#00d2ff';
-                ctx.fillStyle = '#00d2ff';
-                ctx.fillRect(wx + 2, wy + 2, 8, 4);
-                ctx.shadowBlur = 0;
+            // 창문 (입체감 있는 배치)
+            ctx.fillStyle = this.isPowered ? '#3498db' : '#111';
+            for(let i=0; i<3; i++) {
+                ctx.fillRect(-30 + i*25, 5, 10, 6);
             }
+            
+            ctx.restore();
         };
-        drawWindow(-32, -15);
-        drawWindow(20, -15);
 
-        // 6. 환풍기 또는 안테나
-        ctx.fillStyle = '#555';
-        ctx.fillRect(25, -45, 4, 15);
+        draw3DHut(0, -30); // 북쪽 막사
+        draw3DHut(0, 30);  // 남쪽 막사
+
+        // 3. 중앙 요소 (게양대 등)
+        // 국기 게양대 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-43, 2, 15, 4);
+        
+        // 게양대 (입체)
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(-46, -25, 3, 25);
+        // 깃발
+        const flagWave = Math.sin(Date.now() / 300) * 3;
+        ctx.fillStyle = '#c0392b';
         ctx.beginPath();
-        ctx.arc(27, -45, 3, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(-43, -25);
+        ctx.lineTo(-25 + flagWave, -25);
+        ctx.lineTo(-30 + flagWave, -18);
+        ctx.lineTo(-43, -18);
+        ctx.closePath(); ctx.fill();
+
+        // 4. 모래주머니 (입체)
+        const draw3DSandbags = (sx, sy) => {
+            ctx.save();
+            ctx.translate(sx, sy);
+            for(let i=0; i<2; i++) {
+                // 하단층
+                ctx.fillStyle = '#a6936a'; // 어두운 면
+                ctx.beginPath(); ctx.ellipse(-5 + i*12, 4, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#c2b280'; // 윗면
+                ctx.beginPath(); ctx.ellipse(-5 + i*12, 0, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#8e7a55'; ctx.lineWidth = 0.5; ctx.stroke();
+            }
+            ctx.restore();
+        };
+        draw3DSandbags(35, -5);
+        draw3DSandbags(35, 10);
 
         ctx.restore();
 
-        // HP 바 상시 표시
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
+        // HP 바 & 생산 UI (기존 로직 유지)
+        this.drawUI(ctx);
+    }
 
-        // 생산 대기열 표시
+    drawUI(ctx) {
+        const barW = 80;
+        const barY = this.y - 85;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+
         if (this.spawnQueue.length > 0) {
-            const barY = this.y - 75;
+            const qBarY = barY - 14;
             const progress = this.spawnQueue[0].timer / this.spawnTime;
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(this.x - 40, barY, 80, 8);
+            ctx.fillRect(this.x - 40, qBarY, 80, 8);
             ctx.fillStyle = '#39ff14';
-            ctx.fillRect(this.x - 40, barY, 80 * progress, 8);
-            ctx.shadowBlur = 0;
+            ctx.fillRect(this.x - 40, qBarY, 80 * progress, 8);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`훈련 중 (${this.spawnQueue.length})`, this.x, qBarY - 5);
         }
     }
 }
@@ -2432,15 +2488,15 @@ export class Armory extends Entity {
         super(x, y);
         this.type = 'armory';
         this.name = '병기창';
-        this.size = 80;
-        this.width = 80;
-        this.height = 80;
-        this.maxHp = 1500;
-        this.hp = 1500;
+        this.width = 120; // 3 tiles
+        this.height = 120; // 3 tiles
+        this.size = 120;
+        this.maxHp = 2000;
+        this.hp = 2000;
         this.isPowered = false;
-        this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 1000; // 유닛당 1초 (테스트용)
-        this.units = []; // 생산한 유닛들
+        this.spawnQueue = []; 
+        this.spawnTime = 1000; 
+        this.units = []; 
     }
 
     requestUnit(unitType) {
@@ -2456,7 +2512,7 @@ export class Armory extends Entity {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
-                const spawnY = this.y + 45; 
+                const spawnY = this.y + 65; 
                 let unit;
                 if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);
                 else if (current.type === 'missile-launcher') unit = new MissileLauncher(this.x, spawnY, engine);
@@ -2464,7 +2520,7 @@ export class Armory extends Entity {
                 else if (current.type === 'anti-air') unit = new AntiAirVehicle(this.x, spawnY, engine);
                 
                 if (unit) {
-                    unit.destination = { x: this.x, y: this.y + 80 };
+                    unit.destination = { x: this.x, y: this.y + 100 };
                     this.units.push(unit);
                     engine.entities.units.push(unit);
                 }
@@ -2473,80 +2529,303 @@ export class Armory extends Entity {
         }
     }
 
-    draw(ctx) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
-        ctx.save();
-        ctx.translate(this.x, this.y);
+            draw(ctx) {
+
+                if (this.isUnderConstruction) {
+
+                    this.drawConstruction(ctx);
+
+                    return;
+
+                }
+
+                ctx.save();
+
+                ctx.translate(this.x, this.y);
+
+                
+
+                const h = 20; // 건물의 높이(두께)
+
         
-        // 건물 베이스
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(-40, -40, 80, 80);
-        ctx.strokeStyle = '#2c3e50';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(-40, -40, 80, 80);
+
+                // 1. 건물의 그림자 (바닥)
+
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+
+                ctx.fillRect(-55, -35, 115, 85);
+
         
-        // 지붕 장식
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-30, -30, 60, 20);
-        ctx.strokeStyle = '#555';
-        for(let i=0; i<4; i++) {
-            ctx.strokeRect(-30 + i*15, -30, 15, 20);
+
+                // 2. 건물의 벽면 (2.5D 깊이감 - 어두운 부분)
+
+                ctx.fillStyle = '#2c3e50';
+
+                // 정면 벽
+
+                ctx.fillRect(-50, 40, 100, h);
+
+                // 측면 벽
+
+                ctx.beginPath();
+
+                ctx.moveTo(50, -40); ctx.lineTo(50, 40);
+
+                ctx.lineTo(50 + 5, 40 + h); ctx.lineTo(50 + 5, -40 + h);
+
+                ctx.closePath(); ctx.fill();
+
+        
+
+                // 3. 메인 지붕 (톱니바퀴형 - 윗면)
+
+                for(let i=0; i<3; i++) {
+
+                    const rx = -50 + (i * 33.3);
+
+                    
+
+                    // 지붕의 측면(두께)
+
+                    ctx.fillStyle = '#34495e';
+
+                    ctx.beginPath();
+
+                    ctx.moveTo(rx + 33.3, -40);
+
+                    ctx.lineTo(rx + 33.3, -65);
+
+                    ctx.lineTo(rx + 33.3 + 5, -65 + 5);
+
+                    ctx.lineTo(rx + 33.3 + 5, -40 + 5);
+
+                    ctx.closePath(); ctx.fill();
+
+        
+
+                    // 지붕의 경사면 (윗면)
+
+                    ctx.fillStyle = '#95a5a6';
+
+                    ctx.beginPath();
+
+                    ctx.moveTo(rx, -40);
+
+                    ctx.lineTo(rx + 33.3, -40);
+
+                    ctx.lineTo(rx + 33.3, -65);
+
+                    ctx.closePath();
+
+                    ctx.fill();
+
+                    
+
+                    // 지붕 채광창 (유리)
+
+                    ctx.fillStyle = this.isPowered ? '#3498db' : '#2c3e50';
+
+                    ctx.beginPath();
+
+                    ctx.moveTo(rx + 20, -40);
+
+                    ctx.lineTo(rx + 33.3, -40);
+
+                    ctx.lineTo(rx + 33.3, -55);
+
+                    ctx.closePath();
+
+                    ctx.fill();
+
+                }
+
+        
+
+                // 4. 입체적인 굴뚝 (Smokestacks)
+
+                const draw3DChimney = (cx, cy) => {
+
+                    const cHeight = 45;
+
+                    // 굴뚝 그림자
+
+                    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+
+                    ctx.fillRect(cx + 2, cy - cHeight + 2, 12, cHeight);
+
+                    
+
+                    // 굴뚝 몸체 (그라데이션으로 원통 느낌)
+
+                    const cGrad = ctx.createLinearGradient(cx, 0, cx + 12, 0);
+
+                    cGrad.addColorStop(0, '#222');
+
+                    cGrad.addColorStop(0.5, '#444');
+
+                    cGrad.addColorStop(1, '#222');
+
+                    ctx.fillStyle = cGrad;
+
+                    ctx.fillRect(cx, cy - cHeight, 12, cHeight);
+
+                    
+
+                    // 굴뚝 상단 캡
+
+                    ctx.fillStyle = '#c0392b';
+
+                    ctx.fillRect(cx - 1, cy - cHeight, 14, 4);
+
+        
+
+                    if (this.isPowered) {
+
+                        // 연기 파티클 (2.5D 위치에 맞춰 조정)
+
+                        const time = Date.now() / 1000;
+
+                        ctx.save();
+
+                        ctx.globalAlpha = 0.5;
+
+                        ctx.fillStyle = '#bdc3c7';
+
+                        for(let j=0; j<3; j++) {
+
+                            const s = 6 + (time + j*0.4) % 1 * 12;
+
+                            const ox = Math.sin(time*2 + j) * 8;
+
+                            const oy = (cy - cHeight - 10) - ((time + j*0.4) % 1) * 40;
+
+                            ctx.beginPath(); ctx.arc(cx + 6 + ox, oy, s, 0, Math.PI * 2); ctx.fill();
+
+                        }
+
+                        ctx.restore();
+
+                    }
+
+                };
+
+                draw3DChimney(-35, -10);
+
+                draw3DChimney(-10, -15);
+
+        
+
+                // 5. 정면 셔터 도어 (입체감)
+
+                ctx.fillStyle = '#1a1a1a';
+
+                ctx.fillRect(-30, 10, 60, 30);
+
+                ctx.strokeStyle = this.isPowered ? '#39ff14' : '#555';
+
+                ctx.lineWidth = 2;
+
+                ctx.strokeRect(-30, 10, 60, 30);
+
+                
+
+                // 셔터 날 (가로선)
+
+                ctx.strokeStyle = '#333';
+
+                ctx.lineWidth = 1;
+
+                for(let i=14; i<40; i+=4) {
+
+                    ctx.beginPath(); ctx.moveTo(-28, i); ctx.lineTo(28, i); ctx.stroke();
+
+                }
+
+        
+
+                ctx.restore();
+
+                this.drawUI(ctx);
+
+            }
+
+    
+
+        drawUI(ctx) {
+
+            const barW = 100;
+
+            const barY = this.y - 85;
+
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+
+            ctx.fillRect(this.x - barW/2, barY, barW, 6);
+
+            ctx.fillStyle = '#2ecc71';
+
+            ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+
+    
+
+            if (this.spawnQueue.length > 0) {
+
+                const qBarY = barY - 14;
+
+                const progress = this.spawnQueue[0].timer / this.spawnTime;
+
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+
+                ctx.fillRect(this.x - 50, qBarY, 100, 10);
+
+                ctx.fillStyle = '#39ff14';
+
+                ctx.fillRect(this.x - 50, qBarY, 100 * progress, 10);
+
+                
+
+                const counts = this.spawnQueue.reduce((acc, curr) => {
+
+                    acc[curr.type] = (acc[curr.type] || 0) + 1;
+
+                    return acc;
+
+                }, {});
+
+                
+
+                const labels = [];
+
+                if (counts.tank) labels.push(`전차 x${counts.tank}`);
+
+                if (counts.missile) labels.push(`미사일 x${counts.missile}`);
+
+                if (counts.artillery) labels.push(`자주포 x${counts.artillery}`);
+
+                if (counts.antiAir) labels.push(`대공 x${counts.antiAir}`);
+
+                
+
+                ctx.fillStyle = '#fff';
+
+                ctx.font = 'bold 12px Arial';
+
+                ctx.textAlign = 'center';
+
+                ctx.shadowBlur = 4; ctx.shadowColor = '#000';
+
+                labels.reverse().forEach((label, i) => {
+
+                    ctx.fillText(label, this.x, qBarY - 20 - (i * 15));
+
+                });
+
+                ctx.fillText('무기 제조 중...', this.x, qBarY - 5);
+
+                ctx.shadowBlur = 0;
+
+            }
+
         }
-
-        // 출입구
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-20, 10, 40, 30);
-        ctx.strokeStyle = this.isPowered ? '#00ffcc' : '#444';
-        ctx.strokeRect(-20, 10, 40, 30);
-
-        // 상태 표시등
-        ctx.fillStyle = this.isPowered ? '#39ff14' : '#ff3131';
-        ctx.beginPath(); ctx.arc(-30, 30, 4, 0, Math.PI * 2); ctx.fill();
-
-        ctx.restore();
-
-        // HP 바 상시 표시
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
-
-        // 상세 생산 대기열 표시
-        if (this.spawnQueue.length > 0) {
-            const barY = this.y - 75;
-            const progress = this.spawnQueue[0].timer / this.spawnTime;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(this.x - 40, barY, 80, 8);
-            ctx.fillStyle = '#39ff14';
-            ctx.fillRect(this.x - 40, barY, 80 * progress, 8);
-            
-            // 종류별 합산
-            const counts = this.spawnQueue.reduce((acc, curr) => {
-                acc[curr.type] = (acc[curr.type] || 0) + 1;
-                return acc;
-            }, {});
-            
-            const labels = [];
-            if (counts.tank) labels.push(`전차 x${counts.tank}`);
-            if (counts.missile) labels.push(`미사일 x${counts.missile}`);
-            
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px Arial';
-            ctx.textAlign = 'center';
-            ctx.shadowBlur = 4; ctx.shadowColor = '#000';
-            
-            // 레이블을 위아래로 쌓아서 표시
-            labels.reverse().forEach((label, i) => {
-                ctx.fillText(label, this.x, barY - 20 - (i * 14));
-            });
-            ctx.fillText('생산 중', this.x, barY - 5);
-            
-            ctx.shadowBlur = 0;
-        }
-    }
 }
 
 export class Airport extends Entity {
@@ -2554,14 +2833,14 @@ export class Airport extends Entity {
         super(x, y);
         this.type = 'airport';
         this.name = '공항';
-        this.width = 80; // 2x3 tiles? (80x120)
-        this.height = 120;
-        this.size = 120;
-        this.maxHp = 1200;
-        this.hp = 1200;
+        this.width = 120; // 3 tiles
+        this.height = 160; // 4 tiles
+        this.size = 160;
+        this.maxHp = 1500;
+        this.hp = 1500;
         this.isPowered = false;
         this.spawnQueue = []; 
-        this.spawnTime = 1000; // 테스트용 1초
+        this.spawnTime = 1000; 
         this.units = [];
     }
 
@@ -2578,9 +2857,8 @@ export class Airport extends Entity {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
-                // 활주로 중앙 부근에서 생성
-                let unit = new ScoutPlane(this.x, this.y, engine);
-                // 생성 직후 활주로 밖으로 이동
+                // 활주로 시작 지점 부근에서 생성 (남쪽 방향)
+                let unit = new ScoutPlane(this.x, this.y - 40, engine);
                 unit.destination = { x: this.x, y: this.y + 120 };
                 this.units.push(unit);
                 engine.entities.units.push(unit);
@@ -2596,55 +2874,133 @@ export class Airport extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.fillStyle = '#2a2a2a';
-        ctx.fillRect(-40, -60, 80, 120);
-        ctx.strokeStyle = '#444';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-40, -60, 80, 120);
-        ctx.fillStyle = '#1a1c23';
-        ctx.fillRect(-10, -55, 20, 110);
-        ctx.strokeStyle = this.isPowered ? '#ffff00' : '#444';
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath(); ctx.moveTo(0, -50); ctx.lineTo(0, 50); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = '#444';
-        ctx.fillRect(-35, -20, 25, 50);
-        ctx.strokeStyle = '#888'; ctx.strokeRect(-35, -20, 25, 50);
-        
-        ctx.fillStyle = '#666';
-        ctx.fillRect(15, -40, 15, 15);
-        ctx.fillStyle = this.isPowered ? '#00d2ff' : '#222';
-        if (this.isPowered) {
-            ctx.shadowBlur = 5; ctx.shadowColor = '#00d2ff';
-        }
-        ctx.fillRect(17, -38, 11, 5);
-        ctx.shadowBlur = 0;
 
-        ctx.fillStyle = this.isPowered ? '#39ff14' : '#ff3131';
-        ctx.beginPath(); ctx.arc(-30, 40, 4, 0, Math.PI * 2); ctx.fill();
+        // 1. 기초 아스팔트 플랫폼 (다크 그레이)
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-60, -80, 120, 160);
+        ctx.strokeStyle = '#1a252f';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-60, -80, 120, 160);
+
+        // 2. 메인 활주로 (Runway)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-25, -75, 50, 150);
+        
+        // 활주로 마킹 (흰색)
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        // 외곽선
+        ctx.strokeRect(-22, -75, 44, 150);
+        
+        // 중앙선 (Dashed)
+        ctx.setLineDash([15, 10]);
+        ctx.beginPath();
+        ctx.moveTo(0, -70); ctx.lineTo(0, 70);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 활주로 번호/기호 (Threshold Markings)
+        ctx.fillStyle = '#fff';
+        for(let i=0; i<4; i++) {
+            ctx.fillRect(-18 + i*10, -70, 6, 20); // 북쪽
+            ctx.fillRect(-18 + i*10, 50, 6, 20);  // 남쪽
+        }
+
+        // 3. 유도로 (Taxiway - 노란색 라인)
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-25, 0); ctx.lineTo(-45, 0); ctx.lineTo(-45, 40);
+        ctx.stroke();
+
+        // 4. 현대식 격납고 (Hangar - 서쪽)
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(-55, 30, 30, 45);
+        ctx.strokeStyle = '#34495e';
+        ctx.strokeRect(-55, 30, 30, 45);
+        // 격납고 지붕 굴곡
+        ctx.fillStyle = '#95a5a6';
+        for(let i=0; i<3; i++) {
+            ctx.fillRect(-53, 33 + i*14, 26, 8);
+        }
+
+        // 5. 관제탑 (Control Tower - 동쪽 상단)
+        ctx.save();
+        ctx.translate(40, -50);
+        // 타워 몸체
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(-12, -12, 24, 24);
+        ctx.strokeStyle = '#7f8c8d';
+        ctx.strokeRect(-12, -12, 24, 24);
+        // 상부 관제소 (유리창)
+        ctx.fillStyle = this.isPowered ? '#2980b9' : '#34495e';
+        ctx.beginPath();
+        ctx.moveTo(-15, -15); ctx.lineTo(15, -15);
+        ctx.lineTo(12, 5); ctx.lineTo(-12, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#ecf0f1';
+        ctx.stroke();
+        // 안테나
+        ctx.strokeStyle = '#333';
+        ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, -35); ctx.stroke();
+        ctx.restore();
+
+        // 6. 회전 레이더 (Radar - 동쪽 하단)
+        ctx.save();
+        ctx.translate(40, 40);
+        ctx.fillStyle = '#95a5a6';
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+        // 회전하는 안테나 바
+        if (this.isPowered) {
+            ctx.rotate(Date.now() / 500);
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
+            // 레이더 스캔 효과
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.1)';
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 40, -0.2, 0.2); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+
+        // 7. 활주로 유도등 (Approach Lights)
+        const time = Date.now();
+        for(let i=0; i<5; i++) {
+            const blink = (Math.floor(time / 200) + i) % 5 === 0;
+            ctx.fillStyle = blink && this.isPowered ? '#2ecc71' : '#27ae60';
+            ctx.beginPath(); ctx.arc(-24, -60 + i*30, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(24, -60 + i*30, 2, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 8. 연료 탱크 (작은 디테일)
+        ctx.fillStyle = '#bdc3c7';
+        ctx.beginPath(); ctx.arc(-45, -50, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#e67e22'; // 위험 표시
+        ctx.fillRect(-48, -52, 6, 4);
 
         ctx.restore();
 
-        const barW = 60;
-        const barY = this.y - 75;
+        // HP 바
+        const barW = 80;
+        const barY = this.y - 95;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 5);
+        ctx.fillRect(this.x - barW/2, barY, barW, 6);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
 
-        // 생산 대기열 및 진행바 표시 (추가됨)
+        // 생산 대기열
         if (this.spawnQueue.length > 0) {
-            const qBarY = barY - 12;
+            const qBarY = barY - 14;
             const progress = this.spawnQueue[0].timer / this.spawnTime;
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(this.x - 40, qBarY, 80, 8);
             ctx.fillStyle = '#39ff14';
             ctx.fillRect(this.x - 40, qBarY, 80 * progress, 8);
-            
             ctx.fillStyle = '#fff';
-            ctx.font = '10px Arial';
+            ctx.font = 'bold 11px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(`생산 중 (${this.spawnQueue.length})`, this.x, qBarY - 5);
+            ctx.fillText(`출격 준비 중 (${this.spawnQueue.length})`, this.x, qBarY - 5);
         }
     }
 } export class ScoutPlane extends PlayerUnit {

@@ -93,13 +93,13 @@ export class GameEngine {
             'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
             'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines', buildTime: 1 },
             'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
-            'wall': { cost: 30, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
-            'airport': { cost: 500, size: [2, 3], className: 'Airport', list: 'airports', buildTime: 1 },
+            'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
+            'airport': { cost: 500, size: [3, 4], className: 'Airport', list: 'airports', buildTime: 1 },
             'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
             'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
             'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 1 },
-            'armory': { cost: 600, size: [2, 2], className: 'Armory', list: 'armories', buildTime: 1 },
-            'barracks': { cost: 400, size: [2, 2], className: 'Barracks', list: 'barracks', buildTime: 1 },
+            'armory': { cost: 600, size: [3, 3], className: 'Armory', list: 'armories', buildTime: 1 },
+            'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
             'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, // 크기 업데이트
             'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 },
             'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil', buildTime: 1 }
@@ -388,7 +388,7 @@ export class GameEngine {
                 items = [
                     { type: 'turret-basic', name: '기본 포탑', cost: 50 }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
                     null, { type: 'menu:power', name: '에너지', action: 'menu:power' },
-                    { type: 'wall', name: '벽', cost: 30 }, { type: 'menu:military', name: '군사', action: 'menu:military' },
+                    { type: 'wall', name: '철조망', cost: 15 }, { type: 'menu:military', name: '군사', action: 'menu:military' },
                     null,
                     null, 
                     { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
