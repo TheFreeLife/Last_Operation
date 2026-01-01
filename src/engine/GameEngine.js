@@ -1520,7 +1520,7 @@ export class GameEngine {
 
         this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings));
         this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles));
-        this.entities.projectiles = this.entities.projectiles.filter(p => p.active);
+        this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
         this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
 
         if (this.entities.base.hp <= 0) {
