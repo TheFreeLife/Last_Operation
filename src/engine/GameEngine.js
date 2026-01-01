@@ -1,6 +1,7 @@
 import { TileMap } from '../map/TileMap.js';
 import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
+import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
 export class GameEngine {
@@ -15,6 +16,7 @@ export class GameEngine {
 
         this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
+        this.pathfinding = new Pathfinding(this);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
         this.entities = {
@@ -1646,7 +1648,7 @@ export class GameEngine {
             else if (entry && entry !== null) buildings.push(entry);
         }
 
-        this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings));
+        this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings, this));
         this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles));
         
         // 생산 건물 업데이트 (타이머 진행을 위해 필수)

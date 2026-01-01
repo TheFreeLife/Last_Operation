@@ -1136,7 +1136,9 @@ export class PlayerUnit extends Entity {
         this.alive = true;
         this.size = 40; // 20 -> 40
         this.damage = 0; // 하위 클래스에서 정의
-        this.destination = null; // {x, y}
+        this._destination = null; 
+        this.path = []; // A* 경로 저장용
+        this.pathRecalculateTimer = 0;
         this.command = 'stop'; // 'move', 'attack', 'patrol', 'stop', 'hold'
         this.patrolStart = null;
         this.patrolEnd = null;
@@ -1145,10 +1147,34 @@ export class PlayerUnit extends Entity {
         this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
     }
 
+    get destination() { return this._destination; }
+    set destination(value) {
+        this._destination = value;
+        if (value) {
+            // 목적지가 설정될 때 경로 계산 (공중 유닛은 직선 이동을 위해 경로 계산 생략 가능하지만 일관성을 위해 수행)
+            this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.domain === 'air' || this.canBypassObstacles) || [];
+            
+            // [추가] 경로 시작 시 불필요한 초기 웨이포인트(현재 위치와 너무 가까운 점) 즉시 제거
+            // update 루프까지 기다리면 그 사이 프레임에 엉뚱한 곳을 볼 수 있음
+            while (this.path.length > 0) {
+                const first = this.path[0];
+                if (Math.hypot(first.x - this.x, first.y - this.y) < 20) {
+                    this.path.shift();
+                } else {
+                    break;
+                }
+            }
+            
+            this.pathRecalculateTimer = 1000; // 1초 후에 재계산 예약 (막혔을 때 대비)
+        } else {
+            this.path = [];
+        }
+    }
+
     update(deltaTime) {
         if (!this.alive) return;
 
-        // 1. --- Command Logic & Movement ---
+        // 1. --- Command Logic & Targeting ---
         const enemies = this.engine.entities.enemies;
         let bestTarget = null;
         let minDistToMe = Infinity;
@@ -1170,7 +1196,6 @@ export class PlayerUnit extends Entity {
             // 2. 수동 타겟이 없거나 사거리 밖이면 자동 타겟팅 수행 (적군만)
             if (!bestTarget) {
                 for (const e of enemies) {
-                    // 적의 영역이 공격 가능 대상에 포함되는지 확인 (없으면 지상으로 간주)
                     const enemyDomain = e.domain || 'ground';
                     if (!this.attackTargets.includes(enemyDomain)) continue;
 
@@ -1187,68 +1212,71 @@ export class PlayerUnit extends Entity {
         if (this.target) {
             this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
             this.attack();
-            if (this.command === 'attack') this.destination = null; 
-        } else if (this.destination) {
-            const dist = Math.hypot(this.destination.x - this.x, this.destination.y - this.y);
-            if (dist < 5) {
-                if (this.command === 'patrol') {
-                    const temp = this.patrolStart;
-                    this.patrolStart = this.patrolEnd;
-                    this.patrolEnd = temp;
-                    this.destination = this.patrolEnd;
+            if (this.command === 'attack') {
+                this._destination = null; 
+                this.path = [];
+            }
+        } else if (this._destination) {
+            // 2. --- A* Path Following ---
+            // 경로가 있고, 첫 번째 웨이포인트가 너무 가까우면(이미 도달했거나 겹침) 건너뜀
+            while (this.path.length > 0) {
+                const waypoint = this.path[0];
+                const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
+                
+                // 웨이포인트 도달 판정 거리 (유동적)
+                // 너무 가까우면 각도 계산이 튀므로 즉시 제거하고 다음 지점으로
+                if (distToWaypoint < 15) { 
+                    this.path.shift();
                 } else {
-                    this.destination = null;
-                    if (this.command !== 'build') {
-                        this.command = 'stop';
-                    }
+                    break;
                 }
-            } else {
-                this.angle = Math.atan2(this.destination.y - this.y, this.destination.x - this.x);
+            }
+
+            if (this.path.length > 0) {
+                const waypoint = this.path[0];
+                // 부드러운 회전 대신 즉각적인 방향 전환 (RTS 스타일)
+                // 필요하다면 보간(Lerp)을 넣을 수 있지만, 반응성을 위해 즉시 전환 유지
+                this.angle = Math.atan2(waypoint.y - this.y, waypoint.x - this.x);
                 this.x += Math.cos(this.angle) * this.speed;
                 this.y += Math.sin(this.angle) * this.speed;
+            } else {
+                // 경로 끝에 도달했거나 경로가 없음
+                const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
+                if (distToFinal < 15) {
+                    if (this.command === 'patrol') {
+                        const temp = this.patrolStart;
+                        this.patrolStart = this.patrolEnd;
+                        this.patrolEnd = temp;
+                        this.destination = this.patrolEnd;
+                    } else {
+                        this._destination = null;
+                        if (this.command !== 'build') this.command = 'stop';
+                    }
+                } else {
+                    // 경로가 없는데 아직 목적지 근처가 아니라면 재탐색 시도
+                    this.pathRecalculateTimer -= deltaTime;
+                    if (this.pathRecalculateTimer <= 0) {
+                        this.destination = this._destination; // setter를 통해 경로 재계산
+                    }
+                }
             }
         }
 
-        // --- Collision Avoidance (공중 유닛은 생략) ---
+        // --- Collision Avoidance (Local Avoidance) ---
         let pushX = 0;
         let pushY = 0;
 
         if (this.domain !== 'air') {
-            const allUnits = this.engine.entities.units;
+            const allUnits = [...this.engine.entities.units, ...this.engine.entities.enemies, ...this.engine.entities.neutral];
             for (const other of allUnits) {
-                if (other === this || !other.alive || other.domain === 'air') continue;
+                if (other === this || (other.alive === false && other.hp <= 0) || other.domain === 'air') continue;
                 const d = Math.hypot(this.x - other.x, this.y - other.y);
-                const minDist = (this.size + other.size) * 0.45; 
+                const minDist = (this.size + other.size) * 0.4; 
                 if (d < minDist) {
                     const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
                     const force = (minDist - d) / minDist;
-                    pushX += Math.cos(pushAngle) * force * 2;
-                    pushY += Math.sin(pushAngle) * force * 2;
-                }
-            }
-
-            const obstacles = [];
-            const excludedCategories = ['units', 'enemies', 'projectiles', 'scoutPlanes', 'cargoPlanes'];
-            for (const key in this.engine.entities) {
-                if (excludedCategories.includes(key)) continue;
-                const entry = this.engine.entities[key];
-                if (Array.isArray(entry)) obstacles.push(...entry);
-                else if (entry) obstacles.push(entry);
-            }
-
-            for (const b of obstacles) {
-                if (!b || (b.active === false && b.hp !== 99999999) || b.passable || b.isUnderConstruction) continue;
-                const bWidth = b.width || b.size || 40;
-                const bHeight = b.height || b.size || 40;
-                const halfW = bWidth / 2 + this.size / 2 - 2;
-                const halfH = bHeight / 2 + this.size / 2 - 2;
-                const dx = this.x - b.x;
-                const dy = this.y - b.y;
-                if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
-                    const overlapX = halfW - Math.abs(dx);
-                    const overlapY = halfH - Math.abs(dy);
-                    if (overlapX < overlapY) this.x += (dx > 0 ? 1 : -1) * overlapX;
-                    else this.y += (dy > 0 ? 1 : -1) * overlapY;
+                    pushX += Math.cos(pushAngle) * force * 1.5;
+                    pushY += Math.sin(pushAngle) * force * 1.5;
                 }
             }
         }
@@ -1347,10 +1375,11 @@ export class NeutralTank extends PlayerUnit {
     }
 
     update(deltaTime) {
-        // 부모의 이동 및 충돌 로직을 완전히 무시하여 자리에 고정 (승천 방지)
+        // 부모의 A* 이동 로직 사용
+        super.update(deltaTime);
         if (!this.alive) return;
 
-        // 공격 타겟팅만 수행 (반격 용도 등)
+        // 중립 유닛은 공격 타겟팅만 수행 (반격 용도 등, enemies만 타겟으로)
         const enemies = this.engine.entities.enemies;
         let bestTarget = null;
         let minDistToMe = Infinity;
@@ -1362,14 +1391,16 @@ export class NeutralTank extends PlayerUnit {
                 bestTarget = e;
             }
         }
-        this.target = bestTarget;
+        
+        // 수동 타겟이 없는 경우에만 자동 타겟팅 적용
+        if (!this.target || this.target.hp <= 0) {
+            this.target = bestTarget;
+        }
 
         if (this.target) {
             this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
             this.attack();
         }
-        
-        if (this.hp <= 0) this.alive = false;
     }
 
     attack() {
@@ -1624,7 +1655,7 @@ export class MissileLauncher extends PlayerUnit {
         this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
         this.visionRange = 8;
         this.recoil = 0;
-        this.canBypassObstacles = true; // 장애물 통과 가능
+        this.canBypassObstacles = false; // 장애물 통과 불가
         
         // 시즈 모드 관련 상태
         this.isSieged = false;
@@ -1848,7 +1879,7 @@ export class Artillery extends PlayerUnit {
         this.visionRange = 7;
         this.explosionRadius = 60;
         this.attackTargets = ['ground', 'sea'];
-        this.canBypassObstacles = true;
+        this.canBypassObstacles = false;
     }
 
     attack() {
@@ -3534,21 +3565,48 @@ export class Sandbag extends Entity {
         this.attackInterval = 1000;
         this.lastAttackTime = 0;
         this.currentTarget = null;
+        this.path = [];
+        this.pathTimer = Math.random() * 2000; // 초기 경로 계산 분산
     }
 
-    update(deltaTime, base, buildings) {
+    update(deltaTime, base, buildings, engine) {
         if (!base) return;
         const now = Date.now();
-        const angleToBase = Math.atan2(base.y - this.y, base.x - this.x);
-        let nextX = this.x + Math.cos(angleToBase) * this.speed;
-        let nextY = this.y + Math.sin(angleToBase) * this.speed;
+        
+        // 2초마다 경로 재계산 (엔진 참조 필요)
+        this.pathTimer += deltaTime;
+        if (this.pathTimer >= 2000 || (this.path.length === 0 && this.hp > 0)) {
+            const pf = engine.pathfinding;
+            this.path = pf.findPath(this.x, this.y, base.x, base.y, false) || [];
+            this.pathTimer = 0;
+        }
+
+        let moveTarget = base;
+        
+        // 경로 추종 로직 개선 (가까운 웨이포인트 스킵)
+        while (this.path.length > 0) {
+            const waypoint = this.path[0];
+            const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
+            if (distToWaypoint < 15) {
+                this.path.shift();
+            } else {
+                moveTarget = waypoint;
+                break;
+            }
+        }
+
+        const angleToTarget = Math.atan2(moveTarget.y - this.y, moveTarget.x - this.x);
+        let nextX = this.x + Math.cos(angleToTarget) * this.speed;
+        let nextY = this.y + Math.sin(angleToTarget) * this.speed;
+        
         let blockedBy = null;
         const distToBase = Math.hypot(this.x - base.x, this.y - base.y);
+        
         if (distToBase <= this.attackRange) {
             blockedBy = base;
         } else {
+            // 로컬 회피 및 충돌 체크 (건물)
             for (const obs of buildings) {
-                // 전선과 파이프라인은 여전히 통과 가능하게 두되, 자원은 통과 대상에서 제외(충돌 발생)
                 if (['power-line', 'pipe-line'].includes(obs.type)) continue;
                 if (obs === base) continue;
                 const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
@@ -3559,6 +3617,7 @@ export class Sandbag extends Entity {
                 }
             }
         }
+
         if (!blockedBy) {
             this.x = nextX;
             this.y = nextY;
@@ -3566,9 +3625,11 @@ export class Sandbag extends Entity {
         } else {
             this.currentTarget = blockedBy;
         }
-        if (this.currentTarget && this.currentTarget.active && this.currentTarget.hp > 0) {
+
+        // 공격 로직 (기존 유지)
+        if (this.currentTarget && (this.currentTarget.active !== false) && this.currentTarget.hp > 0) {
             const attackDist = Math.hypot(this.x - this.currentTarget.x, this.y - this.currentTarget.y);
-            const rangeThreshold = (this.currentTarget === base) ? this.attackRange + 5 : (this.size/2 + this.currentTarget.size/2 + 5);
+            const rangeThreshold = (this.currentTarget === base) ? this.attackRange + 5 : (this.size/2 + (this.currentTarget.width || this.currentTarget.size || 40)/2 + 5);
             if (attackDist <= rangeThreshold) {
                 if (now - this.lastAttackTime > this.attackInterval) {
                     this.currentTarget.hp -= this.damage;
@@ -3688,7 +3749,12 @@ export class Projectile extends Entity {
             const isDead = (other.active === false) || (other.alive === false) || (other.hp <= 0);
             if (isDead) return false;
             
-            // 소스 유닛이 장애물 통과 능력이 있으면 비행 중 충돌 무시 (곡사/미사일 등)
+            // [수정] 이동 방해 속성(canBypassObstacles)과 별개로, 
+            // 곡사 포탄(shell)이나 미사일 발사대(missile-launcher)의 공격은 장애물을 넘어감
+            const isIndirectFire = (this.type === 'shell') || (this.source && this.source.type === 'missile-launcher');
+            if (isIndirectFire) return false;
+
+            // 소스 유닛이 장애물 통과 능력이 있으면 비행 중 충돌 무시 (스카웃 등)
             if (this.source && this.source.canBypassObstacles) return false;
 
             // 소스 유닛의 공격 대상 도메인 확인
