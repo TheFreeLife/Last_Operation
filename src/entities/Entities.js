@@ -6,12 +6,21 @@ export class Entity {
         this.width = 40;  // Default 1x1
         this.height = 40; // Default 1x1
         this.size = 40;   // Default for circles
+        this.domain = 'ground'; // 'ground', 'air', 'sea' (기본값 지상)
+        this.attackTargets = ['ground', 'sea']; // 공격 가능 대상 (기본값 지상/해상)
         
         // 건설 관련 속성
         this.isUnderConstruction = false;
         this.buildProgress = 0; // 0 to 1
         this.totalBuildTime = 0;
         this.targetResource = null; // 건설 중인 자원 객체 보관용
+    }
+
+    // 대상이 이 주체(Entity/Projectile)로부터 피해를 입을 수 있는지 확인
+    canDamage(target) {
+        if (!target || !target.active || target.hp === undefined) return false;
+        // 공격 대상의 domain이 나의 attackTargets 목록에 포함되어 있는지 확인
+        return this.attackTargets.includes(target.domain);
     }
 
     drawConstruction(ctx) {
@@ -231,12 +240,14 @@ export class Turret extends Entity {
     }
 
     initStats() {
+        this.attackTargets = ['ground', 'sea']; // 기본 지상 공격
         switch (this.type) {
             case 'turret-fast':
                 this.range = 150;
                 this.damage = 5;
                 this.fireRate = 400; // 빨름
                 this.color = '#39ff14'; // 네온 그린
+                this.attackTargets = ['ground', 'sea', 'air']; // 머신건 타입은 공중 공격 가능
                 break;
             case 'turret-sniper':
                 this.range = 450;
@@ -249,6 +260,7 @@ export class Turret extends Entity {
                 this.damage = 2; // 지속 딜 (틱당)
                 this.fireRate = 100; // 매우 빠른 틱
                 this.color = '#00ffff'; // 시안 (전기 색상)
+                this.attackTargets = ['ground', 'sea', 'air']; // 전기는 공중 전이 가능
                 break;
             case 'turret-flamethrower':
                 this.range = 140;
@@ -261,6 +273,7 @@ export class Turret extends Entity {
                 this.damage = 15;
                 this.fireRate = 1000;
                 this.color = '#00d2ff'; // 네온 블루
+                this.attackTargets = ['ground', 'sea', 'air']; // 기본 포탑 공중 공격 허용
                 break;
         }
     }
@@ -269,11 +282,12 @@ export class Turret extends Entity {
         if (!this.isPowered || this.isUnderConstruction) return; // 건설 중이거나 전기가 없으면 작동 중지
         const now = Date.now();
 
-        // 타겟 찾기 (가장 가까운 적)
-        if (!this.target || !this.target.active || this.dist(this.target) > this.range) {
+        // 타겟 찾기 (가장 가까운 적 중 나의 공격 가능 영역에 있는 대상)
+        if (!this.target || !this.target.active || this.dist(this.target) > this.range || !this.canDamage(this.target)) {
             this.target = null;
             let minDist = this.range;
             for (const enemy of enemies) {
+                if (!this.canDamage(enemy)) continue; // 공격 불가능한 영역(공중 등)이면 패스
                 const d = this.dist(enemy);
                 if (d < minDist) {
                     minDist = d;
@@ -294,6 +308,8 @@ export class Turret extends Entity {
             } else if (this.type === 'turret-flamethrower') {
                 if (now - this.lastFireTime > this.fireRate) {
                     enemies.forEach(enemy => {
+                        // 화염방사기도 공격 가능 대상만 타격
+                        if (!this.canDamage(enemy)) return;
                         const d = this.dist(enemy);
                         if (d <= this.range) {
                             enemy.hp -= this.damage;
@@ -2048,6 +2064,7 @@ export class Rifleman extends PlayerUnit {
         this.attackRange = 180;
         this.size = 24; // 12 -> 24
         this.visionRange = 4; // 보병 시야: 제일 좁음
+        this.attackTargets = ['ground', 'sea', 'air']; // 소총병은 공중 공격 가능
     }
 
     attack() {
@@ -3273,11 +3290,12 @@ export class ScoutPlane extends PlayerUnit {
 }
 
 export class FallingBomb {
-    constructor(x, y, engine, damage = 300) {
+    constructor(x, y, engine, damage = 300, source) {
         this.x = x;
         this.y = y;
         this.engine = engine;
         this.damage = damage;
+        this.source = source;
         this.timer = 0;
         this.duration = 1000; // 1초 후 폭발
         this.active = true;
@@ -3285,6 +3303,9 @@ export class FallingBomb {
         this.radius = 120; // 폭발 범위 살짝 확장
         this.scale = 2.0; 
         this.type = 'bomb';
+        
+        // 폭격기로부터 공격 가능 대상 목록 상속 (폭격기는 기본적으로 지상/해상 공격)
+        this.attackTargets = source?.attackTargets || ['ground', 'sea'];
     }
 
     update(deltaTime) {
@@ -3302,7 +3323,7 @@ export class FallingBomb {
     }
 
     explode() {
-        const targets = [
+        const potentialTargets = [
             ...this.engine.entities.enemies,
             ...this.engine.entities.neutral,
             ...this.engine.entities.turrets,
@@ -3316,8 +3337,13 @@ export class FallingBomb {
             this.engine.entities.base
         ];
 
-        targets.forEach(target => {
+        potentialTargets.forEach(target => {
             if (!target || target.hp === undefined) return;
+            
+            // 도메인 체크: 공격 가능한 대상 도메인인지 확인
+            const targetDomain = target.domain || 'ground';
+            if (!this.attackTargets.includes(targetDomain)) return;
+
             const dist = Math.hypot(this.x - target.x, this.y - target.y);
             const targetSize = target.size || 40;
             if (dist <= this.radius + targetSize / 2) {
@@ -3411,6 +3437,8 @@ export class Bomber extends PlayerUnit {
         this.width = 140;  // 날개 폭 (좌우 70씩)
         this.height = 115; // 기체 길이 (앞뒤 58씩)
         this.damage = 0; 
+        this.domain = 'air';
+        this.attackTargets = ['ground', 'sea']; // 폭격기는 지상/해상만 타격
         
         // 폭격 스킬 관련 변수
         this.bombTimer = 0;
@@ -3431,8 +3459,8 @@ export class Bomber extends PlayerUnit {
                 this.bombTimer += deltaTime;
                 if (this.bombTimer >= this.bombInterval) {
                     this.bombTimer = 0;
-                    // 포탄 투하
-                    const bomb = new FallingBomb(this.x, this.y, this.engine);
+                    // 포탄 투하 (자신을 source로 전달)
+                    const bomb = new FallingBomb(this.x, this.y, this.engine, 300, this);
                     this.engine.entities.projectiles.push(bomb);
                 }
 
@@ -4199,7 +4227,15 @@ export class Projectile extends Entity {
         if (this.explosionRadius > 0) {
             // 범위 내 모든 대상(적군 및 중립)에게 데미지
             const targets = [...engine.entities.enemies, ...engine.entities.neutral];
+            
+            // 공격 주체(source)의 공격 가능 대상 목록 가져오기
+            const attackTargets = this.source?.attackTargets || ['ground', 'sea'];
+
             targets.forEach(target => {
+                // 공격 가능 도메인인지 확인 (예: 지상 전용 무기는 공중 유닛을 공격하지 못함)
+                const targetDomain = target.domain || 'ground';
+                if (!attackTargets.includes(targetDomain)) return;
+
                 const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 if (dist <= this.explosionRadius) {
                     target.hp -= this.damage;
