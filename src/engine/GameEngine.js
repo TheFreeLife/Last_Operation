@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, ScoutPlane, Refinery, PipeLine, GoldMine, Storage, CargoPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
@@ -32,7 +32,6 @@ export class GameEngine {
             barracks: [],
             units: [],
             pipeLines: [],
-            scoutPlanes: [],
             cargoPlanes: [],
             resources: [],
             base: (() => {
@@ -78,23 +77,23 @@ export class GameEngine {
         this.updateVisibility(); // 초기 시야 확보
 
         this.buildingRegistry = {
-            'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 5 },
-            'turret-fast': { cost: 100, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 8 },
-            'turret-sniper': { cost: 150, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 12 },
-            'turret-tesla': { cost: 200, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 10 },
-            'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 10 },
+            'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
+            'turret-fast': { cost: 100, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
+            'turret-sniper': { cost: 150, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
+            'turret-tesla': { cost: 200, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
+            'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
             'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines', buildTime: 1 },
             'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
-            'wall': { cost: 30, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 3 },
-            'airport': { cost: 500, size: [2, 3], className: 'Airport', list: 'airports', buildTime: 20 },
-            'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 15 },
-            'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 15 },
-            'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 12 },
-            'armory': { cost: 600, size: [2, 2], className: 'Armory', list: 'armories', buildTime: 18 },
-            'barracks': { cost: 400, size: [2, 2], className: 'Barracks', list: 'barracks', buildTime: 15 },
+            'wall': { cost: 30, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
+            'airport': { cost: 500, size: [2, 3], className: 'Airport', list: 'airports', buildTime: 1 },
+            'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
+            'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
+            'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 1 },
+            'armory': { cost: 600, size: [2, 2], className: 'Armory', list: 'armories', buildTime: 1 },
+            'barracks': { cost: 400, size: [2, 2], className: 'Barracks', list: 'barracks', buildTime: 1 },
             'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, // 크기 업데이트
-            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 10 },
-            'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil', buildTime: 10 }
+            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 },
+            'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil', buildTime: 1 }
         };
 
         this.resources = { gold: 999999, oil: 0 };
@@ -262,8 +261,7 @@ export class GameEngine {
         let items = [];
 
         if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
-            const unitTypes = ['tank', 'missile-launcher', 'rifleman', 'engineer'];
-            const allUnits = this.selectedEntities.every(ent => unitTypes.includes(ent.type));
+            const allUnits = this.selectedEntities.every(ent => ent instanceof PlayerUnit);
             const firstType = this.selectedEntities[0].type;
             const allSameType = this.selectedEntities.every(ent => ent.type === firstType);
 
@@ -311,7 +309,7 @@ export class GameEngine {
                     ];
                 } else if (type === 'airport') {
                     items = [
-                        { type: 'skill-scout', name: '정찰', cost: 100, action: 'skill:scout' },
+                        { type: 'skill:scout-plane', name: '정찰기 생산', cost: 100, action: 'skill:scout-plane' },
                         null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'storage') {
@@ -489,7 +487,7 @@ export class GameEngine {
                 return;
             }
 
-            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer') {
+            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane') {
                 if (target && target.requestUnit) {
                     const cost = item.cost || 0;
                     if (this.resources.gold >= cost) {
@@ -1023,25 +1021,7 @@ export class GameEngine {
 
     handleSkill(worldX, worldY) {
         if (!this.isSkillMode || !this.selectedSkill) return;
-
-        const cost = 100; // Targeted skill cost (scout)
-        if (this.resources.gold < cost) return;
-
-        if (this.selectedSkill === 'scout') {
-            // Find nearest airport to launch from
-            const airport = this.selectedAirport || this.entities.airports.find(a => a.active && a.isPowered);
-            
-            if (airport) {
-                if (!airport.isPowered) {
-                    alert('공항에 전력이 공급되지 않고 있습니다!');
-                    this.cancelSkillMode(true);
-                    return;
-                }
-                this.entities.scoutPlanes.push(new ScoutPlane(airport.x, airport.y, worldX, worldY, this));
-                this.resources.gold -= cost;
-                this.cancelSkillMode(true); // Exit skill mode but keep airport selection
-            }
-        }
+        // 정찰 스킬 삭제됨
     }
 
     handleMinimapInteraction(e) {
@@ -1524,13 +1504,10 @@ export class GameEngine {
                 this.entities.armories = checkDestruction(this.entities.armories);
                 this.entities.barracks.forEach(b => b.update(deltaTime, this));
                 this.entities.barracks = checkDestruction(this.entities.barracks);
-                this.entities.units.forEach(u => u.update(deltaTime));
-                this.entities.units = this.entities.units.filter(u => u.alive);
-                this.entities.scoutPlanes.forEach(p => p.update(deltaTime));
-        this.entities.scoutPlanes = this.entities.scoutPlanes.filter(p => p.alive);
-
         this.entities.cargoPlanes.forEach(p => p.update(deltaTime));
         this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive);
+
+        this.entities.units.forEach(u => u.update(deltaTime));
 
         this.entities.enemies = this.entities.enemies.filter(enemy => {
             if (!enemy.active && enemy.hp <= 0) {
@@ -1541,7 +1518,7 @@ export class GameEngine {
 
         // 모든 충돌 가능 장애물 동적 수집
         const buildings = [];
-        const excludedForEnemies = ['projectiles', 'scoutPlanes', 'cargoPlanes', 'enemies'];
+        const excludedForEnemies = ['projectiles', 'cargoPlanes', 'enemies'];
         for (const key in this.entities) {
             if (excludedForEnemies.includes(key)) continue;
             const entry = this.entities[key];
@@ -1551,6 +1528,13 @@ export class GameEngine {
 
         this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings));
         this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles));
+        
+        // 생산 건물 업데이트 (타이머 진행을 위해 필수)
+        this.entities.airports.forEach(a => a.update(deltaTime, this));
+        this.entities.armories.forEach(a => a.update(deltaTime, this));
+        this.entities.barracks.forEach(b => b.update(deltaTime, this));
+        this.entities.storage.forEach(s => s.update(deltaTime, this));
+
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
         this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
 
@@ -1617,7 +1601,6 @@ export class GameEngine {
         });
 
         this.entities.projectiles.forEach(p => p.draw(this.ctx));
-        this.entities.scoutPlanes.forEach(p => p.draw(this.ctx));
         this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
 
         const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
@@ -1773,17 +1756,7 @@ export class GameEngine {
 
         // 4.3 Scout Range Preview
         if (this.isSkillMode && this.selectedSkill === 'scout') {
-            this.ctx.save();
-            this.ctx.beginPath();
-            const radius = 20 * this.tileMap.tileSize;
-            this.ctx.arc(mouseWorldX, mouseWorldY, radius, 0, Math.PI * 2);
-            this.ctx.strokeStyle = 'rgba(0, 255, 204, 0.8)'; // More intense color
-            this.ctx.setLineDash([10, 5]);
-            this.ctx.lineWidth = 3;
-            this.ctx.stroke();
-            this.ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
-            this.ctx.fill();
-            this.ctx.restore();
+            // 정찰 프리뷰 삭제됨
         }
 
         // 4.4 Selection Box (StarCraft Style)
@@ -2381,13 +2354,24 @@ export class GameEngine {
             });
         };
 
-        // 시작점: 가동 중인 발전소 및 기지
+        // 시작점: 가동 중인 발전소 및 기지 (기지는 주변 1칸까지 전력 전파 시작점으로 인정)
         this.entities.generators.forEach(g => {
             if (g.fuel > 0 || g.type === 'generator') {
                 addToQueue(getOccupiedTiles(g));
             }
         });
-        addToQueue(getOccupiedTiles(this.entities.base));
+        
+        // 기지 주변 타일들을 시작점에 추가
+        const baseTiles = getOccupiedTiles(this.entities.base);
+        const baseSourceTiles = [];
+        baseTiles.forEach(t => {
+            for(let dy=-1; dy<=1; dy++) {
+                for(let dx=-1; dx<=1; dx++) {
+                    baseSourceTiles.push({x: t.x + dx, y: t.y + dy});
+                }
+            }
+        });
+        addToQueue(baseSourceTiles);
 
         const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
         while (queue.length > 0) {

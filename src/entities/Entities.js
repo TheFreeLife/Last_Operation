@@ -59,7 +59,9 @@ export class Base extends Entity {
         this.height = 200; // 5x5 tiles
         this.size = 200;
         this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 4000;
+        this.spawnTime = 1000;
+        this.isGenerator = true; // 전력 생산 가능
+        this.powerOutput = 500;  // 기본 제공 전력량
     }
 
     requestUnit(unitType) {
@@ -548,12 +550,6 @@ export class PipeLine extends Entity {
         ctx.stroke();
 
         ctx.restore();
-        
-        // HP 바 상시 표시
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * 20, 3);
     }
 }
 
@@ -807,12 +803,6 @@ export class PowerLine extends Entity {
         }
 
         ctx.restore();
-        
-        // HP 바 상시 표시
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * 20, 3);
     }
 }
 
@@ -969,7 +959,7 @@ export class Storage extends Entity {
         this.cargoPlanes = []; // 이 창고 소속의 수송기들
         this.spawnQueue = 0; // 대기 중인 수송기 수
         this.spawnTimer = 0;
-        this.spawnTimeRequired = 5000; // 5초 (ms)
+        this.spawnTimeRequired = 1000; // 1초 (테스트용)
     }
 
     requestCargoPlane() {
@@ -1122,24 +1112,27 @@ export class PlayerUnit extends Entity {
         this.command = 'stop'; // 'move', 'attack', 'patrol', 'stop', 'hold'
         this.patrolStart = null;
         this.patrolEnd = null;
+        this.domain = 'ground'; // 'ground', 'air', 'sea'
+        this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
     }
 
     update(deltaTime) {
         if (!this.alive) return;
 
-        // 1. --- Command Logic & Movement (먼저 이동 수행) ---
+        // 1. --- Command Logic & Movement ---
         const enemies = this.engine.entities.enemies;
         let bestTarget = null;
         let minDistToMe = Infinity;
 
-        // 공격 가능 여부 판단
         let canActuallyAttack = (typeof this.attack === 'function' && this.damage > 0 && this.type !== 'engineer');
-        // 미사일 발사대는 자동 공격(attack)을 하지 않도록 제외 (수동 발사 fireAt 사용)
         if (this.type === 'missile-launcher') canActuallyAttack = false;
 
-        // 공격 가능한 유닛이고 move 명령이 아닐 때만 적 탐색
         if (canActuallyAttack && this.command !== 'move') {
             for (const e of enemies) {
+                // 적의 영역이 공격 가능 대상에 포함되는지 확인 (없으면 지상으로 간주)
+                const enemyDomain = e.domain || 'ground';
+                if (!this.attackTargets.includes(enemyDomain)) continue;
+
                 const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
                 if (distToMe <= this.attackRange && distToMe < minDistToMe) {
                     minDistToMe = distToMe;
@@ -1174,57 +1167,46 @@ export class PlayerUnit extends Entity {
             }
         }
 
-        // --- Collision Avoidance (이동 후 겹침 해결) ---
+        // --- Collision Avoidance (공중 유닛은 생략) ---
         let pushX = 0;
         let pushY = 0;
 
-        // --- 유닛 간 충돌 ---
-        const allUnits = this.engine.entities.units;
-        for (const other of allUnits) {
-            if (other === this || !other.alive) continue;
-            const d = Math.hypot(this.x - other.x, this.y - other.y);
-            const minDist = (this.size + other.size) * 0.45; 
-            if (d < minDist) {
-                const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
-                const force = (minDist - d) / minDist;
-                pushX += Math.cos(pushAngle) * force * 2;
-                pushY += Math.sin(pushAngle) * force * 2;
+        if (this.domain !== 'air') {
+            const allUnits = this.engine.entities.units;
+            for (const other of allUnits) {
+                if (other === this || !other.alive || other.domain === 'air') continue;
+                const d = Math.hypot(this.x - other.x, this.y - other.y);
+                const minDist = (this.size + other.size) * 0.45; 
+                if (d < minDist) {
+                    const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                    const force = (minDist - d) / minDist;
+                    pushX += Math.cos(pushAngle) * force * 2;
+                    pushY += Math.sin(pushAngle) * force * 2;
+                }
             }
-        }
 
-        // --- 건물 및 자원 충돌 (동적 수집 방식) ---
-        const obstacles = [];
-        const excludedCategories = ['units', 'enemies', 'projectiles', 'scoutPlanes', 'cargoPlanes'];
-        
-        for (const key in this.engine.entities) {
-            if (excludedCategories.includes(key)) continue;
-            const entry = this.engine.entities[key];
-            if (Array.isArray(entry)) {
-                obstacles.push(...entry);
-            } else if (entry && entry !== null) {
-                obstacles.push(entry);
+            const obstacles = [];
+            const excludedCategories = ['units', 'enemies', 'projectiles', 'scoutPlanes', 'cargoPlanes'];
+            for (const key in this.engine.entities) {
+                if (excludedCategories.includes(key)) continue;
+                const entry = this.engine.entities[key];
+                if (Array.isArray(entry)) obstacles.push(...entry);
+                else if (entry) obstacles.push(entry);
             }
-        }
 
-        for (const b of obstacles) {
-            if (!b || (b.active === false && b.hp !== 99999999) || b.passable || b.isUnderConstruction) continue;
-
-            const bWidth = b.width || b.size || 40;
-            const bHeight = b.height || b.size || 40;
-            
-            const halfW = bWidth / 2 + this.size / 2 - 2;
-            const halfH = bHeight / 2 + this.size / 2 - 2;
-            const dx = this.x - b.x;
-            const dy = this.y - b.y;
-
-            if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
-                const overlapX = halfW - Math.abs(dx);
-                const overlapY = halfH - Math.abs(dy);
-                
-                if (overlapX < overlapY) {
-                    this.x += (dx > 0 ? 1 : -1) * overlapX;
-                } else {
-                    this.y += (dy > 0 ? 1 : -1) * overlapY;
+            for (const b of obstacles) {
+                if (!b || (b.active === false && b.hp !== 99999999) || b.passable || b.isUnderConstruction) continue;
+                const bWidth = b.width || b.size || 40;
+                const bHeight = b.height || b.size || 40;
+                const halfW = bWidth / 2 + this.size / 2 - 2;
+                const halfH = bHeight / 2 + this.size / 2 - 2;
+                const dx = this.x - b.x;
+                const dy = this.y - b.y;
+                if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
+                    const overlapX = halfW - Math.abs(dx);
+                    const overlapY = halfH - Math.abs(dy);
+                    if (overlapX < overlapY) this.x += (dx > 0 ? 1 : -1) * overlapX;
+                    else this.y += (dy > 0 ? 1 : -1) * overlapY;
                 }
             }
         }
@@ -1232,7 +1214,6 @@ export class PlayerUnit extends Entity {
         this.x += pushX;
         this.y += pushY;
 
-        // 맵 경계 제한
         const mapW = this.engine.tileMap.cols * this.engine.tileMap.tileSize;
         const mapH = this.engine.tileMap.rows * this.engine.tileMap.tileSize;
         this.x = Math.max(this.size/2, Math.min(mapW - this.size/2, this.x));
@@ -1864,6 +1845,9 @@ export class CombatEngineer extends PlayerUnit {
         // 1단계: 건설 진행
         if (this.command === 'build' && this.buildingTarget) {
             if (this.buildingTarget.isUnderConstruction) {
+                // 건설 중인 건물을 바라보게 함
+                this.angle = Math.atan2(this.buildingTarget.y - this.y, this.buildingTarget.x - this.x);
+
                 const progressPerFrame = deltaTime / (this.buildingTarget.totalBuildTime * 1000);
                 this.buildingTarget.buildProgress += progressPerFrame;
                 this.buildingTarget.hp = Math.max(1, this.buildingTarget.maxHp * this.buildingTarget.buildProgress);
@@ -1950,6 +1934,9 @@ export class CombatEngineer extends PlayerUnit {
 
         // 수리 로직 (이제 정상적으로 update 내부로 통합됨)
         if (this.command === 'repair' && this.targetObject) {
+            // 수리 대상을 바라보게 함
+            this.angle = Math.atan2(this.targetObject.y - this.y, this.targetObject.x - this.x);
+
             const dist = Math.hypot(this.x - this.targetObject.x, this.y - this.targetObject.y);
             const range = (this.size + (this.targetObject.width || this.targetObject.size || 40)) / 2 + 10;
             
@@ -2050,7 +2037,7 @@ export class Barracks extends Entity {
         this.hp = 1000;
         this.isPowered = false;
         this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 3000; // 보병은 생산 속도가 빠름 (3초)
+        this.spawnTime = 1000; // 보병 생산 속도 1초
         this.units = [];
     }
 
@@ -2186,7 +2173,7 @@ export class Armory extends Entity {
         this.hp = 1500;
         this.isPowered = false;
         this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 5000; // 유닛당 5초
+        this.spawnTime = 1000; // 유닛당 1초 (테스트용)
         this.units = []; // 생산한 유닛들
     }
 
@@ -2299,13 +2286,39 @@ export class Airport extends Entity {
         super(x, y);
         this.type = 'airport';
         this.name = '공항';
-        this.width = 80;
+        this.width = 80; // 2x3 tiles? (80x120)
         this.height = 120;
-        this.size = 80;
-        this.maxHp = 2000;
-        this.hp = 2000;
-        this.color = '#aaaaaa';
+        this.size = 120;
+        this.maxHp = 1200;
+        this.hp = 1200;
         this.isPowered = false;
+        this.spawnQueue = []; 
+        this.spawnTime = 1000; // 테스트용 1초
+        this.units = [];
+    }
+
+    requestUnit(unitType) {
+        this.spawnQueue.push({ type: unitType, timer: 0 });
+        return true;
+    }
+
+    update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
+        this.units = this.units.filter(u => u.alive);
+
+        if (this.isPowered && this.spawnQueue.length > 0) {
+            const current = this.spawnQueue[0];
+            current.timer += deltaTime;
+            if (current.timer >= this.spawnTime) {
+                // 활주로 중앙 부근에서 생성
+                let unit = new ScoutPlane(this.x, this.y, engine);
+                // 생성 직후 활주로 밖으로 이동
+                unit.destination = { x: this.x, y: this.y + 120 };
+                this.units.push(unit);
+                engine.entities.units.push(unit);
+                this.spawnQueue.shift();
+            }
+        }
     }
 
     draw(ctx) {
@@ -2330,7 +2343,6 @@ export class Airport extends Entity {
         ctx.fillRect(-35, -20, 25, 50);
         ctx.strokeStyle = '#888'; ctx.strokeRect(-35, -20, 25, 50);
         
-        // 관제탑 조명
         ctx.fillStyle = '#666';
         ctx.fillRect(15, -40, 15, 15);
         ctx.fillStyle = this.isPowered ? '#00d2ff' : '#222';
@@ -2340,119 +2352,241 @@ export class Airport extends Entity {
         ctx.fillRect(17, -38, 11, 5);
         ctx.shadowBlur = 0;
 
-        // 상태 표시등
         ctx.fillStyle = this.isPowered ? '#39ff14' : '#ff3131';
         ctx.beginPath(); ctx.arc(-30, 40, 4, 0, Math.PI * 2); ctx.fill();
 
         ctx.restore();
 
-        // HP 바 상시 표시
+        const barW = 60;
+        const barY = this.y - 75;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 30, this.y - 75, 60, 5);
+        ctx.fillRect(this.x - barW/2, barY, barW, 5);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 30, this.y - 75, (this.hp / this.maxHp) * 60, 5);
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
+
+        // 생산 대기열 및 진행바 표시 (추가됨)
+        if (this.spawnQueue.length > 0) {
+            const qBarY = barY - 12;
+            const progress = this.spawnQueue[0].timer / this.spawnTime;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(this.x - 40, qBarY, 80, 8);
+            ctx.fillStyle = '#39ff14';
+            ctx.fillRect(this.x - 40, qBarY, 80 * progress, 8);
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`생산 중 (${this.spawnQueue.length})`, this.x, qBarY - 5);
+        }
+    }
+} export class ScoutPlane extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'scout-plane';
+        this.name = '정찰기';
+        this.domain = 'air'; 
+        this.speed = 4.0;    
+        this.visionRange = 15; 
+        this.hp = 150;
+        this.maxHp = 150;
+        this.size = 40;
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        
+        ctx.fillStyle = '#dfe6e9';
+        ctx.beginPath();
+        ctx.moveTo(20, 0); 
+        ctx.lineTo(-10, -15); 
+        ctx.lineTo(-5, 0); 
+        ctx.lineTo(-10, 15);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.strokeStyle = '#b2bec3';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#00d2ff';
+        ctx.beginPath();
+        ctx.ellipse(5, 0, 8, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.destination) {
+            ctx.fillStyle = '#ff7675';
+            ctx.beginPath();
+            ctx.moveTo(-8, -3); ctx.lineTo(-18, 0); ctx.lineTo(-8, 3);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        const barW = 30;
+        const barY = this.y - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
-export class ScoutPlane extends Entity {
-
-    constructor(startX, startY, targetX, targetY, engine) {
-
-        super(startX, startY);
-
-        this.engine = engine;
-
-        this.targetX = targetX;
-
-        this.targetY = targetY;
-
-        this.speed = 5;
-
-        this.angle = Math.atan2(targetY - startY, targetX - startX);
-
-        this.arrived = false;
-
-        this.revealRadius = 20;
-
-        this.alive = true;
-
-        this.returning = false;
-
-        this.homeX = startX;
-
-        this.homeY = startY;
-
+export class CargoPlane extends PlayerUnit {
+    constructor(storage, engine) {
+        super(storage.x, storage.y, engine);
+        this.type = 'cargo-plane';
+        this.domain = 'air';
+        this.storage = storage;
+        this.speed = 3;
+        this.capacity = 500;
+        this.payload = { gold: 0, oil: 0 };
+        this.state = 'loading'; // idle, loading, flying_to_base, unloading, flying_to_storage
+        this.size = 50;
     }
-
-
 
     update(deltaTime) {
+        super.update(deltaTime);
+        const base = this.engine.entities.base;
+        if (!this.storage.active || this.storage.hp <= 0) {
+            this.state = 'flying_to_base';
+        }
 
-        if (!this.alive) return;
+        switch (this.state) {
+            case 'loading':
+                const totalStored = this.storage.storedResources.gold + this.storage.storedResources.oil;
+                if (totalStored > 0) {
+                    const ratio = Math.min(1, this.capacity / totalStored);
+                    this.payload.gold = this.storage.storedResources.gold * ratio;
+                    this.payload.oil = this.storage.storedResources.oil * ratio;
+                    this.storage.storedResources.gold -= this.payload.gold;
+                    this.storage.storedResources.oil -= this.payload.oil;
+                    this.state = 'flying_to_base';
+                }
+                break;
+            case 'flying_to_base':
+                this.moveTo(base.x, base.y, () => {
+                    this.state = 'unloading';
+                });
+                break;
+            case 'unloading':
+                this.engine.resources.gold += this.payload.gold;
+                this.engine.resources.oil += this.payload.oil;
+                this.payload = { gold: 0, oil: 0 };
+                if (!this.storage.active || this.storage.hp <= 0) {
+                    this.alive = false;
+                } else {
+                    this.state = 'flying_to_storage';
+                }
+                break;
+            case 'flying_to_storage':
+                this.moveTo(this.storage.x, this.storage.y, () => {
+                    this.state = 'loading';
+                });
+                break;
+        }
+    }
 
-        const tx = this.returning ? this.homeX : this.targetX;
-
-        const ty = this.returning ? this.homeY : this.targetY;
-
+    moveTo(tx, ty, onArrive) {
         const d = Math.hypot(tx - this.x, ty - this.y);
-
-        if (d < 10) {
-
-            if (!this.returning) {
-
-                this.revealFog();
-
-                this.returning = true;
-
-                this.angle = Math.atan2(this.homeY - this.y, this.homeX - this.x);
-
-            } else {
-
-                this.alive = false;
-
-            }
-
-        }
-
-        else {
-
+        if (d < 5) {
+            onArrive();
+        } else {
+            this.angle = Math.atan2(ty - this.y, tx - this.x);
             this.x += Math.cos(this.angle) * this.speed;
-
             this.y += Math.sin(this.angle) * this.speed;
-
         }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        ctx.fillStyle = '#7f8c8d';
+        ctx.strokeStyle = '#34495e';
+        ctx.lineWidth = 1;
+        ctx.fillRect(-2, -30, 8, 60);
+        ctx.strokeRect(-2, -30, 8, 60);
+
+        const time = Date.now();
+        const propAngle = (time / 50) % (Math.PI * 2);
+        const drawEngine = (ey) => {
+            ctx.fillStyle = '#555';
+            ctx.fillRect(2, ey - 4, 10, 8);
+            ctx.strokeRect(2, ey - 4, 10, 8);
+            ctx.save();
+            ctx.translate(12, ey);
+            ctx.rotate(propAngle);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-6, 0); ctx.lineTo(6, 0);
+            ctx.moveTo(0, -6); ctx.lineTo(0, 6);
+            ctx.stroke();
+            ctx.restore();
+        };
+        drawEngine(-18);
+        drawEngine(18);
+
+        const bodyGrd = ctx.createLinearGradient(0, -12, 0, 12);
+        bodyGrd.addColorStop(0, '#bdc3c7');
+        bodyGrd.addColorStop(0.5, '#95a5a6');
+        bodyGrd.addColorStop(1, '#7f8c8d');
+        ctx.fillStyle = bodyGrd;
+        ctx.beginPath();
+        ctx.moveTo(22, 0);
+        ctx.quadraticCurveTo(22, -10, 15, -10);
+        ctx.lineTo(-15, -10);
+        ctx.lineTo(-15, 10);
+        ctx.lineTo(15, 10);
+        ctx.quadraticCurveTo(22, 10, 22, 0);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath();
+        ctx.moveTo(-15, 0); ctx.lineTo(-25, -15); ctx.lineTo(-25, 15); ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+export class Sandbag extends Entity {
+
+    constructor(x, y) {
+
+        super(x, y);
+
+        this.name = '샌드백';
+
+        this.type = 'sandbag';
+
+        this.maxHp = 1000000;
+
+        this.hp = this.maxHp;
+
+        this.speed = 0;
+
+        this.damage = 0;
+
+        this.size = 60;
+
+        this.active = true;
 
     }
 
 
 
-    revealFog() {
+    update() {
 
-        const radius = this.revealRadius;
-
-        const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
-
-        for (let dy = -radius; dy <= radius; dy++) {
-
-            for (let dx = -radius; dx <= radius; dx++) {
-
-                const nx = grid.x + dx;
-
-                const ny = grid.y + dy;
-
-                if (nx >= 0 && nx < this.engine.tileMap.cols && ny >= 0 && ny < this.engine.tileMap.rows) {
-
-                    if (dx * dx + dy * dy <= radius * radius) {
-
-                        this.engine.tileMap.grid[ny][nx].visible = true;
-
-                    }
-
-                }
-
-            }
-
-        }
+        // 샌드백은 움직이지 않고 공격하지 않음
 
     }
 
@@ -2460,31 +2594,67 @@ export class ScoutPlane extends Entity {
 
     draw(ctx) {
 
-        if (!this.alive) return;
-
         ctx.save();
 
         ctx.translate(this.x, this.y);
 
-        ctx.rotate(this.angle);
+        
 
-        ctx.fillStyle = '#fff';
+        // 모래주머니 뭉치 표현
 
-        ctx.beginPath();
+        const drawBag = (dx, dy, rot) => {
 
-        ctx.moveTo(10, 0);
+            ctx.save();
 
-        ctx.lineTo(-10, -6);
+            ctx.translate(dx, dy);
 
-        ctx.lineTo(-6, 0);
+            ctx.rotate(rot);
 
-        ctx.lineTo(-10, 6);
+            ctx.fillStyle = '#c2b280'; // 모래색
 
-        ctx.closePath();
+            ctx.strokeStyle = '#a6936a';
 
-        ctx.fill();
+            ctx.lineWidth = 1;
 
-        ctx.fillRect(-2, -12, 4, 24);
+            
+
+            // 둥근 자루 형태
+
+            ctx.beginPath();
+
+            ctx.ellipse(0, 0, 12, 8, 0, 0, Math.PI * 2);
+
+            ctx.fill();
+
+            ctx.stroke();
+
+            
+
+            // 묶음 매듭
+
+            ctx.fillStyle = '#a6936a';
+
+            ctx.beginPath();
+
+            ctx.arc(-10, 0, 2, 0, Math.PI * 2);
+
+            ctx.fill();
+
+            ctx.restore();
+
+        };
+
+
+
+        // 3단 쌓기
+
+        drawBag(-10, 5, -0.2);
+
+        drawBag(10, 5, 0.2);
+
+        drawBag(0, -2, 0);
+
+        
 
         ctx.restore();
 
@@ -2494,925 +2664,7 @@ export class ScoutPlane extends Entity {
 
 
 
-export class CargoPlane extends Entity {
-
-    constructor(storage, engine) {
-
-        super(storage.x, storage.y);
-
-        this.storage = storage;
-
-        this.engine = engine;
-
-        this.speed = 3;
-
-        this.state = 'loading'; // loading, flying_to_base, unloading, flying_to_storage
-
-        this.capacity = 100;
-
-        this.payload = { gold: 0, oil: 0 };
-
-        this.targetX = storage.x;
-
-        this.targetY = storage.y;
-
-        this.angle = 0;
-
-        this.alive = true;
-
-        this.size = 20;
-
-    }
-
-
-
-    update(deltaTime) {
-
-        const base = this.engine.entities.base;
-
-        if (!this.storage.active || this.storage.hp <= 0) {
-
-            this.state = 'flying_to_base'; // 창고 파괴 시 일단 기지로 복귀 후 소멸
-
-        }
-
-
-
-        switch (this.state) {
-
-            case 'loading':
-
-                // 창고에서 자원 적재 (즉시 처리)
-
-                const totalStored = this.storage.storedResources.gold + this.storage.storedResources.oil;
-
-                if (totalStored > 0) {
-
-                    const ratio = Math.min(1, this.capacity / totalStored);
-
-                    this.payload.gold = this.storage.storedResources.gold * ratio;
-
-                    this.payload.oil = this.storage.storedResources.oil * ratio;
-
-                    this.storage.storedResources.gold -= this.payload.gold;
-
-                    this.storage.storedResources.oil -= this.payload.oil;
-
-                    this.state = 'flying_to_base';
-
-                }
-
-                break;
-
-
-
-            case 'flying_to_base':
-
-                this.moveTo(base.x, base.y, () => {
-
-                    this.state = 'unloading';
-
-                });
-
-                break;
-
-
-
-            case 'unloading':
-
-                // 기지에 자원 하역
-
-                this.engine.resources.gold += this.payload.gold;
-
-                this.engine.resources.oil += this.payload.oil;
-
-                this.payload = { gold: 0, oil: 0 };
-
-                if (!this.storage.active || this.storage.hp <= 0) {
-
-                    this.alive = false; // 창고 없으면 기지에서 소멸
-
-                } else {
-
-                    this.state = 'flying_to_storage';
-
-                }
-
-                break;
-
-
-
-            case 'flying_to_storage':
-
-                this.moveTo(this.storage.x, this.storage.y, () => {
-
-                    this.state = 'loading';
-
-                });
-
-                break;
-
-        }
-
-    }
-
-
-
-    moveTo(tx, ty, onArrive) {
-
-        const d = Math.hypot(tx - this.x, ty - this.y);
-
-        if (d < 5) {
-
-            onArrive();
-
-        } else {
-
-            this.angle = Math.atan2(ty - this.y, tx - this.x);
-
-            this.x += Math.cos(this.angle) * this.speed;
-
-            this.y += Math.sin(this.angle) * this.speed;
-
-        }
-
-    }
-
-
-
-            draw(ctx) {
-
-
-
-                ctx.save();
-
-
-
-                ctx.translate(this.x, this.y);
-
-
-
-                ctx.rotate(this.angle);
-
-
-
-                
-
-
-
-                // 1. 주날개 (직선적이고 튼튼한 형태)
-
-
-
-                ctx.fillStyle = '#7f8c8d';
-
-
-
-                ctx.strokeStyle = '#34495e';
-
-
-
-                ctx.lineWidth = 1;
-
-
-
-                ctx.fillRect(-2, -30, 8, 60); // 긴 직사각형 날개
-
-
-
-                ctx.strokeRect(-2, -30, 8, 60);
-
-
-
-        
-
-
-
-                // 2. 엔진 및 프로펠러 (비행기 느낌의 핵심)
-
-
-
-                const time = Date.now();
-
-
-
-                const propAngle = (time / 50) % (Math.PI * 2); // 프로펠러 회전 각도
-
-
-
-                
-
-
-
-                const drawEngine = (ey) => {
-
-
-
-                    ctx.fillStyle = '#555';
-
-
-
-                    ctx.fillRect(2, ey - 4, 10, 8); // 엔진 몸체
-
-
-
-                    ctx.strokeRect(2, ey - 4, 10, 8);
-
-
-
-                    
-
-
-
-                    // 프로펠러 회전 효과
-
-
-
-                    ctx.save();
-
-
-
-                    ctx.translate(12, ey);
-
-
-
-                    ctx.rotate(propAngle);
-
-
-
-                    ctx.strokeStyle = '#333';
-
-
-
-                    ctx.lineWidth = 2;
-
-
-
-                    ctx.beginPath();
-
-
-
-                    ctx.moveTo(-6, 0); ctx.lineTo(6, 0); // 날개 1
-
-
-
-                    ctx.moveTo(0, -6); ctx.lineTo(0, 6); // 날개 2
-
-
-
-                    ctx.stroke();
-
-
-
-                    ctx.restore();
-
-
-
-                };
-
-
-
-                drawEngine(-18); // 왼쪽 날개 엔진
-
-
-
-                drawEngine(18);  // 오른쪽 날개 엔진
-
-
-
-        
-
-
-
-                // 3. 동체 (Fuselage - 더 길고 원통형에 가까운 형태)
-
-
-
-                const bodyGrd = ctx.createLinearGradient(0, -12, 0, 12);
-
-
-
-                bodyGrd.addColorStop(0, '#bdc3c7');
-
-
-
-                bodyGrd.addColorStop(0.5, '#95a5a6');
-
-
-
-                bodyGrd.addColorStop(1, '#7f8c8d');
-
-
-
-                ctx.fillStyle = bodyGrd;
-
-
-
-                
-
-
-
-                // 앞코는 약간 둥글게, 몸통은 직사각형
-
-
-
-                ctx.beginPath();
-
-
-
-                ctx.moveTo(22, 0);
-
-
-
-                ctx.quadraticCurveTo(22, -10, 15, -10); // 둥근 코
-
-
-
-                ctx.lineTo(-18, -10); // 왼쪽 면
-
-
-
-                ctx.lineTo(-18, 10);  // 뒷면
-
-
-
-                ctx.lineTo(15, 10);   // 오른쪽 면
-
-
-
-                ctx.quadraticCurveTo(22, 10, 22, 0);  // 둥근 코
-
-
-
-                ctx.fill();
-
-
-
-                ctx.stroke();
-
-
-
-        
-
-
-
-                // 4. 수평 꼬리날개 (Horizontal Stabilizers)
-
-
-
-                ctx.fillStyle = '#7f8c8d';
-
-
-
-                ctx.fillRect(-22, -12, 6, 24);
-
-
-
-                ctx.strokeRect(-22, -12, 6, 24);
-
-
-
-        
-
-
-
-                // 5. 수직 꼬리날개 (Vertical Fin - 위에서 본 모습)
-
-
-
-                ctx.strokeStyle = '#34495e';
-
-
-
-                ctx.lineWidth = 2;
-
-
-
-                ctx.beginPath();
-
-
-
-                ctx.moveTo(-18, 0);
-
-
-
-                ctx.lineTo(-25, 0);
-
-
-
-                ctx.stroke();
-
-
-
-        
-
-
-
-                // 6. 조종석 창 (앞부분에 위치)
-
-
-
-                ctx.fillStyle = '#2c3e50';
-
-
-
-                ctx.fillRect(12, -6, 4, 12);
-
-
-
-        
-
-
-
-                // 7. 항행등 (Blinking)
-
-
-
-                if (Math.floor(time / 500) % 2 === 0) {
-
-
-
-                    ctx.fillStyle = '#ff3131';
-
-
-
-                    ctx.beginPath(); ctx.arc(-2, -30, 2, 0, Math.PI * 2); ctx.fill();
-
-
-
-                    ctx.fillStyle = '#39ff14';
-
-
-
-                    ctx.beginPath(); ctx.arc(-2, 30, 2, 0, Math.PI * 2); ctx.fill();
-
-
-
-                }
-
-
-
-        
-
-
-
-                // 8. 화물 표시 (동체 내부가 비치는 느낌)
-
-
-
-                if (this.payload.gold > 0 || this.payload.oil > 0) {
-
-
-
-                    const resColor = this.payload.gold > this.payload.oil ? '#FFD700' : '#9370DB';
-
-
-
-                    ctx.fillStyle = resColor;
-
-
-
-                    ctx.globalAlpha = 0.6;
-
-
-
-                    ctx.fillRect(-10, -6, 15, 12);
-
-
-
-                    ctx.globalAlpha = 1.0;
-
-
-
-                }
-
-
-
-                
-
-
-
-                                ctx.restore();
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                            }
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                }
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                export class Sandbag extends Entity {
-
-
-
-                
-
-
-
-                    constructor(x, y) {
-
-
-
-                
-
-
-
-                        super(x, y);
-
-
-
-                
-
-
-
-                        this.name = '샌드백';
-
-
-
-                
-
-
-
-                        this.type = 'sandbag';
-
-
-
-                
-
-
-
-                        this.maxHp = 1000000;
-
-
-
-                
-
-
-
-                        this.hp = this.maxHp;
-
-
-
-                
-
-
-
-                        this.speed = 0;
-
-
-
-                
-
-
-
-                        this.damage = 0;
-
-
-
-                
-
-
-
-                        this.size = 60;
-
-
-
-                
-
-
-
-                        this.active = true;
-
-
-
-                
-
-
-
-                    }
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                    update() {
-
-
-
-                
-
-
-
-                        // 샌드백은 움직이지 않고 공격하지 않음
-
-
-
-                
-
-
-
-                    }
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                    draw(ctx) {
-
-
-
-                
-
-
-
-                        ctx.save();
-
-
-
-                
-
-
-
-                        ctx.translate(this.x, this.y);
-
-
-
-                
-
-
-
-                        
-
-
-
-                
-
-
-
-                        // 모래주머니 뭉치 표현
-
-
-
-                
-
-
-
-                        const drawBag = (dx, dy, rot) => {
-
-
-
-                
-
-
-
-                            ctx.save();
-
-
-
-                
-
-
-
-                            ctx.translate(dx, dy);
-
-
-
-                
-
-
-
-                            ctx.rotate(rot);
-
-
-
-                
-
-
-
-                            ctx.fillStyle = '#c2b280';
-
-
-
-                
-
-
-
-                            ctx.beginPath();
-
-
-
-                
-
-
-
-                            ctx.ellipse(0, 0, 20, 12, 0, 0, Math.PI * 2);
-
-
-
-                
-
-
-
-                            ctx.fill();
-
-
-
-                
-
-
-
-                            ctx.strokeStyle = '#8b7d50';
-
-
-
-                
-
-
-
-                            ctx.lineWidth = 2;
-
-
-
-                
-
-
-
-                            ctx.stroke();
-
-
-
-                
-
-
-
-                            ctx.restore();
-
-
-
-                
-
-
-
-                        };
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                        drawBag(-10, 5, 0.2);
-
-
-
-                
-
-
-
-                        drawBag(10, 5, -0.2);
-
-
-
-                
-
-
-
-                        drawBag(0, -5, 0);
-
-
-
-                
-
-
-
-                        
-
-
-
-                
-
-
-
-                        ctx.restore();
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                        // 체력 바 상시 표시
-                        const barW = 50;
-                        const barY = this.y - 30;
-                        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                        ctx.fillRect(this.x - barW/2, barY, barW, 5);
-                        ctx.fillStyle = '#ff3131'; // 적군은 빨간색
-                        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
-                        ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 1;
-                        ctx.strokeRect(this.x - barW/2, barY, barW, 5);
-                    }
-
-                    getSelectionBounds() {
-                        return {
-                            left: this.x - 30,
-                            right: this.x + 30,
-                            top: this.y - 30,
-                            bottom: this.y + 30
-                        };
-                    }
-                }
-
-
-
-                
-
-
-
-                
-
-
-
-                
-
-
-
-                export class Enemy extends Entity {
+export class Enemy extends Entity {
     constructor(x, y) {
         super(x, y);
         this.speed = 1.8;
