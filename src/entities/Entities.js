@@ -1290,6 +1290,90 @@ export class Tank extends PlayerUnit {
     }
 }
 
+export class NeutralTank extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'neutral-tank';
+        this.name = '중립 전차';
+        this.speed = 1.0;
+        this.fireRate = 2000;
+        this.damage = 30;
+        this.color = '#bdc3c7'; 
+        this.attackRange = 300;
+        this.maxHp = 500;
+        this.hp = 500;
+        this.destination = null; // 초기 목적지 없음
+    }
+
+    update(deltaTime) {
+        // 부모의 이동 및 충돌 로직을 완전히 무시하여 자리에 고정 (승천 방지)
+        if (!this.alive) return;
+
+        // 공격 타겟팅만 수행 (반격 용도 등)
+        const enemies = this.engine.entities.enemies;
+        let bestTarget = null;
+        let minDistToMe = Infinity;
+
+        for (const e of enemies) {
+            const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
+            if (distToMe <= this.attackRange && distToMe < minDistToMe) {
+                minDistToMe = distToMe;
+                bestTarget = e;
+            }
+        }
+        this.target = bestTarget;
+
+        if (this.target) {
+            this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+            this.attack();
+        }
+        
+        if (this.hp <= 0) this.alive = false;
+    }
+
+    attack() {
+        // 중립 유닛은 기본적으로 공격 로직이 있으나 타겟팅 로직에 의해 선공하지 않음
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate && this.target) {
+            const { Projectile } = this.engine.entityClasses;
+            const p = new Projectile(this.x, this.y, this.target, this.damage, this.color, this);
+            this.engine.entities.projectiles.push(p);
+            this.lastFireTime = now;
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.scale(2, 2);
+        
+        // 중립 도색 (회색 계열)
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(-12, -10, 24, 20);
+        ctx.strokeStyle = '#95a5a6';
+        ctx.strokeRect(-12, -10, 24, 20);
+        
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-14, -12, 28, 4);
+        ctx.fillRect(-14, 8, 28, 4);
+        
+        ctx.fillStyle = '#95a5a6';
+        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(0, -2, 15, 4);
+        
+        ctx.restore();
+
+        // 중립 체력 바 (흰색/회색)
+        const barW = 30;
+        const barY = this.y - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+    }
+}
+
 export class Missile extends Entity {
     constructor(startX, startY, targetX, targetY, damage, engine) {
         super(startX, startY);

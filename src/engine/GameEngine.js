@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,12 +13,13 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
         this.entities = {
             enemies: [],
+            neutral: [], // 중립 유닛 리스트 신설
             turrets: [],
             projectiles: [],
             generators: [],
@@ -77,6 +78,10 @@ export class GameEngine {
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
         const airSandbag = new AirSandbag(basePos.x + 250, basePos.y - 150);
         this.entities.enemies.push(sandbag, airSandbag);
+
+        // 중립 전차 배치 (사령부와 충돌하지 않도록 충분히 먼 거리)
+        const neutralTank = new NeutralTank(basePos.x - 250, basePos.y - 100, this);
+        this.entities.neutral.push(neutralTank);
 
         this.updateVisibility(); // 초기 시야 확보
 
@@ -271,14 +276,19 @@ export class GameEngine {
         let items = [];
 
         // 유닛 명령 메뉴가 건설 메뉴보다 우선순위가 높아야 함 (모드 탈출 보장)
-        if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
-            const firstEnt = this.selectedEntities[0];
-            const isEnemy = this.entities.enemies.includes(firstEnt);
-            const allPlayerUnits = this.selectedEntities.every(ent => ent instanceof PlayerUnit && !this.entities.enemies.includes(ent));
-            const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
-
-            if (allPlayerUnits) {
-                // [아군 유닛 메뉴]
+                if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
+                    const firstEnt = this.selectedEntities[0];
+                    const isEnemy = this.entities.enemies.includes(firstEnt);
+                    const isNeutral = this.entities.neutral.includes(firstEnt);
+                    // 아군 유닛 판단 시 적군과 중립군 모두 제외
+                    const allPlayerUnits = this.selectedEntities.every(ent => 
+                        ent instanceof PlayerUnit && 
+                        !this.entities.enemies.includes(ent) && 
+                        !this.entities.neutral.includes(ent)
+                    );
+                    const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
+        
+                    if (allPlayerUnits) {                // [아군 유닛 메뉴]
                 menuType = 'unit';
                 header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
                 
@@ -304,6 +314,10 @@ export class GameEngine {
             } else if (isEnemy) {
                 header.textContent = `[적] ${firstEnt.name}`;
                 items = [null, null, null, null, null, null, { type: 'menu:main', name: '닫기', action: 'menu:main' }, null, null];
+            } else if (this.entities.neutral.includes(firstEnt)) {
+                // [중립 유닛] 메뉴에 아무것도 표시하지 않음
+                header.textContent = `[중립] ${firstEnt.name}`;
+                items = [null, null, null, null, null, null, null, null, null];
             } else if (allSameType) {
                 // [아군 건물 메뉴]
                 const type = firstEnt.type;
@@ -915,10 +929,11 @@ export class GameEngine {
     }
 
     handleSingleSelection(worldX, worldY, isShiftKey) {
-        // 선택 가능한 엔티티들 수집 (적군 포함)
+        // 선택 가능한 엔티티들 수집 (적군 및 중립 포함)
         const potentialEntities = [
             ...this.entities.units,
-            ...this.entities.enemies, // 적군 추가
+            ...this.entities.enemies, 
+            ...this.entities.neutral, // 중립 유닛 추가
             ...this.entities.airports,
             ...this.entities.storage,
             ...this.entities.armories,
@@ -1639,6 +1654,10 @@ export class GameEngine {
         this.entities.armories.forEach(a => a.update(deltaTime, this));
         this.entities.barracks.forEach(b => b.update(deltaTime, this));
         this.entities.storage.forEach(s => s.update(deltaTime, this));
+        
+        // 중립 유닛 업데이트
+        this.entities.neutral.forEach(n => n.update(deltaTime));
+        this.entities.neutral = this.entities.neutral.filter(n => n.alive);
 
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
         this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
@@ -1682,10 +1701,13 @@ export class GameEngine {
             this.entities.base
         ];
 
+        // --- 2.1 기초 기반시설 (Ground Layer) ---
         if (this.entities.base) this.entities.base.draw(this.ctx);
         this.entities.resources.forEach(r => r.draw(this.ctx));
         this.entities.powerLines.forEach(pl => pl.draw(this.ctx, buildingsForPower, this));
         this.entities.pipeLines.forEach(pl => pl.draw(this.ctx, buildingsForPower, this));
+        
+        // --- 2.2 건물 (Building Layer) ---
         this.entities.walls.forEach(w => w.draw(this.ctx));
         this.entities.airports.forEach(a => a.draw(this.ctx));
         this.entities.refineries.forEach(ref => ref.draw(this.ctx));
@@ -1693,11 +1715,14 @@ export class GameEngine {
         this.entities.storage.forEach(s => s.draw(this.ctx));
         this.entities.armories.forEach(a => a.draw(this.ctx));
         this.entities.barracks.forEach(b => b.draw(this.ctx));
-        this.entities.units.forEach(u => u.draw(this.ctx));
         this.entities.generators.forEach(g => g.draw(this.ctx));
         this.entities.turrets.forEach(t => t.draw(this.ctx, this.isBuildMode));
         
-        // 적 유닛은 현재 시야(inSight) 내에 있을 때만 렌더링
+        // --- 2.3 유닛 및 투사체 (Unit Layer) ---
+        this.entities.units.forEach(u => u.draw(this.ctx));
+        this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
+        
+        // 적 유닛은 시야(inSight) 내에 있을 때만 렌더링
         this.entities.enemies.forEach(e => {
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
@@ -1706,7 +1731,6 @@ export class GameEngine {
         });
 
         this.entities.projectiles.forEach(p => p.draw(this.ctx));
-        this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
 
         const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
         const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
@@ -1714,15 +1738,23 @@ export class GameEngine {
         // 3. Draw fog on top to hide everything in dark areas
         this.tileMap.drawFog();
 
-        // 4. Draw Active Previews and Highlights on TOP of fog
+        // 4. [항상 보임] 중립 유닛 렌더링
+        this.entities.neutral.forEach(n => n.draw(this.ctx));
+
+        // 5. Draw Active Previews and Highlights on TOP of fog
         
-        // 4.1 Selected Object Highlight
+        // 5.1 Selected Object Highlight
         if (this.selectedEntities.length > 0) {
+
             this.ctx.save();
             this.ctx.lineWidth = 1;
             this.selectedEntities.forEach(ent => {
                 const isEnemy = this.entities.enemies.includes(ent);
-                this.ctx.strokeStyle = isEnemy ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 255, 0, 0.8)';
+                const isNeutral = this.entities.neutral.includes(ent);
+                
+                if (isEnemy) this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+                else if (isNeutral) this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노란색
+                else this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 아군: 초록색
                 
                 const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                     left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
@@ -2591,7 +2623,7 @@ export class GameEngine {
         };
 
         // 1. 기지 주변 시야
-        reveal(this.entities.base.x, this.entities.base.y, 30);
+        reveal(this.entities.base.x, this.entities.base.y, 50);
 
         // 2. 모든 아군 유닛 주변 시야
         this.entities.units.forEach(unit => {
