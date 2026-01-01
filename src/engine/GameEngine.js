@@ -615,7 +615,15 @@ export class GameEngine {
 
             if (e.button === 0) { // LEFT CLICK
                 if (this.unitCommandMode) {
-                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY);
+                    // 공격 명령 모드 등에서 적 유닛 클릭 여부 확인
+                    const clickedEnemy = this.entities.enemies.find(enemy => {
+                        const bounds = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
+                            left: enemy.x - 20, right: enemy.x + 20, top: enemy.y - 20, bottom: enemy.y + 20
+                        };
+                        return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
+                    });
+                    
+                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, clickedEnemy);
                 } else if (this.isSellMode) {
                     this.handleSell(worldX, worldY);
                 } else if (this.isBuildMode) {
@@ -841,9 +849,10 @@ export class GameEngine {
     }
 
     handleSingleSelection(worldX, worldY, isShiftKey) {
-        // 선택 가능한 엔티티들만 수집 (전선, 파이프 제외)
+        // 선택 가능한 엔티티들 수집 (적군 포함)
         const potentialEntities = [
             ...this.entities.units,
+            ...this.entities.enemies, // 적군 추가
             ...this.entities.airports,
             ...this.entities.storage,
             ...this.entities.armories,
@@ -854,35 +863,42 @@ export class GameEngine {
             this.entities.base
         ];
 
-        // Find the first entity that contains the click point
+        // 클릭 지점에 있는 첫 번째 엔티티 찾기
         const found = potentialEntities.find(ent => {
-            if (!ent || (!ent.active && ent !== this.entities.base)) return false;
-            const bounds = ent.getSelectionBounds();
-            return worldX >= bounds.left && worldX <= bounds.right && 
-                   worldY >= bounds.top && worldY <= bounds.bottom;
+            const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
+            };
+            return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
         });
 
-        if (isShiftKey) {
-            if (found) {
+        if (found) {
+            // 적 유닛인 경우 단일 선택만 허용
+            const isEnemy = this.entities.enemies.includes(found);
+            
+            if (isEnemy) {
+                this.selectedEntities = [found];
+                this.selectedEntity = found;
+            } else if (isShiftKey && !isEnemy) {
+                // 아군 유닛 시프트 다중 선택
                 const idx = this.selectedEntities.indexOf(found);
-                if (idx !== -1) {
+                if (idx > -1) {
                     this.selectedEntities.splice(idx, 1);
                 } else {
+                    // 이미 적군이 선택되어 있었다면 제거 후 추가
+                    this.selectedEntities = this.selectedEntities.filter(ent => !this.entities.enemies.includes(ent));
                     this.selectedEntities.push(found);
                 }
+            } else {
+                this.selectedEntities = [found];
+                this.selectedEntity = found;
             }
         } else {
-            this.selectedEntities = found ? [found] : [];
+            this.selectedEntities = [];
+            this.selectedEntity = null;
         }
-
-        this.isEngineerBuilding = false; // 선택 변경 시 공병 건설 모드 해제
-
-        // 편의를 위해 첫 번째 선택된 객체를 selectedEntity로 참조 (기존 코드 호환성)
-        this.selectedEntity = this.selectedEntities.length > 0 ? this.selectedEntities[0] : null;
-        this.selectedAirport = (this.selectedEntity && this.selectedEntity.type === 'airport') ? this.selectedEntity : null;
-
-        this.updateCursor();
+        
         this.updateBuildMenu();
+        this.updateCursor();
     }
 
     handleMultiSelection() {
@@ -1637,16 +1653,20 @@ export class GameEngine {
         // 4.1 Selected Object Highlight
         if (this.selectedEntities.length > 0) {
             this.ctx.save();
-            this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 초록색 테두리
             this.ctx.lineWidth = 1;
             this.selectedEntities.forEach(ent => {
-                const bounds = ent.getSelectionBounds();
+                const isEnemy = this.entities.enemies.includes(ent);
+                this.ctx.strokeStyle = isEnemy ? 'rgba(255, 0, 0, 0.8)' : 'rgba(0, 255, 0, 0.8)';
+                
+                const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                    left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
+                };
                 const w = bounds.right - bounds.left;
                 const h = bounds.bottom - bounds.top;
                 this.ctx.strokeRect(bounds.left, bounds.top, w, h);
 
-                // Draw attack range for each selected unit
-                if (ent.attackRange) {
+                // Draw attack range for each selected unit (Only for player units)
+                if (!isEnemy && ent.attackRange) {
                     this.ctx.save();
                     
                     let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색
@@ -1703,19 +1723,26 @@ export class GameEngine {
             // --- [독립 블록] 공격 대상 하이라이트 (Target Highlight) ---
             const targetsToHighlight = new Set();
             this.selectedEntities.forEach(selUnit => {
-                if (selUnit.manualTarget && selUnit.manualTarget.alive) targetsToHighlight.add(selUnit.manualTarget);
-                if (selUnit.target && selUnit.target.alive) targetsToHighlight.add(selUnit.target);
-                
+                // [수정] 오직 플레이어가 직접 지정한 수동 타겟(manualTarget)만 표시
+                // 자동 포착 타겟(target)은 제외하여 플레이어의 의지만 시각화
+                const mTarget = selUnit.manualTarget;
+                if (mTarget && (mTarget.active !== false) && (mTarget.alive !== false)) {
+                    targetsToHighlight.add(mTarget);
+                }
+
+                // 미사일 발사대 수동 조준/발사 준비 지점 (플레이어 조작이므로 포함)
                 if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
                     const fireEnemy = this.entities.enemies.find(enemy => 
-                        Math.hypot(enemy.x - selUnit.pendingFirePos.x, enemy.y - selUnit.pendingFirePos.y) < 50
+                        enemy.active !== false && Math.hypot(enemy.x - selUnit.pendingFirePos.x, enemy.y - selUnit.pendingFirePos.y) < 60
                     );
                     if (fireEnemy) targetsToHighlight.add(fireEnemy);
                 }
             });
 
+            // 4. 수동 조준 모드 시 마우스 아래의 적 (조준 보조)
             if (this.unitCommandMode === 'manual_fire') {
                 const hoverEnemy = this.entities.enemies.find(enemy => {
+                    if (enemy.active === false) return false;
                     const b = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
                         left: enemy.x-20, right: enemy.x+20, top: enemy.y-20, bottom: enemy.y+20
                     };
@@ -1728,7 +1755,7 @@ export class GameEngine {
                 const bounds = target.getSelectionBounds ? target.getSelectionBounds() : {
                     left: target.x - 20, right: target.x + 20, top: target.y - 20, bottom: target.y + 20
                 };
-                const padding = 6;
+                const padding = 8; // 패딩을 조금 더 늘려 잘 보이게 함
                 const tW = (bounds.right - bounds.left) + padding * 2;
                 const tH = (bounds.bottom - bounds.top) + padding * 2;
                 const tX = bounds.left - padding;
@@ -1738,8 +1765,10 @@ export class GameEngine {
                 this.ctx.strokeStyle = '#ff3131';
                 this.ctx.lineWidth = 3;
                 const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
-                this.ctx.globalAlpha = 0.4 + pulse * 0.6;
+                this.ctx.globalAlpha = 0.5 + pulse * 0.5; // 불투명도 상향
+                
                 this.ctx.strokeRect(tX, tY, tW, tH);
+                
                 const len = 12;
                 this.ctx.beginPath();
                 this.ctx.moveTo(tX, tY + len); this.ctx.lineTo(tX, tY); this.ctx.lineTo(tX + len, tY);
@@ -1747,6 +1776,7 @@ export class GameEngine {
                 this.ctx.moveTo(tX, tY + tH - len); this.ctx.lineTo(tX, tY + tH); this.ctx.lineTo(tX + len, tY + tH);
                 this.ctx.moveTo(tX + tW - len, tY + tH); this.ctx.lineTo(tX + tW, tY + tH); this.ctx.lineTo(tX + tW, tY + tH - len);
                 this.ctx.stroke();
+                
                 this.ctx.fillStyle = '#ff3131';
                 this.ctx.font = 'bold 12px Arial';
                 this.ctx.textAlign = 'center';
