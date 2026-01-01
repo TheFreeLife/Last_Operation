@@ -645,15 +645,15 @@ export class GameEngine {
 
             if (e.button === 0) { // LEFT CLICK
                 if (this.unitCommandMode) {
-                    // 공격 명령 모드 등에서 적 유닛 클릭 여부 확인
-                    const clickedEnemy = this.entities.enemies.find(enemy => {
-                        const bounds = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
-                            left: enemy.x - 20, right: enemy.x + 20, top: enemy.y - 20, bottom: enemy.y + 20
+                    // 공격 명령 모드 등에서 적 유닛 또는 중립 유닛 클릭 여부 확인
+                    const clickedTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
+                        const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                            left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                         };
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
                     
-                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, clickedEnemy);
+                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, clickedTarget);
                 } else if (this.isSellMode) {
                     this.handleSell(worldX, worldY);
                 } else if (this.isBuildMode) {
@@ -683,16 +683,16 @@ export class GameEngine {
                     this.cancelModes();
                     this.updateCursor();
                 } else if (this.selectedEntities.length > 0) {
-                    // 1. 적 유닛 클릭 여부 확인 (스타크래프트 스타일 자동 공격)
-                    const clickedEnemy = this.entities.enemies.find(enemy => {
-                        const bounds = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
-                            left: enemy.x - 20, right: enemy.x + 20, top: enemy.y - 20, bottom: enemy.y + 20
+                    // 1. 적 유닛 또는 중립 유닛 클릭 여부 확인 (강제 공격)
+                    const clickedTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
+                        const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                            left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                         };
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
 
-                    if (clickedEnemy) {
-                        this.executeUnitCommand('attack', clickedEnemy.x, clickedEnemy.y, clickedEnemy);
+                    if (clickedTarget) {
+                        this.executeUnitCommand('attack', clickedTarget.x, clickedTarget.y, clickedTarget);
                         return;
                     }
 
@@ -1730,20 +1730,21 @@ export class GameEngine {
             }
         });
 
-        this.entities.projectiles.forEach(p => p.draw(this.ctx));
-
-        const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
-        const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
-
         // 3. Draw fog on top to hide everything in dark areas
         this.tileMap.drawFog();
 
         // 4. [항상 보임] 중립 유닛 렌더링
         this.entities.neutral.forEach(n => n.draw(this.ctx));
 
-        // 5. Draw Active Previews and Highlights on TOP of fog
+        // 5. 투사체 및 효과 (최상단 레이어) - 유닛과 안개를 모두 가릴 수 있도록 함
+        this.entities.projectiles.forEach(p => p.draw(this.ctx));
+
+        const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
+        const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
+
+        // 6. Draw Active Previews and Highlights on TOP of everything
         
-        // 5.1 Selected Object Highlight
+        // 6.1 Selected Object Highlight
         if (this.selectedEntities.length > 0) {
 
             this.ctx.save();
@@ -1822,31 +1823,30 @@ export class GameEngine {
             const targetsToHighlight = new Set();
             this.selectedEntities.forEach(selUnit => {
                 // [수정] 오직 플레이어가 직접 지정한 수동 타겟(manualTarget)만 표시
-                // 자동 포착 타겟(target)은 제외하여 플레이어의 의지만 시각화
                 const mTarget = selUnit.manualTarget;
-                if (mTarget && (mTarget.active !== false) && (mTarget.alive !== false)) {
+                if (mTarget && (mTarget.active !== false) && (mTarget.alive !== false) && (mTarget.hp > 0)) {
                     targetsToHighlight.add(mTarget);
                 }
 
                 // 미사일 발사대 수동 조준/발사 준비 지점 (플레이어 조작이므로 포함)
                 if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
-                    const fireEnemy = this.entities.enemies.find(enemy => 
-                        enemy.active !== false && Math.hypot(enemy.x - selUnit.pendingFirePos.x, enemy.y - selUnit.pendingFirePos.y) < 60
+                    const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => 
+                        (ent.active !== false && ent.alive !== false) && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
                     );
-                    if (fireEnemy) targetsToHighlight.add(fireEnemy);
+                    if (fireTarget) targetsToHighlight.add(fireTarget);
                 }
             });
 
-            // 4. 수동 조준 모드 시 마우스 아래의 적 (조준 보조)
+            // 4. 수동 조준 모드 시 마우스 아래의 적 또는 중립 (조준 보조)
             if (this.unitCommandMode === 'manual_fire') {
-                const hoverEnemy = this.entities.enemies.find(enemy => {
-                    if (enemy.active === false) return false;
-                    const b = enemy.getSelectionBounds ? enemy.getSelectionBounds() : {
-                        left: enemy.x-20, right: enemy.x+20, top: enemy.y-20, bottom: enemy.y+20
+                const hoverTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
+                    if (ent.active === false || ent.alive === false) return false;
+                    const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                        left: ent.x-20, right: ent.x+20, top: ent.y-20, bottom: ent.y+20
                     };
                     return mouseWorldX >= b.left && mouseWorldX <= b.right && mouseWorldY >= b.top && mouseWorldY <= b.bottom;
                 });
-                if (hoverEnemy) targetsToHighlight.add(hoverEnemy);
+                if (hoverTarget) targetsToHighlight.add(hoverTarget);
             }
 
             targetsToHighlight.forEach(target => {

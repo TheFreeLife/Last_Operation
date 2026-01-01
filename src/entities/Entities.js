@@ -1129,15 +1129,28 @@ export class PlayerUnit extends Entity {
         if (this.type === 'missile-launcher') canActuallyAttack = false;
 
         if (canActuallyAttack && this.command !== 'move') {
-            for (const e of enemies) {
-                // 적의 영역이 공격 가능 대상에 포함되는지 확인 (없으면 지상으로 간주)
-                const enemyDomain = e.domain || 'ground';
-                if (!this.attackTargets.includes(enemyDomain)) continue;
+            // 1. 수동 지정 타겟(manualTarget) 우선 확인 (중립 유닛 포함)
+            if (this.manualTarget && (this.manualTarget.active !== false) && (this.manualTarget.hp > 0)) {
+                const distToManual = Math.hypot(this.manualTarget.x - this.x, this.manualTarget.y - this.y);
+                // 영역(domain) 체크
+                const targetDomain = this.manualTarget.domain || 'ground';
+                if (this.attackTargets.includes(targetDomain) && distToManual <= this.attackRange) {
+                    bestTarget = this.manualTarget;
+                }
+            }
 
-                const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
-                if (distToMe <= this.attackRange && distToMe < minDistToMe) {
-                    minDistToMe = distToMe;
-                    bestTarget = e;
+            // 2. 수동 타겟이 없거나 사거리 밖이면 자동 타겟팅 수행 (적군만)
+            if (!bestTarget) {
+                for (const e of enemies) {
+                    // 적의 영역이 공격 가능 대상에 포함되는지 확인 (없으면 지상으로 간주)
+                    const enemyDomain = e.domain || 'ground';
+                    if (!this.attackTargets.includes(enemyDomain)) continue;
+
+                    const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (distToMe <= this.attackRange && distToMe < minDistToMe) {
+                        minDistToMe = distToMe;
+                        bestTarget = e;
+                    }
                 }
             }
         }
@@ -1441,12 +1454,15 @@ export class Missile extends Entity {
             });
         }
 
-        const enemies = this.engine.entities.enemies;
-        enemies.forEach(enemy => {
-            const dist = Math.hypot(enemy.x - this.targetX, enemy.y - this.targetY);
+        const targets = [...this.engine.entities.enemies, ...this.engine.entities.neutral];
+        targets.forEach(target => {
+            const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
             if (dist <= this.explosionRadius) {
-                enemy.hp -= this.damage;
-                if (enemy.hp <= 0) enemy.active = false;
+                target.hp -= this.damage;
+                if (target.hp <= 0) {
+                    if (target.active !== undefined) target.active = false;
+                    if (target.alive !== undefined) target.alive = false;
+                }
             }
         });
     }
@@ -1529,7 +1545,7 @@ export class Missile extends Entity {
                     const size = p.size * (1 + progress * 2); // 연기가 대폭 확산
                     
                     ctx.save();
-                    ctx.globalAlpha = smokeAlpha * 0.7;
+                    ctx.globalAlpha = smokeAlpha * 0.95; // 연기 농도 대폭 강화
                     ctx.fillStyle = p.color; 
                     ctx.beginPath();
                     const px = this.targetX + Math.cos(p.angle) * p.dist + shiftX;
@@ -1575,7 +1591,7 @@ export class MissileLauncher extends PlayerUnit {
         this.speed = 1.4; // 0.8 -> 1.4 (기동성 강화)
         this.baseSpeed = 1.4;
         this.fireRate = 2500;
-        this.damage = 70;
+        this.damage = 350;
         this.color = '#ff3131';
         this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
         this.visionRange = 8;
@@ -3266,12 +3282,16 @@ export class Projectile extends Entity {
 
     explode(engine) {
         if (this.explosionRadius > 0) {
-            // 범위 내 모든 적에게 데미지
-            engine.entities.enemies.forEach(enemy => {
-                const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+            // 범위 내 모든 대상(적군 및 중립)에게 데미지
+            const targets = [...engine.entities.enemies, ...engine.entities.neutral];
+            targets.forEach(target => {
+                const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 if (dist <= this.explosionRadius) {
-                    enemy.hp -= this.damage;
-                    if (enemy.hp <= 0) enemy.active = false;
+                    target.hp -= this.damage;
+                    if (target.hp <= 0) {
+                        if (target.active !== undefined) target.active = false;
+                        if (target.alive !== undefined) target.alive = false;
+                    }
                 }
             });
             this.exploding = true;
@@ -3290,7 +3310,10 @@ export class Projectile extends Entity {
         }
 
         if (!this.active) return;
-        if (!this.target || !this.target.active) {
+        
+        // 타겟 유효성 체크 (active와 alive 모두 고려)
+        const isTargetDead = (this.target.active === false) || (this.target.alive === false) || (this.target.hp <= 0);
+        if (!this.target || isTargetDead) {
             this.active = false;
             return;
         }
@@ -3303,7 +3326,11 @@ export class Projectile extends Entity {
 
         // 충돌 체크 함수 (공격 대상 도메인 필터링 및 장애물 통과 여부 포함)
         const checkCollision = (other) => {
-            if (other === this.source || !other.active || other.passable) return false;
+            if (other === this.source || other.passable) return false;
+            
+            // 대상이 이미 죽었는지 확인
+            const isDead = (other.active === false) || (other.alive === false) || (other.hp <= 0);
+            if (isDead) return false;
             
             // 소스 유닛이 장애물 통과 능력이 있으면 비행 중 충돌 무시 (곡사/미사일 등)
             if (this.source && this.source.canBypassObstacles) return false;
@@ -3325,14 +3352,18 @@ export class Projectile extends Entity {
             return dist < (this.size / 2 + otherSize / 2);
         };
 
-        // 1. 적 유닛/건물 체크 (범위 공격 시 폭발, 단일 공격 시 데미지 후 소멸)
-        for (const enemy of engine.entities.enemies) {
-            if (checkCollision(enemy)) {
+        // 1. 적 유닛/건물 또는 중립 유닛 체크
+        const hostileTargets = [...engine.entities.enemies, ...engine.entities.neutral];
+        for (const target of hostileTargets) {
+            if (checkCollision(target)) {
                 if (this.explosionRadius > 0) {
                     this.explode(engine);
                 } else {
-                    enemy.hp -= this.damage;
-                    if (enemy.hp <= 0) enemy.active = false;
+                    target.hp -= this.damage;
+                    if (target.hp <= 0) {
+                        if (target.active !== undefined) target.active = false;
+                        if (target.alive !== undefined) target.alive = false;
+                    }
                     this.active = false;
                 }
                 return;
