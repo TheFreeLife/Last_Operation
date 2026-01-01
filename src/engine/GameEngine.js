@@ -258,44 +258,53 @@ export class GameEngine {
         const header = document.querySelector('.panel-header');
         if (!header) return;
         
+        // 안전장치: 공병이 선택되지 않았다면 건설 모드 강제 해제
+        const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
+        if (!hasEngineer) {
+            this.isEngineerBuilding = false;
+        }
+
         let menuType = 'main';
         let items = [];
 
+        // 유닛 명령 메뉴가 건설 메뉴보다 우선순위가 높아야 함 (모드 탈출 보장)
         if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
-            const allUnits = this.selectedEntities.every(ent => ent instanceof PlayerUnit);
-            const firstType = this.selectedEntities[0].type;
-            const allSameType = this.selectedEntities.every(ent => ent.type === firstType);
+            const firstEnt = this.selectedEntities[0];
+            const isEnemy = this.entities.enemies.includes(firstEnt);
+            const allPlayerUnits = this.selectedEntities.every(ent => ent instanceof PlayerUnit && !this.entities.enemies.includes(ent));
+            const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
 
-            if (allUnits) {
+            if (allPlayerUnits) {
+                // [아군 유닛 메뉴]
                 menuType = 'unit';
-                header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : this.selectedEntities[0].name;
+                header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
                 
-                // 1. 모든 유닛 공통 명령 (이동, 정지, 홀드, 패트롤, 어택)
                 items = [
                     { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move' },
                     { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
-                    null, // 3번째 칸 (인덱스 2) - 아래에서 유닛별로 채움
+                    null, 
                     { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
                     { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol' },
                     { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack' },
                     null, null, null
                 ];
 
-                // 2. 고유 스킬 판정
                 if (allSameType) {
-                    const unitType = firstType;
+                    const unitType = firstEnt.type;
                     if (unitType === 'engineer') {
                         items[6] = { id: 'engineer_build', name: '건설 (B)', action: 'menu:engineer_build' };
                     } else if (unitType === 'missile-launcher') {
-                        // 미사일 발사대 시즈 모드 (1열 3행 - 인덱스 6)
                         items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege' };
-                        // 수동 미사일 발사 (2열 3행 - 인덱스 7)
                         items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire' };
                     }
                 }
+            } else if (isEnemy) {
+                header.textContent = `[적] ${firstEnt.name}`;
+                items = [null, null, null, null, null, null, { type: 'menu:main', name: '닫기', action: 'menu:main' }, null, null];
             } else if (allSameType) {
-                const type = firstType;
-                header.textContent = this.selectedEntities.length > 1 ? `${this.selectedEntities[0].name} (${this.selectedEntities.length})` : this.selectedEntities[0].name;
+                // [아군 건물 메뉴]
+                const type = firstEnt.type;
+                header.textContent = this.selectedEntities.length > 1 ? `${firstEnt.name} (${this.selectedEntities.length})` : firstEnt.name;
                 
                 if (type === 'armory') {
                     items = [
@@ -395,15 +404,19 @@ export class GameEngine {
             }
 
             // Determine which icon key to use
-            const iconKey = item.action || item.type;
+            const iconKey = item.action || item.type || item.id;
             let iconHtml = this.getIconSVG(iconKey);
             
             // --- Mandatory Icon Check & Fallback to item.icon (Emoji) ---
             if (!iconHtml) {
                 if (item.icon) {
-                    // SVG 대신 이모지 아이콘을 중앙에 배치
                     iconHtml = `<div class="btn-icon gray"><div style="font-size: 24px; display: flex; align-items: center; justify-content: center; height: 100%;">${item.icon}</div></div>`;
-                } else {
+                } else if (item.type) {
+                    // 아이콘이 없으면 타입 이름으로 다시 시도
+                    iconHtml = this.getIconSVG(item.type);
+                }
+                
+                if (!iconHtml) {
                     console.warn(`[GameEngine] Icon missing for key: ${iconKey}`);
                     iconHtml = `<div class="btn-icon gray"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#555" stroke="#fff" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#fff" font-size="12">?</text></svg></div>`;
                 }
@@ -716,6 +729,56 @@ export class GameEngine {
                     this.handleSell(worldX, worldY);
                 } else if (this.isBuildMode) {
                     this.handleInput(worldX, worldY);
+                }
+            }
+
+            // --- 월드 엔티티 호버링 상세 정보 처리 ---
+            if (!this.isHoveringUI) {
+                const potentialEntities = [
+                    ...this.entities.units, ...this.entities.enemies,
+                    ...this.entities.turrets, ...this.entities.generators, ...this.entities.airports,
+                    ...this.entities.refineries, ...this.entities.goldMines, ...this.entities.storage,
+                    ...this.entities.armories, ...this.entities.barracks, ...this.entities.walls, this.entities.base
+                ];
+
+                const hovered = potentialEntities.find(ent => {
+                    if (!ent || (ent.active === false && ent.hp !== 99999999)) return false;
+                    
+                    // 선택 범위 계산 (getSelectionBounds가 있으면 사용, 없으면 기본값)
+                    const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                        left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
+                    };
+                    
+                    return worldX >= b.left && worldX <= b.right && worldY >= b.top && worldY <= b.bottom;
+                });
+
+                if (hovered) {
+                    let title = hovered.name || hovered.type;
+                    const isEnemy = this.entities.enemies.includes(hovered);
+                    if (isEnemy) title = `[적] ${title}`;
+
+                    let desc = `<div class="item-stats-box">
+                        <div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
+                    
+                    if (hovered.damage > 0) {
+                        desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
+                    }
+                    if (hovered.attackRange > 0) {
+                        desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${hovered.attackRange}</span></div>`;
+                    }
+                    if (hovered.speed > 0) {
+                        desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
+                    }
+                    if (hovered.domain) {
+                        const domainMap = { ground: '지상', air: '공중', sea: '해상' };
+                        desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
+                    }
+                    
+                    desc += `</div>`;
+                    this.showUITooltip(title, desc, e.clientX, e.clientY);
+                } else {
+                    // 호버링 중인 대상이 없으면 즉시 숨김
+                    this.hideUITooltip();
                 }
             }
         });
@@ -1881,7 +1944,6 @@ export class GameEngine {
         }
 
         this.ctx.restore();
-        this.renderTooltip();
         
         // 5. 건설 예약 청사진 (Ghost Previews for Build Queue)
         this.renderBuildQueue();

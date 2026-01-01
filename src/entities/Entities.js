@@ -1738,14 +1738,73 @@ export class Artillery extends PlayerUnit {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.scale(2, 2);
-        // 차체
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(-12, -10, 24, 20);
-        // 긴 포신
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(0, -2, 22, 4);
-        // 포탑
-        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+        
+        // 1. 하부 궤도 및 차체 (Chassis)
+        ctx.fillStyle = '#1a1a1a'; // 궤도 색상
+        ctx.fillRect(-16, -11, 32, 22);
+        
+        ctx.fillStyle = '#4b5320'; // 올리브 드랩 (메인 차체)
+        ctx.beginPath();
+        ctx.moveTo(-15, -10); ctx.lineTo(15, -10);
+        ctx.lineTo(18, -8); ctx.lineTo(18, 8); ctx.lineTo(15, 10);
+        ctx.lineTo(-15, 10); ctx.lineTo(-18, 8); ctx.lineTo(-18, -8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#3a4118';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+
+        // 보기륜 (Wheels) 디테일
+        ctx.fillStyle = '#2d3436';
+        for(let i = -12; i <= 12; i += 6) {
+            ctx.beginPath(); ctx.arc(i, -10, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(i, 10, 2, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // 2. 거대 박스형 포탑 (Turret)
+        ctx.save();
+        // 포탑은 차체보다 약간 뒤쪽에 위치
+        ctx.translate(-2, 0);
+        
+        ctx.fillStyle = '#556644';
+        ctx.fillRect(-10, -9, 22, 18);
+        ctx.strokeStyle = '#2d3436';
+        ctx.strokeRect(-10, -9, 22, 18);
+        
+        // 포탑 상부 디테일 (해치 및 장비)
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(-2, -6, 6, 6); // 메인 해치
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(8, -8, 2, 16); // 포탑 후면 바스켓 느낌
+        
+        // 3. 초장거리 포신 (Main Gun)
+        ctx.fillStyle = '#4b5320';
+        ctx.fillRect(12, -2, 28, 4); // 매우 긴 포신
+        
+        // 제퇴기 (Muzzle Brake)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(38, -3, 4, 6);
+        ctx.strokeStyle = '#111';
+        ctx.strokeRect(38, -3, 4, 6);
+        
+        // 포신 뿌리 부분 (Gun Mantlet)
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(10, -4, 4, 8);
+
+        // 4. 안테나 (Antenna)
+        ctx.strokeStyle = '#95a5a6';
+        ctx.lineWidth = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(-8, -7); ctx.lineTo(-15, -15);
+        ctx.stroke();
+        
+        ctx.restore();
+        
+        // 5. 전면 라이트
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath(); ctx.arc(16, -7, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(16, 7, 1.5, 0, Math.PI * 2); ctx.fill();
+
         ctx.restore();
         this.drawHealthBar(ctx);
     }
