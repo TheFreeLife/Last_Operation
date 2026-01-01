@@ -275,20 +275,24 @@ export class GameEngine {
                 items = [
                     { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move' },
                     { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
+                    null, // 3번째 칸 (인덱스 2) - 아래에서 유닛별로 채움
                     { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
                     { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol' },
                     { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack' },
-                    null, null, null, null
+                    null, null, null
                 ];
 
-                // 2. 고유 스킬 판정: 모든 선택 유닛이 동일한 타입일 때만 활성화 (건물과 동일한 규칙)
+                // 2. 고유 스킬 판정
                 if (allSameType) {
                     const unitType = firstType;
                     if (unitType === 'engineer') {
-                        // 공병 고유 스킬: 건설 (6번 슬롯 - 좌측 하단)
                         items[6] = { id: 'engineer_build', name: '건설 (B)', action: 'menu:engineer_build' };
+                    } else if (unitType === 'missile-launcher') {
+                        // 미사일 발사대 시즈 모드 (1열 3행 - 인덱스 6)
+                        items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege' };
+                        // 수동 미사일 발사 (2열 3행 - 인덱스 7)
+                        items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire' };
                     }
-                    // 향후 다른 유닛(전차, 미사일 등)의 고유 스킬도 여기에 추가 가능
                 }
             } else if (allSameType) {
                 const type = firstType;
@@ -393,11 +397,15 @@ export class GameEngine {
             const iconKey = item.action || item.type;
             let iconHtml = this.getIconSVG(iconKey);
             
-            // --- Mandatory Icon Check ---
+            // --- Mandatory Icon Check & Fallback to item.icon (Emoji) ---
             if (!iconHtml) {
-                console.warn(`[GameEngine] Icon missing for key: ${iconKey}`);
-                // Use a default placeholder icon if none found
-                iconHtml = `<div class="btn-icon gray"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#555" stroke="#fff" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#fff" font-size="12">?</text></svg></div>`;
+                if (item.icon) {
+                    // SVG 대신 이모지 아이콘을 중앙에 배치
+                    iconHtml = `<div class="btn-icon gray"><div style="font-size: 24px; display: flex; align-items: center; justify-content: center; height: 100%;">${item.icon}</div></div>`;
+                } else {
+                    console.warn(`[GameEngine] Icon missing for key: ${iconKey}`);
+                    iconHtml = `<div class="btn-icon gray"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#555" stroke="#fff" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#fff" font-size="12">?</text></svg></div>`;
+                }
             }
             
             btn.innerHTML = iconHtml; // Icons only (Mandatory)
@@ -439,7 +447,7 @@ export class GameEngine {
                     desc += `<div class="item-stats-box text-red">건물을 철거하고 자원의 10%를 회수합니다.</div>`;
                 } else if (item.action?.startsWith('unit:')) {
                     const cmd = item.action.split(':')[1];
-                    const hotkeys = { move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A' };
+                    const hotkeys = { move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A', siege: 'O', manual_fire: 'F' };
                     desc += `<div class="item-stats-box">단축키: ${hotkeys[cmd] || ''}</div>`;
                 }
 
@@ -497,8 +505,11 @@ export class GameEngine {
             }
         } else if (action.startsWith('unit:')) {
             const cmd = action.split(':')[1];
-            if (cmd === 'stop' || cmd === 'hold') {
+            if (cmd === 'stop' || cmd === 'hold' || cmd === 'siege') {
                 this.executeUnitCommand(cmd);
+            } else if (cmd === 'manual_fire') {
+                this.unitCommandMode = 'manual_fire';
+                this.updateCursor();
             } else {
                 this.unitCommandMode = cmd;
                 this.updateCursor();
@@ -545,6 +556,8 @@ export class GameEngine {
                 const key = e.key.toLowerCase();
                 if (key === 'm') { this.unitCommandMode = 'move'; this.updateCursor(); }
                 else if (key === 's') this.executeUnitCommand('stop');
+                else if (key === 'o') this.executeUnitCommand('siege'); 
+                else if (key === 'f') { this.unitCommandMode = 'manual_fire'; this.updateCursor(); }
                 else if (key === 'h') this.executeUnitCommand('hold');
                 else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
@@ -735,21 +748,16 @@ export class GameEngine {
     }
 
     updateCursor() {
-        const modeClasses = ['build-mode-cursor', 'sell-mode-cursor', 'cmd-move-cursor', 'cmd-attack-cursor', 'cmd-patrol-cursor'];
-        const scClasses = ['sc-n', 'sc-s', 'sc-e', 'sc-w', 'sc-ne', 'sc-nw', 'sc-se', 'sc-sw'];
-        
-        document.body.classList.remove(...modeClasses);
-
-        // Only show mode cursors if NOT edge scrolling (scrolling has priority)
-        const isScrolling = scClasses.some(cls => document.body.classList.contains(cls));
-        if (isScrolling) return;
-
-        if (this.isBuildMode) {
-            document.body.classList.add('build-mode-cursor');
-        } else if (this.isSellMode) {
-            document.body.classList.add('sell-mode-cursor');
+        if (this.isSellMode) {
+            this.canvas.style.cursor = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\'><text y=\'24\' font-size=\'24\'>$</text></svg>"), auto';
+        } else if (this.unitCommandMode === 'manual_fire') {
+            this.canvas.style.cursor = 'crosshair';
         } else if (this.unitCommandMode) {
-            document.body.classList.add(`cmd-${this.unitCommandMode}-cursor`);
+            this.canvas.style.cursor = 'crosshair';
+        } else if (this.isBuildMode || this.isSkillMode) {
+            this.canvas.style.cursor = 'crosshair';
+        } else {
+            this.canvas.style.cursor = 'default';
         }
     }
 
@@ -762,18 +770,41 @@ export class GameEngine {
                 unit.clearBuildQueue();
             }
             
-            unit.command = cmd;
-            if (cmd === 'stop') {
+            // 미사일 발사대 시즈 모드 전용 명령 처리
+            if (cmd === 'siege' && unit.type === 'missile-launcher' && unit.toggleSiege) {
+                unit.toggleSiege();
+                return;
+            }
+
+            // 미사일 수동 발사 처리
+            if (cmd === 'manual_fire' && unit.type === 'missile-launcher' && unit.fireAt) {
+                if (worldX !== null) {
+                    unit.fireAt(worldX, worldY);
+                }
+                return;
+            }
+
+            let finalCmd = cmd;
+            // 공격 불가능한 유닛(또는 상태)인 경우 '어택 땅'을 '이동'으로 전환
+            if (cmd === 'attack') {
+                const canAttack = (unit.type === 'missile-launcher' ? unit.isSieged : (typeof unit.attack === 'function' && unit.type !== 'engineer'));
+                if (!canAttack) {
+                    finalCmd = 'move';
+                }
+            }
+
+            unit.command = finalCmd;
+            if (finalCmd === 'stop') {
                 unit.destination = null;
-            } else if (cmd === 'hold') {
+            } else if (finalCmd === 'hold') {
                 unit.destination = null;
-            } else if (cmd === 'move' && worldX !== null) {
+            } else if (finalCmd === 'move' && worldX !== null) {
                 unit.destination = { x: worldX, y: worldY };
-            } else if (cmd === 'patrol' && worldX !== null) {
+            } else if (finalCmd === 'patrol' && worldX !== null) {
                 unit.patrolStart = { x: unit.x, y: unit.y };
                 unit.patrolEnd = { x: worldX, y: worldY };
                 unit.destination = unit.patrolEnd;
-            } else if (cmd === 'attack' && worldX !== null) {
+            } else if (finalCmd === 'attack' && worldX !== null) {
                 unit.destination = { x: worldX, y: worldY };
             }
         });
@@ -1611,9 +1642,30 @@ export class GameEngine {
                 // Draw attack range for each selected unit
                 if (ent.attackRange) {
                     this.ctx.save();
+                    
+                    let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색
+                    
+                    // 수동 조준 모드일 때 사거리 피드백 추가
+                    if (this.unitCommandMode === 'manual_fire' && ent.type === 'missile-launcher') {
+                        const dist = Math.hypot(mouseWorldX - ent.x, mouseWorldY - ent.y);
+                        if (dist > ent.attackRange) {
+                            rangeColor = 'rgba(255, 0, 0, 0.6)'; // 사거리 밖: 빨간색
+                        } else {
+                            rangeColor = 'rgba(0, 255, 0, 0.4)'; // 사거리 안: 초록색
+                        }
+
+                        // 조준 가이드 라인 (유닛에서 마우스까지)
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(ent.x, ent.y);
+                        this.ctx.lineTo(mouseWorldX, mouseWorldY);
+                        this.ctx.strokeStyle = rangeColor;
+                        this.ctx.setLineDash([2, 2]);
+                        this.ctx.stroke();
+                    }
+
                     this.ctx.beginPath();
                     this.ctx.arc(ent.x, ent.y, ent.attackRange, 0, Math.PI * 2);
-                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // 연한 흰색 원
+                    this.ctx.strokeStyle = rangeColor;
                     this.ctx.setLineDash([5, 5]);
                     this.ctx.stroke();
                     this.ctx.restore();

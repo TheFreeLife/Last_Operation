@@ -37,6 +37,28 @@ export const ICONS = {
     'unit:hold': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M20 5 L32 12 V25 L20 35 L8 25 V12 Z" fill="#333" stroke="#ffff00" stroke-width="2"/></svg></div>`,
     'unit:patrol': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="12" fill="none" stroke="#00ffcc" stroke-width="2" stroke-dasharray="5,3"/><path d="M32 20 L28 16 M32 20 L28 24" stroke="#00ffcc" stroke-width="2" fill="none"/></svg></div>`,
     'unit:attack': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><path d="M10 30 L30 10 M10 10 L30 30" stroke="#ff3131" stroke-width="4"/><path d="M15 15 L10 10 M25 15 L30 10" stroke="#fff" stroke-width="2"/></svg></div>`,
+    'unit:siege': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40">
+        <!-- 바닥 지지대 (Outriggers) -->
+        <path d="M10 32 L5 37 M30 32 L35 37 M10 12 L5 7 M30 12 L35 7" stroke="#00ffcc" stroke-width="3" fill="none"/>
+        <!-- 차체 베이스 -->
+        <rect x="12" y="12" width="16" height="20" rx="2" fill="#2d3436" stroke="#00ffcc" stroke-width="2"/>
+        <!-- 수직 미사일 발사관 -->
+        <rect x="17" y="5" width="6" height="15" fill="#00ffcc"/>
+        <path d="M17 5 L20 0 L23 5 Z" fill="#fff"/>
+        <!-- 조준 마크 -->
+        <circle cx="20" cy="20" r="4" fill="none" stroke="#00ffcc" stroke-width="1" stroke-dasharray="2,2"/>
+    </svg></div>`,
+    'unit:manual_fire': `<div class="btn-icon red"><svg viewBox="0 0 40 40">
+        <!-- 타겟 조준경 -->
+        <circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="2"/>
+        <line x1="20" y1="5" x2="20" y2="35" stroke="#ff3131" stroke-width="1" stroke-dasharray="4,2"/>
+        <line x1="5" y1="20" x2="35" y2="20" stroke="#ff3131" stroke-width="1" stroke-dasharray="4,2"/>
+        <!-- 미사일 실루엣 -->
+        <path d="M20 8 L24 18 L24 32 L16 32 L16 18 Z" fill="#ff3131"/>
+        <path d="M20 5 L23 10 L17 10 Z" fill="#fff"/>
+        <!-- 발사 불꽃 효과 -->
+        <path d="M17 32 Q20 38 23 32" fill="#ff8c00"/>
+    </svg></div>`,
     'back': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
     'menu:main': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
     'toggle:sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`,

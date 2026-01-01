@@ -1132,7 +1132,13 @@ export class PlayerUnit extends Entity {
         let bestTarget = null;
         let minDistToMe = Infinity;
 
-        if (this.command !== 'move') {
+        // 공격 가능 여부 판단
+        let canActuallyAttack = (typeof this.attack === 'function' && this.damage > 0 && this.type !== 'engineer');
+        // 미사일 발사대는 자동 공격(attack)을 하지 않도록 제외 (수동 발사 fireAt 사용)
+        if (this.type === 'missile-launcher') canActuallyAttack = false;
+
+        // 공격 가능한 유닛이고 move 명령이 아닐 때만 적 탐색
+        if (canActuallyAttack && this.command !== 'move') {
             for (const e of enemies) {
                 const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
                 if (distToMe <= this.attackRange && distToMe < minDistToMe) {
@@ -1157,7 +1163,6 @@ export class PlayerUnit extends Entity {
                     this.destination = this.patrolEnd;
                 } else {
                     this.destination = null;
-                    // 건설 명령 중이 아닐 때만 정지 상태로 변경 (건설 간섭 방지)
                     if (this.command !== 'build') {
                         this.command = 'stop';
                     }
@@ -1207,7 +1212,6 @@ export class PlayerUnit extends Entity {
             const bWidth = b.width || b.size || 40;
             const bHeight = b.height || b.size || 40;
             
-            // 충돌 박스 계산 (여유 공간 포함)
             const halfW = bWidth / 2 + this.size / 2 - 2;
             const halfH = bHeight / 2 + this.size / 2 - 2;
             const dx = this.x - b.x;
@@ -1217,7 +1221,6 @@ export class PlayerUnit extends Entity {
                 const overlapX = halfW - Math.abs(dx);
                 const overlapY = halfH - Math.abs(dy);
                 
-                // 더 적게 겹친 방향으로 강력하게 밀어냄
                 if (overlapX < overlapY) {
                     this.x += (dx > 0 ? 1 : -1) * overlapX;
                 } else {
@@ -1314,7 +1317,7 @@ export class Missile extends Entity {
         this.targetY = targetY;
         this.damage = damage;
         this.engine = engine;
-        this.speed = 4;
+        this.speed = 7; // 비행 속도 상향 (4 -> 7)
         this.angle = Math.atan2(targetY - startY, targetX - startX);
         this.totalDistance = Math.hypot(targetX - startX, targetY - startY);
         this.active = true;
@@ -1322,7 +1325,8 @@ export class Missile extends Entity {
         this.arrived = false;
         this.explosionTimer = 0;
         this.maxExplosionTime = 120; // 약 2초간 지속 (충분한 연기 감상 시간)
-        this.peakHeight = Math.min(this.totalDistance * 0.5, 200);
+        // 거리에 따라 고도를 동적으로 조절 (최소 200, 최대 600)
+        this.peakHeight = Math.max(200, Math.min(this.totalDistance * 0.4, 600));
         this.trail = [];
     }
 
@@ -1341,7 +1345,7 @@ export class Missile extends Entity {
                 
                 const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
                 this.trail.push({x: this.x, y: this.y - altitude, alpha: 1.0});
-                if (this.trail.length > 20) this.trail.shift();
+                if (this.trail.length > 25) this.trail.shift();
             }
         } else if (this.arrived) {
             this.explosionTimer++;
@@ -1350,7 +1354,7 @@ export class Missile extends Entity {
             }
         }
         
-        this.trail.forEach(p => p.alpha -= 0.05);
+        this.trail.forEach(p => p.alpha -= 0.04);
         this.trail = this.trail.filter(p => p.alpha > 0);
     }
 
@@ -1359,16 +1363,15 @@ export class Missile extends Entity {
         this.arrived = true;
         this.explosionTimer = 0;
         
-        // 연기 입자 생성 로직 강화
         this.smokeParticles = [];
         for(let i = 0; i < 15; i++) {
             this.smokeParticles.push({
                 angle: Math.random() * Math.PI * 2,
                 dist: Math.random() * this.explosionRadius * 0.8,
-                size: 30 + Math.random() * 30, // 더 큰 연기 덩어리
+                size: 30 + Math.random() * 30,
                 vx: (Math.random() - 0.5) * 0.4,
-                vy: (Math.random() - 0.5) * 0.4 - 0.5, // 위로 더 많이 피어오름
-                color: Math.random() > 0.5 ? '#7f8c8d' : '#95a5a6' // 두 가지 회색 톤 섞기
+                vy: (Math.random() - 0.5) * 0.4 - 0.5,
+                color: Math.random() > 0.5 ? '#7f8c8d' : '#95a5a6'
             });
         }
 
@@ -1398,32 +1401,43 @@ export class Missile extends Entity {
 
         if (this.active) {
             const currentDist = Math.hypot(this.x - this.startX, this.y - this.startY);
-            const progress = currentDist / this.totalDistance;
+            const progress = Math.min(currentDist / this.totalDistance, 1);
             const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
 
+            // 2. 그림자 (고도에 따라 크기 변화)
             ctx.save();
-            ctx.globalAlpha = 0.3;
+            ctx.globalAlpha = 0.2;
             ctx.fillStyle = '#000';
+            const shadowSize = Math.max(5, 10 * (1 - altitude/this.peakHeight));
             ctx.beginPath();
-            ctx.ellipse(this.x, this.y, 10, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(this.x, this.y, shadowSize, shadowSize * 0.5, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
 
+            // 3. 미사일 본체
             ctx.save();
             ctx.translate(this.x, this.y - altitude);
-            const dx = this.speed * Math.cos(this.angle);
-            const dy = this.speed * Math.sin(this.angle);
-            const h1 = Math.sin(progress * Math.PI) * this.peakHeight;
-            const h2 = Math.sin(Math.min(progress + 0.01, 1) * Math.PI) * this.peakHeight;
-            const dh = h2 - h1;
-            const flightAngle = Math.atan2(dy - dh, dx);
+            
+            // --- 정밀 탄도 각도 계산 (접선 벡터) ---
+            // 수평 속도 벡터
+            const vx = Math.cos(this.angle);
+            const vy = Math.sin(this.angle);
+            
+            // 수직 고도 변화율 (sin 미분 -> cos)
+            // altitude = peakHeight * sin(progress * PI)
+            // d(altitude)/d(progress) = peakHeight * PI * cos(progress * PI)
+            const dAlt = this.peakHeight * Math.PI * Math.cos(progress * Math.PI);
+            
+            // progress = dist / totalDist 이므로 d(progress)/dt 연쇄법칙 적용
+            // 최종적으로 비행 기울기 산출
+            const flightAngle = Math.atan2(vy * this.totalDistance - dAlt, vx * this.totalDistance);
+            
             ctx.rotate(flightAngle);
             
             ctx.fillStyle = '#f5f6fa';
             ctx.beginPath();
             ctx.moveTo(16, 0); ctx.lineTo(6, -3); ctx.lineTo(-12, -3); ctx.lineTo(-12, 3); ctx.lineTo(6, 3);
-            ctx.closePath();
-            ctx.fill();
+            ctx.closePath(); ctx.fill();
             
             ctx.fillStyle = '#2d3436';
             ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-12, -7); ctx.lineTo(-12, -3); ctx.closePath(); ctx.fill();
@@ -1492,23 +1506,109 @@ export class MissileLauncher extends PlayerUnit {
         super(x, y, engine);
         this.type = 'missile-launcher';
         this.name = '이동식 미사일 발사대';
-        this.speed = 0.8;
+        this.speed = 1.4; // 0.8 -> 1.4 (기동성 강화)
+        this.baseSpeed = 1.4;
         this.fireRate = 2500;
         this.damage = 70;
         this.color = '#ff3131';
-        this.attackRange = 600; 
-        this.visionRange = 8; // 미사일 시야: 제일 넓음
+        this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
+        this.visionRange = 8;
         this.recoil = 0;
+        
+        // 시즈 모드 관련 상태
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.maxTransitionTime = 60; 
+        this.raiseAngle = 0; 
+
+        // 발사 준비 시퀀스
+        this.isFiring = false;
+        this.fireDelayTimer = 0;
+        this.maxFireDelay = 45; // 발사 전 대기 시간 (약 0.75초)
+        this.pendingFirePos = { x: 0, y: 0 };
     }
 
-    attack() {
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate && this.target) {
-            // 타겟의 현재 위치를 향해 논타겟팅 미사일 발사
-            this.engine.entities.projectiles.push(new Missile(this.x, this.y, this.target.x, this.target.y, this.damage, this.engine));
-            this.lastFireTime = now;
-            this.recoil = 8; // 발사 반동 발생
+    toggleSiege() {
+        if (this.isTransitioning || this.isFiring) return; 
+        this.isTransitioning = true;
+        this.transitionTimer = 0;
+        this.destination = null; 
+        this.speed = 0;         
+        this.engine.addEffect?.('system', this.x, this.y, this.isSieged ? '시즈 해제 중...' : '시즈 모드 설정 중...');
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+
+        if (this.isTransitioning) {
+            this.transitionTimer++;
+            if (this.isSieged) {
+                this.raiseAngle = 1 - (this.transitionTimer / this.maxTransitionTime);
+            } else {
+                this.raiseAngle = this.transitionTimer / this.maxTransitionTime;
+            }
+
+            if (this.transitionTimer >= this.maxTransitionTime) {
+                this.isTransitioning = false;
+                this.isSieged = !this.isSieged;
+                this.raiseAngle = this.isSieged ? 1 : 0;
+                this.speed = this.isSieged ? 0 : this.baseSpeed;
+                if (this.isSieged) this.destination = null; 
+            }
         }
+
+        // 발사 시퀀스 업데이트
+        if (this.isFiring) {
+            this.fireDelayTimer++;
+            
+            // 타겟을 향해 더 빠르고 정교하게 각도 조절 (회전 속도 상향 0.05 -> 0.15)
+            const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
+            let angleDiff = targetAngle - this.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            this.angle += angleDiff * 0.15;
+
+            if (this.fireDelayTimer >= this.maxFireDelay) {
+                this.executeFire();
+                this.isFiring = false;
+                this.fireDelayTimer = 0;
+            }
+        }
+    }
+
+    attack() {}
+
+    fireAt(targetX, targetY) {
+        if (!this.isSieged || this.isTransitioning || this.isFiring) return;
+
+        // 사거리 체크
+        const dist = Math.hypot(targetX - this.x, targetY - this.y);
+        if (dist > this.attackRange) return;
+
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate) {
+            this.isFiring = true;
+            this.fireDelayTimer = 0;
+            this.pendingFirePos = { x: targetX, y: targetY };
+        }
+    }
+
+    executeFire() {
+        const { x: targetX, y: targetY } = this.pendingFirePos;
+        const launchDist = 35 * 2;
+        const tiltDir = Math.cos(this.angle) >= 0 ? -1 : 1;
+        const visualAngle = this.angle + (tiltDir * (Math.PI / 10) * this.raiseAngle);
+        
+        const spawnX = this.x + Math.cos(visualAngle) * launchDist;
+        const spawnY = this.y + Math.sin(visualAngle) * launchDist;
+
+        const missile = new Missile(spawnX, spawnY, targetX, targetY, this.damage, this.engine);
+        missile.peakHeight = Math.max(missile.peakHeight, 150); 
+        
+        this.engine.entities.projectiles.push(missile);
+        this.lastFireTime = Date.now();
+        this.recoil = 15; 
     }
 
     draw(ctx) {
@@ -1520,87 +1620,108 @@ export class MissileLauncher extends PlayerUnit {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
 
-        // 반동 효과 적용
         if (this.recoil > 0) {
             ctx.translate(-this.recoil, 0);
-            this.recoil *= 0.85; // 점진적으로 회복
+            this.recoil *= 0.85;
             if (this.recoil < 0.1) this.recoil = 0;
         }
 
-        ctx.scale(2, 2); // 2배 확대
+        ctx.scale(2, 2); 
         
-        // 1. 메인 차체 (Chassis) - 길고 튼튼한 트럭 베이스
-        ctx.fillStyle = '#2d3436'; // 어두운 회색
+        if (this.raiseAngle > 0) {
+            ctx.fillStyle = '#636e72';
+            const extend = 8 * this.raiseAngle;
+            ctx.fillRect(-15, -12 - extend, 4, 4);
+            ctx.fillRect(-15, 8 + extend, 4, 4);
+            ctx.fillRect(11, -12 - extend, 4, 4);
+            ctx.fillRect(11, 8 + extend, 4, 4);
+        }
+
+        ctx.fillStyle = '#2d3436';
         ctx.fillRect(-22, -10, 44, 20);
         
-        // 2. 운전석 (Cabin) - 전면에 배치
         ctx.fillStyle = '#34495e';
         ctx.fillRect(12, -10, 10, 20);
-        // 창문 (전면 및 측면 느낌)
         ctx.fillStyle = '#81ecec';
         ctx.fillRect(16, -8, 4, 16);
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(15, -10, 1, 20); // 프레임
         
-        // 3. 바퀴 (Wheels) - 8륜 구동 스타일
         ctx.fillStyle = '#1a1a1a';
         const wheelX = [-17, -7, 3, 13];
         wheelX.forEach(x => {
-            ctx.fillRect(x, -12, 6, 3); // 상단 바퀴
-            ctx.fillRect(x, 9, 6, 3);  // 하단 바퀴
+            ctx.fillRect(x, -12, 6, 3);
+            ctx.fillRect(x, 9, 6, 3);
         });
 
-        // 4. 발사대 데크 (Launcher Deck)
         ctx.fillStyle = '#2c3e50';
         ctx.fillRect(-20, -8, 30, 16);
 
-        // 5. 미사일 발사관 (Canister) - 현무 스타일의 국방색 상자
-        ctx.fillStyle = '#4b5320'; // 올리브 드랩 (국방색)
-        ctx.fillRect(-18, -7, 32, 14);
+        ctx.save();
+        ctx.translate(-15, 0);
+        const tiltDir = Math.cos(this.angle) >= 0 ? -1 : 1;
+        ctx.rotate(tiltDir * (Math.PI / 10) * this.raiseAngle); 
         
-        // 캐니스터 디테일 (보강 구조 및 줄무늬)
+        ctx.fillStyle = '#4b5320'; 
+        const scaleS = 1 + (this.raiseAngle * 0.1);
+        const canisterLen = 32 * scaleS;
+        ctx.fillRect(0, -7, canisterLen, 14);
+        
         ctx.strokeStyle = '#3a4118';
-        ctx.lineWidth = 1;
-        for(let i = -14; i <= 10; i += 4) {
-            ctx.beginPath();
-            ctx.moveTo(i, -7);
-            ctx.lineTo(i, 7);
-            ctx.stroke();
+        for(let i = 4; i <= 28; i += 4) {
+            ctx.beginPath(); ctx.moveTo(i, -7); ctx.lineTo(i, 7); ctx.stroke();
         }
         
-        // 발사구 덮개 (Front Hatch)
+        // 해치 개방 애니메이션
+        const hatchProgress = this.isFiring ? (this.fireDelayTimer / this.maxFireDelay) : 0;
         ctx.fillStyle = '#2d3436';
-        ctx.fillRect(12, -6, 2, 12);
-
-        // 발사 시 화염 효과 (반동이 클 때 잠깐 표시)
-        if (this.recoil > 5) {
-            ctx.fillStyle = '#ff4500';
-            ctx.beginPath();
-            ctx.arc(15, 0, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ff8c00';
-            ctx.beginPath();
-            ctx.arc(18, 0, 5, 0, Math.PI * 2);
-            ctx.fill();
+        if (hatchProgress < 0.1) {
+            ctx.fillRect(canisterLen - 2, -7, 3, 14);
+        } else {
+            const openDist = 8 * Math.min(hatchProgress * 1.5, 1);
+            ctx.fillRect(canisterLen - 2, -7 - openDist, 3, 7); // 상단
+            ctx.fillRect(canisterLen - 2, 0 + openDist, 3, 7);  // 하단
+            if (hatchProgress > 0.6) {
+                ctx.fillStyle = `rgba(255, 165, 0, ${(hatchProgress - 0.6) * 2.5})`;
+                ctx.fillRect(canisterLen - 4, -4, 4, 8);
+            }
         }
 
-        // 안테나 및 센서
-        ctx.strokeStyle = '#95a5a6';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(-18, -7);
-        ctx.lineTo(-24, -13);
-        ctx.stroke();
-        
+        if (this.recoil > 5) {
+            ctx.save();
+            ctx.translate(canisterLen, 0);
+            ctx.fillStyle = '#ff4500';
+            ctx.beginPath(); ctx.arc(5, 0, 12, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ff8c00';
+            ctx.beginPath(); ctx.arc(8, 0, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
         ctx.restore();
 
-        // 아군 체력 바 (초록색) 상시 표시
+        // 발사 준비 중 스파크 효과
+        if (this.isFiring && this.fireDelayTimer > 15) {
+            ctx.save();
+            ctx.translate(15, 0);
+            ctx.fillStyle = '#f1c40f';
+            for(let i=0; i<3; i++) {
+                ctx.fillRect(Math.random()*15, (Math.random()-0.5)*15, 2, 2);
+            }
+            ctx.restore();
+        }
+
+        ctx.strokeStyle = '#95a5a6';
+        ctx.beginPath(); ctx.moveTo(-18, -7); ctx.lineTo(-24, -13); ctx.stroke();
+        ctx.restore();
+
         const barW = 30;
         const barY = this.y - 30;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(this.x - barW/2, barY, barW, 4);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        if (this.isFiring) {
+            ctx.fillStyle = '#e67e22'; // 발사 준비 게이지
+            ctx.fillRect(this.x - barW/2, barY, (this.fireDelayTimer / this.maxFireDelay) * barW, 4);
+        } else {
+            ctx.fillStyle = this.isSieged ? '#f1c40f' : '#2ecc71'; 
+            ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        }
     }
 }
 
