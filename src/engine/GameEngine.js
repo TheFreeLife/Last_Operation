@@ -115,6 +115,7 @@ export class GameEngine {
         this.selectedEntity = null; 
         this.selectedEntities = []; 
         this.currentMenuName = 'main'; 
+        this.hoveredEntity = null; // 호버 중인 엔티티 저장용
         this.isHoveringUI = false;
         this.lastPlacedGrid = { x: -1, y: -1 }; 
         this.isEngineerBuilding = false; 
@@ -299,12 +300,12 @@ export class GameEngine {
                 header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
                 
                 items = [
-                    { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move' },
+                    { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move', skillType: 'targeted' },
                     { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
                     null, 
                     { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
-                    { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol' },
-                    { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack' },
+                    { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol', skillType: 'targeted' },
+                    { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack', skillType: 'targeted' },
                     null, null, null
                 ];
 
@@ -820,44 +821,10 @@ export class GameEngine {
                     return worldX >= b.left && worldX <= b.right && worldY >= b.top && worldY <= b.bottom;
                 });
 
+                this.hoveredEntity = hovered; // Store for per-frame update
+
                 if (hovered) {
-                    let title = hovered.name || hovered.type;
-                    const isEnemy = this.entities.enemies.includes(hovered);
-                    if (isEnemy) title = `[적] ${title}`;
-
-                    let desc = '<div class="item-stats-box">';
-                    
-                    // 자원 엔티티 전용 표시
-                    if (hovered instanceof Resource || (hovered.type === 'coal' || hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
-                        desc += `<div class="stat-row"><span>💎 종류:</span> <span class="highlight">${hovered.name}</span></div>
-                                 <div class="stat-row"><span>💡 도움말:</span> <span>적절한 채굴 건물을 지으세요.</span></div>`;
-                    } else {
-                        // 일반 유닛/건물 표시
-                        desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
-                        
-                        // 채굴 건물의 경우 남은 광물 표시
-                        if (['refinery', 'gold-mine', 'iron-mine', 'coal-generator'].includes(hovered.type) && hovered.fuel !== undefined) {
-                            const fuelName = hovered.type === 'coal-generator' ? '남은 연료' : '남은 광물';
-                            desc += `<div class="stat-row"><span>⛏️ ${fuelName}:</span> <span class="highlight">${Math.ceil(hovered.fuel)} / ${hovered.maxFuel || '?'}</span></div>`;
-                        }
-
-                        if (hovered.damage > 0) {
-                            desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
-                        }
-                        if (hovered.attackRange > 0) {
-                            desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${hovered.attackRange}</span></div>`;
-                        }
-                        if (hovered.speed > 0) {
-                            desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
-                        }
-                        if (hovered.domain) {
-                            const domainMap = { ground: '지상', air: '공중', sea: '해상' };
-                            desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
-                        }
-                    }
-                    
-                    desc += `</div>`;
-                    this.showUITooltip(title, desc, e.clientX, e.clientY);
+                    this.updateTooltip(hovered, e.clientX, e.clientY);
                 } else {
                     // 호버링 중인 대상이 없으면 즉시 숨김
                     this.hideUITooltip();
@@ -1437,6 +1404,49 @@ export class GameEngine {
             // Remove from list
             this.entities[listName].splice(foundIdx, 1);
         }
+    }
+
+    updateTooltip(hovered, x, y) {
+        if (!hovered) return;
+
+        let title = hovered.name || hovered.type;
+        const isEnemy = this.entities.enemies.includes(hovered);
+        if (isEnemy) title = `[적] ${title}`;
+
+        let desc = '<div class="item-stats-box">';
+        
+        // 자원 엔티티 전용 표시
+        if (hovered instanceof Resource || (hovered.type === 'coal' || hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
+            desc += `<div class="stat-row"><span>💎 종류:</span> <span class="highlight">${hovered.name}</span></div>
+                     <div class="stat-row"><span>💡 도움말:</span> <span>적절한 채굴 건물을 지으세요.</span></div>`;
+        } else {
+            // 일반 유닛/건물 표시
+            desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
+            
+            // 채굴 건물의 경우 남은 광물 표시
+            if (['refinery', 'gold-mine', 'iron-mine', 'coal-generator'].includes(hovered.type) && hovered.fuel !== undefined) {
+                const fuelName = hovered.type === 'coal-generator' ? '남은 연료' : '남은 광물';
+                desc += `<div class="stat-row"><span>⛏️ ${fuelName}:</span> <span class="highlight">${Math.ceil(hovered.fuel)} / ${hovered.maxFuel || '?'}</span></div>`;
+            }
+
+            if (hovered.damage > 0) {
+                desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
+            }
+            const displayRange = hovered.attackRange || hovered.range;
+            if (displayRange > 0) {
+                desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${displayRange}</span></div>`;
+            }
+            if (hovered.speed > 0) {
+                desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
+            }
+            if (hovered.domain) {
+                const domainMap = { ground: '지상', air: '공중', sea: '해상' };
+                desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
+            }
+        }
+        
+        desc += `</div>`;
+        this.showUITooltip(title, desc, x, y);
     }
 
     showUITooltip(title, desc, x, y) {
@@ -2696,6 +2706,17 @@ export class GameEngine {
         this.lastTime = timestamp;
         this.update(deltaTime);
         this.render();
+
+        if (this.hoveredEntity) {
+            // 호버 중인 엔티티가 죽었는지 확인
+            if (this.hoveredEntity.hp <= 0 && this.hoveredEntity.maxHp !== 99999999) {
+                this.hoveredEntity = null;
+                this.hideUITooltip();
+            } else {
+                this.updateTooltip(this.hoveredEntity, this.camera.mouseX, this.camera.mouseY);
+            }
+        }
+
         requestAnimationFrame((t) => this.loop(t));
     }
 

@@ -664,6 +664,7 @@ export class CoalGenerator extends Generator {
     }
 
     update(deltaTime) {
+        if (this.isUnderConstruction) return;
         if (this.fuel > 0) {
             this.fuel -= deltaTime / 1000;
             if (this.fuel < 0) this.fuel = 0;
@@ -903,7 +904,7 @@ export class GoldMine extends Entity {
         // 채굴 기계 표현
         ctx.fillStyle = '#666';
         ctx.fillRect(-12, -8, 24, 16);
-        const drillAngle = (this.fuel > 0 && this.isConnected) ? (Date.now() / 100) : 0;
+        const drillAngle = (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) ? (Date.now() / 100) : 0;
         ctx.save();
         ctx.rotate(drillAngle);
         ctx.fillStyle = '#aaa';
@@ -975,7 +976,7 @@ export class IronMine extends Entity {
         ctx.fillStyle = '#444';
         ctx.fillRect(-12, -10, 24, 20);
         
-        if (this.fuel > 0 && this.isConnectedToBase) {
+        if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
             // 용광로 열기 표현
             const flicker = Math.random() * 0.3 + 0.7;
             ctx.fillStyle = `rgba(255, 69, 0, ${flicker})`;
