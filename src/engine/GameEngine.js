@@ -1802,20 +1802,33 @@ export class GameEngine {
                 if (ent.destination) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(ent.x, ent.y);
-                    this.ctx.lineTo(ent.destination.x, ent.destination.y);
-                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+                    
+                    // A* 경로가 있으면 경로를 따라 그리기
+                    if (ent.path && ent.path.length > 0) {
+                        for (const p of ent.path) {
+                            this.ctx.lineTo(p.x, p.y);
+                        }
+                    } else {
+                        // 경로가 없거나(계산 전) 공중 유닛인 경우 직선
+                        this.ctx.lineTo(ent.destination.x, ent.destination.y);
+                    }
+
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                    this.ctx.lineWidth = 1.5;
                     this.ctx.setLineDash([5, 5]);
                     this.ctx.stroke();
                     this.ctx.setLineDash([]);
 
                     // Draw destination X marker
                     this.ctx.beginPath();
+                    const dest = ent.destination;
                     const markerSize = 5;
-                    this.ctx.moveTo(ent.destination.x - markerSize, ent.destination.y - markerSize);
-                    this.ctx.lineTo(ent.destination.x + markerSize, ent.destination.y + markerSize);
-                    this.ctx.moveTo(ent.destination.x + markerSize, ent.destination.y - markerSize);
-                    this.ctx.lineTo(ent.destination.x - markerSize, ent.destination.y + markerSize);
+                    this.ctx.moveTo(dest.x - markerSize, dest.y - markerSize);
+                    this.ctx.lineTo(dest.x + markerSize, dest.y + markerSize);
+                    this.ctx.moveTo(dest.x + markerSize, dest.y - markerSize);
+                    this.ctx.lineTo(dest.x - markerSize, dest.y + markerSize);
                     this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                    this.ctx.lineWidth = 2;
                     this.ctx.stroke();
                 }
             });
@@ -2275,10 +2288,15 @@ export class GameEngine {
         mCtx.fillRect(0, 0, mapWorldWidth, mapWorldHeight);
 
         // 2. 밝혀진 타일의 바닥면을 먼저 그림
-        mCtx.fillStyle = '#1a1a1a';
         for (let y = 0; y < this.tileMap.rows; y++) {
             for (let x = 0; x < this.tileMap.cols; x++) {
-                if (this.tileMap.grid[y][x].visible) {
+                const tile = this.tileMap.grid[y][x];
+                if (tile.visible) {
+                    if (tile.terrain === 'fertile-soil') {
+                        mCtx.fillStyle = '#5d4037'; // 비옥한 토지 (갈색)
+                    } else {
+                        mCtx.fillStyle = '#1a1a1a'; // 기본 땅 (다크 그레이)
+                    }
                     mCtx.fillRect(x * 40, y * 40, 40, 40);
                 }
             }
