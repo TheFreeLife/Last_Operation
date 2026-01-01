@@ -76,6 +76,18 @@ export const ICONS = {
         <path d="M15 15 L25 25 M25 15 L15 25" stroke="#ff3131" stroke-width="3"/>
         <path d="M20 10 V30 M10 20 H30" stroke="#ff3131" stroke-width="1" opacity="0.5"/>
     </svg></div>`,
+    'unit:takeoff': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40">
+        <path d="M10 20 L20 10 L30 20 M20 10 V35" stroke="#00ffff" stroke-width="3" fill="none"/>
+        <path d="M5 35 H35" stroke="#fff" stroke-width="2"/>
+    </svg></div>`,
+    'unit:landing': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">
+        <path d="M10 15 L20 25 L30 15 M20 25 V0" stroke="#00d2ff" stroke-width="3" fill="none"/>
+        <path d="M5 35 H35" stroke="#fff" stroke-width="2"/>
+    </svg></div>`,
+    'unit:takeoff_landing': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40">
+        <path d="M10 15 L20 5 L30 15 M20 5 V35 M10 25 L20 35 L30 25" stroke="#00ffff" stroke-width="3" fill="none"/>
+        <path d="M5 20 H35" stroke="#fff" stroke-width="1" stroke-dasharray="2,2"/>
+    </svg></div>`,
     'skill:engineer': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#f1c40f"/><path d="M15 15 L25 25 M25 15 L15 25" stroke="#333" stroke-width="2"/><circle cx="20" cy="20" r="4" fill="#3498db"/></svg></div>`,
     'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
     'unit:stop': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#ff3131"/></svg></div>`,

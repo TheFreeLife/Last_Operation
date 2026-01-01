@@ -313,7 +313,36 @@ export class GameEngine {
                         items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege' };
                         items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire' };
                     } else if (unitType === 'bomber') {
-                        items[6] = { id: 'bombing', name: '폭격 (B)', action: 'unit:bombing' };
+                        const isFlying = firstEnt.altitude > 0.8;
+                        const isLanded = firstEnt.altitude < 0.1;
+                        const isManeuvering = firstEnt.isTakeoffStarting || firstEnt.isManualLanding;
+
+                        items[6] = { 
+                            id: 'bombing', 
+                            name: isFlying ? '폭격 (B)' : '폭격 (비행 시 가능)', 
+                            action: 'unit:bombing',
+                            locked: !isFlying,
+                            active: firstEnt.isBombingActive
+                        };
+
+                        // 이착륙 버튼 동적 구성
+                        let actionName = '이륙 (T)';
+                        let actionIcon = 'unit:takeoff';
+                        if (isFlying || firstEnt.isManualLanding) {
+                            actionName = '착륙 (T)';
+                            actionIcon = 'unit:landing';
+                        }
+                        if (isManeuvering) {
+                            actionName = firstEnt.isTakeoffStarting ? '이륙 중...' : '착륙 중...';
+                        }
+
+                        items[7] = { 
+                            id: 'takeoff_landing', 
+                            name: actionName, 
+                            action: 'unit:takeoff_landing',
+                            iconKey: actionIcon, // 아이콘 키 별도 지정
+                            active: isManeuvering 
+                        };
                     }
                 }
             } else if (isEnemy) {
@@ -427,8 +456,16 @@ export class GameEngine {
                 btn.classList.add('active');
             }
 
+            if (item.locked) {
+                btn.classList.add('locked');
+            }
+
+            if (item.active) {
+                btn.classList.add('active');
+            }
+
             // Determine which icon key to use
-            const iconKey = item.action || item.type || item.id;
+            const iconKey = item.iconKey || item.action || item.type || item.id;
             let iconHtml = this.getIconSVG(iconKey);
             
             // --- Mandatory Icon Check & Fallback to item.icon (Emoji) ---
@@ -511,37 +548,37 @@ export class GameEngine {
         } else if (action.startsWith('menu:')) {
             this.currentMenuName = action.split(':')[1];
             this.updateBuildMenu();
-        } else if (action === 'toggle:sell') {
-            if (this.isSellMode) this.cancelSellMode();
-            else this.startSellMode();
-        } else if (action.startsWith('skill:')) {
-            const skill = action.split(':')[1];
-            const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
-            
-            if (target && target.isUnderConstruction) {
-                return;
-            }
-
-            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane' || skill === 'bomber' || skill === 'artillery' || skill === 'anti-air') {
-                if (target && target.requestUnit) {
-                    const cost = item.cost || 0;
-                    if (this.resources.gold >= cost) {
-                        let unitKey = skill;
-                        if (skill === 'missile') unitKey = 'missile-launcher';
-                        if (target.requestUnit(unitKey)) {
-                            this.resources.gold -= cost;
-                            this.updateBuildMenu();
-                        }
-                    }
-                }
-            } else {
-                this.startSkillMode(skill);
-            }
-        } else if (action.startsWith('unit:')) {
-            const cmd = action.split(':')[1];
-            if (cmd === 'stop' || cmd === 'hold' || cmd === 'siege') {
-                this.executeUnitCommand(cmd);
-            } else if (cmd === 'manual_fire') {
+                                        } else if (action === 'toggle:sell') {
+                                            if (this.isSellMode) this.cancelSellMode();
+                                            else this.startSellMode();
+                                        } else if (action.startsWith('skill:')) {
+                                            const skill = action.split(':')[1];
+                                            const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
+                                            
+                                            if (target && target.isUnderConstruction) {
+                                                return;
+                                            }
+                        
+                                            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane' || skill === 'bomber' || skill === 'artillery' || skill === 'anti-air') {
+                                                if (target && target.requestUnit) {
+                                                    const cost = item.cost || 0;
+                                                    if (this.resources.gold >= cost) {
+                                                        let unitKey = skill;
+                                                        if (skill === 'missile') unitKey = 'missile-launcher';
+                                                        if (target.requestUnit(unitKey)) {
+                                                            this.resources.gold -= cost;
+                                                            this.updateBuildMenu();
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                this.startSkillMode(skill);
+                                            }
+                                        } else if (action.startsWith('unit:')) {
+                                            const cmd = action.split(':')[1];
+                                            if (cmd === 'stop' || cmd === 'hold' || cmd === 'siege' || cmd === 'takeoff_landing' || cmd === 'bombing') {
+                                                this.executeUnitCommand(cmd);
+                                            } else if (cmd === 'manual_fire') {
                 this.unitCommandMode = 'manual_fire';
                 this.updateCursor();
             } else {
@@ -595,13 +632,13 @@ export class GameEngine {
                 else if (key === 'h') this.executeUnitCommand('hold');
                 else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
+                else if (key === 't') this.executeUnitCommand('takeoff_landing');
                 else if (key === 'b') {
                     const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
                     const hasBomber = this.selectedEntities.some(ent => ent.type === 'bomber');
                     
                     if (hasBomber) {
-                        this.unitCommandMode = 'bombing';
-                        this.updateCursor();
+                        this.executeUnitCommand('bombing');
                     } else if (hasEngineer) {
                         this.isEngineerBuilding = true;
                         this.currentMenuName = 'main';
@@ -899,12 +936,15 @@ export class GameEngine {
                 return;
             }
 
-            // 폭격기 폭격 명령 처리
-            if (cmd === 'bombing' && unit.type === 'bomber' && unit.startBombing) {
-                if (worldX !== null) {
-                    unit.command = 'bombing';
-                    unit.startBombing(worldX, worldY);
-                }
+            // 폭격기 폭격 명령 처리 (토글 방식)
+            if (cmd === 'bombing' && unit.type === 'bomber' && unit.toggleBombing) {
+                unit.toggleBombing();
+                return;
+            }
+
+            // 폭격기 이착륙 명령 처리
+            if (cmd === 'takeoff_landing' && unit.type === 'bomber' && unit.toggleTakeoff) {
+                unit.toggleTakeoff();
                 return;
             }
 
@@ -1677,6 +1717,28 @@ export class GameEngine {
 
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
         this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
+
+        // 폭격기 상태 변화에 따른 UI 갱신 (깜빡임 방지)
+        const bomber = this.selectedEntities.find(e => e.type === 'bomber');
+        if (bomber) {
+            const isFlying = bomber.altitude > 0.8;
+            const isManeuvering = bomber.isTakeoffStarting || bomber.isManualLanding;
+            const isBombing = bomber.isBombingActive;
+            
+            if (this._lastBomberFlying !== isFlying || 
+                this._lastBomberManeuvering !== isManeuvering ||
+                this._lastBomberBombing !== isBombing) {
+                
+                this.updateBuildMenu();
+                this._lastBomberFlying = isFlying;
+                this._lastBomberManeuvering = isManeuvering;
+                this._lastBomberBombing = isBombing;
+            }
+        } else {
+            this._lastBomberFlying = null;
+            this._lastBomberManeuvering = null;
+            this._lastBomberBombing = null;
+        }
 
         if (this.entities.base.hp <= 0) {
             this.gameState = 'gameOver';
