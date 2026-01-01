@@ -198,7 +198,35 @@ export class Pathfinding {
 
     isOccupied(x, y) {
         const tile = this.engine.tileMap.grid[y][x];
-        return tile.occupied || !tile.buildable;
+        // 기본적으로 occupied가 true면 막힌 것으로 보되, 
+        // 해당 위치의 엔티티가 passable 속성을 가지고 있다면 통과 가능으로 간주
+        if (tile.occupied) {
+            // 해당 타일에 있는 모든 엔티티 리스트를 뒤져서 통과 불가능한 건물이 있는지 확인
+            // (전선, 파이프 등은 passable이 true이므로 무시됨)
+            const worldPos = this.engine.tileMap.gridToWorld(x, y);
+            const blockingEntity = [
+                ...this.engine.entities.turrets,
+                ...this.engine.entities.generators,
+                ...this.engine.entities.walls,
+                ...this.engine.entities.airports,
+                ...this.engine.entities.refineries,
+                ...this.engine.entities.goldMines,
+                ...this.engine.entities.ironMines,
+                ...this.engine.entities.storage,
+                ...this.engine.entities.armories,
+                ...this.engine.entities.barracks,
+                this.engine.entities.base
+            ].find(ent => {
+                if (!ent || ent.passable) return false;
+                const bounds = ent.getSelectionBounds();
+                return worldPos.x >= bounds.left && worldPos.x <= bounds.right &&
+                       worldPos.y >= bounds.top && worldPos.y <= bounds.bottom;
+            });
+
+            if (blockingEntity) return true;
+        }
+        
+        return !tile.buildable;
     }
 
     findNearestWalkable(tx, ty) {

@@ -1,6 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer } from '../entities/Entities.js';
-import { UpgradeManager } from '../systems/GameSystems.js';
+import { Entity, PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -14,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -30,6 +29,7 @@ export class GameEngine {
             airports: [],
             refineries: [],
             goldMines: [],
+            ironMines: [], // 철 채굴장 리스트 추가
             storage: [],
             armories: [],
             barracks: [],
@@ -40,14 +40,7 @@ export class GameEngine {
             base: (() => {
                 const b = new Base(basePos.x, basePos.y);
                 b.gridX = this.tileMap.centerX - 2;
-                b.gridY = this.tileMap.centerY + 2; // gridY는 위쪽이 작은 값이므로 +2 (5x5 기준 좌측 상단 타일 좌표)
-                // 실제 TileMap.js의 initGrid 로직 확인 필요:
-                // for (let dy = -2; dy <= 2; dy++) { for (let dx = -2; dx <= 2; dx++) { ... ny = centerY + dy; nx = centerX + dx; }}
-                // ny가 centerY-2 ~ centerY+2 까지임. 따라서 좌상단은 (centerX-2, centerY-2). 
-                // 하지만 buildingRegistry에서는 sth가 높이이고 dy 루프가 0 ~ -th 임. 
-                // 즉, (gridX, gridY)를 기준으로 dx는 +방향, dy는 -방향으로 점유함.
-                // 5x5 건물의 경우 gridX = centerX-2, gridY = centerY+2 이어야 
-                // x: centerX-2 ~ centerX+2, y: centerY+2 ~ centerY-2 범위를 가짐.
+                b.gridY = this.tileMap.centerY + 2; 
                 return b;
             })()
         };
@@ -65,7 +58,6 @@ export class GameEngine {
         const startBomber = new Bomber(basePos.x - 200, basePos.y - 200, this);
         const startSniper = new Sniper(basePos.x - 40, basePos.y + spawnOffset + 20, this);
         
-        // 공병 3마리 기본 제공
         const startEngineers = [
             new CombatEngineer(basePos.x - 40, basePos.y + spawnOffset + 40, this),
             new CombatEngineer(basePos.x, basePos.y + spawnOffset + 40, this),
@@ -79,16 +71,14 @@ export class GameEngine {
         
         this.entities.units.push(startTank, startMissile, startInfantry, startSniper, startArtillery, startAntiAir, startScout, startBomber, ...startEngineers);
 
-        // 아군이 공격 연습을 할 수 있는 샌드백 유닛 배치 (적군 배열에 추가하여 공격 가능하게 함)
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
         const airSandbag = new AirSandbag(basePos.x + 250, basePos.y - 150);
         this.entities.enemies.push(sandbag, airSandbag);
 
-        // 중립 전차 배치 (사령부와 충돌하지 않도록 충분히 먼 거리)
         const neutralTank = new NeutralTank(basePos.x - 250, basePos.y - 100, this);
         this.entities.neutral.push(neutralTank);
 
-        this.updateVisibility(); // 초기 시야 확보
+        this.updateVisibility();
 
         this.buildingRegistry = {
             'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
@@ -102,39 +92,35 @@ export class GameEngine {
             'airport': { cost: 500, size: [5, 7], className: 'Airport', list: 'airports', buildTime: 1 },
             'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
             'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
+            'iron-mine': { cost: 400, size: [1, 1], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
             'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 1 },
             'armory': { cost: 600, size: [3, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
-            'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, // 크기 업데이트
-            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 },
-            'oil-generator': { cost: 200, size: [1, 1], className: 'OilGenerator', list: 'generators', onResource: 'oil', buildTime: 1 }
+            'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, 
+            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 }
         };
 
-        this.resources = { gold: 999999, oil: 0 };
+        this.resources = { gold: 999999, oil: 0, iron: 0 };
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
-        this.upgradeManager = new UpgradeManager(this);
 
         this.lastTime = 0;
-        this.gameState = 'playing'; // playing, upgrading, gameOver
+        this.gameState = 'playing'; 
         this.selectedBuildType = null;
         this.isBuildMode = false;
         this.isSellMode = false;
         this.isSkillMode = false;
         this.selectedSkill = null;
-        this.unitCommandMode = null; // 'move', 'attack', 'patrol' 등
+        this.unitCommandMode = null; 
         this.selectedAirport = null;
-        this.selectedEntity = null; // Track any selected building
-        this.selectedEntities = []; // Track multiple selected units
-        this.currentMenuName = 'main'; // Track current sub-menu
-        this.inventory = [];
-        this.maxInventorySize = 6;
+        this.selectedEntity = null; 
+        this.selectedEntities = []; 
+        this.currentMenuName = 'main'; 
         this.isHoveringUI = false;
-        this.pendingItemIndex = -1; // To track which item is being used for building
-        this.lastPlacedGrid = { x: -1, y: -1 }; // 연속 건설 버그 방지용 추가
-        this.isEngineerBuilding = false; // 공병 건설 메뉴 오픈 여부
-        this.currentBuildSessionQueue = null; // 현재 건설 클릭/드래그 세션용 큐
+        this.lastPlacedGrid = { x: -1, y: -1 }; 
+        this.isEngineerBuilding = false; 
+        this.currentBuildSessionQueue = null; 
 
-        // Camera State (Center on base considering zoom)
+        // Camera State
         const baseWorldPos = this.entities.base;
         const initialZoom = 0.8;
         this.camera = {
@@ -145,12 +131,29 @@ export class GameEngine {
             mouseY: 0,
             edgeScrollSpeed: 15,
             edgeThreshold: 30,
-            selectionBox: null // { startX, startY, endX, endY }
+            selectionBox: null 
         };
 
         window.addEventListener('resize', () => this.resize());
         this.initInput();
         this.initUI();
+    }
+
+    // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 하나의 배열로 수집
+    getAllBuildings() {
+        const buildingLists = [
+            'turrets', 'generators', 'powerLines', 'walls', 'airports', 
+            'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 
+            'barracks', 'pipeLines'
+        ];
+        const all = [];
+        buildingLists.forEach(listName => {
+            if (this.entities[listName]) {
+                all.push(...this.entities[listName]);
+            }
+        });
+        if (this.entities.base) all.push(this.entities.base);
+        return all;
     }
 
     resize() {
@@ -160,12 +163,11 @@ export class GameEngine {
         this.minimapCanvas.height = 200;
     }
 
-        initResources() {
-
-            const resourceTypes = ['coal', 'oil', 'gold'];
-
-            const numberOfVeins = 120; // Increased count to accommodate gold
-
+            initResources() {
+        
+                const resourceTypes = ['coal', 'oil', 'gold', 'iron'];
+        
+                const numberOfVeins = 120; // Increased count to accommodate gold
     
 
             for (let i = 0; i < numberOfVeins; i++) {
@@ -256,7 +258,6 @@ export class GameEngine {
 
     initUI() {
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
-        document.getElementById('roll-card-btn')?.addEventListener('click', () => this.rollRandomCard());
         this.updateBuildMenu();
     }
 
@@ -415,9 +416,10 @@ export class GameEngine {
             } else if (this.currentMenuName === 'power') {
                 header.textContent = '발전소';
                 items = [
-                    { type: 'coal-generator', name: '석탄 발전', cost: 200 }, { type: 'oil-generator', name: '석유 발전', cost: 200 },
+                    { type: 'coal-generator', name: '석탄 발전', cost: 200 },
                     { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
-                    { type: 'storage', name: '창고', cost: 200 }, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '창고', cost: 200 }, 
+                    null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'military') {
                 header.textContent = '군사 시설';
@@ -803,15 +805,14 @@ export class GameEngine {
             if (!this.isHoveringUI) {
                 const potentialEntities = [
                     ...this.entities.units, ...this.entities.enemies,
-                    ...this.entities.turrets, ...this.entities.generators, ...this.entities.airports,
-                    ...this.entities.refineries, ...this.entities.goldMines, ...this.entities.storage,
-                    ...this.entities.armories, ...this.entities.barracks, ...this.entities.walls, this.entities.base
+                    ...this.getAllBuildings(), // 모든 건물 자동 포함
+                    ...this.entities.resources // 자원 엔티티
                 ];
 
                 const hovered = potentialEntities.find(ent => {
-                    if (!ent || (ent.active === false && ent.hp !== 99999999)) return false;
+                    if (!ent || (ent.active === false && ent.hp !== 99999999 && !ent.type?.includes('resource') && ent.covered !== true)) return false;
                     
-                    // 선택 범위 계산 (getSelectionBounds가 있으면 사용, 없으면 기본값)
+                    // 선택 범위 계산
                     const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                         left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                     };
@@ -824,21 +825,35 @@ export class GameEngine {
                     const isEnemy = this.entities.enemies.includes(hovered);
                     if (isEnemy) title = `[적] ${title}`;
 
-                    let desc = `<div class="item-stats-box">
-                        <div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
+                    let desc = '<div class="item-stats-box">';
                     
-                    if (hovered.damage > 0) {
-                        desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
-                    }
-                    if (hovered.attackRange > 0) {
-                        desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${hovered.attackRange}</span></div>`;
-                    }
-                    if (hovered.speed > 0) {
-                        desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
-                    }
-                    if (hovered.domain) {
-                        const domainMap = { ground: '지상', air: '공중', sea: '해상' };
-                        desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
+                    // 자원 엔티티 전용 표시
+                    if (hovered instanceof Resource || (hovered.type === 'coal' || hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
+                        desc += `<div class="stat-row"><span>💎 종류:</span> <span class="highlight">${hovered.name}</span></div>
+                                 <div class="stat-row"><span>💡 도움말:</span> <span>적절한 채굴 건물을 지으세요.</span></div>`;
+                    } else {
+                        // 일반 유닛/건물 표시
+                        desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
+                        
+                        // 채굴 건물의 경우 남은 광물 표시
+                        if (['refinery', 'gold-mine', 'iron-mine', 'coal-generator'].includes(hovered.type) && hovered.fuel !== undefined) {
+                            const fuelName = hovered.type === 'coal-generator' ? '남은 연료' : '남은 광물';
+                            desc += `<div class="stat-row"><span>⛏️ ${fuelName}:</span> <span class="highlight">${Math.ceil(hovered.fuel)} / ${hovered.maxFuel || '?'}</span></div>`;
+                        }
+
+                        if (hovered.damage > 0) {
+                            desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
+                        }
+                        if (hovered.attackRange > 0) {
+                            desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${hovered.attackRange}</span></div>`;
+                        }
+                        if (hovered.speed > 0) {
+                            desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
+                        }
+                        if (hovered.domain) {
+                            const domainMap = { ground: '지상', air: '공중', sea: '해상' };
+                            desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
+                        }
                     }
                     
                     desc += `</div>`;
@@ -983,19 +998,12 @@ export class GameEngine {
     }
 
     handleSingleSelection(worldX, worldY, isShiftKey) {
-        // 선택 가능한 엔티티들 수집 (적군 및 중립 포함)
+        // 선택 가능한 엔티티들 수집 (자동화)
         const potentialEntities = [
             ...this.entities.units,
             ...this.entities.enemies, 
-            ...this.entities.neutral, // 중립 유닛 추가
-            ...this.entities.airports,
-            ...this.entities.storage,
-            ...this.entities.armories,
-            ...this.entities.barracks,
-            ...this.entities.turrets,
-            ...this.entities.generators,
-            ...this.entities.walls,
-            this.entities.base
+            ...this.entities.neutral,
+            ...this.getAllBuildings()
         ];
 
         // 클릭 지점에 있는 첫 번째 엔티티 찾기
@@ -1116,11 +1124,9 @@ export class GameEngine {
         this.isBuildMode = false;
         this.selectedBuildType = null;
         this.selectedAirport = null;
-        this.pendingItemIndex = -1;
         this.currentBuildSessionQueue = null; // 세션 큐 초기화
         this.updateCursor();
         this.updateBuildMenu();
-        this.updateInventoryUI(); // Refresh inventory highlights
     }
 
     startSellMode(btn) {
@@ -1331,12 +1337,6 @@ export class GameEngine {
                 }
 
                 this.lastPlacedGrid = { x: gridX, y: gridY };
-                if (isFromItem) {
-                    this.inventory.splice(this.pendingItemIndex, 1);
-                    this.pendingItemIndex = -1;
-                    this.updateInventoryUI();
-                    this.cancelBuildMode();
-                }
                 return true;
             }
         }
@@ -1437,103 +1437,6 @@ export class GameEngine {
             // Remove from list
             this.entities[listName].splice(foundIdx, 1);
         }
-    }
-
-    rollRandomCard() {
-        const cost = 100;
-        if (this.resources.gold >= cost) {
-            this.resources.gold -= cost;
-            const items = this.upgradeManager.getRandomItems(1);
-            if (items.length > 0) {
-                const item = items[0];
-                this.addToInventory(item);
-            }
-        }
-    }
-
-    addToInventory(item) {
-        if (this.inventory.length < this.maxInventorySize) {
-            this.inventory.push(item);
-        } else {
-            // If full, remove oldest and add new (or just don't add, but usually shifting is better for "last 6 collection")
-            this.inventory.shift();
-            this.inventory.push(item);
-        }
-        this.updateInventoryUI();
-    }
-
-    updateInventoryUI() {
-        const slots = document.querySelectorAll('.inventory-slot');
-        slots.forEach((slot, index) => {
-            slot.innerHTML = '';
-            slot.classList.remove('filled');
-            
-            // Clean up old listeners by cloning
-            const newSlot = slot.cloneNode(true);
-            slot.parentNode.replaceChild(newSlot, slot);
-            
-            if (this.inventory[index]) {
-                newSlot.classList.add('filled');
-                if (this.pendingItemIndex === index) {
-                    newSlot.classList.add('active');
-                }
-                const itemIcon = document.createElement('div');
-                itemIcon.className = 'inventory-item-icon';
-                itemIcon.textContent = this.inventory[index].icon;
-                newSlot.appendChild(itemIcon);
-
-                newSlot.addEventListener('mouseenter', (e) => {
-                    this.isHoveringUI = true;
-                    let itemDesc = this.inventory[index].desc;
-                    
-                    // Add detailed stats if it's a build item (Turrets)
-                    if (this.inventory[index].type === 'build-item' && this.inventory[index].buildType) {
-                        const stats = this.getTurretStats(this.inventory[index].buildType);
-                        const fireRateSec = (1000 / stats.fireRate).toFixed(1);
-                        
-                        itemDesc += `<div class="item-stats-box">
-                            <div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${stats.damage}</span></div>
-                            <div class="stat-row"><span>⚡ 연사 속도:</span> <span class="highlight">${fireRateSec}/s</span></div>
-                            <div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${stats.range}</span></div>
-                            <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${stats.maxHp}</span></div>
-                        </div>`;
-                        itemDesc += `<br><span class="highlight text-green">사용 시 즉시 설치 가능</span>`;
-                    }
-                    
-                    this.showUITooltip(this.inventory[index].icon + ' ' + this.inventory[index].name, itemDesc, e.clientX, e.clientY);
-                });
-                newSlot.addEventListener('mousemove', (e) => {
-                    this.moveUITooltip(e.clientX, e.clientY);
-                });
-                newSlot.addEventListener('mouseleave', () => {
-                    this.isHoveringUI = false;
-                    this.hideUITooltip();
-                });
-
-                newSlot.addEventListener('click', () => {
-                    this.useItem(index);
-                });
-            }
-        });
-    }
-
-    useItem(index) {
-        if (this.inventory[index]) {
-            const item = this.inventory[index];
-            if (item.type === 'build-item') {
-                this.pendingItemIndex = index;
-                item.apply();
-            } else {
-                item.apply();
-                this.inventory.splice(index, 1);
-                this.updateInventoryUI();
-                this.hideUITooltip();
-            }
-        }
-    }
-
-    startItemBuildMode(type) {
-        this.startBuildMode(type);
     }
 
     showUITooltip(title, desc, x, y) {
@@ -1663,16 +1566,23 @@ export class GameEngine {
             }
             return true;
         });
-                this.entities.goldMines = this.entities.goldMines.filter(obj => {
-                    obj.update(deltaTime, this);
-                    if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-                        this.clearBuildingTiles(obj);
-                        return false;
-                    }
-                    return true;
-                });
-                this.entities.storage.forEach(s => s.update(deltaTime, this));
-                this.entities.storage = checkDestruction(this.entities.storage);
+                        this.entities.goldMines = this.entities.goldMines.filter(obj => {
+                            obj.update(deltaTime, this);
+                            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+                                this.clearBuildingTiles(obj);
+                                return false;
+                            }
+                            return true;
+                        });
+                        this.entities.ironMines = this.entities.ironMines.filter(obj => {
+                            obj.update(deltaTime, this);
+                            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+                                this.clearBuildingTiles(obj);
+                                return false;
+                            }
+                            return true;
+                        });
+                        this.entities.storage.forEach(s => s.update(deltaTime, this));                this.entities.storage = checkDestruction(this.entities.storage);
                 this.entities.base.update(deltaTime, this); // 총사령부 업데이트 추가
                 this.entities.armories.forEach(a => a.update(deltaTime, this));
                 this.entities.armories = checkDestruction(this.entities.armories);
@@ -1745,11 +1655,7 @@ export class GameEngine {
 
         document.getElementById('resource-gold').textContent = Math.floor(this.resources.gold);
         document.getElementById('resource-oil').textContent = Math.floor(this.resources.oil);
-
-        const rollBtn = document.getElementById('roll-card-btn');
-        if (rollBtn) {
-            rollBtn.disabled = (this.resources.gold < 100);
-        }
+        document.getElementById('resource-iron').textContent = Math.floor(this.resources.iron);
     }
 
     render() {
@@ -1761,37 +1667,38 @@ export class GameEngine {
         // 1. Draw visible grid background
         this.tileMap.drawGrid();
 
-        // 2. Draw all entities
-        const buildingsForPower = [
-            ...this.entities.turrets,
-            ...this.entities.generators,
-            ...this.entities.powerLines,
-            ...this.entities.walls,
-            ...this.entities.airports,
-            ...this.entities.refineries,
-            ...this.entities.goldMines,
-            ...this.entities.storage,
-            ...this.entities.armories,
-            ...this.entities.barracks,
-            ...this.entities.pipeLines,
-            this.entities.base
-        ];
+        // 2. [자동화] 모든 건물 수집
+        const allBuildings = this.getAllBuildings();
 
         // --- 2.1 기초 기반시설 (Ground Layer) ---
         if (this.entities.base) this.entities.base.draw(this.ctx);
         this.entities.resources.forEach(r => r.draw(this.ctx));
-        this.entities.powerLines.forEach(pl => pl.draw(this.ctx, buildingsForPower, this));
-        this.entities.pipeLines.forEach(pl => pl.draw(this.ctx, buildingsForPower, this));
+        
+        // 전선과 파이프는 건물들 간의 연결 관계가 필요함
+        this.entities.powerLines.forEach(pl => pl.draw(this.ctx, allBuildings, this));
+        this.entities.pipeLines.forEach(pl => pl.draw(this.ctx, allBuildings, this));
         
         // --- 2.2 건물 (Building Layer) ---
-        this.entities.walls.forEach(w => w.draw(this.ctx));
-        this.entities.airports.forEach(a => a.draw(this.ctx));
+        // 리스트를 돌며 모든 건물 그리기
+        const excludedFromGenericDraw = ['powerLines', 'pipeLines', 'base'];
+        for (const key in this.entities) {
+            if (excludedFromGenericDraw.includes(key)) continue;
+            const entry = this.entities[key];
+            if (Array.isArray(entry) && entry.length > 0 && entry[0] instanceof Entity && !this.entities.units.includes(entry[0])) {
+                entry.forEach(ent => ent.draw(this.ctx));
+            }
+        }
+        
+        // [수정] 위 방식이 불확실할 수 있으므로, 명시적으로 채굴장들 그리기 포함
         this.entities.refineries.forEach(ref => ref.draw(this.ctx));
         this.entities.goldMines.forEach(gm => gm.draw(this.ctx));
+        this.entities.ironMines.forEach(im => im.draw(this.ctx));
         this.entities.storage.forEach(s => s.draw(this.ctx));
         this.entities.armories.forEach(a => a.draw(this.ctx));
         this.entities.barracks.forEach(b => b.draw(this.ctx));
         this.entities.generators.forEach(g => g.draw(this.ctx));
+        this.entities.airports.forEach(a => a.draw(this.ctx));
+        this.entities.walls.forEach(w => w.draw(this.ctx));
         this.entities.turrets.forEach(t => t.draw(this.ctx, this.isBuildMode));
         
         // --- 2.3 유닛 레이어 분리 (Ground vs Air) ---
@@ -2060,7 +1967,7 @@ export class GameEngine {
 
                     if (ghost.draw) {
                         if (['PowerLine', 'PipeLine'].includes(buildInfo.className)) {
-                            ghost.draw(this.ctx, [...buildingsForPower], this);
+                            ghost.draw(this.ctx, [...allBuildings], this);
                         } else {
                             ghost.draw(this.ctx);
                         }
@@ -2092,7 +1999,7 @@ export class GameEngine {
         this.ctx.restore();
         
         // 5. 건설 예약 청사진 (Ghost Previews for Build Queue)
-        this.renderBuildQueue();
+        this.renderBuildQueue(allBuildings);
 
         this.renderMinimap();
 
@@ -2108,56 +2015,62 @@ export class GameEngine {
         }
     }
 
-    renderBuildQueue() {
-        // 모든 공병을 순회하며 유니크한 그룹 큐들을 수집
-        const uniqueQueues = new Set();
-        this.entities.units.forEach(u => {
-            if (u.type === 'engineer' && u.myGroupQueue) {
-                uniqueQueues.add(u.myGroupQueue);
-            }
-        });
-
-        if (uniqueQueues.size === 0) return;
-
-        this.ctx.save();
-        this.ctx.translate(this.camera.x, this.camera.y);
-        this.ctx.scale(this.camera.zoom, this.camera.zoom);
-
-        uniqueQueues.forEach(queue => {
-            queue.forEach((task, index) => {
-                const buildInfo = this.buildingRegistry[task.type];
-                if (!buildInfo) return;
-
-                // 1. 청사진 건물 그리기
-                this.ctx.save();
-                this.ctx.globalAlpha = 0.3; 
-                
-                const size = buildInfo.size;
-                const stw = size[0], sth = size[1];
-                let worldPos;
-                const gx = task.gridX, gy = task.gridY;
-
-                if (stw > 1 || sth > 1) {
-                    worldPos = {
-                        x: (gx + stw / 2) * this.tileMap.tileSize,
-                        y: (gy - (sth / 2 - 1)) * this.tileMap.tileSize
-                    };
-                } else {
-                    worldPos = this.tileMap.gridToWorld(gx, gy);
+        renderBuildQueue(allBuildings) {
+            // 모든 공병을 순회하며 유니크한 그룹 큐들을 수집
+            const uniqueQueues = new Set();
+            this.entities.units.forEach(u => {
+                if (u.type === 'engineer' && u.myGroupQueue) {
+                    uniqueQueues.add(u.myGroupQueue);
                 }
-
-                const ClassRef = this.entityClasses[buildInfo.className];
-                if (ClassRef) {
-                    let ghost;
-                    if (buildInfo.className === 'Turret') {
-                        ghost = new ClassRef(worldPos.x, worldPos.y, task.type);
+            });
+    
+            if (uniqueQueues.size === 0) return;
+    
+            this.ctx.save();
+            this.ctx.translate(this.camera.x, this.camera.y);
+            this.ctx.scale(this.camera.zoom, this.camera.zoom);
+    
+            uniqueQueues.forEach(queue => {
+                queue.forEach((task, index) => {
+                    const buildInfo = this.buildingRegistry[task.type];
+                    if (!buildInfo) return;
+    
+                    // 1. 청사진 건물 그리기
+                    this.ctx.save();
+                    this.ctx.globalAlpha = 0.3;
+    
+                    const size = buildInfo.size;
+                    const stw = size[0], sth = size[1];
+                    let worldPos;
+                    const gx = task.gridX, gy = task.gridY;
+    
+                    if (stw > 1 || sth > 1) {
+                        worldPos = {
+                            x: (gx + stw / 2) * this.tileMap.tileSize,
+                            y: (gy - (sth / 2 - 1)) * this.tileMap.tileSize
+                        };
                     } else {
-                        ghost = new ClassRef(worldPos.x, worldPos.y, this);
+                        worldPos = this.tileMap.gridToWorld(gx, gy);
                     }
-                    if (ghost.draw) ghost.draw(this.ctx);
-                }
-                this.ctx.restore();
-
+    
+                    const ClassRef = this.entityClasses[buildInfo.className];
+                    if (ClassRef) {
+                        let ghost;
+                        if (buildInfo.className === 'Turret') {
+                            ghost = new ClassRef(worldPos.x, worldPos.y, task.type);
+                        } else {
+                            ghost = new ClassRef(worldPos.x, worldPos.y, this);
+                        }
+                        
+                        if (ghost.draw) {
+                            if (['PowerLine', 'PipeLine'].includes(buildInfo.className)) {
+                                ghost.draw(this.ctx, allBuildings, this);
+                            } else {
+                                ghost.draw(this.ctx);
+                            }
+                        }
+                    }
+                    this.ctx.restore();
                 // 2. 예약 정보 표시
                 this.ctx.fillStyle = task.assignedEngineer ? '#39ff14' : '#00ffcc';
                 this.ctx.font = 'bold 12px Arial';
@@ -2501,22 +2414,25 @@ export class GameEngine {
         mCtx.restore();
     }
 
-    updateOilNetwork() {
-        // 1. 초기화
-        this.entities.pipeLines.forEach(p => {
-            p.isConnected = false;
-            p.canReachHub = false; 
-        });
-        this.entities.refineries.forEach(r => { 
-            r.isConnectedToBase = false; 
-            r.connectedTarget = null; 
-        });
-        this.entities.goldMines.forEach(gm => { 
-            gm.isConnectedToBase = false; 
-            gm.connectedTarget = null; 
-        });
-        this.entities.storage.forEach(s => s.isConnectedToBase = false);
-
+        updateOilNetwork() {
+            // 1. 초기화
+            this.entities.pipeLines.forEach(p => {
+                p.isConnected = false;
+                p.canReachHub = false;
+            });
+            this.entities.refineries.forEach(r => {
+                r.isConnectedToBase = false;
+                r.connectedTarget = null;
+            });
+            this.entities.goldMines.forEach(gm => {
+                gm.isConnectedToBase = false;
+                gm.connectedTarget = null;
+            });
+            this.entities.ironMines.forEach(im => {
+                im.isConnectedToBase = false;
+                im.connectedTarget = null;
+            });
+            this.entities.storage.forEach(s => s.isConnectedToBase = false);
         // 2. 그리드 매핑 (오직 파이프만 등록)
         const pipeGrid = {};
         this.entities.pipeLines.forEach(p => {
@@ -2565,9 +2481,13 @@ export class GameEngine {
                         continue;
                     }
                     
-                    // 2. 생산업체(정제소, 금 채굴장) 체크
-                    const producers = [...this.entities.refineries, ...this.entities.goldMines];
-                    const producer = producers.find(p => {
+                                                    // 2. 생산업체(정제소, 금 채굴장, 제철소 등) 체크
+                    
+                                                    const producers = this.getAllBuildings().filter(b => 
+                    
+                                                        ['refinery', 'gold-mine', 'iron-mine'].includes(b.type)
+                    
+                                                    );                    const producer = producers.find(p => {
                         return getOccupiedTiles(p).some(t => t.x === nx && t.y === ny);
                     });
 
@@ -2632,29 +2552,18 @@ export class GameEngine {
             return tiles;
         };
 
-        // 2. 전력망 매핑
-        const powerGrid = {}; 
+                // 2. 전력망 매핑
+                const powerGrid = {};
+                
+                const allBuildings = this.getAllBuildings();
         
-        // 전선 등록
-        this.entities.powerLines.forEach(pl => {
-            const gp = this.tileMap.worldToGrid(pl.x, pl.y);
-            powerGrid[`${gp.x},${gp.y}`] = pl;
-        });
-
-        // 모든 건물 등록 (모든 점유 타일에 등록)
-        const allBuildings = [
-            ...consumers,
-            ...this.entities.refineries, ...this.entities.goldMines,
-            ...this.entities.generators, this.entities.base
-        ];
-
-        allBuildings.forEach(b => {
-            const tiles = getOccupiedTiles(b);
-            tiles.forEach(t => {
-                powerGrid[`${t.x},${t.y}`] = b;
-            });
-        });
-
+                // 모든 건물 등록 (모든 점유 타일에 등록)
+                allBuildings.forEach(b => {
+                    const tiles = getOccupiedTiles(b);
+                    tiles.forEach(t => {
+                        powerGrid[`${t.x},${t.y}`] = b;
+                    });
+                });
         // 3. BFS 탐색
         const queue = [];
         const visited = new Set();
@@ -2749,16 +2658,7 @@ export class GameEngine {
         });
 
         // 3. (추가) 모든 건물 주변 시야 - 건물이 있는 곳도 현재 시야를 확보해야 함
-        const buildings = [
-            ...this.entities.turrets,
-            ...this.entities.generators,
-            ...this.entities.airports,
-            ...this.entities.refineries,
-            ...this.entities.goldMines,
-            ...this.entities.storage,
-            ...this.entities.armories,
-            ...this.entities.barracks
-        ];
+        const buildings = this.getAllBuildings();
         buildings.forEach(b => {
             if (b.active || b.hp > 0) {
                 // 건물은 기본적으로 자기 자리 주변 1~2칸 시야 확보

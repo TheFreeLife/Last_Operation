@@ -498,10 +498,9 @@ export class PipeLine extends Entity {
                 const isAdjacentX = dx <= (otherHW + myHW) + margin && dy < Math.max(otherHH, myHH);
                 const isAdjacentY = dy <= (otherHH + myHH) + margin && dx < Math.max(otherHW, myHW);
 
-                if (isAdjacentX || isAdjacentY) {
-                    const pipeTransmitters = ['pipe-line', 'refinery', 'gold-mine', 'storage', 'base'];
-                    const isTransmitter = pipeTransmitters.includes(other.type) || (other.maxHp === 99999999);
-                    
+                                        if (isAdjacentX || isAdjacentY) {
+                                            const pipeTransmitters = ['pipe-line', 'refinery', 'gold-mine', 'iron-mine', 'storage', 'base'];
+                                            const isTransmitter = pipeTransmitters.includes(other.type) || (other.maxHp === 99999999);                    
                     if (isTransmitter) {
                         if (isAdjacentX) {
                             if (other.x > this.x) neighbors.e = other;
@@ -711,64 +710,6 @@ export class CoalGenerator extends Generator {
     }
 }
 
-export class OilGenerator extends Generator {
-    constructor(x, y) {
-        super(x, y);
-        this.type = 'oil-generator';
-        this.color = '#9370DB';
-        this.width = 40;
-        this.height = 40;
-        this.maxHp = 150;
-        this.hp = 150;
-        this.maxFuel = 800;
-        this.fuel = 800;
-    }
-
-    update(deltaTime) {
-        if (this.fuel > 0) {
-            this.fuel -= deltaTime / 1000;
-            if (this.fuel < 0) this.fuel = 0;
-        }
-    }
-
-    draw(ctx) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -15, 30, 30);
-        const gradient = ctx.createLinearGradient(-10, 0, 10, 0);
-        gradient.addColorStop(0, '#555');
-        gradient.addColorStop(0.5, '#777');
-        gradient.addColorStop(1, '#555');
-        ctx.fillStyle = gradient;
-        ctx.beginPath(); ctx.roundRect(-12, -12, 24, 24, 5); ctx.fill();
-        ctx.strokeStyle = '#222'; ctx.stroke();
-        ctx.fillStyle = (this.fuel > 0) ? this.color : '#444';
-        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = this.color; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-18, 0); ctx.stroke();
-        ctx.restore();
-
-        // HP 바 상시 표시
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
-        ctx.fillStyle = '#9370DB';
-        ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
-    }
-}
-
 export class PowerLine extends Entity {
     constructor(x, y) {
         super(x, y);
@@ -788,29 +729,28 @@ export class PowerLine extends Entity {
             return;
         }
         const neighbors = { n: null, s: null, e: null, w: null };
-        if (allEntities && engine) {
-            allEntities.forEach(other => {
-                if (other === this) return;
-                
-                const otherHW = (other.width || 40) / 2;
-                const otherHH = (other.height || 40) / 2;
-                const myHW = 20;
-                const myHH = 20;
-
-                const dx = Math.abs(other.x - this.x);
-                const dy = Math.abs(other.y - this.y);
-
-                const margin = 2;
-                const isAdjacentX = dx <= (otherHW + myHW) + margin && dy < Math.max(otherHH, myHH);
-                const isAdjacentY = dy <= (otherHH + myHH) + margin && dx < Math.max(otherHW, myHW);
-
-                if (isAdjacentX || isAdjacentY) {
-                    const transmitterTypes = ['power-line', 'generator', 'coal-generator', 'oil-generator', 'base', 'airport', 'refinery', 'gold-mine', 'storage', 'armory', 'barracks'];
-                    // 포탑 타입들도 전선 연결 대상으로 추가
-                    const isTransmitter = transmitterTypes.includes(other.type) || 
-                                        (other.type && other.type.startsWith('turret')) ||
-                                        (other.maxHp === 99999999);
-                    
+                if (allEntities && engine) {
+                    allEntities.forEach(other => {
+                        if (other === this) return;
+        
+                        const otherHW = (other.width || 40) / 2;
+                        const otherHH = (other.height || 40) / 2;
+                        const myHW = 20;
+                        const myHH = 20;
+        
+                        const dx = Math.abs(other.x - this.x);
+                        const dy = Math.abs(other.y - this.y);
+        
+                        const margin = 2;
+                        const isAdjacentX = dx <= (otherHW + myHW) + margin && dy < Math.max(otherHH, myHH);
+                        const isAdjacentY = dy <= (otherHH + myHH) + margin && dx < Math.max(otherHW, myHW);
+        
+                        if (isAdjacentX || isAdjacentY) {
+                            const transmitterTypes = ['power-line', 'generator', 'coal-generator', 'base', 'airport', 'refinery', 'gold-mine', 'iron-mine', 'storage', 'armory', 'barracks'];
+                            // 포탑 타입들도 전선 연결 대상으로 추가
+                            const isTransmitter = transmitterTypes.includes(other.type) ||
+                                (other.type && other.type.startsWith('turret')) ||
+                                (other.maxHp === 99999999);                    
                     if (isTransmitter) {
                         if (isAdjacentX) {
                             if (other.x > this.x) neighbors.e = other;
@@ -983,6 +923,78 @@ export class GoldMine extends Entity {
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
         ctx.fillStyle = '#FFD700';
+        ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
+    }
+}
+
+export class IronMine extends Entity {
+    constructor(x, y) {
+        super(x, y);
+        this.type = 'iron-mine';
+        this.name = '제철소';
+        this.size = 30;
+        this.width = 40;
+        this.height = 40;
+        this.maxHp = 300;
+        this.hp = 300;
+        this.maxFuel = 1200; // 철 매장량은 금보다 조금 많음
+        this.fuel = 1200;
+        this.productionRate = 10; // 초당 철 생산량
+        this.color = '#a5a5a5';
+        this.isConnectedToBase = false;
+        this.connectedTarget = null;
+    }
+
+    update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
+        if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
+            const amount = this.productionRate * deltaTime / 1000;
+            const produced = engine.produceResource('iron', amount, this);
+            
+            if (produced) {
+                this.fuel -= deltaTime / 1000;
+                if (this.fuel < 0) this.fuel = 0;
+            }
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-15, -15, 30, 30);
+        ctx.strokeStyle = (this.fuel > 0) ? this.color : '#555';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-15, -15, 30, 30);
+
+        // 제철 공장 표현 (고열 가마/용광로 느낌)
+        ctx.fillStyle = '#444';
+        ctx.fillRect(-12, -10, 24, 20);
+        
+        if (this.fuel > 0 && this.isConnectedToBase) {
+            // 용광로 열기 표현
+            const flicker = Math.random() * 0.3 + 0.7;
+            ctx.fillStyle = `rgba(255, 69, 0, ${flicker})`;
+            ctx.beginPath();
+            ctx.arc(0, 5, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+
+        // HP 바 상시 표시
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
+        ctx.fillStyle = this.color;
         ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
     }
 }
@@ -4616,6 +4628,7 @@ export class Resource extends Entity {
             case 'coal': this.color = '#333333'; this.name = '석탄'; break;
             case 'oil': this.color = '#2F4F4F'; this.name = '석유'; break;
             case 'gold': this.color = '#FFD700'; this.name = '금'; break;
+            case 'iron': this.color = '#a5a5a5'; this.name = '철'; break;
             default: this.color = '#778899'; this.name = '자원'; break;
         }
     }
