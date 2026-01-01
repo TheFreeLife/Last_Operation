@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
@@ -14,7 +14,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -62,6 +62,7 @@ export class GameEngine {
         const startArtillery = new Artillery(basePos.x - spawnOffset - 40, basePos.y + spawnOffset + 20, this);
         const startAntiAir = new AntiAirVehicle(basePos.x + spawnOffset + 40, basePos.y + spawnOffset + 20, this);
         const startScout = new ScoutPlane(basePos.x, basePos.y + spawnOffset + 80, this);
+        const startBomber = new Bomber(basePos.x - 200, basePos.y - 200, this);
         
         // 공병 3마리 기본 제공
         const startEngineers = [
@@ -74,7 +75,7 @@ export class GameEngine {
         startMissile.destination = { x: basePos.x + spawnOffset + 40, y: basePos.y + spawnOffset + 40 };
         startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
         
-        this.entities.units.push(startTank, startMissile, startInfantry, startArtillery, startAntiAir, startScout, ...startEngineers);
+        this.entities.units.push(startTank, startMissile, startInfantry, startArtillery, startAntiAir, startScout, startBomber, ...startEngineers);
 
         // 아군이 공격 연습을 할 수 있는 샌드백 유닛 배치 (적군 배열에 추가하여 공격 가능하게 함)
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
@@ -96,7 +97,7 @@ export class GameEngine {
             'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines', buildTime: 1 },
             'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
             'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
-            'airport': { cost: 500, size: [3, 4], className: 'Airport', list: 'airports', buildTime: 1 },
+            'airport': { cost: 500, size: [5, 7], className: 'Airport', list: 'airports', buildTime: 1 },
             'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
             'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
             'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 1 },
@@ -333,17 +334,19 @@ export class GameEngine {
                         { type: 'skill-anti-air', name: '대공차량 생산', cost: 400, action: 'skill:anti-air' },
                         null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
-                } else if (type === 'barracks') {
-                    items = [
-                        { type: 'skill-rifleman', name: '소총병 생산', cost: 100, action: 'skill:rifleman' },
-                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
-                    ];
-                } else if (type === 'airport') {
-                    items = [
-                        { type: 'skill:scout-plane', name: '정찰기 생산', cost: 100, action: 'skill:scout-plane' },
-                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
-                    ];
-                } else if (type === 'storage') {
+                                } else if (type === 'barracks') {
+                                    items = [
+                                        { type: 'skill-rifleman', name: '소총병 생산', cost: 100, action: 'skill:rifleman' },
+                                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                                    ];
+                                } else if (type === 'airport') {
+                                    items = [
+                                        { type: 'skill:scout-plane', name: '정찰기 생산', cost: 100, action: 'skill:scout-plane' },
+                                        { type: 'skill:bomber', name: '폭격기 생산', cost: 1200, action: 'skill:bomber' },
+                                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                                    ];
+                                }
+                 else if (type === 'storage') {
                     items = [
                         { type: 'skill-cargo', name: '수송기 생산', cost: 100, action: 'skill:cargo' },
                         null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
@@ -505,10 +508,6 @@ export class GameEngine {
             this.updateBuildMenu();
         } else if (action.startsWith('menu:')) {
             this.currentMenuName = action.split(':')[1];
-            if (this.currentMenuName === 'main' && this.selectedEntities.length > 0) {
-                // 공병 건설 메뉴 내에서 '뒤로'를 누르면 유닛 명령으로 갈지, 메인 건설로 갈지 결정
-                // 여기서는 일단 서브메뉴(네트워크 등)에서 메인 건설로 가는 용도로 유지
-            }
             this.updateBuildMenu();
         } else if (action === 'toggle:sell') {
             if (this.isSellMode) this.cancelSellMode();
@@ -517,12 +516,11 @@ export class GameEngine {
             const skill = action.split(':')[1];
             const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
             
-            // 건설 중인 건물은 스킬이나 유닛 생산 불가
             if (target && target.isUnderConstruction) {
                 return;
             }
 
-            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane' || skill === 'artillery' || skill === 'anti-air') {
+            if (skill === 'tank' || skill === 'missile' || skill === 'cargo' || skill === 'rifleman' || skill === 'engineer' || skill === 'scout-plane' || skill === 'bomber' || skill === 'artillery' || skill === 'anti-air') {
                 if (target && target.requestUnit) {
                     const cost = item.cost || 0;
                     if (this.resources.gold >= cost) {
@@ -2139,7 +2137,7 @@ export class GameEngine {
         }
 
         // 7. Check Airport
-        const hoveredAirport = this.entities.airports.find(a => Math.abs(a.x - worldX) < 40 && Math.abs(a.y - worldY) < 60);
+        const hoveredAirport = this.entities.airports.find(a => Math.abs(a.x - worldX) < 100 && Math.abs(a.y - worldY) < 140);
         if (hoveredAirport) {
             title = '공항';
             desc = `<div class="stat-row"><span>✈️ 기능:</span> <span>특수 스킬 사용</span></div>

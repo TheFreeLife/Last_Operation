@@ -1151,21 +1151,24 @@ export class PlayerUnit extends Entity {
     set destination(value) {
         this._destination = value;
         if (value) {
-            // 목적지가 설정될 때 경로 계산 (공중 유닛은 직선 이동을 위해 경로 계산 생략 가능하지만 일관성을 위해 수행)
-            this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.domain === 'air' || this.canBypassObstacles) || [];
-            
-            // [추가] 경로 시작 시 불필요한 초기 웨이포인트(현재 위치와 너무 가까운 점) 즉시 제거
-            // update 루프까지 기다리면 그 사이 프레임에 엉뚱한 곳을 볼 수 있음
-            while (this.path.length > 0) {
-                const first = this.path[0];
-                if (Math.hypot(first.x - this.x, first.y - this.y) < 20) {
-                    this.path.shift();
-                } else {
-                    break;
+            if (this.domain === 'air') {
+                // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
+                this.path = [{ x: value.x, y: value.y }];
+            } else {
+                // 지상 유닛은 기존대로 A* 경로 탐색 수행
+                this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.canBypassObstacles) || [];
+                
+                while (this.path.length > 0) {
+                    const first = this.path[0];
+                    if (Math.hypot(first.x - this.x, first.y - this.y) < 20) {
+                        this.path.shift();
+                    } else {
+                        break;
+                    }
                 }
             }
             
-            this.pathRecalculateTimer = 1000; // 1초 후에 재계산 예약 (막혔을 때 대비)
+            this.pathRecalculateTimer = 1000; 
         } else {
             this.path = [];
         }
@@ -1266,18 +1269,20 @@ export class PlayerUnit extends Entity {
         let pushX = 0;
         let pushY = 0;
 
-        if (this.domain !== 'air') {
-            const allUnits = [...this.engine.entities.units, ...this.engine.entities.enemies, ...this.engine.entities.neutral];
-            for (const other of allUnits) {
-                if (other === this || (other.alive === false && other.hp <= 0) || other.domain === 'air') continue;
-                const d = Math.hypot(this.x - other.x, this.y - other.y);
-                const minDist = (this.size + other.size) * 0.4; 
-                if (d < minDist) {
-                    const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
-                    const force = (minDist - d) / minDist;
-                    pushX += Math.cos(pushAngle) * force * 1.5;
-                    pushY += Math.sin(pushAngle) * force * 1.5;
-                }
+        const allUnits = [...this.engine.entities.units, ...this.engine.entities.enemies, ...this.engine.entities.neutral];
+        for (const other of allUnits) {
+            if (other === this || (other.alive === false && other.hp <= 0)) continue;
+            
+            // 같은 영역(지상-지상, 공중-공중) 유닛끼리만 충돌 회피 수행
+            if (this.domain !== other.domain) continue;
+
+            const d = Math.hypot(this.x - other.x, this.y - other.y);
+            const minDist = (this.size + other.size) * 0.4; 
+            if (d < minDist) {
+                const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                const force = (minDist - d) / minDist;
+                pushX += Math.cos(pushAngle) * force * 1.5;
+                pushY += Math.sin(pushAngle) * force * 1.5;
             }
         }
 
@@ -2248,7 +2253,20 @@ export class CombatEngineer extends PlayerUnit {
                         this.currentSharedTask = null;
                     }
                 } else {
-                    this.destination = { x: task.x, y: task.y };
+                    // 건물의 중심이 아닌 가장 가까운 외곽 지점으로 이동
+                    const halfW = (tw * 40) / 2;
+                    const halfH = (th * 40) / 2;
+                    
+                    const minX = task.x - halfW;
+                    const maxX = task.x + halfW;
+                    const minY = task.y - halfH;
+                    const maxY = task.y + halfH;
+
+                    // 현재 위치에서 건물의 AABB(Axis-Aligned Bounding Box) 상의 가장 가까운 점 계산
+                    const closestX = Math.max(minX, Math.min(this.x, maxX));
+                    const closestY = Math.max(minY, Math.min(this.y, maxY));
+
+                    this.destination = { x: closestX, y: closestY };
                 }
             } else if (!this.buildingTarget && this.myGroupQueue.length === 0) {
                 // 더 이상 할 일이 없으면 정지
@@ -2273,7 +2291,21 @@ export class CombatEngineer extends PlayerUnit {
                     this.targetObject = null;
                 }
             } else {
-                this.destination = { x: this.targetObject.x, y: this.targetObject.y };
+                // 수리 대상의 가장 가까운 지점으로 이동
+                const targetW = this.targetObject.width || this.targetObject.size || 40;
+                const targetH = this.targetObject.height || this.targetObject.size || 40;
+                const halfW = targetW / 2;
+                const halfH = targetH / 2;
+
+                const minX = this.targetObject.x - halfW;
+                const maxX = this.targetObject.x + halfW;
+                const minY = this.targetObject.y - halfH;
+                const maxY = this.targetObject.y + halfH;
+
+                const closestX = Math.max(minX, Math.min(this.x, maxX));
+                const closestY = Math.max(minY, Math.min(this.y, maxY));
+
+                this.destination = { x: closestX, y: closestY };
             }
         }
     }
@@ -2863,12 +2895,12 @@ export class Airport extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'airport';
-        this.name = '공항';
-        this.width = 120; // 3 tiles
-        this.height = 160; // 4 tiles
-        this.size = 160;
-        this.maxHp = 1500;
-        this.hp = 1500;
+        this.name = '대형 군용 비행장';
+        this.width = 200;  // 5 tiles
+        this.height = 280; // 7 tiles
+        this.size = 280;
+        this.maxHp = 2500; // 크기에 맞춰 체력 상향
+        this.hp = 2500;
         this.isPowered = false;
         this.spawnQueue = []; 
         this.spawnTime = 1000; 
@@ -2888,9 +2920,15 @@ export class Airport extends Entity {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
-                // 활주로 시작 지점 부근에서 생성 (남쪽 방향)
-                let unit = new ScoutPlane(this.x, this.y - 40, engine);
-                unit.destination = { x: this.x, y: this.y + 120 };
+                // 활주로 중앙 부근에서 생성 (오른쪽으로 이동됨)
+                let unit;
+                if (current.type === 'bomber') {
+                    unit = new Bomber(this.x + 55, this.y - 80, engine);
+                } else {
+                    unit = new ScoutPlane(this.x + 55, this.y - 80, engine);
+                }
+                
+                unit.destination = { x: this.x + 55, y: this.y + 140 };
                 this.units.push(unit);
                 engine.entities.units.push(unit);
                 this.spawnQueue.shift();
@@ -2906,145 +2944,211 @@ export class Airport extends Entity {
         ctx.save();
         ctx.translate(this.x, this.y);
 
-        // 1. 기초 아스팔트 플랫폼 (다크 그레이)
+        // 1. 거대 베이스 플랫폼 (두께감 있는 콘크리트 슬래브)
+        // 하부 그림자 및 측면 두께
+        ctx.fillStyle = '#1a252f';
+        ctx.fillRect(-100, -140, 205, 285); // 그림자
         ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-60, -80, 120, 160);
-        ctx.strokeStyle = '#1a252f';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-60, -80, 120, 160);
+        ctx.fillRect(-100, -140, 200, 280); // 베이스
 
-        // 2. 메인 활주로 (Runway)
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-25, -75, 50, 150);
-        
-        // 활주로 마킹 (흰색)
-        ctx.strokeStyle = '#fff';
+        // 콘크리트 타일 텍스처
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        for(let i=-100; i<=100; i+=25) {
+            ctx.beginPath(); ctx.moveTo(i, -140); ctx.lineTo(i, 140); ctx.stroke();
+        }
+        for(let j=-140; j<=140; j+=25) {
+            ctx.beginPath(); ctx.moveTo(-100, j); ctx.lineTo(100, j); ctx.stroke();
+        }
+
+        // 2. 메인 활주로 (입체적인 느낌의 아스팔트) - 오른쪽으로 이동
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(20, -135, 70, 270);
+        // 활주로 가장자리 유도 경계선
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 2;
-        // 외곽선
-        ctx.strokeRect(-22, -75, 44, 150);
+        ctx.strokeRect(20, -135, 70, 270);
         
-        // 중앙선 (Dashed)
-        ctx.setLineDash([15, 10]);
-        ctx.beginPath();
-        ctx.moveTo(0, -70); ctx.lineTo(0, 70);
-        ctx.stroke();
+        // 활주로 마킹
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 18px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = 0.8;
+        ctx.fillText('0 7 R', 55, -110);
+        ctx.fillText('2 5 L', 55, 125);
+        ctx.globalAlpha = 1.0;
+
+        // 중앙 점선 (입체적인 두께 표현을 위해 두 번 그림)
+        ctx.setLineDash([20, 15]);
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(55, -130); ctx.lineTo(55, 130); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(55, -130); ctx.lineTo(55, 130); ctx.stroke();
         ctx.setLineDash([]);
 
-        // 활주로 번호/기호 (Threshold Markings)
-        ctx.fillStyle = '#fff';
-        for(let i=0; i<4; i++) {
-            ctx.fillRect(-18 + i*10, -70, 6, 20); // 북쪽
-            ctx.fillRect(-18 + i*10, 50, 6, 20);  // 남쪽
-        }
-
-        // 3. 유도로 (Taxiway - 노란색 라인)
-        ctx.strokeStyle = '#f1c40f';
-        ctx.lineWidth = 1.5;
+        // 3. 유도로 및 대기 구역 (노란색 라인 디테일) - 왼쪽으로 방향 수정
+        ctx.strokeStyle = '#d4af37';
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(-25, 0); ctx.lineTo(-45, 0); ctx.lineTo(-45, 40);
+        ctx.moveTo(20, 0); ctx.lineTo(-20, 0); ctx.lineTo(-20, 130);
         ctx.stroke();
 
-        // 4. 현대식 격납고 (Hangar - 서쪽)
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(-55, 30, 30, 45);
-        ctx.strokeStyle = '#34495e';
-        ctx.strokeRect(-55, 30, 30, 45);
-        // 격납고 지붕 굴곡
-        ctx.fillStyle = '#95a5a6';
-        for(let i=0; i<3; i++) {
-            ctx.fillRect(-53, 33 + i*14, 26, 8);
-        }
+        // 4. 2.5D 입체 격납고 (Hangar complex) - 왼쪽으로 이동
+        const drawHangar25D = (dx, dy) => {
+            ctx.save();
+            ctx.translate(dx, dy);
+            
+            // 1. 벽면 (그림자쪽)
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(-35, -20, 70, 45); // 전체 높이감
 
-        // 5. 관제탑 (Control Tower - 동쪽 상단)
+            // 2. 정면 도어 (Sliding Doors)
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-30, -5, 60, 20);
+            ctx.strokeStyle = '#1a252f';
+            for(let i=-30; i<=30; i+=10) {
+                ctx.beginPath(); ctx.moveTo(i, -5); ctx.lineTo(i, 15); ctx.stroke();
+            }
+
+            // 3. 둥근 지붕 (Roof - 입체감)
+            const grd = ctx.createLinearGradient(0, -25, 0, 0);
+            grd.addColorStop(0, '#95a5a6');
+            grd.addColorStop(0.5, '#bdc3c7');
+            grd.addColorStop(1, '#7f8c8d');
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.ellipse(0, -15, 35, 15, 0, 0, Math.PI, true);
+            ctx.lineTo(35, -15); ctx.lineTo(-35, -15);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.restore();
+        };
+        drawHangar25D(-55, 50);
+        drawHangar25D(-55, 110);
+
+        // 5. 2.5D 원통형 연료 탱크 (Fuel Tanks) - 왼쪽으로 이동
+        const drawTank25D = (dx, dy) => {
+            ctx.save();
+            ctx.translate(dx, dy);
+            // 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.arc(2, 2, 12, 0, Math.PI*2); ctx.fill();
+            // 몸체 (옆면)
+            const sideGrd = ctx.createLinearGradient(-12, 0, 12, 0);
+            sideGrd.addColorStop(0, '#7f8c8d');
+            sideGrd.addColorStop(0.5, '#ecf0f1');
+            sideGrd.addColorStop(1, '#95a5a6');
+            ctx.fillStyle = sideGrd;
+            ctx.fillRect(-12, -15, 24, 25);
+            // 윗면 (Top)
+            ctx.fillStyle = '#bdc3c7';
+            ctx.beginPath(); ctx.ellipse(0, -15, 12, 6, 0, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#7f8c8d'; ctx.stroke();
+            // 파이프 연결부
+            ctx.fillStyle = '#c0392b';
+            ctx.fillRect(-4, -20, 8, 3);
+            ctx.restore();
+        };
+        drawTank25D(-30, -50);
+        drawTank25D(-60, -50);
+        drawTank25D(-90, -50);
+
+        // 6. 3층 구조 2.5D 관제탑 (Advanced Control Tower) - 왼쪽으로 이동
         ctx.save();
-        ctx.translate(40, -50);
-        // 타워 몸체
-        ctx.fillStyle = '#bdc3c7';
-        ctx.fillRect(-12, -12, 24, 24);
-        ctx.strokeStyle = '#7f8c8d';
-        ctx.strokeRect(-12, -12, 24, 24);
-        // 상부 관제소 (유리창)
-        ctx.fillStyle = this.isPowered ? '#2980b9' : '#34495e';
+        ctx.translate(-70, -110);
+        // 1층 하부 구조
+        ctx.fillStyle = '#34495e'; ctx.fillRect(-15, 0, 30, 40);
+        ctx.fillStyle = '#7f8c8d'; ctx.fillRect(-12, 0, 24, 38);
+        // 2층 중간 데크
+        ctx.fillStyle = '#2c3e50'; ctx.fillRect(-18, -5, 36, 6);
+        // 3층 관제실 (유리 및 조명)
+        const towerBlink = Math.sin(Date.now()/400) > 0;
+        const towerColor = this.isPowered ? (towerBlink ? '#4fc3f7' : '#0288d1') : '#1c313a';
+        ctx.fillStyle = '#263238'; // 프레임
         ctx.beginPath();
-        ctx.moveTo(-15, -15); ctx.lineTo(15, -15);
-        ctx.lineTo(12, 5); ctx.lineTo(-12, 5);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#ecf0f1';
-        ctx.stroke();
-        // 안테나
-        ctx.strokeStyle = '#333';
-        ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, -35); ctx.stroke();
+        ctx.moveTo(-22, -25); ctx.lineTo(22, -25); ctx.lineTo(18, -5); ctx.lineTo(-18, -5);
+        ctx.closePath(); ctx.fill();
+        // 유리창
+        ctx.fillStyle = towerColor;
+        ctx.beginPath();
+        ctx.moveTo(-18, -22); ctx.lineTo(18, -22); ctx.lineTo(15, -8); ctx.lineTo(-15, -8);
+        ctx.closePath(); ctx.fill();
+        // 옥상 장비 및 레이더
+        ctx.fillStyle = '#444'; ctx.fillRect(-10, -30, 20, 5);
+        ctx.strokeStyle = '#000'; ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(0, -55); ctx.stroke();
         ctx.restore();
 
-        // 6. 회전 레이더 (Radar - 동쪽 하단)
+        // 7. 입체 회전 레이더 디쉬 - 왼쪽으로 이동
         ctx.save();
-        ctx.translate(40, 40);
-        ctx.fillStyle = '#95a5a6';
-        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
-        // 회전하는 안테나 바
+        ctx.translate(-40, -110);
+        ctx.fillStyle = '#555'; ctx.fillRect(-3, 0, 6, 15); // 지지대
         if (this.isPowered) {
-            ctx.rotate(Date.now() / 500);
-            ctx.strokeStyle = '#e74c3c';
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
-            // 레이더 스캔 효과
-            ctx.fillStyle = 'rgba(231, 76, 60, 0.1)';
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 40, -0.2, 0.2); ctx.closePath(); ctx.fill();
+            ctx.rotate(Date.now() / 600);
+            const dishGrd = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+            dishGrd.addColorStop(0, '#bdc3c7');
+            dishGrd.addColorStop(1, '#7f8c8d');
+            ctx.fillStyle = dishGrd;
+            ctx.beginPath(); ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#333'; ctx.stroke();
+            // 레이더 빔 효과
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 80, -0.2, 0.2); ctx.closePath(); ctx.fill();
         }
         ctx.restore();
 
-        // 7. 활주로 유도등 (Approach Lights)
-        const time = Date.now();
-        for(let i=0; i<5; i++) {
-            const blink = (Math.floor(time / 200) + i) % 5 === 0;
-            ctx.fillStyle = blink && this.isPowered ? '#2ecc71' : '#27ae60';
-            ctx.beginPath(); ctx.arc(-24, -60 + i*30, 2, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(24, -60 + i*30, 2, 0, Math.PI * 2); ctx.fill();
+        // 8. 야간 항공 유도등 (입체적인 광원 효과) - 오른쪽 활주로에 맞춰 이동
+        for(let i=0; i<6; i++) {
+            const yPos = -120 + i*48;
+            const blink = (Math.floor(Date.now()/300) + i) % 4 === 0;
+            if (this.isPowered) {
+                ctx.save();
+                ctx.globalAlpha = blink ? 1.0 : 0.3;
+                ctx.shadowBlur = 10; ctx.shadowColor = '#2ecc71';
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath(); ctx.arc(15, yPos, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(95, yPos, 4, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
         }
-
-        // 8. 연료 탱크 (작은 디테일)
-        ctx.fillStyle = '#bdc3c7';
-        ctx.beginPath(); ctx.arc(-45, -50, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#e67e22'; // 위험 표시
-        ctx.fillRect(-48, -52, 6, 4);
 
         ctx.restore();
 
-        // HP 바
-        const barW = 80;
-        const barY = this.y - 95;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        // HP 및 생산 바 (기존 유지하되 위치 최적화)
+        const barW = 140;
+        const barY = this.y - 170;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 10);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 10);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(this.x - barW/2, barY, barW, 10);
 
-        // 생산 대기열
         if (this.spawnQueue.length > 0) {
-            const qBarY = barY - 14;
+            const qBarY = barY - 18;
             const progress = this.spawnQueue[0].timer / this.spawnTime;
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(this.x - 40, qBarY, 80, 8);
+            ctx.fillRect(this.x - 70, qBarY, 140, 10);
             ctx.fillStyle = '#39ff14';
-            ctx.fillRect(this.x - 40, qBarY, 80 * progress, 8);
+            ctx.fillRect(this.x - 70, qBarY, 140 * progress, 10);
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px Arial';
+            ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(`출격 준비 중 (${this.spawnQueue.length})`, this.x, qBarY - 5);
+            ctx.fillText(`비행대 출격 대기 중 (${this.spawnQueue.length})`, this.x, qBarY - 5);
         }
     }
-} export class ScoutPlane extends PlayerUnit {
+}
+
+export class ScoutPlane extends PlayerUnit {
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'scout-plane';
-        this.name = '정찰기';
+        this.name = '고등 정찰 무인기';
         this.domain = 'air'; 
-        this.speed = 4.0;    
-        this.visionRange = 15; 
-        this.hp = 150;
-        this.maxHp = 150;
-        this.size = 40;
+        this.speed = 4.5;    // 속도 살짝 상향
+        this.visionRange = 18; // 정찰 능력 강화
+        this.hp = 250;       // 체력 상향
+        this.maxHp = 250;
+        this.size = 70;      // 크기 대폭 확장
     }
 
     draw(ctx) {
@@ -3055,39 +3159,236 @@ export class Airport extends Entity {
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        
-        ctx.fillStyle = '#dfe6e9';
-        ctx.beginPath();
-        ctx.moveTo(20, 0); 
-        ctx.lineTo(-10, -15); 
-        ctx.lineTo(-5, 0); 
-        ctx.lineTo(-10, 15);
-        ctx.closePath();
-        ctx.fill();
-        
-        ctx.strokeStyle = '#b2bec3';
-        ctx.lineWidth = 2;
-        ctx.stroke();
 
-        ctx.fillStyle = '#00d2ff';
+        // 1. 그림자 (공중에 떠 있는 느낌)
+        ctx.save();
+        ctx.translate(-5, 5);
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = '#000';
         ctx.beginPath();
-        ctx.ellipse(5, 0, 8, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (this.destination) {
-            ctx.fillStyle = '#ff7675';
-            ctx.beginPath();
-            ctx.moveTo(-8, -3); ctx.lineTo(-18, 0); ctx.lineTo(-8, 3);
-            ctx.fill();
-        }
+        ctx.moveTo(35, 0); ctx.lineTo(-15, -45); ctx.lineTo(-25, 0); ctx.lineTo(-15, 45);
+        ctx.closePath(); ctx.fill();
         ctx.restore();
 
-        const barW = 30;
-        const barY = this.y - 30;
+        // 2. 주익 (Wings - 델타익 스타일의 세련된 날개)
+        const wingGrd = ctx.createLinearGradient(-20, -45, -20, 45);
+        wingGrd.addColorStop(0, '#7f8c8d');
+        wingGrd.addColorStop(0.5, '#bdc3c7');
+        wingGrd.addColorStop(1, '#7f8c8d');
+        
+        ctx.fillStyle = wingGrd;
+        ctx.beginPath();
+        ctx.moveTo(10, 0);       // 앞쪽 중앙
+        ctx.lineTo(-18, -48);    // 왼쪽 날개 끝
+        ctx.lineTo(-28, -48);    // 왼쪽 날개 뒷단
+        ctx.lineTo(-15, 0);      // 뒤쪽 중앙
+        ctx.lineTo(-28, 48);     // 오른쪽 날개 뒷단
+        ctx.lineTo(-18, 48);     // 오른쪽 날개 끝
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#2c3e50';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // 날개 디테일 (플랩 및 라인)
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.moveTo(-10, -25); ctx.lineTo(-22, -25);
+        ctx.moveTo(-10, 25); ctx.lineTo(-22, 25);
+        ctx.stroke();
+
+        // 3. 동체 (Main Body - 유선형 무인기 스타일)
+        const bodyGrd = ctx.createLinearGradient(0, -10, 0, 10);
+        bodyGrd.addColorStop(0, '#ecf0f1');
+        bodyGrd.addColorStop(0.5, '#bdc3c7');
+        bodyGrd.addColorStop(1, '#95a5a6');
+        
+        ctx.fillStyle = bodyGrd;
+        ctx.beginPath();
+        ctx.moveTo(40, 0);       // 기수
+        ctx.bezierCurveTo(30, -12, 10, -10, -25, -6); // 상단 라인
+        ctx.lineTo(-25, 6);      // 하단 끝
+        ctx.bezierCurveTo(10, 10, 30, 12, 40, 0);   // 하단 라인
+        ctx.fill();
+        ctx.stroke();
+
+        // 4. 엔진 배기구 및 제트 화염
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-28, -5, 5, 10);
+        
+        if (this.destination || Math.random() > 0.3) {
+            const flicker = Math.random() * 5;
+            const engineGrd = ctx.createRadialGradient(-30, 0, 2, -35, 0, 15);
+            engineGrd.addColorStop(0, '#fff');
+            engineGrd.addColorStop(0.4, '#00d2ff');
+            engineGrd.addColorStop(1, 'transparent');
+            ctx.fillStyle = engineGrd;
+            ctx.beginPath();
+            ctx.moveTo(-28, -4);
+            ctx.lineTo(-45 - flicker, 0);
+            ctx.lineTo(-28, 4);
+            ctx.fill();
+        }
+
+        // 5. 정찰용 센서 터렛 (기수 하단)
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath();
+        ctx.arc(25, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e74c3c'; // 렌즈 안광
+        ctx.beginPath();
+        ctx.arc(27, 0, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 6. 콕핏/위성 안테나 페어링 (무인기 특유의 불룩한 기수)
+        ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(15, 0, 12, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.stroke();
+
+        // 7. 항법등 (깜빡이는 라이트)
+        const blink = Math.sin(Date.now() / 200) > 0;
+        if (blink) {
+            ctx.fillStyle = '#ff3131'; // 좌익단 적색등
+            ctx.beginPath(); ctx.arc(-22, -48, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2ecc71'; // 우익단 녹색등
+            ctx.beginPath(); ctx.arc(-22, 48, 3, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.restore();
+
+        // HP 바 (기체 크기에 맞춰 위치 조정)
+        const barW = 50;
+        const barY = this.y - 50;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW/2, barY, barW, 5);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.x - barW/2, barY, barW, 5);
+    }
+}
+
+export class Bomber extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'bomber';
+        this.name = '전략 폭격기';
+        this.domain = 'air';
+        this.speed = 2.2; 
+        this.visionRange = 12;
+        this.hp = 1200; 
+        this.maxHp = 1200;
+        this.size = 92;    // 유닛 충돌 범위 약간 확장
+        this.width = 140;  // 날개 폭 (좌우 70씩)
+        this.height = 115; // 기체 길이 (앞뒤 58씩)
+        this.damage = 0; 
+    }
+
+    attack() {
+        // 현재는 공격 기능 없음
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // --- B-52G Stratofortress 스타일 (스케일 업 버전) ---
+        
+        // 1. 주익 (Wings - 폭 140)
+        ctx.fillStyle = '#4b5320'; 
+        ctx.beginPath();
+        ctx.moveTo(9, 0);       
+        ctx.lineTo(-25, -70);   
+        ctx.lineTo(-38, -70);   
+        ctx.lineTo(-13, 0);      
+        ctx.lineTo(-38, 70);     
+        ctx.lineTo(-25, 70);     
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#2d3436';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 2. 엔진 포드 및 대형 프로펠러 (4개)
+        const engineOffsets = [-25, -48, 25, 48]; 
+        const propAngle = (Date.now() / 15) % (Math.PI * 2);
+
+        engineOffsets.forEach(offset => {
+            // 엔진 나셀
+            ctx.fillStyle = '#2d3436';
+            ctx.fillRect(-20, offset - 5, 25, 10);
+            
+            // 대형 프로펠러
+            ctx.save();
+            ctx.translate(5, offset);
+            ctx.rotate(propAngle);
+            
+            ctx.fillStyle = '#1a1a1a';
+            for(let i=0; i<4; i++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.ellipse(0, 11, 3.5, 13, 0, 0, Math.PI * 2); // 날개 길이 확장
+                ctx.fill();
+            }
+            
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        // 3. 메인 동체 (Fuselage - 군더더기 없이 매끄럽게)
+        ctx.fillStyle = '#556644';
+        ctx.beginPath();
+        ctx.moveTo(58, 0);       
+        ctx.lineTo(50, -7);      
+        ctx.lineTo(-52, -9);     
+        ctx.lineTo(-58, 0);      
+        ctx.lineTo(-52, 9);      
+        ctx.lineTo(50, 7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 4. (기존 미사일 포드 제거됨)
+
+        // 5. 수평 미익
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath();
+        ctx.moveTo(-44, 0);
+        ctx.lineTo(-65, -22);
+        ctx.lineTo(-75, -22);
+        ctx.lineTo(-58, 0);
+        ctx.lineTo(-75, 22);
+        ctx.lineTo(-65, 22);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 6. 콕핏 및 기수 디테일
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.moveTo(45, -4); ctx.lineTo(50, -3); ctx.lineTo(50, 3); ctx.lineTo(45, 4);
+        ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = '#333';
+        ctx.beginPath(); ctx.moveTo(58, 0); ctx.lineTo(68, 0); ctx.stroke();
+
+        ctx.restore();
+
+        // HP 바
+        const barW = 70;
+        const barY = this.y - 55;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
     }
 }
 
