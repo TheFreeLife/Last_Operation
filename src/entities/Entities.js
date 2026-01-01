@@ -2136,6 +2136,70 @@ export class Rifleman extends PlayerUnit {
     }
 }
 
+export class Sniper extends PlayerUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'sniper';
+        this.name = '저격수';
+        this.speed = 0.8; // 소총병보다 약간 느림
+        this.fireRate = 2000; // 2초에 한 번 발사
+        this.damage = 40;
+        this.color = '#ff3131';
+        this.attackRange = 450;
+        this.size = 24;
+        this.visionRange = 10; // 시야가 매우 넓음
+        this.hp = 40;
+        this.maxHp = 40;
+        this.attackTargets = ['ground', 'sea', 'air'];
+    }
+
+    attack() {
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate && this.target) {
+            const { Projectile } = this.engine.entityClasses;
+            const p = new Projectile(this.x, this.y, this.target, this.damage, '#fff', this);
+            p.speed = 15; // 저격 탄환은 매우 빠름
+            this.engine.entities.projectiles.push(p);
+            this.lastFireTime = now;
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.scale(2, 2);
+        
+        // 몸통 (길쭉한 실루엣)
+        ctx.fillStyle = '#1c1c1c';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 장거리 저격총
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(2, -1, 16, 1.5); // 긴 총신
+        ctx.fillStyle = '#333';
+        ctx.fillRect(6, -2, 4, 1); // 스코프
+        
+        // 위장복 헬멧
+        ctx.fillStyle = '#2d3310';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+
+        const barW = 20;
+        const barY = this.y - 20;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
+    }
+}
+
 export class CombatEngineer extends PlayerUnit {
     constructor(x, y, engine) {
         super(x, y, engine);
@@ -2224,6 +2288,30 @@ export class CombatEngineer extends PlayerUnit {
                     this.buildingTarget.buildProgress = 1;
                     this.buildingTarget.isUnderConstruction = false;
                     this.buildingTarget.hp = this.buildingTarget.maxHp;
+                    
+                    // [버그 수정] 건물 내부 끼임 방지: 실제로 겹쳤을 때만 자연스럽게 바깥으로 탈출
+                    const currentGrid = this.engine.tileMap.worldToGrid(this.x, this.y);
+                    const currentTile = this.engine.tileMap.grid[currentGrid.y]?.[currentGrid.x];
+                    
+                    // 현재 서 있는 타일이 점유(occupied)된 상태일 때만 튕겨내기 수행
+                    if (currentTile && currentTile.occupied) {
+                        const freeTile = this.engine.pathfinding.findNearestWalkable(currentGrid.x, currentGrid.y);
+                        if (freeTile) {
+                            const worldPos = this.engine.tileMap.gridToWorld(freeTile.x, freeTile.y);
+                            
+                            // 1. 탈출 방향을 바라보게 함
+                            this.angle = Math.atan2(worldPos.y - this.y, worldPos.x - this.x);
+                            
+                            // 2. 위치를 외곽으로 어느 정도 밀어내고 (튕겨나가는 시작점)
+                            this.x = this.x * 0.3 + worldPos.x * 0.7;
+                            this.y = this.y * 0.3 + worldPos.y * 0.7;
+                            
+                            // 3. 남은 거리는 직선 경로를 강제 주입하여 부드럽게 걸어나오게 함
+                            this.destination = worldPos;
+                            this.path = [worldPos];
+                        }
+                    }
+
                     if (this.buildingTarget.targetResource) {
                         const resList = this.engine.entities.resources;
                         const resIdx = resList.indexOf(this.buildingTarget.targetResource);
@@ -2442,24 +2530,29 @@ export class Barracks extends Entity {
         return true;
     }
 
-    update(deltaTime, engine) {
-        if (this.isUnderConstruction) return;
-        this.units = this.units.filter(u => u.alive);
-
-        if (this.isPowered && this.spawnQueue.length > 0) {
-            const current = this.spawnQueue[0];
-            current.timer += deltaTime;
-            if (current.timer >= this.spawnTime) {
-                const spawnY = this.y + 65; 
-                let unit = new Rifleman(this.x, spawnY, engine);
-                unit.destination = { x: this.x, y: this.y + 100 };
-                this.units.push(unit);
-                engine.entities.units.push(unit);
-                this.spawnQueue.shift();
+        update(deltaTime, engine) {
+            if (this.isUnderConstruction) return;
+            this.units = this.units.filter(u => u.alive);
+            
+            if (this.isPowered && this.spawnQueue.length > 0) {
+                const current = this.spawnQueue[0];
+                current.timer += deltaTime;
+                if (current.timer >= this.spawnTime) {
+                    const spawnY = this.y + 65;
+                    let unit;
+                    if (current.type === 'sniper') {
+                        unit = new Sniper(this.x, spawnY, engine);
+                    } else {
+                        unit = new Rifleman(this.x, spawnY, engine);
+                    }
+                    
+                    unit.destination = { x: this.x, y: this.y + 100 };
+                    this.units.push(unit);
+                    engine.entities.units.push(unit);
+                    this.spawnQueue.shift();
+                }
             }
         }
-    }
-
     draw(ctx) {
         if (this.isUnderConstruction) {
             this.drawConstruction(ctx);

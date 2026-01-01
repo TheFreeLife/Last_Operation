@@ -61,6 +61,12 @@ export const ICONS = {
     'skill:artillery': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="10" y="20" width="20" height="12" fill="#333" stroke="#f1c40f" stroke-width="2"/><rect x="18" y="10" width="4" height="15" fill="#f1c40f"/><circle cx="20" cy="22" r="6" fill="#444" stroke="#f1c40f" stroke-width="1"/></svg></div>`,
     'skill:anti-air': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><rect x="10" y="20" width="20" height="12" rx="2" fill="#2d3436" stroke="#00d2ff" stroke-width="2"/><path d="M15 10 L18 20 M25 10 L22 20" stroke="#00d2ff" stroke-width="3"/><path d="M15 10 L18 13 L12 13 Z" fill="#fff"/><path d="M25 10 L28 13 L22 13 Z" fill="#fff"/></svg></div>`,
     'skill:rifleman': `<div class="btn-icon green"><svg viewBox="0 0 40 40"><circle cx="20" cy="15" r="6" fill="#2d3436"/><path d="M12 25 L28 25 L20 15 Z" fill="#556644"/><rect x="22" y="20" width="8" height="2" fill="#636e72"/></svg></div>`,
+    'skill:sniper': `<div class="btn-icon red"><svg viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="15" fill="none" stroke="#ff3131" stroke-width="2"/>
+        <line x1="20" y1="5" x2="20" y2="35" stroke="#ff3131" stroke-width="1"/>
+        <line x1="5" y1="20" x2="35" y2="20" stroke="#ff3131" stroke-width="1"/>
+        <circle cx="20" cy="20" r="3" fill="#ff3131"/>
+    </svg></div>`,
     'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
     'skill:scout-plane': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">
         <circle cx="20" cy="20" r="15" fill="none" stroke="#00d2ff" stroke-width="1" stroke-dasharray="2,2"/>

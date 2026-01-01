@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { UpgradeManager } from '../systems/GameSystems.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
@@ -14,7 +14,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, OilGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -63,6 +63,7 @@ export class GameEngine {
         const startAntiAir = new AntiAirVehicle(basePos.x + spawnOffset + 40, basePos.y + spawnOffset + 20, this);
         const startScout = new ScoutPlane(basePos.x, basePos.y + spawnOffset + 80, this);
         const startBomber = new Bomber(basePos.x - 200, basePos.y - 200, this);
+        const startSniper = new Sniper(basePos.x - 40, basePos.y + spawnOffset + 20, this);
         
         // 공병 3마리 기본 제공
         const startEngineers = [
@@ -74,8 +75,9 @@ export class GameEngine {
         startTank.destination = { x: basePos.x - spawnOffset - 40, y: basePos.y + spawnOffset + 40 };
         startMissile.destination = { x: basePos.x + spawnOffset + 40, y: basePos.y + spawnOffset + 40 };
         startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
+        startSniper.destination = { x: basePos.x - 60, y: basePos.y + spawnOffset + 60 };
         
-        this.entities.units.push(startTank, startMissile, startInfantry, startArtillery, startAntiAir, startScout, startBomber, ...startEngineers);
+        this.entities.units.push(startTank, startMissile, startInfantry, startSniper, startArtillery, startAntiAir, startScout, startBomber, ...startEngineers);
 
         // 아군이 공격 연습을 할 수 있는 샌드백 유닛 배치 (적군 배열에 추가하여 공격 가능하게 함)
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
@@ -370,7 +372,8 @@ export class GameEngine {
                                 } else if (type === 'barracks') {
                                     items = [
                                         { type: 'skill-rifleman', name: '소총병 생산', cost: 100, action: 'skill:rifleman' },
-                                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                                        { type: 'skill-sniper', name: '저격수 생산', cost: 250, action: 'skill:sniper' },
+                                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                                     ];
                                 } else if (type === 'airport') {
                                     items = [
@@ -559,10 +562,9 @@ export class GameEngine {
                 
                 if (target && target.isUnderConstruction) return;
     
-                // 생산형 스킬 처리
-                const productionSkills = ['tank', 'missile', 'cargo', 'rifleman', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
-                if (productionSkills.includes(skill)) {
-                    if (target && target.requestUnit) {
+                            // 생산형 스킬 처리
+                            const productionSkills = ['tank', 'missile', 'cargo', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
+                            if (productionSkills.includes(skill)) {                    if (target && target.requestUnit) {
                         const cost = item.cost || 0;
                         if (this.resources.gold >= cost) {
                             let unitKey = skill;
@@ -900,17 +902,23 @@ export class GameEngine {
     }
 
     updateCursor() {
+        const classes = ['build-mode-cursor', 'sell-mode-cursor', 'cmd-move-cursor', 'cmd-attack-cursor', 'cmd-patrol-cursor'];
+        this.canvas.classList.remove(...classes);
+
         if (this.isSellMode) {
-            this.canvas.style.cursor = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\'><text y=\'24\' font-size=\'24\'>$</text></svg>"), auto';
-        } else if (this.unitCommandMode === 'manual_fire') {
-            this.canvas.style.cursor = 'crosshair';
-        } else if (this.unitCommandMode) {
-            this.canvas.style.cursor = 'crosshair';
+            this.canvas.classList.add('sell-mode-cursor');
         } else if (this.isBuildMode || this.isSkillMode) {
-            this.canvas.style.cursor = 'crosshair';
-        } else {
-            this.canvas.style.cursor = 'default';
+            this.canvas.classList.add('build-mode-cursor');
+        } else if (this.unitCommandMode === 'move') {
+            this.canvas.classList.add('cmd-move-cursor');
+        } else if (this.unitCommandMode === 'attack' || this.unitCommandMode === 'manual_fire' || this.unitCommandMode === 'bombing') {
+            this.canvas.classList.add('cmd-attack-cursor');
+        } else if (this.unitCommandMode === 'patrol') {
+            this.canvas.classList.add('cmd-patrol-cursor');
         }
+        
+        // 인라인 스타일 초기화 (CSS 클래스가 우선하도록)
+        this.canvas.style.cursor = '';
     }
 
     executeUnitCommand(cmd, worldX = null, worldY = null, targetObject = null) {
@@ -1786,25 +1794,47 @@ export class GameEngine {
         this.entities.generators.forEach(g => g.draw(this.ctx));
         this.entities.turrets.forEach(t => t.draw(this.ctx, this.isBuildMode));
         
-        // --- 2.3 유닛 및 투사체 (Unit Layer) ---
-        this.entities.units.forEach(u => u.draw(this.ctx));
-        this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
+        // --- 2.3 유닛 레이어 분리 (Ground vs Air) ---
+        const groundUnits = this.entities.units.filter(u => u.domain !== 'air');
+        const airUnits = this.entities.units.filter(u => u.domain === 'air');
+        const groundEnemies = this.entities.enemies.filter(e => e.domain !== 'air');
+        const airEnemies = this.entities.enemies.filter(e => e.domain === 'air');
+        const groundNeutral = this.entities.neutral.filter(n => n.domain !== 'air');
+        const airNeutral = this.entities.neutral.filter(n => n.domain === 'air');
+
+        // 1. 지상 유닛 렌더링
+        groundUnits.forEach(u => u.draw(this.ctx));
         
-        // 적 유닛은 시야(inSight) 내에 있을 때만 렌더링
-        this.entities.enemies.forEach(e => {
+        // 지상 적 유닛 (시야 내)
+        groundEnemies.forEach(e => {
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
             }
         });
 
-        // 3. Draw fog on top to hide everything in dark areas
+        // 2. 지형지물 위에 안개 그리기
         this.tileMap.drawFog();
 
-        // 4. [항상 보임] 중립 유닛 렌더링
-        this.entities.neutral.forEach(n => n.draw(this.ctx));
+        // 3. 지상 중립 유닛
+        groundNeutral.forEach(n => n.draw(this.ctx));
 
-        // 5. 투사체 및 효과 (최상단 레이어) - 유닛과 안개를 모두 가릴 수 있도록 함
+        // 4. [최상위 공중 레이어] 공중 유닛 및 수송기 렌더링
+        airUnits.forEach(u => u.draw(this.ctx));
+        this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
+        
+        // 공중 적 유닛 (시야 내)
+        airEnemies.forEach(e => {
+            const grid = this.tileMap.worldToGrid(e.x, e.y);
+            if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
+                e.draw(this.ctx);
+            }
+        });
+
+        // 공중 중립 유닛 (예: 공중 샌드백)
+        airNeutral.forEach(n => n.draw(this.ctx));
+
+        // 5. 투사체 및 효과 (최상단)
         this.entities.projectiles.forEach(p => p.draw(this.ctx));
 
         const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
