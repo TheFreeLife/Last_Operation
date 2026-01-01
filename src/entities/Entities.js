@@ -1202,18 +1202,34 @@ export class PlayerUnit extends Entity {
         if (this.type === 'missile-launcher') canActuallyAttack = false;
 
         if (canActuallyAttack && this.command !== 'move') {
-            // 1. 수동 지정 타겟(manualTarget) 우선 확인 (중립 유닛 포함)
-            if (this.manualTarget && (this.manualTarget.active !== false) && (this.manualTarget.hp > 0)) {
-                const distToManual = Math.hypot(this.manualTarget.x - this.x, this.manualTarget.y - this.y);
-                // 영역(domain) 체크
+            // [1. 점사(Focus Fire) 로직] 플레이어가 직접 대상을 클릭한 경우
+            if (this.manualTarget) {
+                const isTargetDead = (this.manualTarget.active === false) || (this.manualTarget.hp <= 0);
                 const targetDomain = this.manualTarget.domain || 'ground';
-                if (this.attackTargets.includes(targetDomain) && distToManual <= this.attackRange) {
-                    bestTarget = this.manualTarget;
-                }
-            }
+                const canHit = this.attackTargets.includes(targetDomain);
 
-            // 2. 수동 타겟이 없거나 사거리 밖이면 자동 타겟팅 수행 (적군만)
-            if (!bestTarget) {
+                if (isTargetDead || !canHit) {
+                    // 대상이 사라졌거나 공격 불가 상태(이륙 등)가 되면 명령 중단
+                    this.manualTarget = null;
+                    this.command = 'stop';
+                    this.destination = null;
+                } else {
+                    const distToManual = Math.hypot(this.manualTarget.x - this.x, this.manualTarget.y - this.y);
+                    
+                    if (distToManual <= this.attackRange) {
+                        bestTarget = this.manualTarget; // 사거리 안이면 공격 대상 확정
+                    } else {
+                        // 사거리 밖이면 추격 시작 (이동 중 다른 적 무시)
+                        // 타겟이 40px 이상 움직였을 때만 경로 갱신하여 부하 감소
+                        if (!this._destination || Math.hypot(this._destination.x - this.manualTarget.x, this._destination.y - this.manualTarget.y) > 40) {
+                            this.destination = { x: this.manualTarget.x, y: this.manualTarget.y };
+                        }
+                    }
+                }
+            } 
+            
+            // [2. 자동 타겟팅 로직] 수동 지정 대상이 없을 때만 수행 (어택땅 등)
+            if (!bestTarget && !this.manualTarget) {
                 for (const e of enemies) {
                     const enemyDomain = e.domain || 'ground';
                     if (!this.attackTargets.includes(enemyDomain)) continue;
@@ -1664,36 +1680,42 @@ export class Missile extends Entity {
 }
 
 export class MissileLauncher extends PlayerUnit {
-    constructor(x, y, engine) {
-        super(x, y, engine);
-        this.type = 'missile-launcher';
-        this.name = '이동식 미사일 발사대';
-        this.speed = 1.4; // 0.8 -> 1.4 (기동성 강화)
-        this.baseSpeed = 1.4;
-        this.fireRate = 2500;
-        this.damage = 350;
-        this.color = '#ff3131';
-        this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
-        this.visionRange = 8;
-        this.recoil = 0;
-        this.canBypassObstacles = false; // 장애물 통과 불가
-        
-        // 시즈 모드 관련 상태
-        this.isSieged = false;
-        this.isTransitioning = false;
-        this.transitionTimer = 0;
-        this.maxTransitionTime = 60; 
-        this.raiseAngle = 0; 
-
-        // 발사 준비 시퀀스
-        this.isFiring = false;
-        this.fireDelayTimer = 0;
-        this.maxFireDelay = 45; // 발사 전 대기 시간 (약 0.75초)
-        this.pendingFirePos = { x: 0, y: 0 };
-    }
-
-    toggleSiege() {
-        if (this.isTransitioning || this.isFiring) return; 
+        constructor(x, y, engine) {
+            super(x, y, engine);
+            this.type = 'missile-launcher';
+            this.name = '이동식 미사일 발사대';
+            this.speed = 1.4; // 0.8 -> 1.4 (기동성 강화)
+            this.baseSpeed = 1.4;
+            this.fireRate = 2500;
+            this.damage = 350;
+            this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
+            this.visionRange = 8;
+            this.recoil = 0;
+            this.canBypassObstacles = false; // 장애물 통과 불가
+    
+            // 시즈 모드 관련 상태
+            this.isSieged = false;
+            this.isTransitioning = false;
+            this.transitionTimer = 0;
+            this.maxTransitionTime = 60;
+            this.raiseAngle = 0;
+    
+            // 발사 준비 시퀀스
+            this.isFiring = false;
+            this.fireDelayTimer = 0;
+            this.maxFireDelay = 45; // 발사 전 대기 시간 (약 0.75초)
+            this.pendingFirePos = { x: 0, y: 0 };
+        }
+    
+        getSkillConfig(cmd) {
+            const skills = {
+                'siege': { type: 'state', handler: this.toggleSiege },
+                'manual_fire': { type: 'targeted', handler: this.fireAt }
+            };
+            return skills[cmd];
+        }
+    
+        toggleSiege() {        if (this.isTransitioning || this.isFiring) return; 
         this.isTransitioning = true;
         this.transitionTimer = 0;
         this.destination = null; 
@@ -3453,6 +3475,15 @@ export class Bomber extends PlayerUnit {
         this.maneuverFrameCount = 0;    // 활주 시작 프레임 카운터
         this.takeoffDistance = 0;       // 활주 거리 누적
         this.isBombingActive = false;   // 폭격 모드 활성화 여부
+    }
+
+    // 스킬 설정 정보 제공
+    getSkillConfig(cmd) {
+        const skills = {
+            'bombing': { type: 'toggle', handler: this.toggleBombing },
+            'takeoff_landing': { type: 'state', handler: this.toggleTakeoff }
+        };
+        return skills[cmd];
     }
 
     toggleBombing() {
