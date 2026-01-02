@@ -1341,6 +1341,9 @@ export class PlayerUnit extends Entity {
         for (const other of allUnits) {
             if (other === this || (other.alive === false && other.hp <= 0)) continue;
             
+            // 낙하 중인 유닛(isFalling)은 물리적 공간을 차지하지 않는 것으로 간주하여 회피 대상에서 제외
+            if (other.isFalling || this.isFalling) continue;
+
             // 같은 영역(지상-지상, 공중-공중) 유닛끼리만 충돌 회피 수행
             if (this.domain !== other.domain) continue;
 

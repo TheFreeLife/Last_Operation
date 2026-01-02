@@ -1779,7 +1779,55 @@ export class GameEngine {
         groundNeutral.forEach(n => n.draw(this.ctx));
 
         // 4. [최상위 공중 레이어] 공중 유닛 및 수송기 렌더링
-        airUnits.forEach(u => u.draw(this.ctx));
+        airUnits.forEach(u => {
+            u.draw(this.ctx);
+            // [전투 강하] 낙하산 렌더링
+            if (u.isFalling) {
+                this.ctx.save();
+                this.ctx.translate(u.x, u.y);
+                
+                const progress = u.fallTimer / u.fallDuration;
+                // 위에서 아래로 내려오는 연출 (그림자 거리나 크기로 표현 가능하지만 여기선 크기와 위치 오프셋 활용)
+                // 유닛 자체는 draw에서 그려지므로 그 위에 덧그림
+                
+                // 고도감을 위한 스케일링 (점점 작아지며 지면 크기에 맞춤 -> 사실 멀어지는게 아니라 가까워지는 거라 커져야 하는데,
+                // 탑뷰에서는 '공중'이 더 크고 '지상'이 정사이즈인게 일반적 표현)
+                const scale = 1.5 - (progress * 0.5); 
+                this.ctx.scale(scale, scale);
+
+                // 흔들림 효과
+                const swing = Math.sin(Date.now() / 200) * 0.1;
+                this.ctx.rotate(swing);
+
+                // 낙하산 줄
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                this.ctx.lineWidth = 1.5;
+                this.ctx.beginPath();
+                this.ctx.moveTo(-12, -25); this.ctx.lineTo(0, -5); // 유닛 머리 위로 연결
+                this.ctx.moveTo(12, -25); this.ctx.lineTo(0, -5);
+                this.ctx.stroke();
+
+                // 낙하산 캐노피 (반원)
+                const grd = this.ctx.createLinearGradient(0, -45, 0, -25);
+                grd.addColorStop(0, '#ecf0f1');
+                grd.addColorStop(1, '#bdc3c7');
+                this.ctx.fillStyle = grd;
+                
+                this.ctx.beginPath();
+                this.ctx.arc(0, -25, 22, Math.PI, 0); 
+                // 아래쪽 물결 모양
+                this.ctx.bezierCurveTo(15, -20, 5, -20, 0, -25);
+                this.ctx.bezierCurveTo(-5, -20, -15, -20, -22, -25);
+                this.ctx.fill();
+                
+                // 낙하산 테두리
+                this.ctx.strokeStyle = '#95a5a6';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+
+                this.ctx.restore();
+            }
+        });
         this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
         
         // 공중 적 유닛 (시야 내)
