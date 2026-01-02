@@ -793,8 +793,20 @@ export class GameEngine {
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
                     
-                    // 아군이 아닌 대상을 클릭한 경우만 타겟으로 전달
-                    const finalTarget = (clickedTarget && this.getRelation(1, clickedTarget.ownerId) !== 'team') ? clickedTarget : null;
+                    // [수정] 어택 명령('A') 시에는 관계에 상관없이 (자신 제외) 타겟으로 지정 가능하도록 허용
+                    let canTarget = false;
+                    if (clickedTarget) {
+                        const relation = this.getRelation(1, clickedTarget.ownerId);
+                        if (this.unitCommandMode === 'attack') {
+                            // 어택 땅/지정 시에는 모든 엔티티 타겟팅 가능 (자기 자신 포함 강제 공격 허용)
+                            canTarget = true;
+                        } else {
+                            // 일반적인 경우(스킬 등) 자신을 제외한 아군이 아닌 경우만
+                            if (relation !== 'self' && relation !== 'ally') canTarget = true;
+                        }
+                    }
+                    
+                    const finalTarget = canTarget ? clickedTarget : null;
                     this.executeUnitCommand(this.unitCommandMode, worldX, worldY, finalTarget);
                 } else if (this.isSellMode) {
                     this.handleSell(worldX, worldY);
@@ -841,8 +853,9 @@ export class GameEngine {
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
 
-                    // 1.1 적군 또는 중립 대상인 경우 (강제 공격)
-                    if (clickedTarget && this.getRelation(1, clickedTarget.ownerId) !== 'team') {
+                    // 1.1 [수정] 우클릭 자동 공격은 '적군(enemy)'일 때만 발동
+                    // 중립이나 아군 유닛을 우클릭하면 공격하지 않고 이동하거나 다른 행동 수행
+                    if (clickedTarget && this.getRelation(1, clickedTarget.ownerId) === 'enemy') {
                         this.executeUnitCommand('attack', clickedTarget.x, clickedTarget.y, clickedTarget);
                         return;
                     }
@@ -1798,13 +1811,31 @@ export class GameEngine {
         const airNeutral = this.entities.neutral.filter(n => n.domain === 'air');
 
         // 1. 지상 유닛 렌더링
-        groundUnits.forEach(u => u.draw(this.ctx));
+        groundUnits.forEach(u => {
+            u.draw(this.ctx);
+            if (u.hitTimer > 0) {
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'source-atop';
+                this.ctx.fillStyle = `rgba(255, 0, 0, ${u.hitTimer / 300})`;
+                const bounds = u.getSelectionBounds();
+                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+                this.ctx.restore();
+            }
+        });
         
         // 지상 적 유닛 (시야 내)
         groundEnemies.forEach(e => {
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
+                if (e.hitTimer > 0) {
+                    this.ctx.save();
+                    this.ctx.globalCompositeOperation = 'source-atop';
+                    this.ctx.fillStyle = `rgba(255, 0, 0, ${e.hitTimer / 300})`;
+                    const bounds = e.getSelectionBounds();
+                    this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+                    this.ctx.restore();
+                }
             }
         });
 
@@ -1812,55 +1843,59 @@ export class GameEngine {
         this.tileMap.drawFog(this.camera);
 
         // 3. 지상 중립 유닛
-        groundNeutral.forEach(n => n.draw(this.ctx));
+        groundNeutral.forEach(n => {
+            n.draw(this.ctx);
+            if (n.hitTimer > 0) {
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'source-atop';
+                this.ctx.fillStyle = `rgba(255, 0, 0, ${n.hitTimer / 300})`;
+                const bounds = n.getSelectionBounds();
+                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+                this.ctx.restore();
+            }
+        });
 
         // 4. [최상위 공중 레이어] 공중 유닛 및 수송기 렌더링
         airUnits.forEach(u => {
             u.draw(this.ctx);
+            if (u.hitTimer > 0) {
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'source-atop';
+                this.ctx.fillStyle = `rgba(255, 0, 0, ${u.hitTimer / 300})`;
+                const bounds = u.getSelectionBounds();
+                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+                this.ctx.restore();
+            }
             // [전투 강하] 낙하산 렌더링
             if (u.isFalling) {
                 this.ctx.save();
                 this.ctx.translate(u.x, u.y);
-                
                 const progress = u.fallTimer / u.fallDuration;
-                // 위에서 아래로 내려오는 연출 (그림자 거리나 크기로 표현 가능하지만 여기선 크기와 위치 오프셋 활용)
-                // 유닛 자체는 draw에서 그려지므로 그 위에 덧그림
-                
-                // 고도감을 위한 스케일링 (점점 작아지며 지면 크기에 맞춤 -> 사실 멀어지는게 아니라 가까워지는 거라 커져야 하는데,
-                // 탑뷰에서는 '공중'이 더 크고 '지상'이 정사이즈인게 일반적 표현)
                 const scale = 1.5 - (progress * 0.5); 
                 this.ctx.scale(scale, scale);
-
-                // 흔들림 효과
                 const swing = Math.sin(Date.now() / 200) * 0.1;
                 this.ctx.rotate(swing);
 
-                // 낙하산 줄
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
                 this.ctx.lineWidth = 1.5;
                 this.ctx.beginPath();
-                this.ctx.moveTo(-12, -25); this.ctx.lineTo(0, -5); // 유닛 머리 위로 연결
+                this.ctx.moveTo(-12, -25); this.ctx.lineTo(0, -5); 
                 this.ctx.moveTo(12, -25); this.ctx.lineTo(0, -5);
                 this.ctx.stroke();
 
-                // 낙하산 캐노피 (반원)
                 const grd = this.ctx.createLinearGradient(0, -45, 0, -25);
                 grd.addColorStop(0, '#ecf0f1');
                 grd.addColorStop(1, '#bdc3c7');
                 this.ctx.fillStyle = grd;
-                
                 this.ctx.beginPath();
                 this.ctx.arc(0, -25, 22, Math.PI, 0); 
-                // 아래쪽 물결 모양
                 this.ctx.bezierCurveTo(15, -20, 5, -20, 0, -25);
                 this.ctx.bezierCurveTo(-5, -20, -15, -20, -22, -25);
                 this.ctx.fill();
                 
-                // 낙하산 테두리
                 this.ctx.strokeStyle = '#95a5a6';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
-
                 this.ctx.restore();
             }
         });
@@ -1871,11 +1906,29 @@ export class GameEngine {
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
+                if (e.hitTimer > 0) {
+                    this.ctx.save();
+                    this.ctx.globalCompositeOperation = 'source-atop';
+                    this.ctx.fillStyle = `rgba(255, 0, 0, ${e.hitTimer / 300})`;
+                    const bounds = e.getSelectionBounds();
+                    this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+                    this.ctx.restore();
+                }
             }
         });
 
-        // 공중 중립 유닛 (예: 공중 샌드백)
-        airNeutral.forEach(n => n.draw(this.ctx));
+        // 공중 중립 유닛
+        airNeutral.forEach(n => {
+            n.draw(this.ctx);
+            if (n.hitTimer > 0) {
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'source-atop';
+                this.ctx.fillStyle = `rgba(255, 0, 0, ${n.hitTimer / 300})`;
+                const bounds = n.getSelectionBounds();
+                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+                this.ctx.restore();
+            }
+        });
 
         // 5. 투사체 및 효과 (최상단)
         this.entities.projectiles.forEach(p => p.draw(this.ctx));

@@ -17,6 +17,21 @@ export class Entity {
         this.buildProgress = 0; // 0 to 1
         this.totalBuildTime = 0;
         this.targetResource = null; // 건설 중인 자원 객체 보관용
+        
+        // 피격 효과 관련
+        this.hitTimer = 0;
+    }
+
+    // 피격 처리 공통 메서드
+    takeDamage(amount) {
+        if (this.hp === undefined || !this.active) return;
+        this.hp -= amount;
+        this.hitTimer = 150; // 150ms 동안 피격 상태 유지 (깜빡임 효과용)
+        
+        if (this.hp <= 0) {
+            this.active = false;
+            if (this.alive !== undefined) this.alive = false;
+        }
     }
 
     // 대상이 이 주체(Entity/Projectile)로부터 피해를 입을 수 있는지 확인
@@ -29,6 +44,9 @@ export class Entity {
         // 2. 관계 확인 (아군 사격 방지)
         if (engine && engine.getRelation) {
             const relation = engine.getRelation(this.ownerId, target.ownerId);
+            // 강제 공격 대상(manualTarget)인 경우 관계에 상관없이 공격 허용
+            if (this.manualTarget === target) return true;
+            
             if (relation === 'self' || relation === 'ally') return false; // 자신 및 아군은 공격 불가
             if (relation === 'neutral') return false; // 중립은 명시적 명령 전까지 공격 불가
         }
@@ -1316,15 +1334,17 @@ export class PlayerUnit extends Entity {
                             // 자신 및 아군 오사 방지 (수동 타겟 제외)
                             if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
             
-                            const dx = ent.x - tx;
-                            const dy = ent.y - ty;                if (dx * dx + dy * dy <= radiusSq) {
-                    ent.hp -= this.damage;
-                    if (ent.hp <= 0) {
-                        ent.active = false;
-                        if (ent.alive !== undefined) ent.alive = false;
-                    }
-                }
-            };
+                                            const dx = ent.x - tx;
+            
+                                            const dy = ent.y - ty;
+            
+                                            if (dx * dx + dy * dy <= radiusSq) {
+            
+                                                ent.takeDamage(this.damage);
+            
+                                            }
+            
+                                        };
 
             if (entities.base) applyAoE(entities.base);
             entities.enemies.forEach(applyAoE);
@@ -1338,11 +1358,7 @@ export class PlayerUnit extends Entity {
             }
         } else {
             // 단일 대상 공격 (보병, 대공포 등)
-            this.target.hp -= this.damage;
-            if (this.target.hp <= 0) {
-                this.target.active = false;
-                if (this.target.alive !== undefined) this.target.alive = false;
-            }
+            this.target.takeDamage(this.damage);
         }
 
         if (this.engine.addEffect) {
@@ -1368,6 +1384,7 @@ export class PlayerUnit extends Entity {
 
     update(deltaTime) {
         if (!this.alive) return;
+        if (this.hitTimer > 0) this.hitTimer -= deltaTime;
 
         // --- 공수 강하 낙하 로직 ---
         if (this.isFalling) {
@@ -1880,8 +1897,10 @@ export class Tank extends PlayerUnit {
 }
 
 export class Missile extends Entity {
-    constructor(startX, startY, targetX, targetY, damage, engine) {
+    constructor(startX, startY, targetX, targetY, damage, engine, source = null) {
         super(startX, startY);
+        this.source = source;
+        this.ownerId = source ? source.ownerId : 0;
         this.startX = startX;
         this.startY = startY;
         this.targetX = targetX;
@@ -1961,15 +1980,14 @@ export class Missile extends Entity {
 
             // 관계 체크 (자신 및 아군 오사 방지)
             const relation = this.engine.getRelation(this.ownerId, target.ownerId);
-            if (relation === 'self' || relation === 'ally') return;
+            const isManualTarget = (this.source && this.source.manualTarget === target);
+            
+            // 강제 공격 대상이면 관계 무시
+            if (!isManualTarget && (relation === 'self' || relation === 'ally')) return;
 
             const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
             if (dist <= this.explosionRadius) {
-                target.hp -= this.damage;
-                if (target.hp <= 0) {
-                    if (target.active !== undefined) target.active = false;
-                    if (target.alive !== undefined) target.alive = false;
-                }
+                target.takeDamage(this.damage);
             }
         });
     }
@@ -2091,45 +2109,44 @@ export class Missile extends Entity {
 }
 
 export class MissileLauncher extends PlayerUnit {
-        constructor(x, y, engine) {
-            super(x, y, engine);
-            this.type = 'missile-launcher';
-            this.name = '이동식 미사일 발사대';
-            this.speed = 1.4; // 0.8 -> 1.4 (기동성 강화)
-            this.baseSpeed = 1.4;
-            this.fireRate = 2500;
-            this.damage = 350;
-            this.attackRange = 1800; // 600 -> 1800 (3배 사거리)
-            this.visionRange = 8;
-            this.recoil = 0;
-            this.canBypassObstacles = false; // 장애물 통과 불가
-            this.cargoSize = 10; // 미사일 발사대 부피 10
-    
-            // 시즈 모드 관련 상태
-            this.isSieged = false;
-            this.isTransitioning = false;
-            this.transitionTimer = 0;
-            this.maxTransitionTime = 60;
-            this.raiseAngle = 0;
-    
-            // 발사 준비 시퀀스
-            this.isFiring = false;
-            this.fireDelayTimer = 0;
-            this.maxFireDelay = 45; // 발사 전 대기 시간 (약 0.75초)
-            this.pendingFirePos = { x: 0, y: 0 };
-            this.attackType = 'projectile';
-            this.attackTargets = ['ground', 'sea']; // 공중 공격 불가
-        }
-    
-        getSkillConfig(cmd) {
-            const skills = {
-                'siege': { type: 'state', handler: this.toggleSiege },
-                'manual_fire': { type: 'targeted', handler: this.fireAt }
-            };
-            return skills[cmd];
-        }
-    
-        toggleSiege() {        if (this.isTransitioning || this.isFiring) return; 
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'missile-launcher';
+        this.name = '이동식 미사일 발사대';
+        this.speed = 1.4; 
+        this.baseSpeed = 1.4;
+        this.fireRate = 2500;
+        this.damage = 350;
+        this.attackRange = 1800; 
+        this.visionRange = 8;
+        this.recoil = 0;
+        this.canBypassObstacles = false;
+        this.cargoSize = 10;
+
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.maxTransitionTime = 60;
+        this.raiseAngle = 0;
+
+        this.isFiring = false;
+        this.fireDelayTimer = 0;
+        this.maxFireDelay = 45;
+        this.pendingFirePos = { x: 0, y: 0 };
+        this.attackType = 'projectile';
+        this.attackTargets = ['ground', 'sea']; 
+    }
+
+    getSkillConfig(cmd) {
+        const skills = {
+            'siege': { type: 'state', handler: this.toggleSiege },
+            'manual_fire': { type: 'targeted', handler: this.fireAt }
+        };
+        return skills[cmd];
+    }
+
+    toggleSiege() {
+        if (this.isTransitioning || this.isFiring) return; 
         this.isTransitioning = true;
         this.transitionTimer = 0;
         this.destination = null; 
@@ -2157,11 +2174,8 @@ export class MissileLauncher extends PlayerUnit {
             }
         }
 
-        // 발사 시퀀스 업데이트
         if (this.isFiring) {
             this.fireDelayTimer++;
-            
-            // 타겟을 향해 더 빠르고 정교하게 각도 조절 (회전 속도 상향 0.05 -> 0.15)
             const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
             let angleDiff = targetAngle - this.angle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
@@ -2184,8 +2198,6 @@ export class MissileLauncher extends PlayerUnit {
 
     fireAt(targetX, targetY) {
         if (!this.isSieged || this.isTransitioning || this.isFiring) return;
-
-        // 사거리 체크
         const dist = Math.hypot(targetX - this.x, targetY - this.y);
         if (dist > this.attackRange) return;
 
@@ -2206,7 +2218,7 @@ export class MissileLauncher extends PlayerUnit {
         const spawnX = this.x + Math.cos(visualAngle) * launchDist;
         const spawnY = this.y + Math.sin(visualAngle) * launchDist;
 
-        const missile = new Missile(spawnX, spawnY, targetX, targetY, this.damage, this.engine);
+        const missile = new Missile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
         missile.peakHeight = Math.max(missile.peakHeight, 150); 
         
         this.engine.entities.projectiles.push(missile);
@@ -5238,6 +5250,7 @@ export class Enemy extends Entity {
 
     update(deltaTime, base, buildings, engine) {
         if (!engine) return;
+        if (this.hitTimer > 0) this.hitTimer -= deltaTime;
         const now = Date.now();
         
         // 1. 타겟 결정 로직 (관계 기반)
@@ -5407,15 +5420,13 @@ export class Projectile extends Entity {
                 // 2. 관계 체크 (적과 중립 모두 스플래시 데미지 입힘, 자신 및 아군 제외)
                 const isManualTarget = (this.source && this.source.manualTarget === target);
                 const relation = engine.getRelation(this.source.ownerId, target.ownerId);
+                
+                // 강제 공격 대상이면 관계 무시하고 데미지 적용
                 if (!isManualTarget && (relation === 'self' || relation === 'ally')) return;
 
                 const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 if (dist <= this.explosionRadius) {
-                    target.hp -= this.damage;
-                    if (target.hp <= 0) {
-                        if (target.active !== undefined) target.active = false;
-                        if (target.alive !== undefined) target.alive = false;
-                    }
+                    target.takeDamage(this.damage);
                 }
             });
             this.exploding = true;
@@ -5513,10 +5524,7 @@ export class Projectile extends Entity {
             if (this.explosionRadius > 0) {
                 this.explode(engine);
             } else {
-                if (this.target.hp !== undefined) {
-                    this.target.hp -= this.damage;
-                    if (this.target.hp <= 0) this.target.active = false;
-                }
+                this.target.takeDamage(this.damage);
                 this.active = false;
             }
         }
