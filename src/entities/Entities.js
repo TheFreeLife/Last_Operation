@@ -1380,17 +1380,30 @@ export class PlayerUnit extends Entity {
                 }
             }
 
+            // 2. --- A* Path Following ---
+            // 경로가 있고, 첫 번째 웨이포인트가 너무 가까우면(이미 도달했거나 겹침) 건너뜀
+            while (this.path.length > 0) {
+                const waypoint = this.path[0];
+                const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
+                
+                // 웨이포인트 도달 판정 거리 축소 (15 -> 5)
+                if (distToWaypoint < 5) { 
+                    this.path.shift();
+                } else {
+                    break;
+                }
+            }
+
             if (this.path.length > 0) {
                 const waypoint = this.path[0];
-                // 부드러운 회전 대신 즉각적인 방향 전환 (RTS 스타일)
-                // 필요하다면 보간(Lerp)을 넣을 수 있지만, 반응성을 위해 즉시 전환 유지
                 this.angle = Math.atan2(waypoint.y - this.y, waypoint.x - this.x);
                 this.x += Math.cos(this.angle) * this.speed;
                 this.y += Math.sin(this.angle) * this.speed;
             } else {
                 // 경로 끝에 도달했거나 경로가 없음
                 const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
-                if (distToFinal < 15) {
+                // 최종 목적지 도달 판정 거리 대폭 축소 (15 -> 3)
+                if (distToFinal < 3) {
                     if (this.command === 'patrol') {
                         const temp = this.patrolStart;
                         this.patrolStart = this.patrolEnd;
@@ -1401,10 +1414,15 @@ export class PlayerUnit extends Entity {
                         if (this.command !== 'build') this.command = 'stop';
                     }
                 } else {
-                    // 경로가 없는데 아직 목적지 근처가 아니라면 재탐색 시도
+                    // 목적지가 코앞인데 장애물 등으로 못 가는 경우 속도에 맞춰 조금씩 더 전진
+                    this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+                    const moveStep = Math.min(this.speed, distToFinal);
+                    this.x += Math.cos(this.angle) * moveStep;
+                    this.y += Math.sin(this.angle) * moveStep;
+
                     this.pathRecalculateTimer -= deltaTime;
                     if (this.pathRecalculateTimer <= 0) {
-                        this.destination = this._destination; // setter를 통해 경로 재계산
+                        this.destination = this._destination; 
                     }
                 }
             }
@@ -1483,29 +1501,158 @@ export class Tank extends PlayerUnit {
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        ctx.scale(2, 2); // 2배 확대
+        ctx.scale(2, 2);
+
+        const time = Date.now();
+        const recoil = (time - this.lastFireTime < 150) ? 3 : 0;
+
+        // 1. 하부 및 궤도 (Bottom Layer)
+        ctx.fillStyle = '#1a1a1a'; // 어두운 궤도 내부
+        ctx.fillRect(-14, -13, 28, 26);
         
-        // 전차 몸체
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-12, -10, 24, 20);
-        ctx.strokeStyle = '#34495e';
-        ctx.strokeRect(-12, -10, 24, 20);
+        // 궤도 윗면 디테일
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-14, -13, 28, 4); // 좌측 궤도
+        ctx.fillRect(-14, 9, 28, 4);   // 우측 궤도
+
+        // 2. 사이드 스커트 (Side Skirts) - 차체 옆면 두께감
+        ctx.fillStyle = '#3a4118'; // 어두운 녹색 (측면 장갑)
+        ctx.fillRect(-15, -14, 30, 5);
+        ctx.fillRect(-15, 9, 30, 5);
         
-        // 무한궤도
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-14, -12, 28, 4);
-        ctx.fillRect(-14, 8, 28, 4);
+        // 스커트 분할선 (Panel Lines)
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 0.5;
+        for(let i=-10; i<=10; i+=6) {
+            ctx.beginPath(); ctx.moveTo(i, -14); ctx.lineTo(i, -9); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(i, 9); ctx.lineTo(i, 14); ctx.stroke();
+        }
+
+        // 3. 메인 차체 (Hull) - 입체 박스 형태
+        // 차체 측면 두께 (Depth)
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(-14, -9, 28, 18);
         
-        // 포탑
-        ctx.fillStyle = '#34495e';
-        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillRect(0, -2, 15, 4);
+        // 차체 상판 (Main Deck) - 밝은 녹색
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath();
+        ctx.moveTo(-14, -9); ctx.lineTo(10, -9); // 후면부
+        ctx.lineTo(16, -6); ctx.lineTo(16, 6);   // 전면 경사 장갑
+        ctx.lineTo(10, 9); ctx.lineTo(-14, 9);   // 측면
+        ctx.closePath();
+        ctx.fill();
         
+        // 차체 전면 하부 경사 (2.5D 입체감)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath();
+        ctx.moveTo(16, -6); ctx.lineTo(18, -4); ctx.lineTo(18, 4); ctx.lineTo(16, 6);
+        ctx.fill();
+
+        // 엔진 그릴 및 후방 디테일
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-12, -6, 7, 12);
+        for(let i=0; i<3; i++) {
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.beginPath(); ctx.moveTo(-11+i*2, -5); ctx.lineTo(-11+i*2, 5); ctx.stroke();
+        }
+
+        // 4. 포탑 (Turret) - 상하 레이어 구분
+        ctx.save();
+        ctx.translate(-3 - recoil * 0.5, 0); 
+
+        // 포탑 하부 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-6, -8, 18, 16);
+
+        // 포탑 측면 (두께)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath();
+        ctx.moveTo(-8, -8); ctx.lineTo(6, -8); ctx.lineTo(11, -4);
+        ctx.lineTo(11, 4); ctx.lineTo(6, 8); ctx.lineTo(-8, 8);
+        ctx.fill();
+
+        // 포탑 상판 (Wedge-shaped Upper Plate)
+        ctx.fillStyle = '#556644';
+        ctx.beginPath();
+        ctx.moveTo(-8, -8); ctx.lineTo(5, -8); ctx.lineTo(10, -4);
+        ctx.lineTo(10, 4); ctx.lineTo(5, 8); ctx.lineTo(-8, 8);
+        ctx.closePath();
+        ctx.fill();
+        
+        // 포탑 모서리 하이라이트
+        ctx.strokeStyle = '#6ab04c';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+
+        // 전차장 조준경 (CITV) - 입체 원통
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.arc(0, -4, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#444';
+        ctx.beginPath(); ctx.arc(0, -4, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#00d2ff'; // 렌즈 반사
+        ctx.fillRect(0.5, -4.5, 1, 1);
+
+        // 해치 (Hatches)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath(); ctx.arc(-4, 3, 3, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#2d3436';
+        ctx.beginPath(); ctx.arc(-4, 3, 3, 0, Math.PI*2); ctx.stroke();
+
+        // 5. 주포 (120mm Smoothbore Gun)
+        ctx.save();
+        ctx.translate(10, 0);
+        
+        // 포방패 (Mantlet) - 입체 박스
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(0, -3.5, 5, 7);
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(0, -3.5, 4, 7);
+        
+        // 포신 (Main Gun)
+        const gunX = -recoil;
+        ctx.fillStyle = '#1e272e';
+        // 메인 포신
+        ctx.fillRect(gunX, -1.2, 30, 2.4);
+        
+        // 서멀 슬리브 디테일 (Thermal Sleeves)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(gunX + 8, -1.6, 5, 3.2);
+        ctx.fillRect(gunX + 18, -1.6, 4, 3.2);
+        
+        // 포구 동적 보정 장치 (MRS) 및 머즐
+        ctx.fillStyle = '#000';
+        ctx.fillRect(gunX + 30, -1.5, 2, 3);
+
+        // 사격 이펙트
+        if (recoil > 0) {
+            ctx.save();
+            ctx.translate(32, 0);
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 15);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+            grad.addColorStop(0.3, 'rgba(255, 215, 0, 0.7)');
+            grad.addColorStop(1, 'rgba(255, 69, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
         ctx.restore();
 
-        // 아군 체력 바 (초록색) 상시 표시
+        // 6. 안테나 및 기타 부착물
+        ctx.strokeStyle = '#95a5a6';
+        ctx.lineWidth = 0.4;
+        ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(-14, -14); ctx.stroke();
+        
+        // 연막탄 발사기 (Smoke Launchers)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(2, -8.5, 3, 2);
+        ctx.fillRect(2, 6.5, 3, 2);
+
+        ctx.restore();
+        ctx.restore();
+
+        // 아군 체력 바
         const barW = 30;
-        const barY = this.y - 30;
+        const barY = this.y - 35;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(this.x - barW/2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
@@ -2146,19 +2293,37 @@ export class AntiAirVehicle extends PlayerUnit {
         this.type = 'anti-air';
         this.name = '자주 대공포';
         this.speed = 1.3;
-        this.fireRate = 800; // 빠른 연사
-        this.damage = 30;
-        this.attackRange = 500;
-        this.visionRange = 8;
+        this.fireRate = 150; // 기관포 느낌을 위해 매우 빠른 연사 (800 -> 150)
+        this.damage = 8;    // 연사력이 높아졌으므로 발당 데미지 하향
+        this.attackRange = 600;
+        this.visionRange = 10;
         this.attackTargets = ['air']; // 공중 유닛만 공격 가능
+        this.lastBarrelSide = 1; // 사격 포구 번갈아 가기 위한 상태
+        this.cargoSize = 3; // 대공포 적재 용량 3
     }
 
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate && this.target) {
-            const missile = new Projectile(this.x, this.y, this.target, this.damage, '#00d2ff', this);
-            missile.speed = 10;
-            this.engine.entities.projectiles.push(missile);
+            const { Projectile } = this.engine.entityClasses;
+            
+            // 양쪽 포구에서 동시에 발사
+            const sides = [1, -1];
+            sides.forEach(side => {
+                const barrelDist = 20 * 2;
+                const sideDist = side * 9 * 2;
+                
+                const muzzleX = this.x + Math.cos(this.angle) * barrelDist - Math.sin(this.angle) * sideDist;
+                const muzzleY = this.y + Math.sin(this.angle) * barrelDist + Math.cos(this.angle) * sideDist;
+
+                const bullet = new Projectile(muzzleX, muzzleY, this.target, this.damage / 2, '#ffff00', this);
+                bullet.type = 'tracer'; // 예광탄 타입
+                bullet.speed = 18;      // 속도 상향
+                bullet.size = 3;
+                
+                this.engine.entities.projectiles.push(bullet);
+            });
+
             this.lastFireTime = now;
         }
     }
@@ -5472,6 +5637,20 @@ export class Projectile extends Entity {
             ctx.beginPath();
             ctx.arc(-8, 0, 3, 0, Math.PI * 2);
             ctx.fill();
+        } else if (this.type === 'tracer') {
+            // 예광탄 (길쭉한 빨간색 광원)
+            ctx.fillStyle = this.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = this.color;
+            
+            // 길쭉한 사각형 (탄환 진행 방향으로)
+            ctx.beginPath();
+            ctx.roundRect(-8, -1.5, 12, 3, 1.5);
+            ctx.fill();
+            
+            // 더 밝은 중심선
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-4, -0.5, 6, 1);
         } else {
             // 일반 발사체 (빛나는 구체)
             ctx.fillStyle = this.color;
