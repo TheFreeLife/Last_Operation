@@ -146,6 +146,7 @@ export class GameEngine {
         this.currentMenuName = 'main'; 
         this.hoveredEntity = null; // 호버 중인 엔티티 저장용
         this.isHoveringUI = false;
+        this.effects = []; // 시각 효과(파티클 등) 관리용 배열 추가
         this.lastPlacedGrid = { x: -1, y: -1 }; 
         this.isEngineerBuilding = false; 
         this.currentBuildSessionQueue = null; 
@@ -211,6 +212,41 @@ export class GameEngine {
         if (relation === 'ally') return 'ally'; // 명시적 동맹 지원
 
         return 'enemy'; // 기본값은 적군
+    }
+
+    // 시각 효과 추가 메서드
+    addEffect(type, x, y, color = '#fff', text = '') {
+        const effect = {
+            type, x, y, color, text,
+            timer: 0,
+            duration: 500, // 기본 지속 시간 0.5초
+            active: true
+        };
+
+        // 타입별 세부 설정
+        if (type === 'bullet') {
+            effect.duration = 200;
+            effect.particles = Array.from({ length: 3 }, () => ({
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                size: 1 + Math.random() * 2
+            }));
+        } else if (type === 'explosion') {
+            effect.duration = 400;
+            effect.radius = 5;
+        } else if (type === 'flak') {
+            effect.duration = 300;
+            effect.radius = 15;
+            effect.particles = Array.from({ length: 5 }, () => ({
+                angle: Math.random() * Math.PI * 2,
+                dist: Math.random() * 10,
+                size: 2 + Math.random() * 3
+            }));
+        } else if (type === 'system') {
+            effect.duration = 1500; // 시스템 텍스트는 좀 더 길게
+        }
+
+        this.effects.push(effect);
     }
 
     // 엔티티의 소유권 유형을 특정 플레이어 관점에서 반환
@@ -1644,6 +1680,15 @@ export class GameEngine {
     update(deltaTime) {
         if (this.gameState !== 'playing') return;
 
+        // 효과 업데이트
+        for (let i = this.effects.length - 1; i >= 0; i--) {
+            const fx = this.effects[i];
+            fx.timer += deltaTime;
+            if (fx.timer >= fx.duration) {
+                this.effects.splice(i, 1);
+            }
+        }
+
         this.updateEdgeScroll();
         this.updatePower();
         this.updateOilNetwork();
@@ -1813,14 +1858,6 @@ export class GameEngine {
         // 1. 지상 유닛 렌더링
         groundUnits.forEach(u => {
             u.draw(this.ctx);
-            if (u.hitTimer > 0) {
-                this.ctx.save();
-                this.ctx.globalCompositeOperation = 'source-atop';
-                this.ctx.fillStyle = `rgba(255, 0, 0, ${u.hitTimer / 300})`;
-                const bounds = u.getSelectionBounds();
-                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-                this.ctx.restore();
-            }
         });
         
         // 지상 적 유닛 (시야 내)
@@ -1828,14 +1865,6 @@ export class GameEngine {
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
-                if (e.hitTimer > 0) {
-                    this.ctx.save();
-                    this.ctx.globalCompositeOperation = 'source-atop';
-                    this.ctx.fillStyle = `rgba(255, 0, 0, ${e.hitTimer / 300})`;
-                    const bounds = e.getSelectionBounds();
-                    this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-                    this.ctx.restore();
-                }
             }
         });
 
@@ -1845,27 +1874,11 @@ export class GameEngine {
         // 3. 지상 중립 유닛
         groundNeutral.forEach(n => {
             n.draw(this.ctx);
-            if (n.hitTimer > 0) {
-                this.ctx.save();
-                this.ctx.globalCompositeOperation = 'source-atop';
-                this.ctx.fillStyle = `rgba(255, 0, 0, ${n.hitTimer / 300})`;
-                const bounds = n.getSelectionBounds();
-                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-                this.ctx.restore();
-            }
         });
 
         // 4. [최상위 공중 레이어] 공중 유닛 및 수송기 렌더링
         airUnits.forEach(u => {
             u.draw(this.ctx);
-            if (u.hitTimer > 0) {
-                this.ctx.save();
-                this.ctx.globalCompositeOperation = 'source-atop';
-                this.ctx.fillStyle = `rgba(255, 0, 0, ${u.hitTimer / 300})`;
-                const bounds = u.getSelectionBounds();
-                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-                this.ctx.restore();
-            }
             // [전투 강하] 낙하산 렌더링
             if (u.isFalling) {
                 this.ctx.save();
@@ -1906,32 +1919,76 @@ export class GameEngine {
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
-                if (e.hitTimer > 0) {
-                    this.ctx.save();
-                    this.ctx.globalCompositeOperation = 'source-atop';
-                    this.ctx.fillStyle = `rgba(255, 0, 0, ${e.hitTimer / 300})`;
-                    const bounds = e.getSelectionBounds();
-                    this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-                    this.ctx.restore();
-                }
             }
         });
 
         // 공중 중립 유닛
         airNeutral.forEach(n => {
             n.draw(this.ctx);
-            if (n.hitTimer > 0) {
-                this.ctx.save();
-                this.ctx.globalCompositeOperation = 'source-atop';
-                this.ctx.fillStyle = `rgba(255, 0, 0, ${n.hitTimer / 300})`;
-                const bounds = n.getSelectionBounds();
-                this.ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
-                this.ctx.restore();
-            }
         });
 
         // 5. 투사체 및 효과 (최상단)
         this.entities.projectiles.forEach(p => p.draw(this.ctx));
+
+        // 시각 효과 렌더링
+        this.effects.forEach(fx => {
+            const progress = fx.timer / fx.duration;
+            this.ctx.save();
+            this.ctx.globalAlpha = 1 - progress;
+
+            if (fx.type === 'bullet') {
+                this.ctx.fillStyle = fx.color;
+                fx.particles.forEach(p => {
+                    const px = fx.x + p.vx * fx.timer * 0.1;
+                    const py = fx.y + p.vy * fx.timer * 0.1;
+                    this.ctx.beginPath();
+                    this.ctx.arc(px, py, p.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+            } else if (fx.type === 'hit') {
+                this.ctx.strokeStyle = fx.color;
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(fx.x, fx.y, 5 + progress * 10, 0, Math.PI * 2);
+                this.ctx.stroke();
+            } else if (fx.type === 'explosion') {
+                const radius = 5 + progress * 20;
+                const grad = this.ctx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, radius);
+                grad.addColorStop(0, 'white');
+                grad.addColorStop(0.4, fx.color);
+                grad.addColorStop(1, 'rgba(255, 69, 0, 0)');
+                this.ctx.fillStyle = grad;
+                this.ctx.beginPath();
+                this.ctx.arc(fx.x, fx.y, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else if (fx.type === 'flak') {
+                this.ctx.fillStyle = '#ff0';
+                fx.particles.forEach(p => {
+                    const angle = p.angle;
+                    const dist = p.dist + progress * 30;
+                    const px = fx.x + Math.cos(angle) * dist;
+                    const py = fx.y + Math.sin(angle) * dist;
+                    this.ctx.beginPath();
+                    this.ctx.arc(px, py, p.size * (1 - progress), 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+                // 중앙 섬광
+                if (progress < 0.3) {
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.beginPath();
+                    this.ctx.arc(fx.x, fx.y, 10 * (1 - progress * 3), 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+            } else if (fx.type === 'system' && fx.text) {
+                this.ctx.fillStyle = fx.color;
+                this.ctx.font = 'bold 14px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.shadowBlur = 4;
+                this.ctx.shadowColor = 'black';
+                this.ctx.fillText(fx.text, fx.x, fx.y - progress * 50);
+            }
+            this.ctx.restore();
+        });
 
         const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
         const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;

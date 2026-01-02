@@ -1269,6 +1269,7 @@ export class PlayerUnit extends Entity {
         // 공격 특성 설정
         this.attackType = 'hitscan'; // 'hitscan' (즉시 타격) 또는 'projectile' (탄환 발사)
         this.explosionRadius = 0;    // 0보다 크면 범위 공격 적용
+        this.hitEffectType = 'bullet'; // 기본 피격 효과
     }
 
     get destination() { return this._destination; }
@@ -1317,54 +1318,95 @@ export class PlayerUnit extends Entity {
         this.lastFireTime = now;
     }
 
-    executeHitscanAttack() {
-        const tx = this.target.x;
-        const ty = this.target.y;
+        executeHitscanAttack() {
 
-        if (this.explosionRadius > 0) {
-            // 범위 공격 (전차 등)
-            const radiusSq = this.explosionRadius * this.explosionRadius;
-            const entities = this.engine.entities;
+            const tx = this.target.x;
 
-                            const applyAoE = (ent) => {
-                            if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
-                            if (!this.attackTargets.includes(ent.domain || 'ground')) return;
-                            
-                            const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
-                            // 자신 및 아군 오사 방지 (수동 타겟 제외)
-                            if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
-            
-                                            const dx = ent.x - tx;
-            
-                                            const dy = ent.y - ty;
-            
-                                            if (dx * dx + dy * dy <= radiusSq) {
-            
-                                                ent.takeDamage(this.damage);
-            
-                                            }
-            
-                                        };
+            const ty = this.target.y;
 
-            if (entities.base) applyAoE(entities.base);
-            entities.enemies.forEach(applyAoE);
-            entities.units.forEach(applyAoE);
-            entities.neutral.forEach(applyAoE);
-            
-            const bLists = ['turrets', 'generators', 'powerLines', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks', 'pipeLines'];
-            for (const listName of bLists) {
-                const list = entities[listName];
-                if (list) list.forEach(applyAoE);
+    
+
+            if (this.explosionRadius > 0) {
+
+                // 범위 공격 (전차 등)
+
+                const radiusSq = this.explosionRadius * this.explosionRadius;
+
+                const entities = this.engine.entities;
+
+    
+
+                const applyAoE = (ent) => {
+
+                    if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
+
+                    if (!this.attackTargets.includes(ent.domain || 'ground')) return;
+
+                    
+
+                    const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
+
+                    // 자신 및 아군 오사 방지 (수동 타겟 제외)
+
+                    if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
+
+    
+
+                    const dx = ent.x - tx;
+
+                    const dy = ent.y - ty;
+
+                    if (dx * dx + dy * dy <= radiusSq) {
+
+                        ent.takeDamage(this.damage);
+
+                    }
+
+                };
+
+    
+
+                if (entities.base) applyAoE(entities.base);
+
+                entities.enemies.forEach(applyAoE);
+
+                entities.units.forEach(applyAoE);
+
+                entities.neutral.forEach(applyAoE);
+
+                
+
+                const bLists = ['turrets', 'generators', 'powerLines', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks', 'pipeLines'];
+
+                for (const listName of bLists) {
+
+                    const list = entities[listName];
+
+                    if (list) list.forEach(applyAoE);
+
+                }
+
+            } else {
+
+                // 단일 대상 공격 (보병, 대공포 등)
+
+                this.target.takeDamage(this.damage);
+
             }
-        } else {
-            // 단일 대상 공격 (보병, 대공포 등)
-            this.target.takeDamage(this.damage);
-        }
 
-        if (this.engine.addEffect) {
-            this.engine.addEffect('hit', tx, ty, this.color || '#fff');
+    
+
+            if (this.engine.addEffect) {
+
+                // 유닛 타입별 커스텀 효과 타입 전달 (기본값 hit)
+
+                const effect = this.hitEffectType || (this.explosionRadius > 0 ? 'explosion' : 'hit');
+
+                this.engine.addEffect(effect, tx, ty, this.color || '#fff');
+
+            }
+
         }
-    }
 
     executeProjectileAttack() {
         const { Projectile } = this.engine.entityClasses;
@@ -1723,6 +1765,7 @@ export class Tank extends PlayerUnit {
         this.hp = 1000;
         this.maxHp = 1000;
         this.attackType = 'hitscan';
+        this.hitEffectType = 'explosion';
     }
 
     attack() {
@@ -2459,6 +2502,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.lastBarrelSide = 1; // 사격 포구 번갈아 가기 위한 상태
         this.cargoSize = 5; // 대공포 적재 용량 5
         this.attackType = 'hitscan';
+        this.hitEffectType = 'flak';
     }
 
     attack() {
@@ -2633,11 +2677,12 @@ export class Rifleman extends PlayerUnit {
         this.attackRange = 200; // 사거리 소폭 상향
         this.size = 60;      // 분대 크기에 맞춰 선택 영역 확장
         this.visionRange = 5; 
-        this.hp = 300;       // 3인 통합 체력 (100*3)
-        this.maxHp = 300;
+        this.hp = 210;       // 3인 통합 체력 (70*3)
+        this.maxHp = 210;
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 3;  // 분대이므로 적재 용량 증가
         this.attackType = 'hitscan';
+        this.hitEffectType = 'bullet';
     }
 
     attack() {
@@ -2847,32 +2892,19 @@ export class Sniper extends PlayerUnit {
         this.name = '저격수';
         this.speed = 0.8; // 소총병보다 약간 느림
         this.fireRate = 2000; // 2초에 한 번 발사
-        this.damage = 40;
+        this.damage = 70;
         this.attackRange = 450;
         this.size = 24;
         this.visionRange = 10; // 시야가 매우 넓음
         this.hp = 40;
         this.maxHp = 40;
         this.attackTargets = ['ground', 'sea', 'air'];
+        this.attackType = 'hitscan';
+        this.hitEffectType = 'hit';
     }
 
     attack() {
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate && this.target) {
-            // 히트스캔 방식: 즉시 데미지 처리
-            this.target.hp -= this.damage;
-            if (this.target.hp <= 0) {
-                if (this.target.active !== undefined) this.target.active = false;
-                if (this.target.alive !== undefined) this.target.alive = false;
-            }
-
-            // 저격 피격 이펙트 (흰색 스파크)
-            if (this.engine.addEffect) {
-                this.engine.addEffect('hit', this.target.x, this.target.y, '#fff');
-            }
-
-            this.lastFireTime = now;
-        }
+        this.performAttack();
     }
 
     draw(ctx) {
