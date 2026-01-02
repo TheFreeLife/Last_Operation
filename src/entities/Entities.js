@@ -1178,6 +1178,21 @@ export class PlayerUnit extends Entity {
     update(deltaTime) {
         if (!this.alive) return;
 
+        // --- 공수 강하 낙하 로직 ---
+        if (this.isFalling) {
+            this.fallTimer += deltaTime;
+            if (this.fallTimer >= this.fallDuration) {
+                this.isFalling = false;
+                // 도메인 복구 (스카웃 등 원래 공중 유닛이면 air 유지)
+                this.domain = (this.type === 'scout-plane' || this.type === 'drone') ? 'air' : 'ground';
+                // 착륙 이펙트 (먼지 등)
+                if (this.engine.addEffect) {
+                    this.engine.addEffect('system', this.x, this.y, '착륙 완료!');
+                }
+            }
+            return; // 낙하 중에는 이동/공격 불가
+        }
+
         // --- 수송기 탑승 로직 추가 ---
         if (this.transportTarget) {
             const target = this.transportTarget;
@@ -3971,6 +3986,66 @@ export class CargoPlane extends PlayerUnit {
         }
     }
 
+    startCombatDrop() {
+        if (this.altitude < 0.8) {
+            this.engine.addEffect?.('system', this.x, this.y, '고도가 너무 낮습니다!');
+            return;
+        }
+        if (this.cargo.length === 0) {
+            this.engine.addEffect?.('system', this.x, this.y, '탑승한 유닛이 없습니다.');
+            return;
+        }
+        if (this.engine.resources.gold < 100) {
+            this.engine.addEffect?.('system', this.x, this.y, '골드가 부족합니다 (100G)');
+            return;
+        }
+
+        this.engine.resources.gold -= 100;
+        this.isCombatDropping = true;
+        this.dropTimer = 0;
+        this.engine.addEffect?.('system', this.x, this.y, '전투 강하 개시!');
+    }
+
+    processCombatDrop(deltaTime) {
+        if (!this.isCombatDropping || this.cargo.length === 0) {
+            this.isCombatDropping = false;
+            return;
+        }
+
+        this.dropTimer += deltaTime;
+        if (this.dropTimer >= 400) { // 0.4초 간격
+            this.dropTimer = 0;
+            
+            // 투하 위치 확인
+            const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
+            const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
+            
+            // 장애물이 있으면 스킵 (다음 이동 위치에서 재시도)
+            if (tile && (tile.occupied || !tile.buildable)) {
+                return; 
+            }
+
+            const unit = this.cargo.shift();
+            unit.active = true;
+            unit.x = this.x;
+            unit.y = this.y;
+            unit.domain = 'air'; // 낙하 중 공중 판정
+            unit.isFalling = true;
+            unit.fallTimer = 0;
+            unit.fallDuration = 2000; // 2초간 낙하
+            unit.destination = null;
+            unit.command = 'stop';
+
+            this.engine.entities.units.push(unit);
+            this.engine.addEffect?.('system', this.x, this.y, 'Drop!');
+
+            if (this.cargo.length === 0) {
+                this.isCombatDropping = false;
+                this.engine.addEffect?.('system', this.x, this.y, '강하 완료');
+            }
+        }
+    }
+
     toggleTakeoff() {
         if (this.altitude < 0.1) {
             this.isTakeoffStarting = true;
@@ -3997,6 +4072,11 @@ export class CargoPlane extends PlayerUnit {
         // 하차 로직 처리
         if (this.isUnloading) {
             this.processUnloading(deltaTime);
+        }
+
+        // 전투 강하 로직
+        if (this.isCombatDropping) {
+            this.processCombatDrop(deltaTime);
         }
 
         // 0. 속도 관리 로직

@@ -339,6 +339,14 @@ export class GameEngine {
                                 skillType: 'instant',
                                 locked: !isLanded || firstEnt.cargo.length === 0
                             };
+                            items[7] = { 
+                                id: 'combat_drop', 
+                                name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)', 
+                                action: 'unit:combat_drop',
+                                skillType: 'instant',
+                                locked: !isFlying || firstEnt.cargo.length === 0,
+                                cost: 100
+                            };
                         }
 
                         // 이착륙 버튼 동적 구성
@@ -352,7 +360,7 @@ export class GameEngine {
                             actionName = firstEnt.isTakeoffStarting ? '이륙 중...' : '착륙 중...';
                         }
 
-                        items[7] = { 
+                        items[8] = { 
                             id: 'takeoff_landing', 
                             name: actionName, 
                             action: 'unit:takeoff_landing',
@@ -541,7 +549,11 @@ export class GameEngine {
                     desc += `<div class="item-stats-box text-red">건물을 철거하고 자원의 10%를 회수합니다.</div>`;
                 } else if (item.action?.startsWith('unit:')) {
                     const cmd = item.action.split(':')[1];
-                    const hotkeys = { move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A', siege: 'O', manual_fire: 'F' };
+                    const hotkeys = { 
+                        move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A', 
+                        siege: 'O', manual_fire: 'F', combat_drop: 'D',
+                        unload_all: 'U', takeoff_landing: 'T'
+                    };
                     desc += `<div class="item-stats-box">단축키: ${hotkeys[cmd] || ''}</div>`;
                 }
 
@@ -653,6 +665,7 @@ export class GameEngine {
                 else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
                 else if (key === 't') this.executeUnitCommand('takeoff_landing');
+                else if (key === 'd') this.executeUnitCommand('combat_drop');
                 else if (key === 'b') {
                     const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
                     const hasBomber = this.selectedEntities.some(ent => ent.type === 'bomber');
