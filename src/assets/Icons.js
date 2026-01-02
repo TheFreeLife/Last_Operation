@@ -73,6 +73,7 @@ export const ICONS = {
         <circle cx="20" cy="20" r="3" fill="#ff3131"/>
     </svg></div>`,
     'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
+    'skill:cargo-plane': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
     'skill:scout-plane': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">
         <circle cx="20" cy="20" r="15" fill="none" stroke="#00d2ff" stroke-width="1" stroke-dasharray="2,2"/>
         <path d="M20 10 L28 25 L20 22 L12 25 Z" fill="#00d2ff" stroke="#fff" stroke-width="1"/>

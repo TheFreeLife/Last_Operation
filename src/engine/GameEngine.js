@@ -56,6 +56,7 @@ export class GameEngine {
         const startAntiAir = new AntiAirVehicle(basePos.x + spawnOffset + 40, basePos.y + spawnOffset + 20, this);
         const startScout = new ScoutPlane(basePos.x, basePos.y + spawnOffset + 80, this);
         const startBomber = new Bomber(basePos.x - 200, basePos.y - 200, this);
+        const startCargo = new CargoPlane(basePos.x + 200, basePos.y - 200, this);
         const startSniper = new Sniper(basePos.x - 40, basePos.y + spawnOffset + 20, this);
         
         const startEngineers = [
@@ -69,7 +70,7 @@ export class GameEngine {
         startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
         startSniper.destination = { x: basePos.x - 60, y: basePos.y + spawnOffset + 60 };
         
-        this.entities.units.push(startTank, startMissile, startInfantry, startSniper, startArtillery, startAntiAir, startScout, startBomber, ...startEngineers);
+        this.entities.units.push(startTank, startMissile, startInfantry, startSniper, startArtillery, startAntiAir, startScout, startBomber, startCargo, ...startEngineers);
 
         const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
         const airSandbag = new AirSandbag(basePos.x + 250, basePos.y - 150);
@@ -316,19 +317,21 @@ export class GameEngine {
                     } else if (unitType === 'missile-launcher') {
                         items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege', skillType: 'state' };
                         items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' };
-                    } else if (unitType === 'bomber') {
+                    } else if (unitType === 'bomber' || unitType === 'cargo-plane') {
                         const isFlying = firstEnt.altitude > 0.8;
                         const isLanded = firstEnt.altitude < 0.1;
                         const isManeuvering = firstEnt.isTakeoffStarting || firstEnt.isManualLanding;
 
-                        items[6] = { 
-                            id: 'bombing', 
-                            name: isFlying ? '폭격 (B)' : '폭격 (비행 시 가능)', 
-                            action: 'unit:bombing',
-                            skillType: 'toggle',
-                            locked: !isFlying,
-                            active: firstEnt.isBombingActive
-                        };
+                        if (unitType === 'bomber') {
+                            items[6] = { 
+                                id: 'bombing', 
+                                name: isFlying ? '폭격 (B)' : '폭격 (비행 시 가능)', 
+                                action: 'unit:bombing',
+                                skillType: 'toggle',
+                                locked: !isFlying,
+                                active: firstEnt.isBombingActive
+                            };
+                        }
 
                         // 이착륙 버튼 동적 구성
                         let actionName = '이륙 (T)';
@@ -381,13 +384,13 @@ export class GameEngine {
                                     items = [
                                         { type: 'skill:scout-plane', name: '정찰기 생산', cost: 100, action: 'skill:scout-plane' },
                                         { type: 'skill:bomber', name: '폭격기 생산', cost: 1200, action: 'skill:bomber' },
-                                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                                        { type: 'skill:cargo-plane', name: '수송기 생산', cost: 500, action: 'skill:cargo-plane' },
+                                        null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                                     ];
                                 }
                  else if (type === 'storage') {
                     items = [
-                        { type: 'skill-cargo', name: '수송기 생산', cost: 100, action: 'skill:cargo' },
-                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                        null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'base') {
                     items = [
@@ -566,7 +569,7 @@ export class GameEngine {
                 if (target && target.isUnderConstruction) return;
     
                             // 생산형 스킬 처리
-                            const productionSkills = ['tank', 'missile', 'cargo', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
+                            const productionSkills = ['tank', 'missile', 'cargo', 'cargo-plane', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
                             if (productionSkills.includes(skill)) {                    if (target && target.requestUnit) {
                         const cost = item.cost || 0;
                         if (this.resources.gold >= cost) {
@@ -1636,26 +1639,26 @@ export class GameEngine {
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
         this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
 
-        // 폭격기 상태 변화에 따른 UI 갱신 (깜빡임 방지)
-        const bomber = this.selectedEntities.find(e => e.type === 'bomber');
-        if (bomber) {
-            const isFlying = bomber.altitude > 0.8;
-            const isManeuvering = bomber.isTakeoffStarting || bomber.isManualLanding;
-            const isBombing = bomber.isBombingActive;
-            
-            if (this._lastBomberFlying !== isFlying || 
-                this._lastBomberManeuvering !== isManeuvering ||
-                this._lastBomberBombing !== isBombing) {
+        // [UI 갱신] 선택된 유닛이 폭격기나 수송기인 경우, 상태 변화(비행중/기동중) 시 메뉴를 즉시 업데이트
+        const selectedFlyer = this.selectedEntities.find(ent => ent.type === 'bomber' || ent.type === 'cargo-plane');
+        if (selectedFlyer) {
+            const isFlying = selectedFlyer.altitude > 0.8;
+            const isManeuvering = selectedFlyer.isTakeoffStarting || selectedFlyer.isManualLanding;
+            const isBombing = selectedFlyer.isBombingActive || false;
+
+            if (this._lastFlyerFlying !== isFlying || 
+                this._lastFlyerManeuvering !== isManeuvering || 
+                this._lastFlyerBombing !== isBombing) {
                 
                 this.updateBuildMenu();
-                this._lastBomberFlying = isFlying;
-                this._lastBomberManeuvering = isManeuvering;
-                this._lastBomberBombing = isBombing;
+                this._lastFlyerFlying = isFlying;
+                this._lastFlyerManeuvering = isManeuvering;
+                this._lastFlyerBombing = isBombing;
             }
         } else {
-            this._lastBomberFlying = null;
-            this._lastBomberManeuvering = null;
-            this._lastBomberBombing = null;
+            this._lastFlyerFlying = null;
+            this._lastFlyerManeuvering = null;
+            this._lastFlyerBombing = null;
         }
 
         if (this.entities.base.hp <= 0) {

@@ -96,116 +96,118 @@ export class Base extends Entity {
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
+        const time = Date.now();
 
-        // 1. 거대 하부 요새 플랫폼 (강화 콘크리트 - 밝은 회색)
-        ctx.fillStyle = '#7f8c8d';
+        // --- 0. 토목 및 외부 조경 (범위 제한: -100 ~ 100) ---
+        const drawGround = () => {
+            // 메인 대지 (충돌 박스에 맞춤)
+            ctx.fillStyle = '#95a5a6';
+            ctx.fillRect(-100, -100, 200, 200);
+            
+            // 주차장 (남서쪽 내부로 조정)
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-90, 40, 60, 50);
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<3; i++) {
+                ctx.strokeRect(-85 + i*18, 45, 14, 18);
+                ctx.strokeRect(-85 + i*18, 68, 14, 18);
+                if ((i+1) % 2 === 0) {
+                    ctx.fillStyle = '#c0392b';
+                    ctx.fillRect(-82 + i*18, 48, 8, 10);
+                }
+            }
+
+            // 중앙 광장 & 분수 (크기 축소)
+            ctx.fillStyle = '#bdc3c7';
+            ctx.beginPath(); ctx.arc(0, 35, 25, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#7f8c8d'; ctx.stroke();
+            ctx.fillStyle = '#5dade2';
+            ctx.beginPath(); ctx.arc(0, 35, 8, 0, Math.PI*2); ctx.fill();
+            const fountainPulse = Math.sin(time/500) * 2;
+            ctx.strokeStyle = 'white';
+            ctx.beginPath(); ctx.arc(0, 35, 4 + fountainPulse, 0, Math.PI*2); ctx.stroke();
+
+            // 나무 (안쪽으로 배치)
+            const drawTree = (tx, ty) => {
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath(); ctx.ellipse(tx+3, ty+3, 6, 4, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#1e8449';
+                ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI*2); ctx.fill();
+            };
+            [[-80,-80], [-60,-80], [60,-80], [80,-80], [80,80]].forEach(p => drawTree(p[0], p[1]));
+        };
+        drawGround();
+
+        // --- 1. 건축 구조물 헬퍼 함수 ---
+        const drawComplexBlock = (bx, by, bw, bh, elevation, isGlass = true) => {
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(bx, by, bw + elevation, bh + elevation);
+            ctx.fillStyle = isGlass ? '#2980b9' : '#ecf0f1';
+            ctx.fillRect(bx, by, bw, bh);
+            if (isGlass) {
+                const glassGrd = ctx.createLinearGradient(bx, by, bx+bw, by+bh);
+                glassGrd.addColorStop(0, '#3498db'); glassGrd.addColorStop(1, '#2471a3');
+                ctx.fillStyle = glassGrd;
+                ctx.fillRect(bx+2, by+2, bw-4, bh-4);
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                for(let i=bx+8; i<bx+bw; i+=10) {
+                    ctx.beginPath(); ctx.moveTo(i, by+2); ctx.lineTo(i, by+bh-2); ctx.stroke();
+                }
+            }
+            ctx.strokeStyle = '#34495e';
+            ctx.strokeRect(bx, by, bw, bh);
+        };
+
+        // --- 2. 컴플렉스 배치 (내부로 밀어넣음) ---
+        drawComplexBlock(-85, -65, 35, 90, 6); // A동
+        drawComplexBlock(50, -65, 35, 90, 6);  // B동
+        drawComplexBlock(-30, -80, 60, 100, 10); // C동
+
+        // 연결 통로
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(-50, -40, 100, 12);
+        ctx.fillRect(-50, 0, 100, 12);
+
+        // --- 3. 정밀 옥상 및 기타 ---
+        ctx.save();
+        ctx.translate(20, -75);
+        ctx.rotate(Math.sin(time/3000));
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(0, -1.5, 18, 3);
+        ctx.restore();
+
+        // 보안 검문소 및 차단기 (하단 내부)
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillRect(-12, 85, 24, 12);
+        ctx.strokeStyle = '#e74c3c';
+        const gateOpen = Math.sin(time/2000) > 0;
         ctx.beginPath();
-        const b = 95; // 플랫폼 크기
-        ctx.moveTo(-b, -b+20); ctx.lineTo(-b+20, -b); ctx.lineTo(b-20, -b); ctx.lineTo(b, -b+20);
-        ctx.lineTo(b, b-20); ctx.lineTo(b-20, b); ctx.lineTo(-b+20, b); ctx.lineTo(-b, b-20);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#2c3e50';
-        ctx.lineWidth = 3;
+        ctx.moveTo(12, 92);
+        ctx.lineTo(gateOpen ? 12 : 35, gateOpen ? 70 : 92);
         ctx.stroke();
 
-        // 플랫폼 위 구획선 (군용 패널)
-        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-        ctx.lineWidth = 1;
-        for(let i=-80; i<=80; i+=40) {
-            ctx.beginPath(); ctx.moveTo(i, -90); ctx.lineTo(i, 90); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(-90, i); ctx.lineTo(90, i); ctx.stroke();
-        }
-
-        // 2. 외곽 방어선 - 모래주머니 및 방벽 (네 구석)
-        const drawDefenses = (dx, dy) => {
-            ctx.save();
-            ctx.translate(dx, dy);
-            // 방벽
-            ctx.fillStyle = '#4b5320'; // Olive Drab
-            ctx.fillRect(-25, -25, 50, 50);
-            ctx.strokeStyle = '#2d3310';
-            ctx.strokeRect(-25, -25, 50, 50);
-            // 모래주머니 (베이지색 작은 곡선들)
-            ctx.fillStyle = '#c2b280';
-            for(let i=0; i<3; i++) {
-                ctx.beginPath(); ctx.arc(-20 + i*15, 30, 8, 0, Math.PI, true); ctx.fill();
-                ctx.beginPath(); ctx.arc(-20 + i*15, -30, 8, Math.PI, 0, true); ctx.fill();
-            }
-            ctx.restore();
+        // 국기 게양대
+        const drawFlag = (fx, fy, color) => {
+            ctx.fillStyle = '#333'; ctx.fillRect(fx, fy, 1.5, 22);
+            ctx.fillStyle = color; ctx.fillRect(fx+1.5, fy, 12, 8);
         };
-        drawDefenses(-70, -70); drawDefenses(70, -70);
-        drawDefenses(-70, 70);  drawDefenses(70, 70);
-
-        // 3. 메인 지휘소 건물 (십자형 강화 빌딩)
-        ctx.fillStyle = '#bdc3c7'; // 주 건재색
-        // 십자 형태 본체
-        ctx.fillRect(-60, -30, 120, 60);
-        ctx.fillRect(-30, -60, 60, 120);
-        ctx.strokeStyle = '#7f8c8d';
-        ctx.strokeRect(-60, -30, 120, 60);
-        ctx.strokeRect(-30, -60, 60, 120);
-
-        // 중앙 지휘탑 (3층 구조)
-        ctx.fillStyle = '#ecf0f1';
-        ctx.fillRect(-35, -35, 70, 70);
-        ctx.strokeRect(-35, -35, 70, 70);
-        
-        // 옥상 기계 설비 (환풍기, 실외기 등)
-        ctx.fillStyle = '#95a5a6';
-        ctx.fillRect(10, 10, 15, 15); // AC Unit 1
-        ctx.fillRect(-25, 10, 15, 15); // AC Unit 2
-        ctx.fillStyle = '#333';
-        ctx.beginPath(); ctx.arc(17.5, 17.5, 4, 0, Math.PI*2); ctx.fill(); // 팬
-
-        // 4. 현대식 통신 어레이 (진짜 안테나 숲)
-        // 메인 통신 마스트 (중앙)
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-2, -55, 4, 40);
-        // 안테나 가로대
-        for(let i=0; i<3; i++) {
-            ctx.beginPath(); ctx.moveTo(-15, -50 + i*10); ctx.lineTo(15, -50 + i*10);
-            ctx.strokeStyle = '#34495e'; ctx.stroke();
-        }
-
-        // 위성 통신 접시 (SE)
-        ctx.save();
-        ctx.translate(45, 45);
-        ctx.rotate(Math.sin(Date.now()/3000)*0.2);
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.ellipse(0, 0, 15, 8, 0.5, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#bdc3c7'; ctx.stroke();
-        ctx.restore();
-
-        // 5. 입구 광장 및 국기 게양대
-        ctx.fillStyle = '#95a5a6';
-        ctx.fillRect(-20, 80, 40, 20); // 진입 램프
-        
-        // 국기 게양대 (작은 디테일)
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-30, 70, 2, 25); // 깃대
-        ctx.fillStyle = '#c0392b'; // 펄럭이는 깃발 느낌
-        ctx.fillRect(-30, 70, 10, 6);
-
-        // 6. 야간 작전용 항공 장애등 (Red Safety Lights)
-        const blink = Math.sin(Date.now() / 600) > 0;
-        ctx.fillStyle = blink ? '#ff0000' : '#440000';
-        const lightPos = [[-55, -25], [55, -25], [0, -55], [-30, 55], [30, 55]];
-        lightPos.forEach(p => {
-            ctx.beginPath(); ctx.arc(p[0], p[1], 3, 0, Math.PI*2); ctx.fill();
-        });
+        drawFlag(-50, 30, '#c0392b');
+        drawFlag(-62, 35, '#2980b9');
 
         ctx.restore();
 
-        // UI (HP & 생산)
+        // --- 5. UI ---
         const barWidth = 180;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(this.x - barWidth/2, this.y - 125, barWidth, 10);
+        const barY = this.y - 125;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.beginPath();
+        ctx.roundRect(this.x - barWidth/2 - 5, barY - 5, barWidth + 10, 20, 5);
+        ctx.fill();
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barWidth/2, this.y - 125, (this.hp / this.maxHp) * barWidth, 10);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(this.x - barWidth/2, this.y - 125, barWidth, 10);
+        ctx.fillRect(this.x - barWidth/2, barY, (this.hp / this.maxHp) * barWidth, 10);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.strokeRect(this.x - barWidth/2, barY, barWidth, 10);
 
         if (this.spawnQueue.length > 0) {
             const progress = this.spawnQueue[0].timer / this.spawnTime;
@@ -1013,29 +1015,10 @@ export class Storage extends Entity {
         this.storedResources = { gold: 0, oil: 0 };
         this.maxCapacity = 1000;
         this.isConnectedToBase = false; // 기지로 자원을 보낼 수 있는지 여부
-        this.cargoPlanes = []; // 이 창고 소속의 수송기들
-        this.spawnQueue = 0; // 대기 중인 수송기 수
-        this.spawnTimer = 0;
-        this.spawnTimeRequired = 1000; // 1초 (테스트용)
-    }
-
-    requestCargoPlane() {
-        this.spawnQueue++;
     }
 
     update(deltaTime, engine) {
         if (this.isUnderConstruction) return;
-        // ... 기존 로직 동일 (수송기 생산 및 자원 전송)
-        if (this.spawnQueue > 0) {
-            this.spawnTimer += deltaTime;
-            if (this.spawnTimer >= this.spawnTimeRequired) {
-                const newPlane = new CargoPlane(this, engine);
-                this.cargoPlanes.push(newPlane);
-                engine.entities.cargoPlanes.push(newPlane);
-                this.spawnQueue--;
-                this.spawnTimer = 0;
-            }
-        }
 
         if (this.isConnectedToBase) {
             const transferRate = 50; 
@@ -1131,22 +1114,6 @@ export class Storage extends Entity {
         ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(this.x -30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
-
-        // 8. 생산 대기열 표시 (HP 바 위로 위치 고정)
-        if (this.spawnQueue > 0) {
-            const barY = this.y - 75;
-            const progress = this.spawnTimer / this.spawnTimeRequired;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(this.x - 30, barY, 60, 8);
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(this.x - 30, barY, 60 * progress, 8);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 12px Arial';
-            ctx.textAlign = 'center';
-            ctx.shadowBlur = 4; ctx.shadowColor = '#000';
-            ctx.fillText(`수송기 생산 중 x${this.spawnQueue}`, this.x, barY - 5);
-            ctx.shadowBlur = 0;
-        }
     }
 }
 
@@ -3069,6 +3036,8 @@ export class Airport extends Entity {
                 let unit;
                 if (current.type === 'bomber') {
                     unit = new Bomber(this.x + 55, this.y - 80, engine);
+                } else if (current.type === 'cargo-plane') {
+                    unit = new CargoPlane(this.x + 55, this.y - 80, engine);
                 } else {
                     unit = new ScoutPlane(this.x + 55, this.y - 80, engine);
                 }
@@ -3557,7 +3526,9 @@ export class Bomber extends PlayerUnit {
         this.type = 'bomber';
         this.name = '전략 폭격기';
         this.domain = 'ground'; // 초기 상태는 지상
-        this.speed = 2.2; 
+        this.baseSpeed = 2.2; 
+        this.airSpeed = 5.0;   // 공중 비행 속도 (7.0 -> 5.0 하향)
+        this.speed = 0.5;      // 초기 속도는 낮게 시작
         this.visionRange = 12;
         this.hp = 1200; 
         this.maxHp = 1200;
@@ -3603,6 +3574,7 @@ export class Bomber extends PlayerUnit {
             this.isManualLanding = false;
             this.maneuverFrameCount = 0;
             this.takeoffDistance = 0;
+            this.speed = 0.5; // 이륙 시작 시 속도 초기화
             this.command = 'move'; 
             this.destination = null; 
         } else {
@@ -3619,6 +3591,27 @@ export class Bomber extends PlayerUnit {
         const movedDist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
         this.lastX = this.x;
         this.lastY = this.y;
+
+        // 0. 속도 관리 로직 (이륙 가속 및 공중 고속 비행)
+        if (this.isTakeoffStarting) {
+            if (this.altitude <= 0) {
+                // 1) 활주 중 가속: 0.5에서 baseSpeed까지 (활주 거리 300px 기준)
+                const takeoffProgress = Math.min(1.0, this.takeoffDistance / 300);
+                this.speed = 0.5 + (this.baseSpeed - 0.5) * takeoffProgress;
+            } else {
+                // 2) 이륙 상승 중 가속: baseSpeed에서 airSpeed까지 (고도 기준)
+                this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+            }
+        } else if (this.isManualLanding) {
+            // 3) 착륙 시 감속: 고도에 따라 airSpeed에서 baseSpeed까지
+            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+        } else if (this.altitude > 0) {
+            // 4) 일반 비행 중: 고도에 따른 속도 유지
+            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+        } else {
+            // 5) 지상 대기/이동 중
+            this.speed = this.baseSpeed;
+        }
 
         // 1. 도메인 판정
         this.domain = (this.altitude > 0.8) ? 'air' : 'ground';
@@ -3828,69 +3821,150 @@ export class Bomber extends PlayerUnit {
     }
 }
 
+
+
 export class CargoPlane extends PlayerUnit {
-    constructor(storage, engine) {
-        super(storage.x, storage.y, engine);
+    constructor(x, y, engine) {
+        super(x, y, engine);
         this.type = 'cargo-plane';
-        this.domain = 'air';
-        this.storage = storage;
-        this.speed = 3;
-        this.capacity = 500;
-        this.payload = { gold: 0, oil: 0 };
-        this.state = 'loading'; // idle, loading, flying_to_base, unloading, flying_to_storage
-        this.size = 50;
+        this.name = '전략 수송기';
+        this.domain = 'ground'; // 지상에서 시작
+        this.baseSpeed = 1.8;   // 지상 이동/활주 속도
+        this.airSpeed = 4.5;    // 공중 비행 속도
+        this.speed = 0.5;       // 초기 속도
+        this.hp = 1500;
+        this.maxHp = 1500;
+        this.size = 110;
+        this.width = 130;
+        this.height = 140;
+
+        // 이착륙 시스템 (폭격기와 동일)
+        this.altitude = 0.0;
+        this.isLandingZoneSafe = false;
+        this.lastX = x;
+        this.lastY = y;
+        
+        this.isTakeoffStarting = false;
+        this.isManualLanding = false;
+        this.maneuverFrameCount = 0;
+        this.takeoffDistance = 0;
+    }
+
+    // 스킬 설정 정보 제공
+    getSkillConfig(cmd) {
+        const skills = {
+            'takeoff_landing': { type: 'state', handler: this.toggleTakeoff }
+        };
+        return skills[cmd];
+    }
+
+    toggleTakeoff() {
+        if (this.altitude < 0.1) {
+            this.isTakeoffStarting = true;
+            this.isManualLanding = false;
+            this.maneuverFrameCount = 0;
+            this.takeoffDistance = 0;
+            this.speed = 0.5;
+            this.command = 'move'; 
+            this.destination = null; 
+        } else {
+            this.isManualLanding = true;
+            this.isTakeoffStarting = false;
+            this.maneuverFrameCount = 0;
+            this.command = 'move';
+            this.destination = null;
+        }
     }
 
     update(deltaTime) {
-        super.update(deltaTime);
-        const base = this.engine.entities.base;
-        if (!this.storage.active || this.storage.hp <= 0) {
-            this.state = 'flying_to_base';
-        }
+        const movedDist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
+        this.lastX = this.x;
+        this.lastY = this.y;
 
-        switch (this.state) {
-            case 'loading':
-                const totalStored = this.storage.storedResources.gold + this.storage.storedResources.oil;
-                if (totalStored > 0) {
-                    const ratio = Math.min(1, this.capacity / totalStored);
-                    this.payload.gold = this.storage.storedResources.gold * ratio;
-                    this.payload.oil = this.storage.storedResources.oil * ratio;
-                    this.storage.storedResources.gold -= this.payload.gold;
-                    this.storage.storedResources.oil -= this.payload.oil;
-                    this.state = 'flying_to_base';
-                }
-                break;
-            case 'flying_to_base':
-                this.moveTo(base.x, base.y, () => {
-                    this.state = 'unloading';
-                });
-                break;
-            case 'unloading':
-                this.engine.resources.gold += this.payload.gold;
-                this.engine.resources.oil += this.payload.oil;
-                this.payload = { gold: 0, oil: 0 };
-                if (!this.storage.active || this.storage.hp <= 0) {
-                    this.alive = false;
-                } else {
-                    this.state = 'flying_to_storage';
-                }
-                break;
-            case 'flying_to_storage':
-                this.moveTo(this.storage.x, this.storage.y, () => {
-                    this.state = 'loading';
-                });
-                break;
-        }
-    }
-
-    moveTo(tx, ty, onArrive) {
-        const d = Math.hypot(tx - this.x, ty - this.y);
-        if (d < 5) {
-            onArrive();
+        // 0. 속도 관리 로직
+        if (this.isTakeoffStarting) {
+            if (this.altitude <= 0) {
+                const takeoffProgress = Math.min(1.0, this.takeoffDistance / 350); // 수송기는 더 긴 활주 거리 필요
+                this.speed = 0.5 + (this.baseSpeed - 0.5) * takeoffProgress;
+            } else {
+                this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+            }
+        } else if (this.isManualLanding) {
+            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+        } else if (this.altitude > 0) {
+            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
         } else {
-            this.angle = Math.atan2(ty - this.y, tx - this.x);
-            this.x += Math.cos(this.angle) * this.speed;
-            this.y += Math.sin(this.angle) * this.speed;
+            this.speed = this.baseSpeed;
+        }
+
+        // 1. 도메인 판정
+        this.domain = (this.altitude > 0.8) ? 'air' : 'ground';
+
+        // 2. 자동 전진 로직 (이륙 또는 착륙 활주 중일 때)
+        if (this.isTakeoffStarting || this.isManualLanding) {
+            this.maneuverFrameCount++;
+
+            const nextX = this.x + Math.cos(this.angle) * this.speed;
+            const nextY = this.y + Math.sin(this.angle) * this.speed;
+            const grid = this.engine.tileMap.worldToGrid(nextX, nextY);
+            const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
+            
+            const isBlocked = (this.altitude < 0.7) && (tile && (tile.occupied || !tile.buildable));
+
+            if (!isBlocked) {
+                this.x = nextX;
+                this.y = nextY;
+            }
+
+            const isMoving = this.maneuverFrameCount < 15 || movedDist > this.speed * 0.25;
+
+            if (this.isTakeoffStarting) {
+                if (isMoving) {
+                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5); 
+                    if (this.takeoffDistance > 350) {
+                        this.altitude = Math.min(1.0, this.altitude + 0.012); // 수송기는 약간 더 천천히 상승
+                    }
+                    if (this.altitude >= 1.0) {
+                        this.isTakeoffStarting = false;
+                        this.command = 'stop';
+                    }
+                } else {
+                    if (this.altitude < 0.8) {
+                        this.isTakeoffStarting = false;
+                        this.altitude = 0;
+                        this.command = 'stop';
+                    }
+                }
+            } else if (this.isManualLanding) {
+                const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
+                const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
+                const isGroundClear = tile && !tile.occupied && tile.buildable;
+
+                if (isMoving) {
+                    if (isGroundClear) {
+                        this.altitude = Math.max(0, this.altitude - 0.006); // 더 완만하게 착륙
+                        if (this.altitude <= 0) {
+                            this.isManualLanding = false;
+                            this.command = 'stop';
+                        }
+                    } else {
+                        this.altitude = Math.max(0.15, this.altitude - 0.004);
+                    }
+                } else {
+                    this.isManualLanding = false;
+                    this.altitude = 0;
+                    this.command = 'stop';
+                }
+            }
+            return;
+        }
+
+        super.update(deltaTime);
+
+        // 3. 고도 보정 (수동 조작 중이 아닐 때)
+        if (this.altitude > 0 && this.altitude < 1.0) {
+            if (this.altitude > 0.5) this.altitude = Math.min(1.0, this.altitude + 0.01);
+            else this.altitude = Math.max(0, this.altitude - 0.01);
         }
     }
 
@@ -3899,52 +3973,162 @@ export class CargoPlane extends PlayerUnit {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
 
-        ctx.fillStyle = '#7f8c8d';
-        ctx.strokeStyle = '#34495e';
-        ctx.lineWidth = 1;
-        ctx.fillRect(-2, -30, 8, 60);
-        ctx.strokeRect(-2, -30, 8, 60);
-
         const time = Date.now();
-        const propAngle = (time / 50) % (Math.PI * 2);
-        const drawEngine = (ey) => {
-            ctx.fillStyle = '#555';
-            ctx.fillRect(2, ey - 4, 10, 8);
-            ctx.strokeRect(2, ey - 4, 10, 8);
-            ctx.save();
-            ctx.translate(12, ey);
-            ctx.rotate(propAngle);
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(-6, 0); ctx.lineTo(6, 0);
-            ctx.moveTo(0, -6); ctx.lineTo(0, 6);
-            ctx.stroke();
-            ctx.restore();
-        };
-        drawEngine(-18);
-        drawEngine(18);
+        const shadowOffset = 22 * this.altitude;
+        
+        // 0. 그림자 (더 부드럽게)
+        ctx.save();
+        ctx.translate(-shadowOffset, shadowOffset);
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.moveTo(10, 0); ctx.lineTo(-45, -115); ctx.lineTo(-75, -115);
+        ctx.lineTo(-35, 0); ctx.lineTo(-75, 115); ctx.lineTo(-45, 115);
+        ctx.closePath(); ctx.fill();
+        ctx.fillRect(-90, -22, 170, 44);
+        ctx.restore();
 
-        const bodyGrd = ctx.createLinearGradient(0, -12, 0, 12);
-        bodyGrd.addColorStop(0, '#bdc3c7');
-        bodyGrd.addColorStop(0.5, '#95a5a6');
+        // 1. 고익기 주익 (Wing Structure with Control Surfaces)
+        const drawWing = () => {
+            const wingGrd = ctx.createLinearGradient(0, -115, 0, 115);
+            wingGrd.addColorStop(0, '#7f8c8d');
+            wingGrd.addColorStop(0.5, '#bdc3c7');
+            wingGrd.addColorStop(1, '#7f8c8d');
+            ctx.fillStyle = wingGrd;
+            ctx.beginPath();
+            ctx.moveTo(12, 0);
+            ctx.lineTo(-38, -115); ctx.lineTo(-72, -115); // 좌측 날개
+            ctx.lineTo(-28, 0);
+            ctx.lineTo(-72, 115); ctx.lineTo(-38, 115);  // 우측 날개
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            // 플랩 & 에일러론 라인 (날개 가동면)
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.moveTo(-25, -50); ctx.lineTo(-55, -50);
+            ctx.moveTo(-25, 50); ctx.lineTo(-55, 50);
+            ctx.stroke();
+        };
+        drawWing();
+
+        // 2. 4발 정밀 제트 엔진 (Engine Nacelles with Exhaust)
+        const engineOffsets = [-88, -52, 52, 88];
+        engineOffsets.forEach(offset => {
+            ctx.save();
+            const wingX = -12 - Math.abs(offset) * 0.22; 
+            ctx.translate(wingX, offset);
+            
+            // 배기구 그을린 금속 (Exhaust Cone)
+            ctx.fillStyle = '#1c2833';
+            ctx.fillRect(-12, -6, 15, 12);
+            
+            // 엔진 본체
+            const engGrd = ctx.createLinearGradient(0, -9, 0, 9);
+            engGrd.addColorStop(0, '#34495e'); engGrd.addColorStop(0.5, '#5d6d7e'); engGrd.addColorStop(1, '#2c3e50');
+            ctx.fillStyle = engGrd;
+            ctx.fillRect(-6, -9, 28, 18);
+            ctx.strokeRect(-6, -9, 28, 18);
+            
+            // 공기 흡입구 및 내부 팬 블레이드 실루엣
+            ctx.fillStyle = '#0a0a0a';
+            ctx.beginPath(); ctx.ellipse(22, 0, 5, 8, 0, 0, Math.PI * 2); ctx.fill();
+            
+            // 엔진 가동 시 팬 블레이드 회전 효과 (이륙/비행 중일 때만)
+            const isEnginesRunning = this.altitude > 0 || this.isTakeoffStarting || (this.command === 'move' && this.destination);
+            if (isEnginesRunning) {
+                ctx.strokeStyle = '#2c3e50';
+                for(let i=0; i<4; i++) {
+                    ctx.beginPath(); ctx.moveTo(22, 0); 
+                    ctx.lineTo(22 + Math.cos(time/100 + i*Math.PI/2)*3, Math.sin(time/100 + i*Math.PI/2)*5);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        });
+
+        // 3. 거대 중량 동체 (Heavy-Lift Fuselage)
+        const bodyGrd = ctx.createLinearGradient(0, -25, 0, 25);
+        bodyGrd.addColorStop(0, '#7f8c8d');
+        bodyGrd.addColorStop(0.2, '#bdc3c7');
+        bodyGrd.addColorStop(0.5, '#ecf0f1');
+        bodyGrd.addColorStop(0.8, '#bdc3c7');
         bodyGrd.addColorStop(1, '#7f8c8d');
         ctx.fillStyle = bodyGrd;
+        
         ctx.beginPath();
-        ctx.moveTo(22, 0);
-        ctx.quadraticCurveTo(22, -10, 15, -10);
-        ctx.lineTo(-15, -10);
-        ctx.lineTo(-15, 10);
-        ctx.lineTo(15, 10);
-        ctx.quadraticCurveTo(22, 10, 22, 0);
+        ctx.moveTo(85, 0); // 더 길어진 기수
+        ctx.bezierCurveTo(85, -24, 65, -26, 45, -26); 
+        ctx.lineTo(-65, -26); 
+        ctx.bezierCurveTo(-100, -26, -100, 26, -65, 26); 
+        ctx.lineTo(45, 26); 
+        ctx.bezierCurveTo(65, 26, 85, 24, 85, 0); 
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = '#2c3e50';
+        // 기수 레이돔 (Radome) 라인
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath(); ctx.arc(65, 0, 24, -Math.PI/2, Math.PI/2); ctx.stroke();
+
+        // 공중 급유 프로브 (Refueling Probe - 기수 오른쪽)
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(60, -18, 20, 3);
+        ctx.strokeRect(60, -18, 20, 3);
+
+        // 랜딩 기어 벌지 & 패널 디테일
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(-25, -29, 60, 5); 
+        ctx.fillRect(-25, 24, 60, 5);
+        ctx.strokeRect(-25, -29, 60, 5);
+        ctx.strokeRect(-25, 24, 60, 5);
+
+        // 4. 조종석 및 관측창
+        ctx.fillStyle = '#0a192f';
         ctx.beginPath();
-        ctx.moveTo(-15, 0); ctx.lineTo(-25, -15); ctx.lineTo(-25, 15); ctx.closePath();
+        ctx.moveTo(68, -11); ctx.bezierCurveTo(74, -9, 74, 9, 68, 11);
+        ctx.lineTo(55, 10); ctx.lineTo(55, -10); ctx.closePath();
         ctx.fill();
+        // 동체 측면 작은 창문들
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        for(let i=0; i<3; i++) ctx.fillRect(10 - i*25, -22, 4, 3);
+
+        // 5. T-Tail Complex
+        // 수직 미익 기둥 (패널 라인 포함)
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(-92, -4, 35, 8);
+        ctx.strokeRect(-92, -4, 35, 8);
+        
+        // 상부 수평 미익 (High Mounted Elevators)
+        ctx.save();
+        ctx.translate(-92, 0);
+        ctx.fillStyle = '#95a5a6';
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(-18, -48); ctx.lineTo(-32, -48);
+        ctx.lineTo(-22, 0); ctx.lineTo(-32, 48); ctx.lineTo(-18, 48);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        // 꼬리 끝단 정비창 디테일
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(-15, -2, 10, 4);
+        ctx.restore();
+
+        // 6. 후면 카고 램프 (Cargo Ramp) 라인
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.moveTo(-60, -26); ctx.lineTo(-95, 0); ctx.lineTo(-60, 26);
         ctx.stroke();
+
+        // 항공 등화 (강화됨)
+        const blink = Math.sin(time / 450) > 0;
+        ctx.shadowBlur = blink ? 5 : 0;
+        ctx.shadowColor = '#ff0000';
+        ctx.fillStyle = blink ? '#ff3131' : '#440000';
+        ctx.beginPath(); ctx.arc(-45, -115, 4, 0, Math.PI*2); ctx.fill(); // Left Wing
+        ctx.beginPath(); ctx.arc(-45, 115, 4, 0, Math.PI*2); ctx.fill();  // Right Wing
+        ctx.beginPath(); ctx.arc(-118, 0, 4, 0, Math.PI*2); ctx.fill();   // Tail Tip
+        ctx.shadowBlur = 0;
 
         ctx.restore();
     }
