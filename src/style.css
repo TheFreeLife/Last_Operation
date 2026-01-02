@@ -97,7 +97,7 @@ button,
 
 
 canvas {
-    background-color: #1a1c23;
+    background-color: #1e392a; /* 짙은 숲색 계열 배경 */
     display: block;
     cursor: inherit;
 }

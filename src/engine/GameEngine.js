@@ -1717,7 +1717,7 @@ export class GameEngine {
         this.ctx.scale(this.camera.zoom, this.camera.zoom);
 
         // 1. Draw visible grid background
-        this.tileMap.drawGrid();
+        this.tileMap.drawGrid(this.camera);
 
         // 2. [자동화] 모든 건물 수집
         const allBuildings = this.getAllBuildings();
@@ -1773,7 +1773,7 @@ export class GameEngine {
         });
 
         // 2. 지형지물 위에 안개 그리기
-        this.tileMap.drawFog();
+        this.tileMap.drawFog(this.camera);
 
         // 3. 지상 중립 유닛
         groundNeutral.forEach(n => n.draw(this.ctx));
