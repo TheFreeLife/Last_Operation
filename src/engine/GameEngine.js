@@ -94,7 +94,7 @@ export class GameEngine {
             'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
             'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
             'iron-mine': { cost: 400, size: [1, 1], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
-            'storage': { cost: 200, size: [2, 2], className: 'Storage', list: 'storage', buildTime: 1 },
+            'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
             'armory': { cost: 600, size: [3, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
             'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, 

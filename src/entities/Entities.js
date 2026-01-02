@@ -1006,15 +1006,15 @@ export class Storage extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'storage';
-        this.name = '창고';
-        this.width = 80;
-        this.height = 80;
-        this.size = 80;
-        this.maxHp = 1000;
-        this.hp = 1000;
+        this.name = '보급고';
+        this.width = 160;  // 4 tiles * 40px
+        this.height = 120; // 3 tiles * 40px
+        this.size = 160;   // Use max dimension for radius-based checks
+        this.maxHp = 2000; // 크기 증가에 따른 체력 상향
+        this.hp = 2000;
         this.storedResources = { gold: 0, oil: 0 };
-        this.maxCapacity = 1000;
-        this.isConnectedToBase = false; // 기지로 자원을 보낼 수 있는지 여부
+        this.maxCapacity = 2000; // 용량 2배 증가
+        this.isConnectedToBase = false; 
     }
 
     update(deltaTime, engine) {
@@ -1044,76 +1044,153 @@ export class Storage extends Entity {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // 1. 하부 베이스 프레임
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-40, -40, 80, 80);
-        ctx.strokeStyle = '#34495e';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(-40, -40, 80, 80);
+        // 1. 기반 (Concrete Foundation)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-80, -60, 160, 120);
+        ctx.strokeStyle = '#3a4118'; // 경계선
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-80, -60, 160, 120);
 
-        // 2. 금속 보강 지지대 (네 모서리)
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(-42, -42, 12, 12);
-        ctx.fillRect(30, -42, 12, 12);
-        ctx.fillRect(-42, 30, 12, 12);
-        ctx.fillRect(30, 30, 12, 12);
+        // 구역 표시선 (노란색 안전 라인)
+        ctx.strokeStyle = 'rgba(241, 196, 15, 0.5)';
+        ctx.setLineDash([10, 10]);
+        ctx.strokeRect(-70, -50, 140, 100);
+        ctx.setLineDash([]);
 
-        // 3. 메인 저장고 해치/도어
-        const grd = ctx.createLinearGradient(-30, -30, 30, 30);
-        grd.addColorStop(0, '#333');
-        grd.addColorStop(1, '#444');
-        ctx.fillStyle = grd;
-        ctx.fillRect(-30, -30, 60, 60);
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-30, -30, 60, 60);
+        // 2. 대형 물류 행거 (Main Hangar - 좌측)
+        const drawHangar = (hx, hy) => {
+            ctx.save();
+            ctx.translate(hx, hy);
+            
+            // 건물 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(5, 5, 70, 90);
 
-        // 4. 상태 표시등 (기지 연결 시 시안색으로 빛남)
-        ctx.fillStyle = this.isConnectedToBase ? '#00d2ff' : '#555';
-        if (this.isConnectedToBase) {
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#00d2ff';
-        }
-        ctx.beginPath(); ctx.arc(-22, -22, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
+            // 벽면 (2.5D)
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, 0, 70, 90); // 바닥면적
+            ctx.fillStyle = '#34495e'; // 앞벽
+            ctx.fillRect(0, 80, 70, 15);
 
-        // 5. 자원 저장 게이지 (디자인 개선)
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-25, 20, 50, 12);
-        ctx.strokeStyle = '#2c3e50';
-        ctx.strokeRect(-25, 20, 50, 12);
+            // 지붕 (둥근 퀀셋 스타일)
+            const grd = ctx.createLinearGradient(0, 0, 70, 0);
+            grd.addColorStop(0, '#34495e');
+            grd.addColorStop(0.5, '#7f8c8d'); // 하이라이트
+            grd.addColorStop(1, '#2c3e50');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, 70, 80);
+            
+            // 지붕 골조 라인
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 1;
+            for(let i=10; i<80; i+=10) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(70, i); ctx.stroke();
+            }
 
+            // 대형 슬라이딩 도어
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(10, 82, 50, 10);
+            ctx.strokeStyle = '#f1c40f'; // 안전선
+            ctx.beginPath(); 
+            ctx.moveTo(10, 92); ctx.lineTo(60, 92); 
+            ctx.stroke();
+
+            // 환기구 팬 (지붕 위)
+            ctx.fillStyle = '#2d3436';
+            ctx.beginPath(); ctx.arc(35, 20, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(35, 60, 5, 0, Math.PI*2); ctx.fill();
+
+            ctx.restore();
+        };
+        drawHangar(-70, -50);
+
+        // 3. 야외 야적장 (Outdoor Storage - 우측 상단)
+        const drawContainer = (cx, cy, color) => {
+            ctx.save();
+            ctx.translate(cx, cy);
+            // 컨테이너 본체
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 25, 10);
+            // 음영 및 디테일
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(0, 0, 25, 2); // 윗면
+            ctx.fillRect(23, 0, 2, 10); // 측면
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.strokeRect(0, 0, 25, 10);
+            // 문
+            ctx.fillStyle = '#333';
+            ctx.fillRect(12, 2, 1, 6);
+            ctx.restore();
+        };
+
+        // 컨테이너 적재 (랜덤한 느낌으로 배치)
+        drawContainer(10, -40, '#2980b9'); // 파란색
+        drawContainer(40, -40, '#c0392b'); // 빨간색
+        drawContainer(10, -25, '#27ae60'); // 초록색
+        drawContainer(15, -50, '#e67e22'); // 주황색 (위에 쌓임)
+
+        // 4. 자원 저장 탱크 (Fuel/Resource Tanks - 우측 하단)
+        const drawTank = (tx, ty) => {
+            ctx.save();
+            ctx.translate(tx, ty);
+            // 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.arc(5, 5, 12, 0, Math.PI*2); ctx.fill();
+            // 탱크 본체 (원통형 입체)
+            const tGrad = ctx.createLinearGradient(-10, 0, 10, 0);
+            tGrad.addColorStop(0, '#7f8c8d');
+            tGrad.addColorStop(0.5, '#ecf0f1');
+            tGrad.addColorStop(1, '#95a5a6');
+            ctx.fillStyle = tGrad;
+            ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+            // 파이프 연결부
+            ctx.fillStyle = '#34495e';
+            ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        };
+        drawTank(20, 20);
+        drawTank(50, 20);
+        drawTank(20, 45);
+        drawTank(50, 45);
+
+        // 5. 자원 게이지 UI (현대적인 디지털 패널 스타일)
         const totalStored = this.storedResources.gold + this.storedResources.oil;
         if (totalStored > 0) {
-            const goldWidth = (this.storedResources.gold / this.maxCapacity) * 50;
-            const oilWidth = (this.storedResources.oil / this.maxCapacity) * 50;
+            ctx.save();
+            ctx.translate(5, -10); // 중앙 부근
             
-            // 금 게이지
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(-25, 21, goldWidth, 10);
+            // 패널 배경
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(-30, 0, 60, 6);
             
-            // 석유 게이지
-            ctx.fillStyle = '#9370DB';
-            ctx.fillRect(-25 + goldWidth, 21, oilWidth, 10);
-
-            // 게이지 광택 효과
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.fillRect(-25, 21, 50, 5);
+            const goldW = (this.storedResources.gold / this.maxCapacity) * 60;
+            const oilW = (this.storedResources.oil / this.maxCapacity) * 60;
+            
+            // 자원 바
+            ctx.fillStyle = '#f1c40f'; // Gold
+            ctx.fillRect(-30, 1, goldW, 4);
+            ctx.fillStyle = '#8e44ad'; // Oil
+            ctx.fillRect(-30 + goldW, 1, oilW, 4);
+            
+            ctx.restore();
         }
 
-        // 6. 환풍구 또는 기계 디테일
-        ctx.fillStyle = '#222';
-        for(let i = 0; i < 3; i++) {
-            ctx.fillRect(-15, -15 + (i * 8), 30, 4);
+        // 상태 표시등 (연결됨)
+        if (this.isConnectedToBase) {
+            ctx.fillStyle = '#00d2ff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00d2ff';
+            ctx.beginPath(); ctx.arc(-60, -50, 3, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
         }
 
         ctx.restore();
 
         // 7. HP 바 상시 표시
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 30, this.y - 65, 60, 5);
+        ctx.fillRect(this.x - 40, this.y - 70, 80, 5);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x -30, this.y - 65, (this.hp / this.maxHp) * 60, 5);
+        ctx.fillRect(this.x - 40, this.y - 70, (this.hp / this.maxHp) * 80, 5);
     }
 }
 
@@ -2067,7 +2144,7 @@ export class AntiAirVehicle extends PlayerUnit {
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'anti-air';
-        this.name = '대공 차량';
+        this.name = '자주 대공포';
         this.speed = 1.3;
         this.fireRate = 800; // 빠른 연사
         this.damage = 30;
@@ -2092,13 +2169,143 @@ export class AntiAirVehicle extends PlayerUnit {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.scale(2, 2);
-        // 차체
+
+        const time = Date.now();
+        const recoil = (time - this.lastFireTime < 150) ? 2 : 0;
+
+        // 1. 하부 궤도 (Tracks) - 2.5D 측면
+        ctx.fillStyle = '#1a1a1a'; // 궤도 측면 그림자
+        ctx.fillRect(-14, -14, 30, 28);
+        
+        ctx.fillStyle = '#2d3436'; // 궤도 윗면
+        ctx.fillRect(-14, -14, 30, 5); // 좌측 궤도
+        ctx.fillRect(-14, 9, 30, 5);   // 우측 궤도
+        
+        // 휠 디테일
+        ctx.fillStyle = '#000';
+        for(let i=0; i<4; i++) {
+            ctx.fillRect(-10 + i*7, -14, 2, 5);
+            ctx.fillRect(-10 + i*7, 9, 2, 5);
+        }
+
+        // 2. 차체 (Chassis) - 입체형
+        // 차체 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-12, -8, 26, 18);
+
+        // 차체 측면 (두께)
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(-12, -9, 24, 18);
+        
+        // 차체 상판 (Main Deck)
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath();
+        ctx.moveTo(-12, -9); ctx.lineTo(12, -9); // 후면
+        ctx.lineTo(16, -7); ctx.lineTo(16, 7);   // 전면 경사 시작
+        ctx.lineTo(12, 9); ctx.lineTo(-12, 9);   // 우측면
+        ctx.closePath();
+        ctx.fill();
+        
+        // 엔진 그릴 (후방)
         ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-10, -8, 20, 16);
-        // 레이더/미사일 팩
-        ctx.fillStyle = '#00d2ff';
-        ctx.fillRect(-4, -6, 8, 12);
-        ctx.fillRect(2, -5, 6, 2); ctx.fillRect(2, 3, 6, 2);
+        for(let i=0; i<3; i++) ctx.fillRect(-10 + i*3, -5, 2, 10);
+
+        // 3. 포탑 (Turret) - 입체 박스
+        ctx.save();
+        // 포탑 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(-5, -8, 12, 16);
+
+        // 포탑 베이스 (링)
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI*2); ctx.fill();
+
+        // 포탑 본체 측면 (어두운 면)
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(-6, -7, 12, 14);
+        
+        // 포탑 상판 (밝은 면)
+        ctx.fillStyle = '#556644';
+        ctx.fillRect(-6, -7, 10, 14);
+        // 포탑 모서리 하이라이트
+        ctx.strokeStyle = '#6ab04c';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(-6, -7, 10, 14);
+
+        // 4. 레이더 시스템 (2.5D)
+        // 전방 추적 레이더 (Tracking Radar)
+        ctx.fillStyle = '#2f3542';
+        ctx.beginPath(); ctx.arc(6, 0, 3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#a4b0be'; // 렌즈/센서
+        ctx.beginPath(); ctx.arc(7, 0, 1.5, 0, Math.PI*2); ctx.fill();
+
+        // 후방 탐색 레이더 (Search Radar) - 회전 및 입체감
+        ctx.save();
+        ctx.translate(-7, 0);
+        const radarAngle = this.active ? time / 600 : 0;
+        ctx.rotate(radarAngle);
+        
+        // 레이더 접시 (Dish)
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(-2, -8, 4, 16); // 메인 바
+        ctx.fillStyle = '#7f8c8d'; // 뒷면/두께
+        ctx.fillRect(-3, -8, 1, 16);
+        // 안테나 그릴 표현
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-1, -6, 2, 12);
+        ctx.restore();
+
+        // 5. 쌍열 35mm 기관포 (Oerlikon KDA)
+        const drawGunSystem = (side) => { // side: 1 or -1
+            ctx.save();
+            ctx.translate(-2, side * 9); 
+
+            // 포신 구동부 (Housing) - 입체
+            ctx.fillStyle = '#3a4118'; // 측면
+            ctx.fillRect(-6, -3, 12, 6);
+            ctx.fillStyle = '#4b5320'; // 윗면
+            ctx.fillRect(-6, -3, 10, 6);
+            
+            // 포신 (Barrel)
+            ctx.fillStyle = '#1e272e';
+            const kick = (side === 1 && recoil > 0) || (side === -1 && recoil > 0) ? recoil : 0;
+            
+            // 총열 덮개/방열판
+            ctx.fillRect(4, -2, 8, 4);
+            // 긴 포신
+            ctx.fillRect(12 - kick, -1, 20, 2);
+            
+            // 소염기 (Muzzle Brake)
+            ctx.fillStyle = '#000';
+            ctx.fillRect(32 - kick, -1.5, 4, 3);
+            
+            // 탄띠 급탄부 (Ammo Feed)
+            ctx.fillStyle = '#2d3436';
+            ctx.beginPath();
+            ctx.moveTo(-2, side * -2); 
+            ctx.lineTo(-2, side * -5); // 포탑 쪽으로 연결
+            ctx.stroke();
+
+            // 발사 이펙트
+            if (kick > 0) {
+                ctx.fillStyle = `rgba(255, 200, 50, ${0.7 + Math.random()*0.3})`;
+                ctx.beginPath();
+                ctx.moveTo(36, 0);
+                ctx.lineTo(45, -3); ctx.lineTo(48, 0); ctx.lineTo(45, 3);
+                ctx.fill();
+                
+                // 연기
+                ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
+                ctx.beginPath(); ctx.arc(38, 0, 3 + Math.random()*2, 0, Math.PI*2); ctx.fill();
+            }
+
+            ctx.restore();
+        };
+
+        drawGunSystem(-1);
+        drawGunSystem(1);
+
+        ctx.restore();
         ctx.restore();
         this.drawHealthBar(ctx);
     }
@@ -2146,23 +2353,109 @@ export class Rifleman extends PlayerUnit {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.scale(2, 2); // 2배 확대
-        
-        // 몸통
+
+        const isShooting = (this.target && (Date.now() - this.lastFireTime < 200));
+
+        // 1. 전술 백팩 (Assault Pack)
+        ctx.fillStyle = '#3a4118'; // 국방색
+        ctx.fillRect(-10, -5, 5, 10);
+        // 침낭/롤
         ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.ellipse(-10, 0, 2, 4, 0, 0, Math.PI*2); ctx.fill();
+
+        // 2. 바디 (전투복 & 플레이트 캐리어)
+        // 전투복
+        ctx.fillStyle = '#556644'; 
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+        
+        // 방탄 조끼 (Plate Carrier)
+        ctx.fillStyle = '#4b5320'; 
+        ctx.fillRect(-2, -5, 6, 10);
+        
+        // 탄창 파우치 (가슴) - 소총병의 특징
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(0, -3, 2, 6); // 3연장 탄창 파우치
+        ctx.strokeStyle = '#2d3436';
+        ctx.lineWidth = 0.5;
         ctx.beginPath();
-        ctx.arc(0, 0, 6, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(0, -1); ctx.lineTo(2, -1);
+        ctx.moveTo(0, 1); ctx.lineTo(2, 1);
+        ctx.stroke();
+
+        // 3. 헬멧 (High-Cut 전술 헬멧)
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath(); ctx.arc(1, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+        // 헬멧 레일/액세서리
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(1, -4.5, 3, 1); // 사이드 레일
+        ctx.fillRect(1, 3.5, 3, 1);
         
-        // 총기
-        ctx.fillStyle = '#636e72';
-        ctx.fillRect(2, -1, 10, 2);
+        // 전술 헤드셋 (Peltor Style)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath(); ctx.arc(1, -4, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(1, 4, 2, 0, Math.PI * 2); ctx.fill();
+
+        // 야시경 마운트 (NVG Mount)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(4, -1.5, 1.5, 3);
+
+        // 4. 전술 소총 (Tactical Rifle) - 사격 자세
+        ctx.save();
+        ctx.translate(3, 2); // 어깨 견착 위치
+
+        // 사격 시 반동 애니메이션
+        if (isShooting) {
+            ctx.translate(-1, 0); 
+        }
+
+        // 오른팔 (방아쇠 손)
+        ctx.fillStyle = '#556644'; // 소매
+        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#2d3436'; // 장갑
+        ctx.beginPath(); ctx.arc(2, 0, 2, 0, Math.PI*2); ctx.fill();
+
+        // 소총 몸체 (Receiver)
+        ctx.fillStyle = '#1e272e'; // 무광 블랙
+        ctx.fillRect(2, -1.5, 8, 3); 
+        // 개머리판 (Stock)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-2, -1.5, 4, 3);
+        // 총열 & 핸드가드 (Barrel & Handguard)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(10, -1, 10, 2);
         
-        // 헬멧
+        // 탄창 (Magazine)
+        ctx.fillStyle = '#3a4118'; // 탄색/국방색 탄창
+        ctx.fillRect(6, 1, 2, 4);
+
+        // 조준경 (Optic)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(4, -3, 4, 1.5);
+        
+        // 수직 손잡이 (Vertical Grip)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(14, 1, 1.5, 3);
+
+        // 왼팔 (핸드가드 파지)
         ctx.fillStyle = '#556644';
-        ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-        
+        ctx.beginPath(); ctx.arc(10, 2, 2.5, 0, Math.PI*2); ctx.fill(); // 팔꿈치 쪽 느낌
+        ctx.fillStyle = '#2d3436'; // 장갑 낀 왼손
+        ctx.beginPath(); ctx.arc(14, 1, 2, 0, Math.PI*2); ctx.fill();
+
+        // 총구 화염 (Muzzle Flash)
+        if (isShooting) {
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath();
+            ctx.moveTo(20, 0);
+            ctx.lineTo(24, -2); ctx.lineTo(22, 0); ctx.lineTo(24, 2);
+            ctx.fill();
+            
+            // 탄피 배출 (간단 표현)
+            ctx.fillStyle = '#f39c12';
+            ctx.fillRect(4 + Math.random()*2, 2 + Math.random()*2, 1, 0.5);
+        }
+
+        ctx.restore();
         ctx.restore();
 
         // 아군 체력 바 (초록색) 상시 표시
@@ -2204,32 +2497,115 @@ export class Sniper extends PlayerUnit {
     }
 
     draw(ctx) {
-        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        ctx.scale(2, 2);
+        ctx.scale(2, 2); 
+
+        const isShooting = (this.target && (Date.now() - this.lastFireTime < 200));
+
+        // 1. 길리 슈트 (Ghillie Suit - 몸체 덮개)
+        ctx.fillStyle = '#2d3310'; // 어두운 숲색
         
-        // 몸통 (길쭉한 실루엣)
-        ctx.fillStyle = '#1c1c1c';
+        // 단순화된 위장 망토 (Hooded Cloak)
         ctx.beginPath();
-        ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI * 2);
+        // 어깨에서 등으로 떨어지는 망토 형태
+        ctx.moveTo(0, -5); 
+        ctx.bezierCurveTo(-8, -5, -10, 0, -8, 5); // 왼쪽 라인
+        ctx.lineTo(0, 6); // 하단
+        ctx.bezierCurveTo(8, 5, 8, -5, 0, -5); // 오른쪽 라인
         ctx.fill();
+
+        // 텍스처 패턴 (지저분하지 않게 단순 점)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath(); ctx.arc(-4, -2, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, 1, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-2, 3, 1.5, 0, Math.PI*2); ctx.fill();
         
-        // 장거리 저격총
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(2, -1, 16, 1.5); // 긴 총신
-        ctx.fillStyle = '#333';
-        ctx.fillRect(6, -2, 4, 1); // 스코프
-        
-        // 위장복 헬멧
+        // 몸통 (엎드린 자세 느낌)
         ctx.fillStyle = '#2d3310';
         ctx.beginPath();
-        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.ellipse(-2, 0, 6, 3.5, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
+        // 2. 머리 (후드/베일)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+        // 스코프를 보는 눈
+        ctx.fillStyle = '#111';
+        ctx.fillRect(2, -1, 2, 2);
+
+        // 3. 대구경 저격 소총 (Anti-Materiel Rifle)
+        ctx.save();
+        ctx.translate(4, 1); // 견착 위치
+
+        if (isShooting) {
+            ctx.translate(-2, 0); // 강한 반동
+        }
+
+        // 총몸 (Body)
+        ctx.fillStyle = '#2f3640'; 
+        ctx.fillRect(0, -1.5, 8, 3);
+        // 개머리판 (Stock - 조절형)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-4, -1, 4, 2);
+        ctx.fillRect(-4, 0.5, 3, 1); // 칙패드
+
+        // 긴 총열 (Long Barrel)
+        ctx.fillStyle = '#2f3640';
+        ctx.fillRect(8, -1, 16, 2); 
+        // 소염기 (Muzzle Brake)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(24, -1.5, 4, 3);
+
+        // 대형 스코프 (High-Power Scope)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(2, -3.5, 8, 2); // 경통
+        ctx.fillStyle = '#00d2ff'; // 렌즈 반사
+        ctx.beginPath(); ctx.arc(2, -2.5, 1, 0, Math.PI*2); ctx.fill();
+
+        // 양각대 (Bipod - 펼침)
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(18, 0); ctx.lineTo(20, -4);
+        ctx.moveTo(18, 0); ctx.lineTo(20, 4);
+        ctx.stroke();
+
+        // 위장 랩 (Rifle Wrap)
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath(); ctx.ellipse(12, 0, 3, 1.5, 0.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(18, 0, 2, 1, -0.5, 0, Math.PI*2); ctx.fill();
+
+        // 오른손 (그립)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath(); ctx.arc(0, 1, 2, 0, Math.PI*2); ctx.fill();
+        // 왼손 (개머리판 지지 - 정밀 사격 자세)
+        ctx.beginPath(); ctx.arc(-2, 2, 2, 0, Math.PI*2); ctx.fill();
+
+        // 발사 이펙트 (강력한 충격파)
+        if (isShooting) {
+            ctx.fillStyle = 'rgba(255, 200, 50, 0.8)';
+            ctx.beginPath();
+            ctx.moveTo(28, 0);
+            ctx.lineTo(35, -3); ctx.lineTo(38, 0); ctx.lineTo(35, 3);
+            ctx.fill();
+            
+            // 측면 가스 분출
+            ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(28, -5); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(26, 1); ctx.lineTo(28, 5); ctx.stroke();
+        }
+
+        ctx.restore();
         ctx.restore();
 
+        // 아군 체력 바
         const barW = 20;
         const barY = this.y - 20;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -2486,65 +2862,117 @@ export class CombatEngineer extends PlayerUnit {
         ctx.rotate(this.angle);
         ctx.scale(2, 2); // 2배 확대
 
-        // 1. 몸체 (어두운 군용 작업복)
-        ctx.fillStyle = '#2d3436';
-        ctx.beginPath();
-        ctx.arc(0, 0, 6, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 2. 공병 포인트 - 형광 조끼 (High-Visibility Vest)
-        ctx.fillStyle = '#f1c40f'; // 밝은 노란색
-        ctx.fillRect(-3, -4, 6, 8);
-        ctx.fillStyle = '#fff'; // 반사 띠
-        ctx.fillRect(-3, -1, 6, 1);
-
-        // 3. 도구 배낭 (Tool Backpack)
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(-7, -5, 4, 10);
-
-        // 4. 수리용 멀티툴 (총 대신 들고 있는 대형 렌치/집게)
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(2, -2, 10, 4); // 툴 본체
-        // 툴 끝부분 (집게 모양)
-        ctx.beginPath();
-        ctx.moveTo(12, -3); ctx.lineTo(15, -3); ctx.lineTo(15, -1); ctx.lineTo(12, -1);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(12, 1); ctx.lineTo(15, 1); ctx.lineTo(15, 3); ctx.lineTo(12, 3);
-        ctx.fill();
+        const isWorking = (this.command === 'repair' || (this.command === 'build' && this.buildingTarget));
         
-        // 5. 공병 포인트 - 노란색 안전 헬멧
-        ctx.fillStyle = '#f1c40f';
-        ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-        // 헬멧 챙
-        ctx.fillRect(0, -4, 5, 1);
+        // 작업 애니메이션: 전술 망치질
+        let hammerAngle = 0;
+        let hammerOffset = 0;
+        if (isWorking) {
+            // 속도 조절: 100 -> 250 (느리게)
+            const cycle = (Date.now() / 250) % Math.PI;
+            hammerAngle = Math.sin(cycle * 4) * 0.9; 
+            hammerOffset = Math.sin(cycle * 4) * 2;
+        }
 
-        ctx.restore();
+        // 1. 전술 백팩 (Military Backpack)
+        ctx.fillStyle = '#3a4118'; // 짙은 국방색
+        ctx.fillRect(-11, -6, 6, 12);
+        // 결속 끈/장비 (MOLLE webbing 느낌)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-11, -4, 6, 1);
+        ctx.fillRect(-11, 3, 6, 1);
+        // 야전삽 (등에 부착)
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.ellipse(-11, 0, 2, 4, 0, 0, Math.PI*2); ctx.fill();
 
-        // 수리 이펙트 (불꽃)
-        if (this.command === 'repair' && this.targetObject) {
-            const dist = Math.hypot(this.x - this.targetObject.x, this.y - this.targetObject.y);
-            const range = (this.size + (this.targetObject.width || this.targetObject.size || 40)) / 2 + 15;
-            if (dist <= range) {
-                for(let i=0; i<3; i++) {
-                    ctx.fillStyle = Math.random() > 0.5 ? '#f1c40f' : '#e67e22';
-                    ctx.beginPath();
-                    ctx.arc(this.x + Math.cos(this.angle)*15 + (Math.random()-0.5)*10, 
-                            this.y + Math.sin(this.angle)*15 + (Math.random()-0.5)*10, 2, 0, Math.PI*2);
-                    ctx.fill();
-                }
+        // 2. 몸체 (전투복 & 방탄 조끼)
+        // 전투복 (Olive Drab)
+        ctx.fillStyle = '#556644'; 
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+        
+        // 방탄 조끼 (Plate Carrier - Coyote Brown or Dark Green)
+        ctx.fillStyle = '#4b5320'; 
+        ctx.fillRect(-3, -5, 7, 10);
+        // 탄입대/파우치 디테일
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(-3, 1, 3, 3);
+        ctx.fillRect(1, 1, 3, 3);
+
+        // 3. 머리 (전술 헬멧)
+        // 헬멧 (MICH/ACH Style)
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath(); ctx.arc(1.5, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+        // 헬멧 귀덮개/헤드셋
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.arc(1.5, -4, 2, 0, Math.PI * 2); ctx.fill(); // 왼쪽 귀
+        ctx.beginPath(); ctx.arc(1.5, 4, 2, 0, Math.PI * 2); ctx.fill();  // 오른쪽 귀
+        
+        // 전술 고글 (헬멧 위에 얹음)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(2, -3, 2, 6);
+        ctx.fillStyle = '#34495e'; // 렌즈
+        ctx.fillRect(2.5, -2.5, 1, 2);
+        ctx.fillRect(2.5, 0.5, 1, 2);
+
+        // 4. 양손 & 전술 브리칭 해머 (Tactical Hammer)
+        ctx.save();
+        ctx.translate(3, 2); 
+        
+        if (isWorking) {
+            // 작업 시: 망치질 애니메이션
+            ctx.rotate(hammerAngle);
+            ctx.translate(hammerOffset, 0);
+        } else {
+            // 대기 시: 위로 대각선으로 들고 있음 (Ready Position)
+            ctx.rotate(-Math.PI / 4); // -45도 회전
+            ctx.translate(-2, 0); // 회전 축 보정
+        }
+
+        // 팔 (전투복 소매 - 걷어올림)
+        ctx.fillStyle = '#556644';
+        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
+        // 살색 팔뚝
+        ctx.fillStyle = '#eebb99'; 
+        ctx.beginPath(); ctx.arc(1.5, 0, 2, 0, Math.PI*2); ctx.fill();
+
+        // 망치 자루 (조금 더 짧게 잡음)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(2, -1, 12, 2); // 길이 14 -> 12
+        
+        // 망치 헤드 (위치 당김: 14 -> 12)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(12, -3.5, 5, 7); 
+        // 타격부
+        ctx.fillStyle = '#636e72';
+        ctx.fillRect(17, -3.5, 1, 7); // 19 -> 17
+        ctx.beginPath(); ctx.moveTo(12, -1); ctx.lineTo(10, 0); ctx.lineTo(12, 1); ctx.fill(); // 뒤쪽 스파이크
+
+        // 전술 장갑
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.arc(7, 0, 2.5, 0, Math.PI*2); ctx.fill(); // 오른손 (8 -> 7)
+        ctx.beginPath(); ctx.arc(3, 0, 2.5, 0, Math.PI*2); ctx.fill(); // 왼손 (4 -> 3)
+
+        // 작업 효과 (스파크 대신 파편/먼지)
+        if (isWorking && Math.abs(hammerAngle) > 0.6) {
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath(); 
+                ctx.arc(20 + Math.random()*4, (Math.random()-0.5)*8, 1.5, 0, Math.PI*2);
+                ctx.fill();
             }
         }
 
-        // 아군 체력 바 (초록색) 상시 표시
-        const barW = 20;
-        const barY = this.y - 25;
+        ctx.restore();
+
+        ctx.restore();
+
+        // 아군 체력 바
+        const barW = 24;
+        const barY = this.y - 28;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillRect(this.x - barW/2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
