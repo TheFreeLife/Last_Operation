@@ -2482,7 +2482,6 @@ export class Rifleman extends PlayerUnit {
         this.speed = 0.9;
         this.fireRate = 100;
         this.damage = 10;
-        this.color = '#e0e0e0';
         this.attackRange = 180;
         this.size = 24; // 12 -> 24
         this.visionRange = 4; // 보병 시야: 제일 좁음
@@ -2492,8 +2491,18 @@ export class Rifleman extends PlayerUnit {
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate && this.target) {
-            const { Projectile } = this.engine.entityClasses;
-            this.engine.entities.projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.color, this));
+            // 히트스캔 방식: 즉시 데미지 처리
+            this.target.hp -= this.damage;
+            if (this.target.hp <= 0) {
+                if (this.target.active !== undefined) this.target.active = false;
+                if (this.target.alive !== undefined) this.target.alive = false;
+            }
+
+            // 피격 이펙트 생성 (엔진의 이펙트 시스템 활용)
+            if (this.engine.addEffect) {
+                this.engine.addEffect('hit', this.target.x, this.target.y, '#fff');
+            }
+
             this.lastFireTime = now;
         }
     }
@@ -2630,7 +2639,6 @@ export class Sniper extends PlayerUnit {
         this.speed = 0.8; // 소총병보다 약간 느림
         this.fireRate = 2000; // 2초에 한 번 발사
         this.damage = 40;
-        this.color = '#ff3131';
         this.attackRange = 450;
         this.size = 24;
         this.visionRange = 10; // 시야가 매우 넓음
@@ -2642,10 +2650,18 @@ export class Sniper extends PlayerUnit {
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate && this.target) {
-            const { Projectile } = this.engine.entityClasses;
-            const p = new Projectile(this.x, this.y, this.target, this.damage, '#fff', this);
-            p.speed = 15; // 저격 탄환은 매우 빠름
-            this.engine.entities.projectiles.push(p);
+            // 히트스캔 방식: 즉시 데미지 처리
+            this.target.hp -= this.damage;
+            if (this.target.hp <= 0) {
+                if (this.target.active !== undefined) this.target.active = false;
+                if (this.target.alive !== undefined) this.target.alive = false;
+            }
+
+            // 저격 피격 이펙트 (흰색 스파크)
+            if (this.engine.addEffect) {
+                this.engine.addEffect('hit', this.target.x, this.target.y, '#fff');
+            }
+
             this.lastFireTime = now;
         }
     }
