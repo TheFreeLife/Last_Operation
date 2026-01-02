@@ -1181,8 +1181,12 @@ export class PlayerUnit extends Entity {
         // --- 수송기 탑승 로직 추가 ---
         if (this.transportTarget) {
             const target = this.transportTarget;
-            // 수송기가 없거나 파괴되었거나 이륙했으면 중단
-            if (!target.active || target.hp <= 0 || target.altitude > 0.1) {
+            // 여유 공간(부피) 체크
+            const occupied = target.getOccupiedSize ? target.getOccupiedSize() : 0;
+            const hasSpace = (occupied + (this.cargoSize || 1)) <= (target.cargoCapacity || 10);
+
+            // 수송기가 없거나 파괴되었거나 이륙했거나 꽉 찼으면 중단
+            if (!target.active || target.hp <= 0 || target.altitude > 0.1 || !hasSpace) {
                 this.transportTarget = null;
                 this.command = 'stop';
             } else {
@@ -1361,6 +1365,7 @@ export class Tank extends PlayerUnit {
         this.attackRange = 360; 
         this.visionRange = 6; // 전차 시야: 보병보다 넓음
         this.explosionRadius = 40; // 폭발 반경 추가
+        this.cargoSize = 5; // 전차 부피 5
     }
 
     attack() {
@@ -1709,6 +1714,7 @@ export class MissileLauncher extends PlayerUnit {
             this.visionRange = 8;
             this.recoil = 0;
             this.canBypassObstacles = false; // 장애물 통과 불가
+            this.cargoSize = 5; // 미사일 발사대 부피 5
     
             // 시즈 모드 관련 상태
             this.isSieged = false;
@@ -1935,11 +1941,9 @@ export class Artillery extends PlayerUnit {
         this.speed = 0.9;
         this.fireRate = 4000; // 매우 느린 연사
         this.damage = 100;    // 강력한 한 방
-        this.attackRange = 1000;
-        this.visionRange = 7;
-        this.explosionRadius = 60;
-        this.attackTargets = ['ground', 'sea'];
-        this.canBypassObstacles = false;
+        this.attackRange = 600; 
+        this.explosionRadius = 60; 
+        this.cargoSize = 3; // 자주포 부피 3
     }
 
     attack() {
@@ -3886,19 +3890,25 @@ export class CargoPlane extends PlayerUnit {
         this.maneuverFrameCount = 0;
         this.takeoffDistance = 0;
 
-        // --- 수송 시스템 추가 ---
+        // --- 수송 시스템 설정 ---
         this.cargo = [];
-        this.cargoCapacity = 8;
+        this.cargoCapacity = 10; // 최대 부피 10
         this.isUnloading = false;
         this.unloadTimer = 0;
-        this.unloadInterval = 300; // 0.3초 간격으로 하차
+        this.unloadInterval = 300; 
+    }
+
+    // 현재 적재된 총 부피 계산
+    getOccupiedSize() {
+        return this.cargo.reduce((sum, unit) => sum + (unit.cargoSize || 1), 0);
     }
 
     // 스킬 설정 정보 제공
     getSkillConfig(cmd) {
         const skills = {
             'takeoff_landing': { type: 'state', handler: this.toggleTakeoff },
-            'unload_all': { type: 'instant', handler: this.startUnloading }
+            'unload_all': { type: 'instant', handler: this.startUnloading },
+            'combat_drop': { type: 'instant', handler: this.startCombatDrop }
         };
         return skills[cmd];
     }
@@ -3906,10 +3916,11 @@ export class CargoPlane extends PlayerUnit {
     // 유닛 탑승 처리
     loadUnit(unit) {
         if (this.isUnloading) return false;
-        if (this.cargo.length >= this.cargoCapacity) return false;
+        const uSize = unit.cargoSize || 1;
+        if (this.getOccupiedSize() + uSize > this.cargoCapacity) return false;
         if (this.altitude > 0.1) return false;
 
-        unit.active = false; // 화면에서 숨김
+        unit.active = false; 
         unit.command = 'stop';
         this.cargo.push(unit);
         
@@ -4248,11 +4259,17 @@ export class CargoPlane extends PlayerUnit {
                 counts[name] = (counts[name] || 0) + 1;
             });
 
-            const entries = Object.entries(counts).map(([name, count]) => `${name} x ${count}`);
-            const lineHeight = 18;
-            const padding = 8;
+            // 목록 생성 및 상단에 총 용량 추가
+            const occupied = this.getOccupiedSize ? this.getOccupiedSize() : this.cargo.length;
+            const entries = [
+                `적재 용량: ${occupied} / ${this.cargoCapacity}`,
+                ...Object.entries(counts).map(([name, count]) => `${name} x ${count}`)
+            ];
+
+            const lineHeight = 20;
+            const padding = 10;
             
-            ctx.font = 'bold 13px Arial';
+            ctx.font = 'bold 14px "Segoe UI", Arial';
             let maxWidth = 0;
             entries.forEach(text => {
                 maxWidth = Math.max(maxWidth, ctx.measureText(text).width);
@@ -4260,20 +4277,31 @@ export class CargoPlane extends PlayerUnit {
 
             const boxWidth = maxWidth + padding * 2;
             const boxHeight = entries.length * lineHeight + padding;
-            const boxY = -70 - boxHeight;
+            const boxY = -80 - boxHeight; // 위치를 조금 더 위로
 
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            // 메인 샴퍼 배경
+            ctx.fillStyle = 'rgba(10, 20, 30, 0.85)';
             ctx.beginPath();
-            ctx.roundRect(-boxWidth/2, boxY, boxWidth, boxHeight, 5);
+            ctx.roundRect(-boxWidth/2, boxY, boxWidth, boxHeight, 6);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
-            ctx.lineWidth = 1;
+            
+            // 상단 하이라이트 테두리
+            ctx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
 
-            ctx.fillStyle = '#00ffff';
+            // 텍스트 출력
             ctx.textAlign = 'center';
             entries.forEach((text, i) => {
-                ctx.fillText(text, 0, boxY + padding + 10 + i * lineHeight);
+                // 첫 번째 줄(용량)은 노란색 강조, 나머지는 밝은 흰색/시안
+                if (i === 0) {
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.font = 'bold 14px "Segoe UI", Arial';
+                } else {
+                    ctx.fillStyle = '#ecf0f1';
+                    ctx.font = '13px "Segoe UI", Arial';
+                }
+                ctx.fillText(text, 0, boxY + padding + 14 + i * lineHeight);
             });
             ctx.restore();
         }
