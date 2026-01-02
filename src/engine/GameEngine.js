@@ -80,7 +80,12 @@ export class GameEngine {
         const neutralTank = new Tank(basePos.x - 250, basePos.y - 100, this);
         neutralTank.ownerId = 3;
         neutralTank.name = "중립 전차 (P3)";
-        this.entities.units.push(neutralTank);
+        
+        const neutralDrone = new ScoutPlane(basePos.x - 300, basePos.y - 100, this);
+        neutralDrone.ownerId = 3;
+        neutralDrone.name = "정찰 무인기 (P3)";
+        
+        this.entities.units.push(neutralTank, neutralDrone);
 
         // 초기 적 유닛 (플레이어 2 소유)
         // (필요 시 여기에 Enemy 인스턴스 생성 및 ownerId = 2 부여)

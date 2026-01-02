@@ -1247,6 +1247,10 @@ export class PlayerUnit extends Entity {
         this.domain = 'ground'; // 'ground', 'air', 'sea'
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
         this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
+        
+        // 공격 특성 설정
+        this.attackType = 'hitscan'; // 'hitscan' (즉시 타격) 또는 'projectile' (탄환 발사)
+        this.explosionRadius = 0;    // 0보다 크면 범위 공격 적용
     }
 
     get destination() { return this._destination; }
@@ -1279,6 +1283,85 @@ export class PlayerUnit extends Entity {
         } else {
             this.path = [];
         }
+    }
+
+    // 공통 공격 처리 로직
+    performAttack() {
+        const now = Date.now();
+        if (now - this.lastFireTime < this.fireRate || !this.target) return;
+
+        if (this.attackType === 'hitscan') {
+            this.executeHitscanAttack();
+        } else if (this.attackType === 'projectile') {
+            this.executeProjectileAttack();
+        }
+
+        this.lastFireTime = now;
+    }
+
+    executeHitscanAttack() {
+        const tx = this.target.x;
+        const ty = this.target.y;
+
+        if (this.explosionRadius > 0) {
+            // 범위 공격 (전차 등)
+            const radiusSq = this.explosionRadius * this.explosionRadius;
+            const entities = this.engine.entities;
+
+            const applyAoE = (ent) => {
+                if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
+                if (!this.attackTargets.includes(ent.domain || 'ground')) return;
+                if (this.manualTarget !== ent && this.engine.getRelation(this.ownerId, ent.ownerId) === 'team') return;
+
+                const dx = ent.x - tx;
+                const dy = ent.y - ty;
+                if (dx * dx + dy * dy <= radiusSq) {
+                    ent.hp -= this.damage;
+                    if (ent.hp <= 0) {
+                        ent.active = false;
+                        if (ent.alive !== undefined) ent.alive = false;
+                    }
+                }
+            };
+
+            if (entities.base) applyAoE(entities.base);
+            entities.enemies.forEach(applyAoE);
+            entities.units.forEach(applyAoE);
+            entities.neutral.forEach(applyAoE);
+            
+            const bLists = ['turrets', 'generators', 'powerLines', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks', 'pipeLines'];
+            for (const listName of bLists) {
+                const list = entities[listName];
+                if (list) list.forEach(applyAoE);
+            }
+        } else {
+            // 단일 대상 공격 (보병, 대공포 등)
+            this.target.hp -= this.damage;
+            if (this.target.hp <= 0) {
+                this.target.active = false;
+                if (this.target.alive !== undefined) this.target.alive = false;
+            }
+        }
+
+        if (this.engine.addEffect) {
+            this.engine.addEffect('hit', tx, ty, this.color || '#fff');
+        }
+    }
+
+    executeProjectileAttack() {
+        const { Projectile } = this.engine.entityClasses;
+        const p = new Projectile(this.x, this.y, this.target, this.damage, this.color || '#ffff00', this);
+        
+        // 유닛 설정값 전달
+        if (this.explosionRadius > 0) {
+            p.type = 'shell';
+            p.explosionRadius = this.explosionRadius;
+        } else if (this.type === 'anti-air') {
+            p.type = 'tracer';
+            p.speed = 18;
+        }
+        
+        this.engine.entities.projectiles.push(p);
     }
 
     update(deltaTime) {
@@ -1620,18 +1703,11 @@ export class Tank extends PlayerUnit {
         this.cargoSize = 10; // 전차 부피 10
         this.hp = 1000;
         this.maxHp = 1000;
+        this.attackType = 'hitscan';
     }
 
     attack() {
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate) {
-            const { Projectile } = this.engine.entityClasses;
-            const p = new Projectile(this.x, this.y, this.target, this.damage, this.color, this);
-            p.type = 'shell'; // 포탄 타입 지정
-            p.explosionRadius = this.explosionRadius; 
-            this.engine.entities.projectiles.push(p);
-            this.lastFireTime = now;
-        }
+        this.performAttack();
     }
 
     draw(ctx) {
@@ -2024,6 +2100,7 @@ export class MissileLauncher extends PlayerUnit {
             this.fireDelayTimer = 0;
             this.maxFireDelay = 45; // 발사 전 대기 시간 (약 0.75초)
             this.pendingFirePos = { x: 0, y: 0 };
+            this.attackType = 'projectile';
         }
     
         getSkillConfig(cmd) {
@@ -2240,18 +2317,11 @@ export class Artillery extends PlayerUnit {
         this.attackRange = 600; 
         this.explosionRadius = 60; 
         this.cargoSize = 5; // 자주포 부피 5
+        this.attackType = 'projectile';
     }
 
     attack() {
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate && this.target) {
-            const shell = new Projectile(this.x, this.y, this.target, this.damage, '#f1c40f', this);
-            shell.type = 'shell';
-            shell.explosionRadius = this.explosionRadius;
-            shell.speed = 6;
-            this.engine.entities.projectiles.push(shell);
-            this.lastFireTime = now;
-        }
+        this.performAttack();
     }
 
     draw(ctx) {
@@ -2354,32 +2424,11 @@ export class AntiAirVehicle extends PlayerUnit {
         this.attackTargets = ['air']; // 공중 유닛만 공격 가능
         this.lastBarrelSide = 1; // 사격 포구 번갈아 가기 위한 상태
         this.cargoSize = 5; // 대공포 적재 용량 5
+        this.attackType = 'hitscan';
     }
 
     attack() {
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate && this.target) {
-            const { Projectile } = this.engine.entityClasses;
-            
-            // 양쪽 포구에서 동시에 발사
-            const sides = [1, -1];
-            sides.forEach(side => {
-                const barrelDist = 20 * 2;
-                const sideDist = side * 9 * 2;
-                
-                const muzzleX = this.x + Math.cos(this.angle) * barrelDist - Math.sin(this.angle) * sideDist;
-                const muzzleY = this.y + Math.sin(this.angle) * barrelDist + Math.cos(this.angle) * sideDist;
-
-                const bullet = new Projectile(muzzleX, muzzleY, this.target, this.damage / 2, '#ffff00', this);
-                bullet.type = 'tracer'; // 예광탄 타입
-                bullet.speed = 18;      // 속도 상향
-                bullet.size = 3;
-                
-                this.engine.entities.projectiles.push(bullet);
-            });
-
-            this.lastFireTime = now;
-        }
+        this.performAttack();
     }
 
     draw(ctx) {
@@ -2554,26 +2603,11 @@ export class Rifleman extends PlayerUnit {
         this.maxHp = 300;
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 3;  // 분대이므로 적재 용량 증가
+        this.attackType = 'hitscan';
     }
 
     attack() {
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate && this.target) {
-            // 히트스캔: 분대 통합 공격력 적용
-            this.target.hp -= this.damage;
-            
-            if (this.target.hp <= 0) {
-                if (this.target.active !== undefined) this.target.active = false;
-                if (this.target.alive !== undefined) this.target.alive = false;
-            }
-
-            // 피격 이펙트 단일화 (최적화)
-            if (this.engine.addEffect) {
-                this.engine.addEffect('hit', this.target.x, this.target.y, '#fff');
-            }
-
-            this.lastFireTime = now;
-        }
+        this.performAttack();
     }
 
     draw(ctx) {
