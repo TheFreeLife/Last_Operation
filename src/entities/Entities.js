@@ -1549,12 +1549,14 @@ export class Tank extends PlayerUnit {
         this.name = '전차';
         this.speed = 1.8; // 1.2 -> 1.8 (1.5배 상향)
         this.fireRate = 1800; 
-        this.damage = 45;     
+        this.damage = 200;     
         this.color = '#39ff14';
         this.attackRange = 360; 
         this.visionRange = 6; // 전차 시야: 보병보다 넓음
         this.explosionRadius = 40; // 폭발 반경 추가
-        this.cargoSize = 5; // 전차 부피 5
+        this.cargoSize = 10; // 전차 부피 10
+        this.hp = 1000;
+        this.maxHp = 1000;
     }
 
     attack() {
@@ -1945,7 +1947,7 @@ export class MissileLauncher extends PlayerUnit {
             this.visionRange = 8;
             this.recoil = 0;
             this.canBypassObstacles = false; // 장애물 통과 불가
-            this.cargoSize = 5; // 미사일 발사대 부피 5
+            this.cargoSize = 10; // 미사일 발사대 부피 10
     
             // 시즈 모드 관련 상태
             this.isSieged = false;
@@ -2174,7 +2176,7 @@ export class Artillery extends PlayerUnit {
         this.damage = 100;    // 강력한 한 방
         this.attackRange = 600; 
         this.explosionRadius = 60; 
-        this.cargoSize = 3; // 자주포 부피 3
+        this.cargoSize = 5; // 자주포 부피 5
     }
 
     attack() {
@@ -2288,7 +2290,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.visionRange = 10;
         this.attackTargets = ['air']; // 공중 유닛만 공격 가능
         this.lastBarrelSide = 1; // 사격 포구 번갈아 가기 위한 상태
-        this.cargoSize = 3; // 대공포 적재 용량 3
+        this.cargoSize = 5; // 대공포 적재 용량 5
     }
 
     attack() {
@@ -2478,14 +2480,17 @@ export class Rifleman extends PlayerUnit {
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'rifleman';
-        this.name = '소총병';
+        this.name = '보병 분대'; // 이름 변경
         this.speed = 0.9;
-        this.fireRate = 100;
-        this.damage = 10;
-        this.attackRange = 180;
-        this.size = 24; // 12 -> 24
-        this.visionRange = 4; // 보병 시야: 제일 좁음
-        this.attackTargets = ['ground', 'sea', 'air']; // 소총병은 공중 공격 가능
+        this.fireRate = 150; // 분대 사격 연사력 조정
+        this.damage = 15;    // 분대 통합 공격력 15
+        this.attackRange = 200; // 사거리 소폭 상향
+        this.size = 60;      // 분대 크기에 맞춰 선택 영역 확장
+        this.visionRange = 5; 
+        this.hp = 300;       // 3인 통합 체력 (100*3)
+        this.maxHp = 300;
+        this.attackTargets = ['ground', 'sea', 'air'];
+        this.cargoSize = 3;  // 분대이므로 적재 용량 증가
     }
 
     attack() {
@@ -2498,9 +2503,13 @@ export class Rifleman extends PlayerUnit {
                 if (this.target.alive !== undefined) this.target.alive = false;
             }
 
-            // 피격 이펙트 생성 (엔진의 이펙트 시스템 활용)
+            // 분대 사격 피격 이펙트 (여러 지점에 효과)
             if (this.engine.addEffect) {
-                this.engine.addEffect('hit', this.target.x, this.target.y, '#fff');
+                for(let i=0; i<2; i++) {
+                    const ox = (Math.random()-0.5)*20;
+                    const oy = (Math.random()-0.5)*20;
+                    this.engine.addEffect('hit', this.target.x + ox, this.target.y + oy, '#fff');
+                }
             }
 
             this.lastFireTime = now;
@@ -2512,122 +2521,159 @@ export class Rifleman extends PlayerUnit {
             this.drawConstruction(ctx);
             return;
         }
+        
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        ctx.scale(2, 2); // 2배 확대
 
-        const isShooting = (this.target && (Date.now() - this.lastFireTime < 200));
+        // 삼각형 대열 오프셋 (중심 기준)
+        const formation = [
+            { x: 15, y: 0 },   // 리더 (앞)
+            { x: -12, y: -18 }, // 좌측 후방
+            { x: -12, y: 18 }   // 우측 후방
+        ];
 
-        // 1. 전술 백팩 (Assault Pack)
-        ctx.fillStyle = '#3a4118'; // 국방색
-        ctx.fillRect(-10, -5, 5, 10);
-        // 침낭/롤
-        ctx.fillStyle = '#2d3436';
-        ctx.beginPath(); ctx.ellipse(-10, 0, 2, 4, 0, 0, Math.PI*2); ctx.fill();
-
-        // 2. 바디 (전투복 & 플레이트 캐리어)
-        // 전투복
-        ctx.fillStyle = '#556644'; 
-        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-        
-        // 방탄 조끼 (Plate Carrier)
-        ctx.fillStyle = '#4b5320'; 
-        ctx.fillRect(-2, -5, 6, 10);
-        
-        // 탄창 파우치 (가슴) - 소총병의 특징
-        ctx.fillStyle = '#3a4118';
-        ctx.fillRect(0, -3, 2, 6); // 3연장 탄창 파우치
-        ctx.strokeStyle = '#2d3436';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(0, -1); ctx.lineTo(2, -1);
-        ctx.moveTo(0, 1); ctx.lineTo(2, 1);
-        ctx.stroke();
-
-        // 3. 헬멧 (High-Cut 전술 헬멧)
-        ctx.fillStyle = '#4b5320';
-        ctx.beginPath(); ctx.arc(1, 0, 4.5, 0, Math.PI * 2); ctx.fill();
-        // 헬멧 레일/액세서리
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(1, -4.5, 3, 1); // 사이드 레일
-        ctx.fillRect(1, 3.5, 3, 1);
-        
-        // 전술 헤드셋 (Peltor Style)
-        ctx.fillStyle = '#3a4118';
-        ctx.beginPath(); ctx.arc(1, -4, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(1, 4, 2, 0, Math.PI * 2); ctx.fill();
-
-        // 야시경 마운트 (NVG Mount)
-        ctx.fillStyle = '#1e272e';
-        ctx.fillRect(4, -1.5, 1.5, 3);
-
-        // 4. 전술 소총 (Tactical Rifle) - 사격 자세
-        ctx.save();
-        ctx.translate(3, 2); // 어깨 견착 위치
-
-        // 사격 시 반동 애니메이션
-        if (isShooting) {
-            ctx.translate(-1, 0); 
-        }
-
-        // 오른팔 (방아쇠 손)
-        ctx.fillStyle = '#556644'; // 소매
-        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#2d3436'; // 장갑
-        ctx.beginPath(); ctx.arc(2, 0, 2, 0, Math.PI*2); ctx.fill();
-
-        // 소총 몸체 (Receiver)
-        ctx.fillStyle = '#1e272e'; // 무광 블랙
-        ctx.fillRect(2, -1.5, 8, 3); 
-        // 개머리판 (Stock)
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-2, -1.5, 4, 3);
-        // 총열 & 핸드가드 (Barrel & Handguard)
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(10, -1, 10, 2);
-        
-        // 탄창 (Magazine)
-        ctx.fillStyle = '#3a4118'; // 탄색/국방색 탄창
-        ctx.fillRect(6, 1, 2, 4);
-
-        // 조준경 (Optic)
-        ctx.fillStyle = '#111';
-        ctx.fillRect(4, -3, 4, 1.5);
-        
-        // 수직 손잡이 (Vertical Grip)
-        ctx.fillStyle = '#1e272e';
-        ctx.fillRect(14, 1, 1.5, 3);
-
-        // 왼팔 (핸드가드 파지)
-        ctx.fillStyle = '#556644';
-        ctx.beginPath(); ctx.arc(10, 2, 2.5, 0, Math.PI*2); ctx.fill(); // 팔꿈치 쪽 느낌
-        ctx.fillStyle = '#2d3436'; // 장갑 낀 왼손
-        ctx.beginPath(); ctx.arc(14, 1, 2, 0, Math.PI*2); ctx.fill();
-
-        // 총구 화염 (Muzzle Flash)
-        if (isShooting) {
-            ctx.fillStyle = '#f1c40f';
-            ctx.beginPath();
-            ctx.moveTo(20, 0);
-            ctx.lineTo(24, -2); ctx.lineTo(22, 0); ctx.lineTo(24, 2);
-            ctx.fill();
+        formation.forEach((pos, index) => {
+            ctx.save();
+            ctx.translate(pos.x, pos.y);
             
-            // 탄피 배출 (간단 표현)
-            ctx.fillStyle = '#f39c12';
-            ctx.fillRect(4 + Math.random()*2, 2 + Math.random()*2, 1, 0.5);
-        }
+            // 분대원마다 미세한 각도 및 애니메이션 차이 부여 (생동감)
+            const individualOffset = (index * 1234) % 100;
+            const breathing = Math.sin((Date.now() + individualOffset) / 400) * 0.5;
+            ctx.rotate(breathing * 0.05);
+            ctx.scale(1.8, 1.8);
+
+            const isShooting = (this.target && (Date.now() - this.lastFireTime < 200));
+
+            // 0. 하부 그림자 (부드러운 타원)
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath(); ctx.ellipse(0, 2, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+
+            // 1. 전술 백팩 (입체감 강화)
+            ctx.fillStyle = '#2d3310'; // 측면 어두운 면
+            ctx.fillRect(-10.5, -5, 6, 10);
+            ctx.fillStyle = '#3a4118'; // 윗면 밝은 면
+            ctx.fillRect(-10, -5, 5, 10);
+            // MOLLE 웨빙 디테일
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 0.5;
+            for(let i=-3; i<=3; i+=3) {
+                ctx.beginPath(); ctx.moveTo(-10, i); ctx.lineTo(-5, i); ctx.stroke();
+            }
+
+            // 2. 바디 (전투복 & 레이어드 아머)
+            // 전투복 (디지털 패턴 느낌의 점 찍기)
+            ctx.fillStyle = '#556644'; 
+            ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#3a4118'; // 미세 패턴
+            ctx.fillRect(-2, 2, 1, 1); ctx.fillRect(2, -3, 1, 1);
+            
+            // 플레이트 캐리어 (입체적 돌출)
+            ctx.fillStyle = '#4b5320'; 
+            ctx.beginPath();
+            ctx.roundRect(-2.5, -5, 7, 10, 1);
+            ctx.fill();
+            // 조끼 상단 어깨끈
+            ctx.fillStyle = '#3a4118';
+            ctx.fillRect(-2, -5, 2, 2);
+            ctx.fillRect(-2, 3, 2, 2);
+            
+            // 탄창 파우치 (돌출된 입체)
+            ctx.fillStyle = '#2d3310';
+            ctx.fillRect(0.5, -3.5, 2.5, 7); // 파우치 베이스
+            ctx.fillStyle = '#3a4118'; // 각 파우치 덮개
+            ctx.fillRect(1, -3, 2, 1.5);
+            ctx.fillRect(1, -0.5, 2, 1.5);
+            ctx.fillRect(1, 2, 2, 1.5);
+
+            // 3. 헬멧 (High-Cut 입체형)
+            const hGrd = ctx.createRadialGradient(1, -1, 1, 1, 0, 5);
+            hGrd.addColorStop(0, '#6b7a4d');
+            hGrd.addColorStop(1, '#4b5320');
+            ctx.fillStyle = hGrd;
+            ctx.beginPath(); ctx.arc(1, 0, 4.8, 0, Math.PI * 2); ctx.fill();
+            
+            // NVG 마운트 (이마 부분)
+            ctx.fillStyle = '#1e272e';
+            ctx.fillRect(4.5, -1.2, 1.5, 2.4);
+            
+            // 사이드 레일 및 헤드셋
+            ctx.fillStyle = '#2d3436';
+            ctx.fillRect(1, -4.8, 2.5, 1.2); // 레일
+            ctx.fillRect(1, 3.6, 2.5, 1.2);
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath(); ctx.arc(1, -4.2, 1.8, 0, Math.PI*2); ctx.fill(); // 헤드셋 컵
+            ctx.beginPath(); ctx.arc(1, 4.2, 1.8, 0, Math.PI*2); ctx.fill();
+
+            // 4. 전술 소총 (Custom AR-15 Style)
+            ctx.save();
+            ctx.translate(3.5, 2); 
+            if (isShooting) ctx.translate(-1.2, 0); 
+
+            // 개머리판 및 스톡 봉
+            ctx.fillStyle = '#1e272e';
+            ctx.fillRect(-3, -0.8, 4, 1.6);
+            ctx.fillStyle = '#2d3436';
+            ctx.beginPath(); ctx.roundRect(-4, -1.5, 3, 3, 0.5); ctx.fill();
+
+            // 총몸 (Receiver & Magazine Well)
+            ctx.fillStyle = '#1e272e'; 
+            ctx.fillRect(1, -1.5, 9, 3.5); 
+            ctx.fillStyle = '#2d3436'; // 상부 리시버 요철
+            ctx.fillRect(2, -1.8, 6, 1);
+            
+            // 탄창 (Magpul Style)
+            ctx.fillStyle = '#3a4118';
+            ctx.beginPath(); ctx.roundRect(6.5, 1, 2.2, 4.5, 0.5); ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.4)'; // 탄창 홈
+            ctx.beginPath(); ctx.moveTo(7, 2); ctx.lineTo(7, 4.5); ctx.stroke();
+
+            // 총열 및 레일 (Handguard)
+            ctx.fillStyle = '#1e272e';
+            ctx.fillRect(10, -1.2, 11, 2.4);
+            ctx.fillStyle = '#2d3436'; // 피카티니 레일 표현
+            for(let i=11; i<20; i+=2) ctx.fillRect(i, -1.5, 1, 3);
+            
+            // 조준경 (EOTech Style Holo Sight)
+            ctx.fillStyle = '#111';
+            ctx.fillRect(4, -3.2, 4, 2);
+            ctx.fillStyle = 'rgba(0, 210, 255, 0.4)'; // 렌즈 반사
+            ctx.fillRect(7, -2.8, 1, 1.2);
+
+            // 소염기 및 가스 블록
+            ctx.fillStyle = '#000';
+            ctx.fillRect(21, -1.2, 3, 2.4);
+
+            // 팔 및 손 (전술 장갑)
+            ctx.fillStyle = '#556644';
+            ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI*2); ctx.fill(); // 어깨/소매
+            ctx.beginPath(); ctx.arc(10, 2.2, 2.5, 0, Math.PI*2); ctx.fill(); // 앞팔
+            ctx.fillStyle = '#2d3436'; // 장갑
+            ctx.beginPath(); ctx.arc(2, 0.5, 2.2, 0, Math.PI*2); ctx.fill(); // 오른손
+            ctx.beginPath(); ctx.arc(14, 1.2, 2.2, 0, Math.PI*2); ctx.fill(); // 왼손
+
+            // 총구 화염 (부드러운 광원 효과)
+            if (isShooting) {
+                const fGrd = ctx.createRadialGradient(24, 0, 0, 24, 0, 8);
+                fGrd.addColorStop(0, '#fff');
+                fGrd.addColorStop(0.4, '#f1c40f');
+                fGrd.addColorStop(1, 'transparent');
+                ctx.fillStyle = fGrd;
+                ctx.beginPath(); ctx.arc(24, 0, 8, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+            ctx.restore();
+        });
 
         ctx.restore();
-        ctx.restore();
 
-        // 아군 체력 바 (초록색) 상시 표시
-        const barW = 20;
-        const barY = this.y - 20;
+        // 아군 체력 바 (분대 통합 표시)
+        const barW = 40;
+        const barY = this.y - 35;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillRect(this.x - barW/2, barY, barW, 5);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
     }
 }
 
@@ -4508,7 +4554,7 @@ export class CargoPlane extends PlayerUnit {
 
         // --- 수송 시스템 설정 ---
         this.cargo = [];
-        this.cargoCapacity = 10; // 최대 부피 10
+        this.cargoCapacity = 20; // 최대 부피 20
         this.isUnloading = false;
         this.unloadTimer = 0;
         this.unloadInterval = 300; 
