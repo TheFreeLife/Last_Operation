@@ -194,9 +194,30 @@ export class GameEngine {
     }
 
     getRelation(p1Id, p2Id) {
-        if (p1Id === p2Id) return 'team';
+        if (p1Id === p2Id) return 'self';
+        
+        const p1 = this.players[p1Id];
+        const p2 = this.players[p2Id];
+        
+        // 1. 같은 팀이면 아군
+        if (p1 && p2 && p1.team === p2.team) return 'ally';
+        
+        // 2. 명시적 관계 확인
         const key = p1Id < p2Id ? `${p1Id}-${p2Id}` : `${p2Id}-${p1Id}`;
-        return this.relations[key] || 'enemy'; // 기본값은 적으로 설정 (안전지향)
+        const relation = this.relations[key];
+        
+        if (relation === 'enemy') return 'enemy';
+        if (relation === 'neutral') return 'neutral';
+        if (relation === 'ally') return 'ally'; // 명시적 동맹 지원
+
+        return 'enemy'; // 기본값은 적군
+    }
+
+    // 엔티티의 소유권 유형을 특정 플레이어 관점에서 반환
+    getOwnershipType(viewerId, entity) {
+        if (!entity) return 'none';
+        const ownerId = entity.ownerId || 0;
+        return this.getRelation(viewerId, ownerId);
     }
 
             initResources() {
@@ -1873,9 +1894,11 @@ export class GameEngine {
                 // 관계에 따른 하이라이트 색상 결정
                 const relation = this.getRelation(1, ent.ownerId);
                 
-                if (relation === 'team') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 아군: 초록
+                if (relation === 'self') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 자신: 초록
                 else if (relation === 'enemy') this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // 적군: 빨강
-                else this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노랑
+                else if (relation === 'neutral') this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노랑
+                else if (relation === 'ally') this.ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // 아군: 파랑
+                else this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 기타: 흰색
                 
                 const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                     left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
@@ -1884,8 +1907,8 @@ export class GameEngine {
                 const h = bounds.bottom - bounds.top;
                 this.ctx.strokeRect(bounds.left, bounds.top, w, h);
 
-                // 공격 사거리 표시 (아군 유닛인 경우에만)
-                if (relation === 'team' && ent.attackRange) {
+                // 공격 사거리 표시 (내 유닛 또는 아군 유닛인 경우)
+                if ((relation === 'self' || relation === 'ally') && ent.attackRange) {
                     this.ctx.save();
                     
                     let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색

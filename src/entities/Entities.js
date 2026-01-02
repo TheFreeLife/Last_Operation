@@ -29,8 +29,8 @@ export class Entity {
         // 2. 관계 확인 (아군 사격 방지)
         if (engine && engine.getRelation) {
             const relation = engine.getRelation(this.ownerId, target.ownerId);
-            if (relation === 'team') return false; // 아군은 공격 불가
-            if (relation === 'neutral') return false; // 중립은 명시적 명령 전까지 공격 불가 (선택 사항)
+            if (relation === 'self' || relation === 'ally') return false; // 자신 및 아군은 공격 불가
+            if (relation === 'neutral') return false; // 중립은 명시적 명령 전까지 공격 불가
         }
 
         return true;
@@ -1308,14 +1308,16 @@ export class PlayerUnit extends Entity {
             const radiusSq = this.explosionRadius * this.explosionRadius;
             const entities = this.engine.entities;
 
-            const applyAoE = (ent) => {
-                if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
-                if (!this.attackTargets.includes(ent.domain || 'ground')) return;
-                if (this.manualTarget !== ent && this.engine.getRelation(this.ownerId, ent.ownerId) === 'team') return;
-
-                const dx = ent.x - tx;
-                const dy = ent.y - ty;
-                if (dx * dx + dy * dy <= radiusSq) {
+                            const applyAoE = (ent) => {
+                            if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
+                            if (!this.attackTargets.includes(ent.domain || 'ground')) return;
+                            
+                            const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
+                            // 자신 및 아군 오사 방지 (수동 타겟 제외)
+                            if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
+            
+                            const dx = ent.x - tx;
+                            const dy = ent.y - ty;                if (dx * dx + dy * dy <= radiusSq) {
                     ent.hp -= this.damage;
                     if (ent.hp <= 0) {
                         ent.active = false;
@@ -1957,9 +1959,9 @@ export class Missile extends Entity {
             // 공중 유닛 공격 제외
             if (target.domain === 'air') return;
 
-            // 관계 체크 (아군 오사 방지)
+            // 관계 체크 (자신 및 아군 오사 방지)
             const relation = this.engine.getRelation(this.ownerId, target.ownerId);
-            if (relation === 'team') return;
+            if (relation === 'self' || relation === 'ally') return;
 
             const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
             if (dist <= this.explosionRadius) {
@@ -5402,10 +5404,10 @@ export class Projectile extends Entity {
                 const targetDomain = target.domain || 'ground';
                 if (!attackTargets.includes(targetDomain)) return;
 
-                // 2. 관계 체크 (적과 중립 모두 스플래시 데미지 입힘, 아군만 제외)
+                // 2. 관계 체크 (적과 중립 모두 스플래시 데미지 입힘, 자신 및 아군 제외)
                 const isManualTarget = (this.source && this.source.manualTarget === target);
                 const relation = engine.getRelation(this.source.ownerId, target.ownerId);
-                if (!isManualTarget && relation === 'team') return;
+                if (!isManualTarget && (relation === 'self' || relation === 'ally')) return;
 
                 const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 if (dist <= this.explosionRadius) {
@@ -5457,9 +5459,9 @@ export class Projectile extends Entity {
             // 소스 유닛과 대상의 관계 확인
             const relation = engine.getRelation(this.source.ownerId, other.ownerId);
             
-            // 아군이나 중립은 기본적으로 충돌 무시 (단, 강제 공격 대상이면 허용)
+            // 자신, 아군, 중립은 기본적으로 충돌 무시 (단, 강제 공격 대상이면 허용)
             const isManualTarget = (this.source.manualTarget === other);
-            if (!isManualTarget && (relation === 'team' || relation === 'neutral')) return false;
+            if (!isManualTarget && (relation === 'self' || relation === 'ally' || relation === 'neutral')) return false;
             
             // [수정] 곡사 무기는 지상 장애물 통과
             const isIndirectFire = (this.type === 'shell') || (this.source && this.source.type === 'missile-launcher');
