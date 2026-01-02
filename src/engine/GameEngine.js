@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Sandbag, AirSandbag, NeutralTank, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -59,11 +59,15 @@ export class GameEngine {
         const startCargo = new CargoPlane(basePos.x + 200, basePos.y - 200, this);
         const startSniper = new Sniper(basePos.x - 40, basePos.y + spawnOffset + 20, this);
         
+        // 소유권 명시
+        [startTank, startMissile, startInfantry, startArtillery, startAntiAir, startScout, startBomber, startCargo, startSniper].forEach(u => u.ownerId = 1);
+
         const startEngineers = [
             new CombatEngineer(basePos.x - 40, basePos.y + spawnOffset + 40, this),
             new CombatEngineer(basePos.x, basePos.y + spawnOffset + 40, this),
             new CombatEngineer(basePos.x + 40, basePos.y + spawnOffset + 40, this)
         ];
+        startEngineers.forEach(e => e.ownerId = 1);
         
         startTank.destination = { x: basePos.x - spawnOffset - 40, y: basePos.y + spawnOffset + 40 };
         startMissile.destination = { x: basePos.x + spawnOffset + 40, y: basePos.y + spawnOffset + 40 };
@@ -72,12 +76,14 @@ export class GameEngine {
         
         this.entities.units.push(startTank, startMissile, startInfantry, startSniper, startArtillery, startAntiAir, startScout, startBomber, startCargo, ...startEngineers);
 
-        const sandbag = new Sandbag(basePos.x + 150, basePos.y - 150);
-        const airSandbag = new AirSandbag(basePos.x + 250, basePos.y - 150);
-        this.entities.enemies.push(sandbag, airSandbag);
+        // 테스트용 중립 유닛 (플레이어 3)
+        const neutralTank = new Tank(basePos.x - 250, basePos.y - 100, this);
+        neutralTank.ownerId = 3;
+        neutralTank.name = "중립 전차 (P3)";
+        this.entities.units.push(neutralTank);
 
-        const neutralTank = new NeutralTank(basePos.x - 250, basePos.y - 100, this);
-        this.entities.neutral.push(neutralTank);
+        // 초기 적 유닛 (플레이어 2 소유)
+        // (필요 시 여기에 Enemy 인스턴스 생성 및 ownerId = 2 부여)
 
         this.updateVisibility();
 
@@ -103,6 +109,23 @@ export class GameEngine {
 
         this.resources = { gold: 999999, oil: 0, iron: 0 };
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
+
+        // 플레이어 시스템 초기화
+        this.players = {
+            1: { name: 'Player 1 (User)', team: 1 },
+            2: { name: 'Player 2 (Enemy)', team: 2 },
+            3: { name: 'Player 3 (Neutral)', team: 3 }
+        };
+
+        // 관계 설정 (나중에 외부 설정 파일로 분리 가능)
+        this.relations = {
+            '1-2': 'enemy',
+            '2-1': 'enemy',
+            '1-3': 'neutral',
+            '3-1': 'neutral',
+            '2-3': 'neutral',
+            '3-2': 'neutral'
+        };
 
         this.lastTime = 0;
         this.gameState = 'playing'; 
@@ -163,6 +186,12 @@ export class GameEngine {
         this.canvas.height = window.innerHeight;
         this.minimapCanvas.width = 200;
         this.minimapCanvas.height = 200;
+    }
+
+    getRelation(p1Id, p2Id) {
+        if (p1Id === p2Id) return 'team';
+        const key = p1Id < p2Id ? `${p1Id}-${p2Id}` : `${p2Id}-${p1Id}`;
+        return this.relations[key] || 'enemy'; // 기본값은 적으로 설정 (안전지향)
     }
 
             initResources() {
@@ -283,20 +312,18 @@ export class GameEngine {
         let menuType = 'main';
         let items = [];
 
-        // 유닛 명령 메뉴가 건설 메뉴보다 우선순위가 높아야 함 (모드 탈출 보장)
-                if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
-                    const firstEnt = this.selectedEntities[0];
-                    const isEnemy = this.entities.enemies.includes(firstEnt);
-                    const isNeutral = this.entities.neutral.includes(firstEnt);
-                    // 아군 유닛 판단 시 적군과 중립군 모두 제외
-                    const allPlayerUnits = this.selectedEntities.every(ent => 
-                        ent instanceof PlayerUnit && 
-                        !this.entities.enemies.includes(ent) && 
-                        !this.entities.neutral.includes(ent)
-                    );
-                    const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
-        
-                    if (allPlayerUnits) {                // [아군 유닛 메뉴]
+        // 유닛 명령 메뉴가 건설 메뉴보다 우선순위가 높아야 함
+        if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
+            const firstEnt = this.selectedEntities[0];
+            
+            // 모든 선택된 유닛이 사용자의 것인지 확인
+            const isUserOwned = this.selectedEntities.every(ent => ent.ownerId === 1);
+            const isEnemy = this.entities.enemies.includes(firstEnt) || firstEnt.ownerId === 2;
+            const isNeutral = firstEnt.ownerId === 3;
+            
+            const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
+
+            if (isUserOwned) {                // [아군 유닛 메뉴]
                 menuType = 'unit';
                 header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
                 
@@ -722,15 +749,25 @@ export class GameEngine {
 
             if (e.button === 0) { // LEFT CLICK
                 if (this.unitCommandMode) {
-                    // 공격 명령 모드 등에서 적 유닛 또는 중립 유닛 클릭 여부 확인
-                    const clickedTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
+                    // 모든 유닛 및 건물 중에서 타겟 찾기
+                    const potentialTargets = [
+                        ...this.entities.units,
+                        ...this.entities.enemies, 
+                        ...this.entities.neutral,
+                        ...this.getAllBuildings()
+                    ];
+
+                    const clickedTarget = potentialTargets.find(ent => {
+                        if (!ent || !ent.active || ent.hp <= 0) return false;
                         const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                             left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                         };
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
                     
-                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, clickedTarget);
+                    // 아군이 아닌 대상을 클릭한 경우만 타겟으로 전달
+                    const finalTarget = (clickedTarget && this.getRelation(1, clickedTarget.ownerId) !== 'team') ? clickedTarget : null;
+                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, finalTarget);
                 } else if (this.isSellMode) {
                     this.handleSell(worldX, worldY);
                 } else if (this.isBuildMode) {
@@ -760,62 +797,52 @@ export class GameEngine {
                     this.cancelModes();
                     this.updateCursor();
                 } else if (this.selectedEntities.length > 0) {
-                    // 1. 적 유닛 또는 중립 유닛 클릭 여부 확인 (강제 공격)
-                    const clickedTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
+                    // 1. 클릭 대상 확인 (강제 공격/탑승/수리 타겟팅용)
+                    const potentialTargets = [
+                        ...this.entities.units,
+                        ...this.entities.enemies, 
+                        ...this.entities.neutral,
+                        ...this.getAllBuildings()
+                    ];
+
+                    const clickedTarget = potentialTargets.find(ent => {
+                        if (!ent || !ent.active || ent.hp <= 0) return false;
                         const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                             left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                         };
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
 
-                    if (clickedTarget) {
+                    // 1.1 적군 또는 중립 대상인 경우 (강제 공격)
+                    if (clickedTarget && this.getRelation(1, clickedTarget.ownerId) !== 'team') {
                         this.executeUnitCommand('attack', clickedTarget.x, clickedTarget.y, clickedTarget);
                         return;
                     }
 
-                    // [수송기 탑승 로직] 아군 수송기 클릭 여부 확인
-                    const clickedCargoPlane = this.entities.units.find(u => 
-                        u.type === 'cargo-plane' && u.altitude < 0.1 &&
-                        worldX >= u.x - 60 && worldX <= u.x + 60 &&
-                        worldY >= u.y - 60 && worldY <= u.y + 60
-                    );
-
-                    if (clickedCargoPlane) {
+                    // [수송기 탑승 로직] 아군 수송기 클릭 여부 확인 (기존 유지하되 소유주 체크 추가)
+                    if (clickedTarget && clickedTarget.type === 'cargo-plane' && clickedTarget.ownerId === 1 && clickedTarget.altitude < 0.1) {
                         this.selectedEntities.forEach(u => {
-                            if (u.domain === 'ground' && u !== clickedCargoPlane) {
-                                u.transportTarget = clickedCargoPlane;
+                            if (u.domain === 'ground' && u !== clickedTarget) {
+                                u.transportTarget = clickedTarget;
                                 u.command = 'move';
                             }
                         });
                         return;
                     }
 
-                    // 2. 공병 수리 로직 (기존 유지)
+                    // 2. 공병 수리 로직 (아군 건물인 경우만)
                     const engineer = this.selectedEntities.find(u => u.type === 'engineer');
-                    if (engineer) {
-                        const buildings = [
-                            ...this.entities.turrets, ...this.entities.generators, ...this.entities.airports,
-                            ...this.entities.refineries, ...this.entities.goldMines, ...this.entities.storage,
-                            ...this.entities.armories, ...this.entities.barracks, ...this.entities.walls, this.entities.base
-                        ];
-                        const targetBuilding = buildings.find(b => {
-                            const bounds = b.getSelectionBounds();
-                            return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
+                    if (engineer && clickedTarget && clickedTarget.ownerId === 1 && clickedTarget.hp < clickedTarget.maxHp) {
+                        this.selectedEntities.forEach(u => {
+                            if (u.type === 'engineer') {
+                                if (u.clearBuildQueue) u.clearBuildQueue();
+                                u.command = 'repair';
+                                u.targetObject = clickedTarget;
+                            } else {
+                                this.executeUnitCommand('move', worldX, worldY);
+                            }
                         });
-                        
-                        if (targetBuilding && targetBuilding.hp < targetBuilding.maxHp) {
-                            this.selectedEntities.forEach(u => {
-                                if (u.type === 'engineer') {
-                                    if (u.clearBuildQueue) u.clearBuildQueue();
-                                    u.command = 'repair';
-                                    u.targetObject = targetBuilding;
-                                } else {
-                                    // 일반 유닛은 수리 대상 위치로 이동 (또는 공격 보호)
-                                    this.executeUnitCommand('move', worldX, worldY);
-                                }
-                            });
-                            return;
-                        }
+                        return;
                     }
 
                     // 3. 기본 이동 명령
@@ -948,6 +975,9 @@ export class GameEngine {
         if (this.selectedEntities.length === 0) return;
 
         this.selectedEntities.forEach(unit => {
+            // 자신의 유닛(Player 1)이 아니면 명령을 실행하지 않음
+            if (unit.ownerId !== 1) return;
+
             // 명령 변경 시 기존 수동 타겟, 예약 건설, 수송기 탑승 타겟 취소
             unit.manualTarget = (cmd === 'attack') ? targetObject : null;
             unit.transportTarget = null; // 탑승 명령 취소
@@ -1065,20 +1095,11 @@ export class GameEngine {
         this.selectedEntity = null;
         this.selectedAirport = null;
 
+        // 드래그 선택 시 아군 유닛과 건물만 고려 (적/중립 제외)
         const potentialEntities = [
-            ...this.entities.units,
-            ...this.entities.turrets,
-            ...this.entities.generators,
-            ...this.entities.walls,
-            ...this.entities.airports,
-            ...this.entities.refineries,
-            ...this.entities.goldMines,
-            ...this.entities.storage,
-            ...this.entities.armories,
-            ...this.entities.barracks,
-            this.entities.base
+            ...this.entities.units.filter(u => u.ownerId === 1),
+            ...this.getAllBuildings().filter(b => b.ownerId === 1)
         ];
-
 
         const selectedUnits = [];
         const selectedBuildings = [];
@@ -1641,39 +1662,26 @@ export class GameEngine {
                 this.entities.barracks.forEach(b => b.update(deltaTime, this));
                 this.entities.barracks = checkDestruction(this.entities.barracks);
         this.entities.cargoPlanes.forEach(p => p.update(deltaTime));
-        this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive);
+        this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive && p.hp > 0);
 
         this.entities.units.forEach(u => u.update(deltaTime));
-
-        this.entities.enemies = this.entities.enemies.filter(enemy => {
-            if (!enemy.active && enemy.hp <= 0) {
-                this.resources.gold += 10;
-            }
-            return enemy.active;
-        });
-
-        // 모든 충돌 가능 장애물 동적 수집
-        const buildings = [];
-        const excludedForEnemies = ['projectiles', 'cargoPlanes', 'enemies'];
-        for (const key in this.entities) {
-            if (excludedForEnemies.includes(key)) continue;
-            const entry = this.entities[key];
-            if (Array.isArray(entry)) buildings.push(...entry);
-            else if (entry && entry !== null) buildings.push(entry);
-        }
+        this.entities.units = this.entities.units.filter(u => u.alive && u.hp > 0);
 
         this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings, this));
-        this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles));
-        
-        // 생산 건물 업데이트 (타이머 진행을 위해 필수)
-        this.entities.airports.forEach(a => a.update(deltaTime, this));
-        this.entities.armories.forEach(a => a.update(deltaTime, this));
-        this.entities.barracks.forEach(b => b.update(deltaTime, this));
-        this.entities.storage.forEach(s => s.update(deltaTime, this));
-        
-        // 중립 유닛 업데이트
+        this.entities.enemies = this.entities.enemies.filter(enemy => {
+            const isDead = !enemy.active || enemy.hp <= 0;
+            if (isDead) {
+                // 적 처치 시 보상 (이미 죽은 상태가 아닐 때만 한 번 지급)
+                if (enemy.active) this.resources.gold += 10;
+                return false;
+            }
+            return true;
+        });
+
         this.entities.neutral.forEach(n => n.update(deltaTime));
-        this.entities.neutral = this.entities.neutral.filter(n => n.alive);
+        this.entities.neutral = this.entities.neutral.filter(n => n.alive && n.hp > 0);
+
+        this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles, this));
 
         this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
         this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
@@ -1855,12 +1863,12 @@ export class GameEngine {
             this.ctx.save();
             this.ctx.lineWidth = 1;
             this.selectedEntities.forEach(ent => {
-                const isEnemy = this.entities.enemies.includes(ent);
-                const isNeutral = this.entities.neutral.includes(ent);
+                // 관계에 따른 하이라이트 색상 결정
+                const relation = this.getRelation(1, ent.ownerId);
                 
-                if (isEnemy) this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-                else if (isNeutral) this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노란색
-                else this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 아군: 초록색
+                if (relation === 'team') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 아군: 초록
+                else if (relation === 'enemy') this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // 적군: 빨강
+                else this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노랑
                 
                 const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                     left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
@@ -1869,8 +1877,8 @@ export class GameEngine {
                 const h = bounds.bottom - bounds.top;
                 this.ctx.strokeRect(bounds.left, bounds.top, w, h);
 
-                // Draw attack range for each selected unit (Only for player units)
-                if (!isEnemy && ent.attackRange) {
+                // 공격 사거리 표시 (아군 유닛인 경우에만)
+                if (relation === 'team' && ent.attackRange) {
                     this.ctx.save();
                     
                     let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색

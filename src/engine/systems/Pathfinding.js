@@ -199,8 +199,8 @@ export class Pathfinding {
     isOccupied(x, y) {
         const tile = this.engine.tileMap.grid[y][x];
         
-        // 자원 블록은 통과 불가능
-        if (tile.type === 'resource') return true;
+        // 자원 블록 및 사령부는 통과 불가능
+        if (tile.type === 'resource' || tile.type === 'base') return true;
 
         // 기본적으로 occupied가 true면 막힌 것으로 보되, 
         // 해당 위치의 엔티티가 passable 속성을 가지고 있다면 통과 가능으로 간주

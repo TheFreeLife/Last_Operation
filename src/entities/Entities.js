@@ -9,6 +9,9 @@ export class Entity {
         this.domain = 'ground'; // 'ground', 'air', 'sea' (기본값 지상)
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상 (기본값 지상/해상)
         
+        // 소유권 속성 추가
+        this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
+        
         // 건설 관련 속성
         this.isUnderConstruction = false;
         this.buildProgress = 0; // 0 to 1
@@ -17,10 +20,20 @@ export class Entity {
     }
 
     // 대상이 이 주체(Entity/Projectile)로부터 피해를 입을 수 있는지 확인
-    canDamage(target) {
+    canDamage(target, engine) {
         if (!target || !target.active || target.hp === undefined) return false;
-        // 공격 대상의 domain이 나의 attackTargets 목록에 포함되어 있는지 확인
-        return this.attackTargets.includes(target.domain);
+        
+        // 1. 도메인 확인 (공중/지상 등)
+        if (!this.attackTargets.includes(target.domain)) return false;
+
+        // 2. 관계 확인 (아군 사격 방지)
+        if (engine && engine.getRelation) {
+            const relation = engine.getRelation(this.ownerId, target.ownerId);
+            if (relation === 'team') return false; // 아군은 공격 불가
+            if (relation === 'neutral') return false; // 중립은 명시적 명령 전까지 공격 불가 (선택 사항)
+        }
+
+        return true;
     }
 
     drawConstruction(ctx) {
@@ -62,11 +75,13 @@ export class Base extends Entity {
         super(x, y);
         this.type = 'base';
         this.name = '총사령부';
+        this.ownerId = 1; // 플레이어 1 소유 명시
         this.maxHp = 99999999;
         this.hp = 99999999;
         this.width = 200;  // 5x5 tiles
         this.height = 200; // 5x5 tiles
         this.size = 200;
+        this.passable = false; // 통과 불가 명시
         this.spawnQueue = []; // {type, timer}
         this.spawnTime = 1000;
         this.isGenerator = true; // 전력 생산 가능
@@ -280,20 +295,30 @@ export class Turret extends Entity {
         }
     }
 
-    update(deltaTime, enemies, projectiles) {
+    update(deltaTime, enemies, projectiles, engine) {
         if (!this.isPowered || this.isUnderConstruction) return; // 건설 중이거나 전기가 없으면 작동 중지
         const now = Date.now();
 
-        // 타겟 찾기 (가장 가까운 적 중 나의 공격 가능 영역에 있는 대상)
-        if (!this.target || !this.target.active || this.dist(this.target) > this.range || !this.canDamage(this.target)) {
+        // 타겟 찾기 (관계 기반)
+        if (!this.target || !this.target.active || this.dist(this.target) > this.range || !this.canDamage(this.target, engine)) {
             this.target = null;
             let minDist = this.range;
-            for (const enemy of enemies) {
-                if (!this.canDamage(enemy)) continue; // 공격 불가능한 영역(공중 등)이면 패스
-                const d = this.dist(enemy);
+            
+            const potentialTargets = [
+                ...engine.entities.enemies,
+                ...engine.entities.units,
+                ...engine.entities.neutral
+            ];
+
+            for (const ent of potentialTargets) {
+                if (ent === this || !ent.active || ent.hp <= 0) continue;
+                if (engine.getRelation(this.ownerId, ent.ownerId) !== 'enemy') continue;
+                if (!this.canDamage(ent, engine)) continue; 
+
+                const d = this.dist(ent);
                 if (d < minDist) {
                     minDist = d;
-                    this.target = enemy;
+                    this.target = ent;
                 }
             }
         }
@@ -309,13 +334,17 @@ export class Turret extends Entity {
                 }
             } else if (this.type === 'turret-flamethrower') {
                 if (now - this.lastFireTime > this.fireRate) {
-                    enemies.forEach(enemy => {
-                        // 화염방사기도 공격 가능 대상만 타격
-                        if (!this.canDamage(enemy)) return;
-                        const d = this.dist(enemy);
+                    // 화염방사기 범위 공격도 관계 체크 필요
+                    const potentialTargets = [...engine.entities.enemies, ...engine.entities.units, ...engine.entities.neutral];
+                    potentialTargets.forEach(ent => {
+                        if (ent === this || !ent.active || ent.hp <= 0) return;
+                        if (engine.getRelation(this.ownerId, ent.ownerId) !== 'enemy') return;
+                        if (!this.canDamage(ent, engine)) return;
+
+                        const d = this.dist(ent);
                         if (d <= this.range) {
-                            enemy.hp -= this.damage;
-                            if (enemy.hp <= 0) enemy.active = false;
+                            ent.hp -= this.damage;
+                            if (ent.hp <= 0) ent.active = false;
                         }
                     });
                     this.lastFireTime = now;
@@ -1321,19 +1350,18 @@ export class PlayerUnit extends Entity {
                 const targetDomain = this.manualTarget.domain || 'ground';
                 const canHit = this.attackTargets.includes(targetDomain);
 
-                if (isTargetDead || !canHit) {
-                    // 대상이 사라졌거나 공격 불가 상태(이륙 등)가 되면 명령 중단
+                if (isTargetDead) {
                     this.manualTarget = null;
                     this.command = 'stop';
                     this.destination = null;
-                } else {
+                } else if (canHit) {
+                    // 강제 공격: 수동 타겟이 지정되면 관계와 상관없이 타겟으로 확정
                     const distToManual = Math.hypot(this.manualTarget.x - this.x, this.manualTarget.y - this.y);
                     
                     if (distToManual <= this.attackRange) {
                         bestTarget = this.manualTarget; // 사거리 안이면 공격 대상 확정
                     } else {
-                        // 사거리 밖이면 추격 시작 (이동 중 다른 적 무시)
-                        // 타겟이 40px 이상 움직였을 때만 경로 갱신하여 부하 감소
+                        // 사거리 밖이면 추격 시작
                         if (!this._destination || Math.hypot(this._destination.x - this.manualTarget.x, this._destination.y - this.manualTarget.y) > 40) {
                             this.destination = { x: this.manualTarget.x, y: this.manualTarget.y };
                         }
@@ -1343,7 +1371,20 @@ export class PlayerUnit extends Entity {
             
             // [2. 자동 타겟팅 로직] 수동 지정 대상이 없을 때만 수행 (어택땅 등)
             if (!bestTarget && !this.manualTarget) {
-                for (const e of enemies) {
+                const potentialTargets = [
+                    ...this.engine.entities.enemies, 
+                    ...this.engine.entities.neutral,
+                    ...this.engine.entities.units,
+                    ...this.engine.getAllBuildings()
+                ];
+
+                for (const e of potentialTargets) {
+                    if (e === this || !e.active || e.hp <= 0) continue;
+                    
+                    // 관계 확인 (적군만 자동 타겟팅)
+                    const relation = this.engine.getRelation(this.ownerId, e.ownerId);
+                    if (relation !== 'enemy') continue;
+
                     const enemyDomain = e.domain || 'ground';
                     if (!this.attackTargets.includes(enemyDomain)) continue;
 
@@ -1366,27 +1407,9 @@ export class PlayerUnit extends Entity {
             }
         } else if (this._destination) {
             // 2. --- A* Path Following ---
-            // 경로가 있고, 첫 번째 웨이포인트가 너무 가까우면(이미 도달했거나 겹침) 건너뜀
             while (this.path.length > 0) {
                 const waypoint = this.path[0];
                 const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
-                
-                // 웨이포인트 도달 판정 거리 (유동적)
-                // 너무 가까우면 각도 계산이 튀므로 즉시 제거하고 다음 지점으로
-                if (distToWaypoint < 15) { 
-                    this.path.shift();
-                } else {
-                    break;
-                }
-            }
-
-            // 2. --- A* Path Following ---
-            // 경로가 있고, 첫 번째 웨이포인트가 너무 가까우면(이미 도달했거나 겹침) 건너뜀
-            while (this.path.length > 0) {
-                const waypoint = this.path[0];
-                const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
-                
-                // 웨이포인트 도달 판정 거리 축소 (15 -> 5)
                 if (distToWaypoint < 5) { 
                     this.path.shift();
                 } else {
@@ -1397,12 +1420,9 @@ export class PlayerUnit extends Entity {
             if (this.path.length > 0) {
                 const waypoint = this.path[0];
                 this.angle = Math.atan2(waypoint.y - this.y, waypoint.x - this.x);
-                this.x += Math.cos(this.angle) * this.speed;
-                this.y += Math.sin(this.angle) * this.speed;
+                this.moveWithCollision(this.speed);
             } else {
-                // 경로 끝에 도달했거나 경로가 없음
                 const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
-                // 최종 목적지 도달 판정 거리 대폭 축소 (15 -> 3)
                 if (distToFinal < 3) {
                     if (this.command === 'patrol') {
                         const temp = this.patrolStart;
@@ -1414,11 +1434,8 @@ export class PlayerUnit extends Entity {
                         if (this.command !== 'build') this.command = 'stop';
                     }
                 } else {
-                    // 목적지가 코앞인데 장애물 등으로 못 가는 경우 속도에 맞춰 조금씩 더 전진
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
-                    const moveStep = Math.min(this.speed, distToFinal);
-                    this.x += Math.cos(this.angle) * moveStep;
-                    this.y += Math.sin(this.angle) * moveStep;
+                    this.moveWithCollision(Math.min(this.speed, distToFinal));
 
                     this.pathRecalculateTimer -= deltaTime;
                     if (this.pathRecalculateTimer <= 0) {
@@ -1428,18 +1445,15 @@ export class PlayerUnit extends Entity {
             }
         }
 
-        // --- Collision Avoidance (Local Avoidance) ---
+        // --- 강력한 밀어내기 (Anti-Stuck & Units) ---
         let pushX = 0;
         let pushY = 0;
 
+        // 1. 유닛 간 충돌
         const allUnits = [...this.engine.entities.units, ...this.engine.entities.enemies, ...this.engine.entities.neutral];
         for (const other of allUnits) {
-            if (other === this || (other.alive === false && other.hp <= 0)) continue;
-            
-            // 낙하 중인 유닛(isFalling)은 물리적 공간을 차지하지 않는 것으로 간주하여 회피 대상에서 제외
+            if (other === this || !other.active || other.hp <= 0) continue;
             if (other.isFalling || this.isFalling) continue;
-
-            // 같은 영역(지상-지상, 공중-공중) 유닛끼리만 충돌 회피 수행
             if (this.domain !== other.domain) continue;
 
             const d = Math.hypot(this.x - other.x, this.y - other.y);
@@ -1452,6 +1466,36 @@ export class PlayerUnit extends Entity {
             }
         }
 
+        // 2. 장애물 끼임 탈출 (건물 및 자원)
+        if (this.domain === 'ground' && !this.isFalling) {
+            const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
+            for (const b of obstacles) {
+                if (b === this || b.passable) continue;
+                
+                if (b instanceof Resource) {
+                    const d = Math.hypot(this.x - b.x, this.y - b.y);
+                    const minDist = (this.size * 0.2) + (b.size * 0.5); // 판정 거리 강화
+                    if (d < minDist) {
+                        const pushAngle = Math.atan2(this.y - b.y, this.x - b.x);
+                        pushX += Math.cos(pushAngle) * 3.0;
+                        pushY += Math.sin(pushAngle) * 3.0;
+                    }
+                } else {
+                    const bounds = b.getSelectionBounds();
+                    const margin = this.size * 0.2; 
+                    if (this.x > bounds.left - margin && this.x < bounds.right + margin &&
+                        this.y > bounds.top - margin && this.y < bounds.bottom + margin) {
+                        const dxL = this.x - (bounds.left - margin);
+                        const dxR = (bounds.right + margin) - this.x;
+                        const dyT = this.y - (bounds.top - margin);
+                        const dyB = (bounds.bottom + margin) - this.y;
+                        const minOut = Math.min(dxL, dxR, dyT, dyB);
+                        if (minOut === dxL) pushX -= 3.0; else if (minOut === dxR) pushX += 3.0; else if (minOut === dyT) pushY -= 3.0; else if (minOut === dyB) pushY += 3.0;
+                    }
+                }
+            }
+        }
+
         this.x += pushX;
         this.y += pushY;
 
@@ -1461,6 +1505,38 @@ export class PlayerUnit extends Entity {
         this.y = Math.max(this.size/2, Math.min(mapH - this.size/2, this.y));
 
         if (this.hp <= 0) this.alive = false;
+    }
+
+    // [헬퍼] 충돌을 고려한 이동 처리 (슬라이딩)
+    moveWithCollision(dist) {
+        const nextX = this.x + Math.cos(this.angle) * dist;
+        const nextY = this.y + Math.sin(this.angle) * dist;
+
+        let canMoveX = true;
+        let canMoveY = true;
+
+        if (this.domain === 'ground' && !this.isFalling) {
+            const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
+            const unitRadius = this.size * 0.3; // 유닛 물리 반경 확대
+
+            for (const b of obstacles) {
+                if (b === this || b.passable) continue;
+                
+                if (b instanceof Resource) {
+                    const minCollisionDist = unitRadius + (b.size * 0.5); // 자원 물리 크기 체감 확대
+                    if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
+                    if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
+                } else {
+                    const bounds = b.getSelectionBounds();
+                    const margin = unitRadius;
+                    if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) canMoveX = false;
+                    if (this.x + margin > bounds.left && this.x - margin < bounds.right && (nextY + margin > bounds.top && nextY - margin < bounds.bottom)) canMoveY = false;
+                }
+            }
+        }
+
+        if (canMoveX) this.x = nextX;
+        if (canMoveY) this.y = nextY;
     }
 
     attack() {}
@@ -1656,93 +1732,6 @@ export class Tank extends PlayerUnit {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(this.x - barW/2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
-    }
-}
-
-export class NeutralTank extends PlayerUnit {
-    constructor(x, y, engine) {
-        super(x, y, engine);
-        this.type = 'neutral-tank';
-        this.name = '중립 전차';
-        this.speed = 1.0;
-        this.fireRate = 2000;
-        this.damage = 30;
-        this.color = '#bdc3c7'; 
-        this.attackRange = 300;
-        this.maxHp = 500;
-        this.hp = 500;
-        this.destination = null; // 초기 목적지 없음
-    }
-
-    update(deltaTime) {
-        // 부모의 A* 이동 로직 사용
-        super.update(deltaTime);
-        if (!this.alive) return;
-
-        // 중립 유닛은 공격 타겟팅만 수행 (반격 용도 등, enemies만 타겟으로)
-        const enemies = this.engine.entities.enemies;
-        let bestTarget = null;
-        let minDistToMe = Infinity;
-
-        for (const e of enemies) {
-            const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
-            if (distToMe <= this.attackRange && distToMe < minDistToMe) {
-                minDistToMe = distToMe;
-                bestTarget = e;
-            }
-        }
-        
-        // 수동 타겟이 없는 경우에만 자동 타겟팅 적용
-        if (!this.target || this.target.hp <= 0) {
-            this.target = bestTarget;
-        }
-
-        if (this.target) {
-            this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            this.attack();
-        }
-    }
-
-    attack() {
-        // 중립 유닛은 기본적으로 공격 로직이 있으나 타겟팅 로직에 의해 선공하지 않음
-        const now = Date.now();
-        if (now - this.lastFireTime > this.fireRate && this.target) {
-            const { Projectile } = this.engine.entityClasses;
-            const p = new Projectile(this.x, this.y, this.target, this.damage, this.color, this);
-            this.engine.entities.projectiles.push(p);
-            this.lastFireTime = now;
-        }
-    }
-
-    draw(ctx) {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-        ctx.scale(2, 2);
-        
-        // 중립 도색 (회색 계열)
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(-12, -10, 24, 20);
-        ctx.strokeStyle = '#95a5a6';
-        ctx.strokeRect(-12, -10, 24, 20);
-        
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-14, -12, 28, 4);
-        ctx.fillRect(-14, 8, 28, 4);
-        
-        ctx.fillStyle = '#95a5a6';
-        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillRect(0, -2, 15, 4);
-        
-        ctx.restore();
-
-        // 중립 체력 바 (흰색/회색)
-        const barW = 30;
-        const barY = this.y - 30;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
-        ctx.fillStyle = '#ecf0f1';
         ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
@@ -5017,305 +5006,10 @@ export class DamageText {
     }
 }
 
-export class Sandbag extends Entity {
-
+export class Enemy extends Entity {
     constructor(x, y) {
         super(x, y);
-        this.name = '샌드백';
-        this.type = 'sandbag';
-        this.maxHp = 1000000;
-        this.hp = this.maxHp;
-        this.lastHp = this.hp; // 데미지 감지용
-        this.speed = 0;
-        this.damage = 0;
-        this.size = 60;
-        this.active = true;
-    }
-
-    update(deltaTime, target, buildings, engine) {
-        // 데미지 감지
-        if (this.hp < this.lastHp) {
-            const damageDealt = Math.floor(this.lastHp - this.hp);
-            if (damageDealt > 0 && engine) {
-                // 데미지 텍스트 생성
-                engine.entities.projectiles.push(new DamageText(this.x, this.y - 30, damageDealt));
-            }
-            // 체력 리셋 (무한 측정 가능)
-            this.hp = this.maxHp;
-            this.lastHp = this.hp;
-        }
-    }
-
-
-
-    draw(ctx) {
-
-        ctx.save();
-
-        ctx.translate(this.x, this.y);
-
-        
-
-        // 모래주머니 뭉치 표현
-
-        const drawBag = (dx, dy, rot) => {
-
-            ctx.save();
-
-            ctx.translate(dx, dy);
-
-            ctx.rotate(rot);
-
-            ctx.fillStyle = '#c2b280'; // 모래색
-
-            ctx.strokeStyle = '#a6936a';
-
-            ctx.lineWidth = 1;
-
-            
-
-            // 둥근 자루 형태
-
-            ctx.beginPath();
-
-            ctx.ellipse(0, 0, 12, 8, 0, 0, Math.PI * 2);
-
-            ctx.fill();
-
-            ctx.stroke();
-
-            
-
-            // 묶음 매듭
-
-            ctx.fillStyle = '#a6936a';
-
-            ctx.beginPath();
-
-            ctx.arc(-10, 0, 2, 0, Math.PI * 2);
-
-            ctx.fill();
-
-            ctx.restore();
-
-        };
-
-
-
-                // 3단 쌓기
-
-
-
-                drawBag(-10, 5, -0.2);
-
-
-
-                drawBag(10, 5, 0.2);
-
-
-
-                drawBag(0, -2, 0);
-
-
-
-                
-
-
-
-                ctx.restore();
-
-
-
-            }
-
-
-
-        }
-
-
-
-        
-
-
-
-        export class AirSandbag extends Entity {
-
-
-
-            constructor(x, y) {
-                super(x, y);
-                this.name = '공중 샌드백';
-                this.type = 'air-sandbag';
-                this.domain = 'air'; // 공중 유닛 판정
-                this.maxHp = 1000000;
-                this.hp = this.maxHp;
-                this.lastHp = this.hp;
-                this.speed = 0;
-                this.damage = 0;
-                this.size = 60;
-                this.active = true;
-                this.floatOffset = 0;
-            }
-        
-            update(deltaTime, target, buildings, engine) {
-                // 공중에서 둥실둥실 떠있는 효과
-                this.floatOffset = Math.sin(Date.now() / 500) * 10;
-
-                if (this.hp < this.lastHp) {
-                    const damageDealt = Math.floor(this.lastHp - this.hp);
-                    if (damageDealt > 0 && engine) {
-                        engine.entities.projectiles.push(new DamageText(this.x, this.y - 40, damageDealt, '#00d2ff'));
-                    }
-                    this.hp = this.maxHp;
-                    this.lastHp = this.hp;
-                }
-            }
-
-
-
-        
-
-
-
-            draw(ctx) {
-
-
-
-                ctx.save();
-
-
-
-                ctx.translate(this.x, this.y + this.floatOffset);
-
-
-
-                
-
-
-
-                // 1. 메인 풍선 (타겟 느낌)
-
-
-
-                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 25);
-
-
-
-                grad.addColorStop(0, '#ff7675');
-
-
-
-                grad.addColorStop(1, '#d63031');
-
-
-
-                ctx.fillStyle = grad;
-
-
-
-                ctx.beginPath();
-
-
-
-                ctx.arc(0, 0, 25, 0, Math.PI * 2);
-
-
-
-                ctx.fill();
-
-
-
-                
-
-
-
-                // 2. 조준 과녁 (Crosshair pattern)
-
-
-
-                ctx.strokeStyle = '#fff';
-
-
-
-                ctx.lineWidth = 2;
-
-
-
-                ctx.beginPath();
-
-
-
-                ctx.arc(0, 0, 15, 0, Math.PI * 2);
-
-
-
-                ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
-
-
-
-                ctx.moveTo(0, -20); ctx.lineTo(0, 20);
-
-
-
-                ctx.stroke();
-
-
-
-        
-
-
-
-                // 3. 고정 줄 (아래로 뻗어가는 느낌)
-
-
-
-                ctx.setLineDash([5, 5]);
-
-
-
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-
-
-
-                ctx.beginPath();
-
-
-
-                ctx.moveTo(0, 25);
-
-
-
-                ctx.lineTo(0, 100);
-
-
-
-                ctx.stroke();
-
-
-
-                
-
-
-
-                ctx.restore();
-
-
-
-            }
-
-
-
-        }
-
-
-
-        
-
-
-
-        export class Enemy extends Entity {
-    constructor(x, y) {
-        super(x, y);
+        this.ownerId = 2; // 플레이어 2 (적) 소유
         this.speed = 1.8;
         this.maxHp = 50;
         this.hp = this.maxHp;
@@ -5330,20 +5024,49 @@ export class Sandbag extends Entity {
     }
 
     update(deltaTime, base, buildings, engine) {
-        if (!base) return;
+        if (!engine) return;
         const now = Date.now();
         
-        // 2초마다 경로 재계산 (엔진 참조 필요)
+        // 1. 타겟 결정 로직 (관계 기반)
+        if (!this.currentTarget || !this.currentTarget.active || this.currentTarget.hp <= 0) {
+            // 가장 가까운 적(Player 1 등) 찾기
+            const potentialTargets = [
+                engine.entities.base,
+                ...engine.entities.units,
+                ...engine.getAllBuildings()
+            ];
+
+            let minDist = Infinity;
+            let bestTarget = null;
+
+            for(const target of potentialTargets) {
+                if (!target || !target.active || target.hp <= 0) continue;
+                
+                // 관계 확인
+                if (engine.getRelation(this.ownerId, target.ownerId) === 'enemy') {
+                    const d = Math.hypot(this.x - target.x, this.y - target.y);
+                    if (d < minDist) {
+                        minDist = d;
+                        bestTarget = target;
+                    }
+                }
+            }
+            this.currentTarget = bestTarget;
+        }
+
+        if (!this.currentTarget) return;
+
+        // 2초마다 경로 재계산
         this.pathTimer += deltaTime;
         if (this.pathTimer >= 2000 || (this.path.length === 0 && this.hp > 0)) {
             const pf = engine.pathfinding;
-            this.path = pf.findPath(this.x, this.y, base.x, base.y, false) || [];
+            this.path = pf.findPath(this.x, this.y, this.currentTarget.x, this.currentTarget.y, false) || [];
             this.pathTimer = 0;
         }
 
-        let moveTarget = base;
+        let moveTarget = this.currentTarget;
         
-        // 경로 추종 로직 개선 (가까운 웨이포인트 스킵)
+        // 경로 추종 로직
         while (this.path.length > 0) {
             const waypoint = this.path[0];
             const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
@@ -5360,43 +5083,33 @@ export class Sandbag extends Entity {
         let nextY = this.y + Math.sin(angleToTarget) * this.speed;
         
         let blockedBy = null;
-        const distToBase = Math.hypot(this.x - base.x, this.y - base.y);
         
-        if (distToBase <= this.attackRange) {
-            blockedBy = base;
-        } else {
-            // 로컬 회피 및 충돌 체크 (건물)
-            for (const obs of buildings) {
-                if (['power-line', 'pipe-line'].includes(obs.type)) continue;
-                if (obs === base) continue;
-                const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
-                const minDist = (this.size / 2) + (obs.size / 2) + 2;
-                if (dNext < minDist) {
-                    blockedBy = obs;
-                    break;
-                }
+        // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
+        for (const obs of buildings) {
+            if (['power-line', 'pipe-line'].includes(obs.type)) continue;
+            if (obs === this) continue;
+            const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
+            const minDist = (this.size / 2) + (obs.size / 2) + 2;
+            if (dNext < minDist) {
+                blockedBy = obs;
+                break;
             }
         }
 
         if (!blockedBy) {
             this.x = nextX;
             this.y = nextY;
-            this.currentTarget = base;
-        } else {
-            this.currentTarget = blockedBy;
         }
 
-        // 공격 로직 (기존 유지)
+        // 공격 로직
         if (this.currentTarget && (this.currentTarget.active !== false) && this.currentTarget.hp > 0) {
             const attackDist = Math.hypot(this.x - this.currentTarget.x, this.y - this.currentTarget.y);
-            const rangeThreshold = (this.currentTarget === base) ? this.attackRange + 5 : (this.size/2 + (this.currentTarget.width || this.currentTarget.size || 40)/2 + 5);
+            const rangeThreshold = (this.size/2 + (this.currentTarget.width || this.currentTarget.size || 40)/2 + 5);
+            
             if (attackDist <= rangeThreshold) {
                 if (now - this.lastAttackTime > this.attackInterval) {
                     this.currentTarget.hp -= this.damage;
                     this.lastAttackTime = now;
-                    if (this.currentTarget === base && this.currentTarget.hp <= 0) {
-                        this.currentTarget.active = false;
-                    }
                 }
             }
         }
@@ -5459,16 +5172,28 @@ export class Projectile extends Entity {
 
     explode(engine) {
         if (this.explosionRadius > 0) {
-            // 범위 내 모든 대상(적군 및 중립)에게 데미지
-            const targets = [...engine.entities.enemies, ...engine.entities.neutral];
+            // 모든 잠재적 타겟 수집
+            const targets = [
+                engine.entities.base,
+                ...engine.entities.enemies, 
+                ...engine.entities.units,
+                ...engine.entities.neutral,
+                ...engine.getAllBuildings()
+            ];
             
-            // 공격 주체(source)의 공격 가능 대상 목록 가져오기
+            // 공격 주체의 공격 가능 대상 목록 가져오기
             const attackTargets = this.source?.attackTargets || ['ground', 'sea'];
 
             targets.forEach(target => {
-                // 공격 가능 도메인인지 확인 (예: 지상 전용 무기는 공중 유닛을 공격하지 못함)
+                if (!target || target.hp === undefined || !target.active || target.hp <= 0) return;
+                
+                // 1. 도메인 체크
                 const targetDomain = target.domain || 'ground';
                 if (!attackTargets.includes(targetDomain)) return;
+
+                // 2. 관계 체크 (적만 스플래시 데미지 입힘, 단 강제 공격 대상은 포함)
+                const isManualTarget = (this.source && this.source.manualTarget === target);
+                if (!isManualTarget && engine.getRelation(this.source.ownerId, target.ownerId) !== 'enemy') return;
 
                 const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 if (dist <= this.explosionRadius) {
@@ -5509,28 +5234,30 @@ export class Projectile extends Entity {
 
         if (!engine) return;
 
-        // 충돌 체크 함수 (공격 대상 도메인 필터링 및 장애물 통과 여부 포함)
+        // 충돌 체크 함수 (관계 시스템 적용)
         const checkCollision = (other) => {
-            if (other === this.source || other.passable) return false;
+            if (!other || other === this.source || other.passable) return false;
             
             // 대상이 이미 죽었는지 확인
             const isDead = (other.active === false) || (other.alive === false) || (other.hp <= 0);
             if (isDead) return false;
-            
-            // [수정] 이동 방해 속성(canBypassObstacles)과 별개로, 
-            // 곡사 포탄(shell)이나 미사일 발사대(missile-launcher)의 공격은 장애물을 넘어감
-            const isIndirectFire = (this.type === 'shell') || (this.source && this.source.type === 'missile-launcher');
-            if (isIndirectFire) return false;
 
-            // 소스 유닛이 장애물 통과 능력이 있으면 비행 중 충돌 무시 (스카웃 등)
+            // 소스 유닛과 대상의 관계 확인
+            const relation = engine.getRelation(this.source.ownerId, other.ownerId);
+            
+            // 아군이나 중립은 기본적으로 충돌 무시 (단, 강제 공격 대상이면 허용)
+            const isManualTarget = (this.source.manualTarget === other);
+            if (!isManualTarget && (relation === 'team' || relation === 'neutral')) return false;
+            
+            // [수정] 곡사 무기는 지상 장애물 통과
+            const isIndirectFire = (this.type === 'shell') || (this.source && this.source.type === 'missile-launcher');
+            if (isIndirectFire && other.domain === 'ground') return false;
+
+            // 소스 유닛이 장애물 통과 능력이 있으면 비행 중 충돌 무시
             if (this.source && this.source.canBypassObstacles) return false;
 
-            // 소스 유닛의 공격 대상 도메인 확인
-            const attackTargets = this.source?.attackTargets || ['ground', 'sea'];
-            const targetDomain = other.domain || 'ground';
-            
-            // 공격 대상 도메인이 아니면 통과 (높이 차이 구현)
-            if (!attackTargets.includes(targetDomain)) return false;
+            // 공격 가능 도메인인지 확인 (가장 중요)
+            if (!this.source.attackTargets.includes(other.domain || 'ground')) return false;
 
             const bounds = other.getSelectionBounds ? other.getSelectionBounds() : null;
             if (bounds) {
@@ -5542,9 +5269,16 @@ export class Projectile extends Entity {
             return dist < (this.size / 2 + otherSize / 2);
         };
 
-        // 1. 적 유닛/건물 또는 중립 유닛 체크
-        const hostileTargets = [...engine.entities.enemies, ...engine.entities.neutral];
-        for (const target of hostileTargets) {
+        // 모든 잠재적 타겟에 대해 충돌 체크 (단일 루프로 통합)
+        const allPotentialTargets = [
+            engine.entities.base,
+            ...engine.entities.units,
+            ...engine.entities.enemies,
+            ...engine.entities.neutral,
+            ...engine.getAllBuildings()
+        ];
+
+        for (const target of allPotentialTargets) {
             if (checkCollision(target)) {
                 if (this.explosionRadius > 0) {
                     this.explode(engine);
@@ -5554,27 +5288,6 @@ export class Projectile extends Entity {
                         if (target.active !== undefined) target.active = false;
                         if (target.alive !== undefined) target.alive = false;
                     }
-                    this.active = false;
-                }
-                return;
-            }
-        }
-
-        // 2. 아군 유닛/건물/자원 체크 (사라짐)
-        const friendlyObstacles = [
-            engine.entities.base,
-            ...engine.entities.units,
-            ...engine.entities.turrets, ...engine.entities.generators, ...engine.entities.walls, 
-            ...engine.entities.airports, ...engine.entities.refineries, ...engine.entities.goldMines, 
-            ...engine.entities.storage, ...engine.entities.armories, ...engine.entities.barracks,
-            ...engine.entities.resources.filter(r => !r.covered)
-        ];
-
-        for (const b of friendlyObstacles) {
-            if (checkCollision(b)) {
-                if (this.explosionRadius > 0) {
-                    this.explode(engine);
-                } else {
                     this.active = false;
                 }
                 return;
