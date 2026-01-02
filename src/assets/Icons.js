@@ -133,5 +133,15 @@ export const ICONS = {
     'toggle:sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`,
     'sell': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#ff3131" stroke-width="3"/><line x1="8" y1="8" x2="32" y2="32" stroke="#ff3131" stroke-width="3"/><text x="20" y="27" text-anchor="middle" fill="#ff3131" font-size="18" font-weight="900" style="text-shadow: 0 0 5px #000;">$</text></svg></div>`,
     'menu:engineer_build': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" rx="2" fill="#333" stroke="#f1c40f" stroke-width="2"/><path d="M14 12 V8 H26 V12" fill="none" stroke="#f1c40f" stroke-width="2"/><path d="M12 20 H28 M20 12 V28" stroke="#f1c40f" stroke-width="2" opacity="0.5"/></svg></div>`,
-    'menu:unit_cmds': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`
+    'menu:unit_cmds': `<div class="btn-icon"><svg viewBox="0 0 40 40"><path d="M25 10 L15 20 L25 30" stroke="#fff" stroke-width="3" fill="none"/></svg></div>`,
+    'unit:unload_all': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40">
+        <path d="M10 25 L20 35 L30 25 M20 5 V35" stroke="#ffff00" stroke-width="3" fill="none"/>
+        <rect x="5" y="32" width="30" height="4" fill="#fff"/>
+    </svg></div>`,
+    'unit:combat_drop': `<div class="btn-icon red"><svg viewBox="0 0 40 40">
+        <path d="M10 15 Q20 5 30 15" stroke="#fff" stroke-width="2" fill="none"/>
+        <path d="M10 15 L20 25 L30 15" stroke="#fff" stroke-width="1" opacity="0.5"/>
+        <circle cx="20" cy="28" r="4" fill="#ff3131"/>
+        <path d="M20 10 V25" stroke="#fff" stroke-width="1"/>
+    </svg></div>`
 };

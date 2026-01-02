@@ -331,6 +331,14 @@ export class GameEngine {
                                 locked: !isFlying,
                                 active: firstEnt.isBombingActive
                             };
+                        } else if (unitType === 'cargo-plane') {
+                            items[6] = { 
+                                id: 'unload_all', 
+                                name: isLanded ? '전체 하차 (U)' : '하차 (지상 시 가능)', 
+                                action: 'unit:unload_all',
+                                skillType: 'instant',
+                                locked: !isLanded || firstEnt.cargo.length === 0
+                            };
                         }
 
                         // 이착륙 버튼 동적 구성
@@ -752,6 +760,23 @@ export class GameEngine {
                         return;
                     }
 
+                    // [수송기 탑승 로직] 아군 수송기 클릭 여부 확인
+                    const clickedCargoPlane = this.entities.units.find(u => 
+                        u.type === 'cargo-plane' && u.altitude < 0.1 &&
+                        worldX >= u.x - 60 && worldX <= u.x + 60 &&
+                        worldY >= u.y - 60 && worldY <= u.y + 60
+                    );
+
+                    if (clickedCargoPlane) {
+                        this.selectedEntities.forEach(u => {
+                            if (u.domain === 'ground' && u !== clickedCargoPlane) {
+                                u.transportTarget = clickedCargoPlane;
+                                u.command = 'move';
+                            }
+                        });
+                        return;
+                    }
+
                     // 2. 공병 수리 로직 (기존 유지)
                     const engineer = this.selectedEntities.find(u => u.type === 'engineer');
                     if (engineer) {
@@ -910,8 +935,9 @@ export class GameEngine {
         if (this.selectedEntities.length === 0) return;
 
         this.selectedEntities.forEach(unit => {
-            // 명령 변경 시 기본 수동 타겟 및 예약 건설 취소
+            // 명령 변경 시 기존 수동 타겟, 예약 건설, 수송기 탑승 타겟 취소
             unit.manualTarget = (cmd === 'attack') ? targetObject : null;
+            unit.transportTarget = null; // 탑승 명령 취소
             
             if (unit.type === 'engineer' && unit.clearBuildQueue) {
                 unit.clearBuildQueue();

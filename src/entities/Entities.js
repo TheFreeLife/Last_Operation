@@ -1146,6 +1146,11 @@ export class PlayerUnit extends Entity {
     get destination() { return this._destination; }
     set destination(value) {
         this._destination = value;
+        // 새로운 목적지가 설정되면 수송기 탑승 명령은 취소됨
+        if (value && this.transportTarget) {
+            this.transportTarget = null;
+        }
+        
         if (value) {
             if (this.domain === 'air') {
                 // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
@@ -1172,6 +1177,38 @@ export class PlayerUnit extends Entity {
 
     update(deltaTime) {
         if (!this.alive) return;
+
+        // --- 수송기 탑승 로직 추가 ---
+        if (this.transportTarget) {
+            const target = this.transportTarget;
+            // 수송기가 없거나 파괴되었거나 이륙했으면 중단
+            if (!target.active || target.hp <= 0 || target.altitude > 0.1) {
+                this.transportTarget = null;
+                this.command = 'stop';
+            } else {
+                // 수송기 후방 정중앙 입구 위치 계산 (중심에서 뒤로 90px)
+                const entranceDist = 90;
+                const entranceX = target.x + Math.cos(target.angle + Math.PI) * entranceDist;
+                const entranceY = target.y + Math.sin(target.angle + Math.PI) * entranceDist;
+                
+                const d = Math.hypot(this.x - entranceX, this.y - entranceY);
+                
+                // 후방 입구에 가까워지면 탑승
+                if (d < 45) {
+                    if (target.loadUnit && target.loadUnit(this)) {
+                        this.transportTarget = null;
+                        return; 
+                    }
+                } else {
+                    // 장애물 회피를 위해 정식 길찾기 경로 생성
+                    // 매 프레임 계산하면 무거우므로 목적지가 일정 거리 이상 변했을 때만 갱신
+                    if (!this._destination || Math.hypot(this._destination.x - entranceX, this._destination.y - entranceY) > 40) {
+                        this._destination = { x: entranceX, y: entranceY };
+                        this.path = this.engine.pathfinding.findPath(this.x, this.y, entranceX, entranceY, this.canBypassObstacles) || [];
+                    }
+                }
+            }
+        }
 
         // 1. --- Command Logic & Targeting ---
         const enemies = this.engine.entities.enemies;
@@ -3848,14 +3885,79 @@ export class CargoPlane extends PlayerUnit {
         this.isManualLanding = false;
         this.maneuverFrameCount = 0;
         this.takeoffDistance = 0;
+
+        // --- 수송 시스템 추가 ---
+        this.cargo = [];
+        this.cargoCapacity = 8;
+        this.isUnloading = false;
+        this.unloadTimer = 0;
+        this.unloadInterval = 300; // 0.3초 간격으로 하차
     }
 
     // 스킬 설정 정보 제공
     getSkillConfig(cmd) {
         const skills = {
-            'takeoff_landing': { type: 'state', handler: this.toggleTakeoff }
+            'takeoff_landing': { type: 'state', handler: this.toggleTakeoff },
+            'unload_all': { type: 'instant', handler: this.startUnloading }
         };
         return skills[cmd];
+    }
+
+    // 유닛 탑승 처리
+    loadUnit(unit) {
+        if (this.isUnloading) return false;
+        if (this.cargo.length >= this.cargoCapacity) return false;
+        if (this.altitude > 0.1) return false;
+
+        unit.active = false; // 화면에서 숨김
+        unit.command = 'stop';
+        this.cargo.push(unit);
+        
+        // 엔진 리스트에서 유닛 제거 (업데이트 및 렌더링 루프 제외)
+        const idx = this.engine.entities.units.indexOf(unit);
+        if (idx > -1) this.engine.entities.units.splice(idx, 1);
+        
+        return true;
+    }
+
+    // 하차 시작
+    startUnloading() {
+        if (this.altitude > 0.1 || this.cargo.length === 0) return;
+        this.isUnloading = true;
+        this.unloadTimer = 0;
+    }
+
+    // 순차적 하차 처리 (update에서 호출)
+    processUnloading(deltaTime) {
+        if (!this.isUnloading || this.cargo.length === 0) {
+            this.isUnloading = false;
+            return;
+        }
+
+        this.unloadTimer += deltaTime;
+        if (this.unloadTimer >= this.unloadInterval) {
+            this.unloadTimer = 0;
+            const unit = this.cargo.shift();
+            
+            // 수송기 뒤쪽 위치 계산
+            const rearDist = 80;
+            const rearX = this.x + Math.cos(this.angle + Math.PI) * rearDist;
+            const rearY = this.y + Math.sin(this.angle + Math.PI) * rearDist;
+
+            unit.active = true;
+            unit.x = rearX;
+            unit.y = rearY;
+            unit.angle = this.angle + Math.PI; // 반대 방향 바라보기
+            
+            // 하차 후 약간 전진 시키기
+            const exitDestX = rearX + Math.cos(this.angle + Math.PI) * 60;
+            const exitDestY = rearY + Math.sin(this.angle + Math.PI) * 60;
+            unit.destination = { x: exitDestX, y: exitDestY };
+            
+            this.engine.entities.units.push(unit);
+
+            if (this.cargo.length === 0) this.isUnloading = false;
+        }
     }
 
     toggleTakeoff() {
@@ -3880,6 +3982,11 @@ export class CargoPlane extends PlayerUnit {
         const movedDist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
         this.lastX = this.x;
         this.lastY = this.y;
+
+        // 하차 로직 처리
+        if (this.isUnloading) {
+            this.processUnloading(deltaTime);
+        }
 
         // 0. 속도 관리 로직
         if (this.isTakeoffStarting) {
@@ -4129,6 +4236,47 @@ export class CargoPlane extends PlayerUnit {
         ctx.beginPath(); ctx.arc(-45, 115, 4, 0, Math.PI*2); ctx.fill();  // Right Wing
         ctx.beginPath(); ctx.arc(-118, 0, 4, 0, Math.PI*2); ctx.fill();   // Tail Tip
         ctx.shadowBlur = 0;
+
+        // --- 적재량 상세 표시 (선택 시에만) ---
+        if (this.engine.selectedEntities.includes(this) && (this.cargo.length > 0)) {
+            ctx.save();
+            ctx.rotate(-this.angle); // 텍스트 수평 유지
+            
+            const counts = {};
+            this.cargo.forEach(u => {
+                const name = u.name || u.type;
+                counts[name] = (counts[name] || 0) + 1;
+            });
+
+            const entries = Object.entries(counts).map(([name, count]) => `${name} x ${count}`);
+            const lineHeight = 18;
+            const padding = 8;
+            
+            ctx.font = 'bold 13px Arial';
+            let maxWidth = 0;
+            entries.forEach(text => {
+                maxWidth = Math.max(maxWidth, ctx.measureText(text).width);
+            });
+
+            const boxWidth = maxWidth + padding * 2;
+            const boxHeight = entries.length * lineHeight + padding;
+            const boxY = -70 - boxHeight;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.beginPath();
+            ctx.roundRect(-boxWidth/2, boxY, boxWidth, boxHeight, 5);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.fillStyle = '#00ffff';
+            ctx.textAlign = 'center';
+            entries.forEach((text, i) => {
+                ctx.fillText(text, 0, boxY + padding + 10 + i * lineHeight);
+            });
+            ctx.restore();
+        }
 
         ctx.restore();
     }
