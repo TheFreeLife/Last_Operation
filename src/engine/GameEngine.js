@@ -316,14 +316,18 @@ export class GameEngine {
         if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
             const firstEnt = this.selectedEntities[0];
             
-            // 모든 선택된 유닛이 사용자의 것인지 확인
+            // 모든 선택된 개체가 사용자의 것인지 확인
             const isUserOwned = this.selectedEntities.every(ent => ent.ownerId === 1);
-            const isEnemy = this.entities.enemies.includes(firstEnt) || firstEnt.ownerId === 2;
+            const isEnemy = firstEnt.ownerId === 2;
             const isNeutral = firstEnt.ownerId === 3;
-            
             const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
 
-            if (isUserOwned) {                // [아군 유닛 메뉴]
+            // 유닛 여부 판별 (PlayerUnit 상속 여부 또는 speed 속성 존재 여부)
+            const allUnits = this.selectedEntities.every(ent => 
+                ent instanceof PlayerUnit || (ent.speed !== undefined && ent.hp !== 99999999 && !ent.type?.includes('turret'))
+            );
+
+            if (isUserOwned && allUnits) {                // [아군 유닛 메뉴]
                 menuType = 'unit';
                 header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
                 
@@ -400,11 +404,10 @@ export class GameEngine {
             } else if (isEnemy) {
                 header.textContent = `[적] ${firstEnt.name}`;
                 items = [null, null, null, null, null, null, { type: 'menu:main', name: '닫기', action: 'menu:main' }, null, null];
-            } else if (this.entities.neutral.includes(firstEnt)) {
-                // [중립 유닛] 메뉴에 아무것도 표시하지 않음
+            } else if (isNeutral) {
                 header.textContent = `[중립] ${firstEnt.name}`;
                 items = [null, null, null, null, null, null, null, null, null];
-            } else if (allSameType) {
+            } else if (isUserOwned && allSameType) {
                 // [아군 건물 메뉴]
                 const type = firstEnt.type;
                 header.textContent = this.selectedEntities.length > 1 ? `${firstEnt.name} (${this.selectedEntities.length})` : firstEnt.name;
@@ -417,21 +420,20 @@ export class GameEngine {
                         { type: 'skill-anti-air', name: '대공차량 생산', cost: 400, action: 'skill:anti-air' },
                         null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
-                                } else if (type === 'barracks') {
-                                    items = [
-                                        { type: 'skill-rifleman', name: '소총병 생산', cost: 100, action: 'skill:rifleman' },
-                                        { type: 'skill-sniper', name: '저격수 생산', cost: 250, action: 'skill:sniper' },
-                                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
-                                    ];
-                                } else if (type === 'airport') {
-                                    items = [
-                                        { type: 'skill:scout-plane', name: '정찰기 생산', cost: 100, action: 'skill:scout-plane' },
-                                        { type: 'skill:bomber', name: '폭격기 생산', cost: 1200, action: 'skill:bomber' },
-                                        { type: 'skill:cargo-plane', name: '수송기 생산', cost: 500, action: 'skill:cargo-plane' },
-                                        null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
-                                    ];
-                                }
-                 else if (type === 'storage') {
+                } else if (type === 'barracks') {
+                    items = [
+                        { type: 'skill-rifleman', name: '소총병 생산', cost: 100, action: 'skill:rifleman' },
+                        { type: 'skill-sniper', name: '저격수 생산', cost: 250, action: 'skill:sniper' },
+                        null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                    ];
+                } else if (type === 'airport') {
+                    items = [
+                        { type: 'skill:scout-plane', name: '정찰기 생산', cost: 100, action: 'skill:scout-plane' },
+                        { type: 'skill:bomber', name: '폭격기 생산', cost: 1200, action: 'skill:bomber' },
+                        { type: 'skill:cargo-plane', name: '수송기 생산', cost: 500, action: 'skill:cargo-plane' },
+                        null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                    ];
+                } else if (type === 'storage') {
                     items = [
                         null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];

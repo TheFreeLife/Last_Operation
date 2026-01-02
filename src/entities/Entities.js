@@ -1299,6 +1299,45 @@ export class PlayerUnit extends Entity {
             return; // 낙하 중에는 이동/공격 불가
         }
 
+        // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
+        if (this.domain === 'ground' && !this.isFalling) {
+            const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
+            const unitRadius = this.size * 0.3;
+
+            for (const b of obstacles) {
+                if (b === this || b.passable) continue;
+                
+                if (b instanceof Resource) {
+                    const d = Math.hypot(this.x - b.x, this.y - b.y);
+                    const minD = unitRadius + (b.size * 0.5);
+                    if (d < minD) {
+                        const ang = Math.atan2(this.y - b.y, this.x - b.x);
+                        this.x = b.x + Math.cos(ang) * minD;
+                        this.y = b.y + Math.sin(ang) * minD;
+                    }
+                } else {
+                    const bounds = b.getSelectionBounds();
+                    const margin = unitRadius;
+                    // 건물 내부에 있는지 확인
+                    if (this.x + margin > bounds.left && this.x - margin < bounds.right &&
+                        this.y + margin > bounds.top && this.y - margin < bounds.bottom) {
+                        
+                        // 가장 가까운 바깥 지점 찾기
+                        const dL = Math.abs(this.x - (bounds.left - margin));
+                        const dR = Math.abs(this.x - (bounds.right + margin));
+                        const dT = Math.abs(this.y - (bounds.top - margin));
+                        const dB = Math.abs(this.y - (bounds.bottom + margin));
+                        const min = Math.min(dL, dR, dT, dB);
+                        
+                        if (min === dL) this.x = bounds.left - margin;
+                        else if (min === dR) this.x = bounds.right + margin;
+                        else if (min === dT) this.y = bounds.top - margin;
+                        else if (min === dB) this.y = bounds.bottom + margin;
+                    }
+                }
+            }
+        }
+
         // --- 수송기 탑승 로직 추가 ---
         if (this.transportTarget) {
             const target = this.transportTarget;
@@ -1474,23 +1513,35 @@ export class PlayerUnit extends Entity {
                 
                 if (b instanceof Resource) {
                     const d = Math.hypot(this.x - b.x, this.y - b.y);
-                    const minDist = (this.size * 0.2) + (b.size * 0.5); // 판정 거리 강화
+                    const minDist = (this.size * 0.2) + (b.size * 0.5); 
                     if (d < minDist) {
                         const pushAngle = Math.atan2(this.y - b.y, this.x - b.x);
-                        pushX += Math.cos(pushAngle) * 3.0;
-                        pushY += Math.sin(pushAngle) * 3.0;
+                        // 원형 자원에서 밖으로 밀어내는 힘 강화
+                        const force = (minDist - d) / minDist * 5.0; 
+                        pushX += Math.cos(pushAngle) * force;
+                        pushY += Math.sin(pushAngle) * force;
                     }
                 } else {
                     const bounds = b.getSelectionBounds();
-                    const margin = this.size * 0.2; 
+                    // 건물의 실제 영역보다 약간 더 넓게 탈출 판정
+                    const margin = 2; 
+                    
                     if (this.x > bounds.left - margin && this.x < bounds.right + margin &&
                         this.y > bounds.top - margin && this.y < bounds.bottom + margin) {
-                        const dxL = this.x - (bounds.left - margin);
-                        const dxR = (bounds.right + margin) - this.x;
-                        const dyT = this.y - (bounds.top - margin);
-                        const dyB = (bounds.bottom + margin) - this.y;
-                        const minOut = Math.min(dxL, dxR, dyT, dyB);
-                        if (minOut === dxL) pushX -= 3.0; else if (minOut === dxR) pushX += 3.0; else if (minOut === dyT) pushY -= 3.0; else if (minOut === dyB) pushY += 3.0;
+                        
+                        // 네 방향 중 가장 가까운 밖으로 계산
+                        const distL = this.x - (bounds.left - 5);
+                        const distR = (bounds.right + 5) - this.x;
+                        const distT = this.y - (bounds.top - 5);
+                        const distB = (bounds.bottom + 5) - this.y;
+                        
+                        const minD = Math.min(distL, distR, distT, distB);
+                        const pushForce = 4.0; // 매우 강력하게 밀어냄
+                        
+                        if (minD === distL) pushX -= pushForce;
+                        else if (minD === distR) pushX += pushForce;
+                        else if (minD === distT) pushY -= pushForce;
+                        else if (minD === distB) pushY += pushForce;
                     }
                 }
             }
@@ -1517,20 +1568,32 @@ export class PlayerUnit extends Entity {
 
         if (this.domain === 'ground' && !this.isFalling) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
-            const unitRadius = this.size * 0.3; // 유닛 물리 반경 확대
+            const unitRadius = this.size * 0.3; 
 
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
                 
                 if (b instanceof Resource) {
-                    const minCollisionDist = unitRadius + (b.size * 0.5); // 자원 물리 크기 체감 확대
+                    const minCollisionDist = unitRadius + (b.size * 0.5);
                     if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
                     if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
                 } else {
                     const bounds = b.getSelectionBounds();
                     const margin = unitRadius;
-                    if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) canMoveX = false;
-                    if (this.x + margin > bounds.left && this.x - margin < bounds.right && (nextY + margin > bounds.top && nextY - margin < bounds.bottom)) canMoveY = false;
+                    
+                    // 현재 위치가 이미 건물 안인지 확인 (탈출 허용을 위해)
+                    const isCurrentlyInside = (this.x > bounds.left && this.x < bounds.right && 
+                                               this.y > bounds.top && this.y < bounds.bottom);
+
+                    // X축 이동 시 충돌 확인
+                    if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) {
+                        // 밖에서 안으로 들어가는 것만 막음
+                        if (!isCurrentlyInside) canMoveX = false;
+                    }
+                    // Y축 이동 시 충돌 확인
+                    if (this.x + margin > bounds.left && this.x - margin < bounds.right && (nextY + margin > bounds.top && nextY - margin < bounds.bottom)) {
+                        if (!isCurrentlyInside) canMoveY = false;
+                    }
                 }
             }
         }
@@ -2496,20 +2559,17 @@ export class Rifleman extends PlayerUnit {
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate && this.target) {
-            // 히트스캔 방식: 즉시 데미지 처리
+            // 히트스캔: 분대 통합 공격력 적용
             this.target.hp -= this.damage;
+            
             if (this.target.hp <= 0) {
                 if (this.target.active !== undefined) this.target.active = false;
                 if (this.target.alive !== undefined) this.target.alive = false;
             }
 
-            // 분대 사격 피격 이펙트 (여러 지점에 효과)
+            // 피격 이펙트 단일화 (최적화)
             if (this.engine.addEffect) {
-                for(let i=0; i<2; i++) {
-                    const ox = (Math.random()-0.5)*20;
-                    const oy = (Math.random()-0.5)*20;
-                    this.engine.addEffect('hit', this.target.x + ox, this.target.y + oy, '#fff');
-                }
+                this.engine.addEffect('hit', this.target.x, this.target.y, '#fff');
             }
 
             this.lastFireTime = now;
@@ -2652,18 +2712,53 @@ export class Rifleman extends PlayerUnit {
             ctx.beginPath(); ctx.arc(2, 0.5, 2.2, 0, Math.PI*2); ctx.fill(); // 오른손
             ctx.beginPath(); ctx.arc(14, 1.2, 2.2, 0, Math.PI*2); ctx.fill(); // 왼손
 
-            // 총구 화염 (부드러운 광원 효과)
-            if (isShooting) {
-                const fGrd = ctx.createRadialGradient(24, 0, 0, 24, 0, 8);
-                fGrd.addColorStop(0, '#fff');
-                fGrd.addColorStop(0.4, '#f1c40f');
-                fGrd.addColorStop(1, 'transparent');
-                ctx.fillStyle = fGrd;
-                ctx.beginPath(); ctx.arc(24, 0, 8, 0, Math.PI*2); ctx.fill();
-            }
-            ctx.restore();
-            ctx.restore();
-        });
+                                    // 총구 화염 (부드러운 순간 광원만 표시)
+
+                                    if (isShooting) {
+
+                                        ctx.save();
+
+                                        ctx.translate(22, 0); // 총구 위치
+
+                                        
+
+                                        const flashSize = 15 + Math.random() * 10;
+
+                                        const alpha = 0.4 + Math.random() * 0.2;
+
+                        
+
+                                        // 부드러운 구형 광원 (Glow)
+
+                                        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, flashSize);
+
+                                        grad.addColorStop(0, `rgba(255, 215, 0, ${alpha})`);
+
+                                        grad.addColorStop(0.5, `rgba(255, 165, 0, ${alpha * 0.3})`);
+
+                                        grad.addColorStop(1, 'transparent');
+
+                                        
+
+                                        ctx.fillStyle = grad;
+
+                                        ctx.beginPath();
+
+                                        ctx.arc(0, 0, flashSize, 0, Math.PI * 2);
+
+                                        ctx.fill();
+
+                        
+
+                                        ctx.restore();
+
+                                    }
+
+                                    ctx.restore();
+
+                                    ctx.restore();
+
+                                });
 
         ctx.restore();
 
