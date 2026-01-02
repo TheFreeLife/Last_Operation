@@ -1944,8 +1944,23 @@ export class Missile extends Entity {
             });
         }
 
-        const targets = [...this.engine.entities.enemies, ...this.engine.entities.neutral];
+        const targets = [
+            ...this.engine.entities.enemies, 
+            ...this.engine.entities.neutral,
+            ...this.engine.entities.units,
+            ...this.engine.getAllBuildings()
+        ];
+
         targets.forEach(target => {
+            if (!target || target.hp === undefined || !target.active || target.hp <= 0) return;
+
+            // 공중 유닛 공격 제외
+            if (target.domain === 'air') return;
+
+            // 관계 체크 (아군 오사 방지)
+            const relation = this.engine.getRelation(this.ownerId, target.ownerId);
+            if (relation === 'team') return;
+
             const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
             if (dist <= this.explosionRadius) {
                 target.hp -= this.damage;
@@ -2101,6 +2116,7 @@ export class MissileLauncher extends PlayerUnit {
             this.maxFireDelay = 45; // 발사 전 대기 시간 (약 0.75초)
             this.pendingFirePos = { x: 0, y: 0 };
             this.attackType = 'projectile';
+            this.attackTargets = ['ground', 'sea']; // 공중 공격 불가
         }
     
         getSkillConfig(cmd) {
@@ -2158,7 +2174,11 @@ export class MissileLauncher extends PlayerUnit {
         }
     }
 
-    attack() {}
+    attack() {
+        if (this.isSieged && !this.isTransitioning && !this.isFiring) {
+            this.performAttack();
+        }
+    }
 
     fireAt(targetX, targetY) {
         if (!this.isSieged || this.isTransitioning || this.isFiring) return;
@@ -5382,9 +5402,10 @@ export class Projectile extends Entity {
                 const targetDomain = target.domain || 'ground';
                 if (!attackTargets.includes(targetDomain)) return;
 
-                // 2. 관계 체크 (적만 스플래시 데미지 입힘, 단 강제 공격 대상은 포함)
+                // 2. 관계 체크 (적과 중립 모두 스플래시 데미지 입힘, 아군만 제외)
                 const isManualTarget = (this.source && this.source.manualTarget === target);
-                if (!isManualTarget && engine.getRelation(this.source.ownerId, target.ownerId) !== 'enemy') return;
+                const relation = engine.getRelation(this.source.ownerId, target.ownerId);
+                if (!isManualTarget && relation === 'team') return;
 
                 const dist = Math.hypot(target.x - this.x, target.y - this.y);
                 if (dist <= this.explosionRadius) {
