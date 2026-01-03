@@ -444,6 +444,76 @@ export class Base extends Entity {
         ctx.fillStyle = '#ff3131'; ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, Math.PI, 0); ctx.fill();
         ctx.fillStyle = '#00d2ff'; ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, 0, Math.PI); ctx.fill();
 
+        // --- 4. 옥상 부속 시설 (Rooftop Assets - Drawn LAST) ---
+        
+        // 1. 좌측 윙 옥상 앞쪽: 위성 통신 안테나
+        const satX = x1 + (wingW / 2); 
+        const satY = yBase - 15; 
+        
+        // 안테나 지지대
+        ctx.fillStyle = '#7f8c8d';
+        ctx.beginPath(); ctx.ellipse(satX, satY, 12, 6, 0, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(satX - 3, satY - 25, 6, 25); 
+        
+        // 접시 안테나 (회전)
+        ctx.save();
+        ctx.translate(satX, satY - 25);
+        ctx.rotate(-Math.PI / 5); 
+        
+        ctx.fillStyle = '#95a5a6';
+        ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI, true); ctx.fill();
+        ctx.fillStyle = '#ecf0f1';
+        ctx.beginPath(); ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI*2); ctx.fill();
+        
+        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -20); ctx.stroke();
+        ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(0, -20, 2, 0, Math.PI*2); ctx.fill();
+        
+        if (Math.floor(Date.now() / 500) % 2 === 0) {
+            ctx.shadowColor = 'red'; ctx.shadowBlur = 5;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+
+        // 2. 우측 윙 옥상 앞쪽: 전술 냉각/발전 유닛
+        const coolX = x3 + (wingW / 2);
+        const coolY = yBase - 30; 
+        
+        // 유닛 본체
+        ctx.fillStyle = '#34495e'; 
+        ctx.fillRect(coolX, coolY, 25, 20);
+        
+        ctx.fillStyle = '#2c3e50'; 
+        ctx.beginPath();
+        ctx.moveTo(coolX, coolY);
+        ctx.lineTo(coolX + 10, coolY - 10);
+        ctx.lineTo(coolX + 35, coolY - 10);
+        ctx.lineTo(coolX + 25, coolY);
+        ctx.fill();
+        
+        ctx.fillStyle = '#2c3e50'; 
+        ctx.beginPath();
+        ctx.moveTo(coolX + 25, coolY);
+        ctx.lineTo(coolX + 35, coolY - 10);
+        ctx.lineTo(coolX + 35, coolY + 10);
+        ctx.lineTo(coolX + 25, coolY + 20);
+        ctx.fill();
+
+        // 팬(Fan) 디테일
+        ctx.fillStyle = '#1a252f';
+        ctx.beginPath(); ctx.arc(coolX + 12.5, coolY + 10, 7, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(coolX + 5.5, coolY + 10); ctx.lineTo(coolX + 19.5, coolY + 10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(coolX + 12.5, coolY + 3); ctx.lineTo(coolX + 12.5, coolY + 17); ctx.stroke();
+
+        // 상태 표시등
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(coolX + 28, coolY + 2, 3, 3);
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(coolX + 28, coolY + 7, 3, 3);
+
         ctx.restore();
     }
 }
