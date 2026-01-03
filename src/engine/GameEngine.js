@@ -38,9 +38,15 @@ export class GameEngine {
             cargoPlanes: [],
             resources: [],
             base: (() => {
-                const b = new Base(basePos.x, basePos.y);
-                b.gridX = this.tileMap.centerX - 2;
-                b.gridY = this.tileMap.centerY + 2; 
+                const [tw, th] = [9, 6];
+                const gx = this.tileMap.centerX - 4;
+                const gy = this.tileMap.centerY - 3;
+                const b = new Base(
+                    (gx + tw / 2) * this.tileMap.tileSize,
+                    (gy + th / 2) * this.tileMap.tileSize
+                );
+                b.gridX = gx;
+                b.gridY = gy; 
                 return b;
             })()
         };
@@ -122,7 +128,7 @@ export class GameEngine {
             'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
             'iron-mine': { cost: 400, size: [1, 1], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
             'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
-            'armory': { cost: 600, size: [3, 3], className: 'Armory', list: 'armories', buildTime: 1 },
+            'armory': { cost: 600, size: [4, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
             'base': { cost: 0, size: [9, 6], className: 'Base', list: 'base' }, 
             'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 }
@@ -1402,8 +1408,8 @@ export class GameEngine {
         const gridY = tileInfo.y;
         let canPlace = true;
 
-        // 1. 위치 검증
-        for (let dy = 0; dy > -th; dy--) {
+        // 1. 위치 검증 (좌상단에서 양수 방향으로 순회)
+        for (let dy = 0; dy < th; dy++) {
             for (let dx = 0; dx < tw; dx++) {
                 const nx = gridX + dx;
                 const ny = gridY + dy;
@@ -1419,7 +1425,6 @@ export class GameEngine {
 
                 // 점유 상태 검증
                 if (tile.occupied) {
-                    // 예외: 자원 추출 건물이 자원 타일 위에 짓는 경우는 허용
                     const isResourceBuilding = !!buildInfo.onResource;
                     const isResourceTile = (tile.type === 'resource');
                     
@@ -1445,17 +1450,11 @@ export class GameEngine {
             const engineers = this.selectedEntities.filter(u => u.type === 'engineer');
             
             if (engineers.length > 0) {
-                let centerPos;
-                if (tw > 1 || th > 1) {
-                    centerPos = {
-                        x: (gridX + tw / 2) * this.tileMap.tileSize,
-                        y: (gridY - (th / 2 - 1)) * this.tileMap.tileSize
-                    };
-                } else {
-                    centerPos = this.tileMap.gridToWorld(gridX, gridY);
-                }
+                // 월드 좌표 계산 (타일 좌상단 기준 -> 건물 중심점)
+                const centerX = (gridX + tw / 2) * this.tileMap.tileSize;
+                const centerY = (gridY + th / 2) * this.tileMap.tileSize;
                 
-                // 1. 현재 세션 큐가 없으면 생성 (새로운 드래그나 클릭의 시작)
+                // 1. 현재 세션 큐가 없으면 생성
                 if (!this.currentBuildSessionQueue) {
                     this.currentBuildSessionQueue = [];
                 }
@@ -1463,26 +1462,26 @@ export class GameEngine {
                 // 2. 새로운 작업 생성
                 const newTask = { 
                     type: this.selectedBuildType, 
-                    x: centerPos.x, 
-                    y: centerPos.y,
+                    x: centerX, 
+                    y: centerY,
                     gridX: gridX,
                     gridY: gridY,
                     assignedEngineer: null 
                 };
                 this.currentBuildSessionQueue.push(newTask);
                 
-                // 3. 모든 선택된 공병에게 이 큐를 할당 (이미 이 그룹 작업 중이면 유지)
+                // 3. 모든 선택된 공병에게 이 큐를 할당
                 engineers.forEach(eng => {
                     if (eng.myGroupQueue !== this.currentBuildSessionQueue) {
-                        eng.clearBuildQueue(); // 기존 작업 취소
+                        eng.clearBuildQueue();
                         eng.myGroupQueue = this.currentBuildSessionQueue;
                         eng.command = 'build';
                     }
                 });
                 
-                // 자원 차감 및 타일 점유
+                // 자원 차감 및 타일 점유 (양수 방향 루프)
                 this.resources.gold -= cost;
-                for (let dy = 0; dy > -th; dy--) {
+                for (let dy = 0; dy < th; dy++) {
                     for (let dx = 0; dx < tw; dx++) {
                         const nx = gridX + dx, ny = gridY + dy;
                         if (this.tileMap.grid[ny] && this.tileMap.grid[ny][nx]) {
@@ -1706,7 +1705,8 @@ export class GameEngine {
 
         if (gridX === undefined || gridY === undefined) return;
 
-        for (let dy = 0; dy > -th; dy--) {
+        // 양수 방향으로 순회하며 타일 초기화
+        for (let dy = 0; dy < th; dy++) {
             for (let dx = 0; dx < tw; dx++) {
                 const nx = gridX + dx;
                 const ny = gridY + dy;
@@ -2387,7 +2387,7 @@ export class GameEngine {
         }
 
         // 9. Check Storage
-        const hoveredStorage = this.entities.storage.find(s => Math.hypot(s.x - worldX, s.y - worldY) < 20);
+        const hoveredStorage = this.entities.storage.find(s => Math.abs(s.x - worldX) < 80 && Math.abs(s.y - worldY) < 60);
         if (hoveredStorage) {
             title = '창고';
             const totalStored = Math.floor(hoveredStorage.storedResources.gold + hoveredStorage.storedResources.oil);
@@ -2407,7 +2407,7 @@ export class GameEngine {
         }
 
         // 10. Check Armory
-        const hoveredArmory = this.entities.armories.find(a => Math.abs(a.x - worldX) < 40 && Math.abs(a.y - worldY) < 40);
+        const hoveredArmory = this.entities.armories.find(a => Math.abs(a.x - worldX) < 80 && Math.abs(a.y - worldY) < 60);
         if (hoveredArmory) {
             title = '병기창';
             let productionInfo = '';
@@ -2426,7 +2426,7 @@ export class GameEngine {
         }
 
         // 11. Check Barracks
-        const hoveredBarracks = this.entities.barracks.find(b => Math.abs(b.x - worldX) < 40 && Math.abs(b.y - worldY) < 40);
+        const hoveredBarracks = this.entities.barracks.find(b => Math.abs(b.x - worldX) < 60 && Math.abs(b.y - worldY) < 60);
         if (hoveredBarracks) {
             title = '병영';
             let productionInfo = '';
@@ -2441,6 +2441,15 @@ export class GameEngine {
                     <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredBarracks.isPowered ? 'text-green' : 'text-red'}">${hoveredBarracks.isPowered ? '공급 중' : '중단됨'}</span></div>
                     ${productionInfo}
                     <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 유닛 생산</span></div>`;
+        }
+
+        // 11.5 Check Apartment
+        const hoveredApartment = this.entities.apartments.find(a => Math.abs(a.x - worldX) < 80 && Math.abs(a.y - worldY) < 100);
+        if (hoveredApartment) {
+            title = '아파트';
+            desc = `<div class="stat-row"><span>🏠 기능:</span> <span>인구수 제공 (+${hoveredApartment.popProvide})</span></div>
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredApartment.hp)}/${hoveredApartment.maxHp}</span></div>
+                    <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredApartment.isPowered ? 'text-green' : 'text-red'}">${hoveredApartment.isPowered ? '전력 공급됨' : '전력 끊김'}</span></div>`;
         }
 
         // 12. Check Refinery
@@ -2656,7 +2665,7 @@ export class GameEngine {
             const info = this.buildingRegistry[obj.type] || { size: [1, 1] };
             const [tw, th] = info.size;
             if (obj.gridX !== undefined && obj.gridY !== undefined) {
-                for (let dy = 0; dy > -th; dy--) {
+                for (let dy = 0; dy < th; dy++) {
                     for (let dx = 0; dx < tw; dx++) {
                         tiles.push({ x: obj.gridX + dx, y: obj.gridY + dy });
                     }
@@ -2749,7 +2758,7 @@ export class GameEngine {
             const info = this.buildingRegistry[obj.type] || { size: [1, 1] };
             const [tw, th] = info.size;
             if (obj.gridX !== undefined && obj.gridY !== undefined) {
-                for (let dy = 0; dy > -th; dy--) {
+                for (let dy = 0; dy < th; dy++) {
                     for (let dx = 0; dx < tw; dx++) {
                         tiles.push({ x: obj.gridX + dx, y: obj.gridY + dy });
                     }

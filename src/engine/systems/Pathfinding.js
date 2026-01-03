@@ -152,9 +152,12 @@ export class Pathfinding {
                 if (!canBypassObstacles && this.isOccupied(nx, ny)) continue;
 
                 // 대각선 이동 시 코너 끼임 방지 (Corner Cutting 방지)
+                // 대각선으로 이동하려는 방향의 인접한 두 타일 중 하나만 막혀있어도 대각선 이동 금지
                 if (neighbor.x !== 0 && neighbor.y !== 0) {
                     if (this.isOccupied(current.x + neighbor.x, current.y) || 
-                        this.isOccupied(current.x, current.y + neighbor.y)) continue;
+                        this.isOccupied(current.x, current.y + neighbor.y)) {
+                        continue;
+                    }
                 }
 
                 const tentativeG = current.g + neighbor.cost;
@@ -197,32 +200,34 @@ export class Pathfinding {
     }
 
     isOccupied(x, y) {
+        if (!this.isValid(x, y)) return true;
         const tile = this.engine.tileMap.grid[y][x];
         
-        // 자원 블록 및 사령부는 통과 불가능
-        if (tile.type === 'resource' || tile.type === 'base') return true;
+        // 1. 타일 자체가 파괴 불가능한 장애물(자원 등)인 경우
+        if (tile.type === 'resource') return true;
+        if (!tile.buildable && tile.type !== 'base') return true;
 
-        // 기본적으로 occupied가 true면 막힌 것으로 보되, 
-        // 해당 위치의 엔티티가 passable 속성을 가지고 있다면 통과 가능으로 간주
-        if (tile.occupied) {
-            // 해당 타일에 있는 모든 건물 리스트를 가져와 통과 불가능한 것이 있는지 확인
-            const worldPos = this.engine.tileMap.gridToWorld(x, y);
-            const allBuildings = this.engine.getAllBuildings();
-            
-            const blockingEntity = allBuildings.find(ent => {
-                if (!ent || ent.passable) return false;
-                
-                // 해당 엔티티가 이 타일을 실제로 점유하고 있는지 확인 (바운딩 박스)
-                const bounds = ent.getSelectionBounds();
-                // 타일의 중심점이 엔티티 영역 안에 있으면 막힌 것으로 간주
-                return worldPos.x >= bounds.left && worldPos.x <= bounds.right &&
-                       worldPos.y >= bounds.top && worldPos.y <= bounds.bottom;
-            });
-
-            if (blockingEntity) return true;
-        }
+        // 2. 실시간 건물(Entity) 점유 체크
+        // 타일 데이터의 occupied에만 의존하지 않고, 실제 배치된 건물들의 영역을 직접 확인
+        const worldPos = this.engine.tileMap.gridToWorld(x, y);
+        const allBuildings = this.engine.getAllBuildings();
         
-        return !tile.buildable;
+        const blockingEntity = allBuildings.find(ent => {
+            // 통과 가능한 객체(전선 등)이거나 활성화되지 않은 경우 제외
+            if (!ent || !ent.active || ent.passable) return false;
+            
+            // 엔티티의 실시간 경계(Bounds) 가져오기
+            const bounds = ent.getSelectionBounds();
+            
+            // 타일의 중심점이 엔티티 영역 안에 있는지 확인 (마진 1px 추가하여 타이트하게 체크)
+            const margin = 1;
+            return worldPos.x >= bounds.left + margin && worldPos.x <= bounds.right - margin &&
+                   worldPos.y >= bounds.top + margin && worldPos.y <= bounds.bottom - margin;
+        });
+
+        if (blockingEntity) return true;
+        
+        return false;
     }
 
     findNearestWalkable(tx, ty) {
