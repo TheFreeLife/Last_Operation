@@ -8,6 +8,8 @@ export class Entity {
         this.size = 40;   // Default for circles
         this.domain = 'ground'; // 'ground', 'air', 'sea' (기본값 지상)
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상 (기본값 지상/해상)
+        this.popCost = 0; // 인구수 비용 (유닛용)
+        this.popProvide = 0; // 인구수 제공 (건물용)
         
         // 소유권 속성 추가
         this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
@@ -104,6 +106,7 @@ export class Base extends Entity {
         this.spawnTime = 1000;
         this.isGenerator = true; // 전력 생산 가능
         this.powerOutput = 500;  // 기본 제공 전력량
+        this.popProvide = 40; // 사령부 기본 인구수 제공
     }
 
     requestUnit(unitType) {
@@ -119,6 +122,7 @@ export class Base extends Entity {
             if (current.timer >= this.spawnTime) {
                 const spawnY = this.y + 110; // 5x5 건물 남쪽 출입구
                 let unit = new CombatEngineer(this.x, spawnY, engine);
+                unit.isInitialExit = true; // 건물 밖으로 나갈 때까지 충돌 무시
                 unit.destination = { x: this.x, y: this.y + 150 };
                 engine.entities.units.push(unit);
                 this.spawnQueue.shift();
@@ -1265,6 +1269,7 @@ export class PlayerUnit extends Entity {
         this.domain = 'ground'; // 'ground', 'air', 'sea'
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
         this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
+        this.isInitialExit = false; // 생산 후 건물 밖으로 나가는 중인지 여부
         
         // 공격 특성 설정
         this.attackType = 'hitscan'; // 'hitscan' (즉시 타격) 또는 'projectile' (탄환 발사)
@@ -1437,14 +1442,14 @@ export class PlayerUnit extends Entity {
                 this.domain = (this.type === 'scout-plane' || this.type === 'drone') ? 'air' : 'ground';
                 // 착륙 이펙트 (먼지 등)
                 if (this.engine.addEffect) {
-                    this.engine.addEffect('system', this.x, this.y, '착륙 완료!');
+                    this.engine.addEffect('system', this.x, this.y, '#fff', '착륙 완료!');
                 }
             }
             return; // 낙하 중에는 이동/공격 불가
         }
 
         // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
-        if (this.domain === 'ground' && !this.isFalling) {
+        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
             const unitRadius = this.size * 0.3;
 
@@ -1607,6 +1612,7 @@ export class PlayerUnit extends Entity {
             } else {
                 const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
                 if (distToFinal < 3) {
+                    this.isInitialExit = false; // 출격 모드 해제
                     if (this.command === 'patrol') {
                         const temp = this.patrolStart;
                         this.patrolStart = this.patrolEnd;
@@ -1650,7 +1656,7 @@ export class PlayerUnit extends Entity {
         }
 
         // 2. 장애물 끼임 탈출 (건물 및 자원)
-        if (this.domain === 'ground' && !this.isFalling) {
+        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
@@ -1710,7 +1716,7 @@ export class PlayerUnit extends Entity {
         let canMoveX = true;
         let canMoveY = true;
 
-        if (this.domain === 'ground' && !this.isFalling) {
+        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
             const unitRadius = this.size * 0.3; 
 
@@ -1766,6 +1772,7 @@ export class Tank extends PlayerUnit {
         this.maxHp = 1000;
         this.attackType = 'hitscan';
         this.hitEffectType = 'explosion';
+        this.popCost = 3;
     }
 
     attack() {
@@ -2178,6 +2185,7 @@ export class MissileLauncher extends PlayerUnit {
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackType = 'projectile';
         this.attackTargets = ['ground', 'sea']; 
+        this.popCost = 3;
     }
 
     getSkillConfig(cmd) {
@@ -2194,7 +2202,7 @@ export class MissileLauncher extends PlayerUnit {
         this.transitionTimer = 0;
         this.destination = null; 
         this.speed = 0;         
-        this.engine.addEffect?.('system', this.x, this.y, this.isSieged ? '시즈 해제 중...' : '시즈 모드 설정 중...');
+        this.engine.addEffect?.('system', this.x, this.y, '#fff', this.isSieged ? '시즈 해제 중...' : '시즈 모드 설정 중...');
     }
 
     update(deltaTime) {
@@ -2395,6 +2403,7 @@ export class Artillery extends PlayerUnit {
         this.explosionRadius = 60; 
         this.cargoSize = 5; // 자주포 부피 5
         this.attackType = 'projectile';
+        this.popCost = 4;
     }
 
     attack() {
@@ -2503,6 +2512,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.cargoSize = 5; // 대공포 적재 용량 5
         this.attackType = 'hitscan';
         this.hitEffectType = 'flak';
+        this.popCost = 3;
     }
 
     attack() {
@@ -2683,6 +2693,7 @@ export class Rifleman extends PlayerUnit {
         this.cargoSize = 3;  // 분대이므로 적재 용량 증가
         this.attackType = 'hitscan';
         this.hitEffectType = 'bullet';
+        this.popCost = 1;
     }
 
     attack() {
@@ -2901,6 +2912,7 @@ export class Sniper extends PlayerUnit {
         this.attackTargets = ['ground', 'sea', 'air'];
         this.attackType = 'hitscan';
         this.hitEffectType = 'hit';
+        this.popCost = 1;
     }
 
     attack() {
@@ -3041,6 +3053,7 @@ export class CombatEngineer extends PlayerUnit {
         this.currentSharedTask = null; // 현재 맡은 공유 작업
         this.buildingTarget = null; // 현재 짓고 있는 건물 객체
         this.myGroupQueue = null; // 이 유닛이 속한 건설 그룹의 큐 (배열 참조)
+        this.popCost = 1;
     }
 
     clearBuildQueue() {
@@ -3143,6 +3156,17 @@ export class CombatEngineer extends PlayerUnit {
                         const resIdx = resList.indexOf(this.buildingTarget.targetResource);
                         if (resIdx !== -1) resList.splice(resIdx, 1);
                     }
+                    
+                    // 건물 건설 완료 시 인구수 갱신 (아파트 등 대비)
+                    if (this.engine.updatePopulation) {
+                        this.engine.updatePopulation();
+                        
+                        // 시각적 알림 추가
+                        const msg = this.buildingTarget.type === 'apartment' ? '보급 한도 증가 (+10)' : '건설 완료';
+                        const color = this.buildingTarget.type === 'apartment' ? '#39ff14' : '#fff';
+                        this.engine.addEffect?.('system', this.buildingTarget.x, this.buildingTarget.y - 40, color, msg);
+                    }
+
                     this.buildingTarget = null;
                 }
                 return;
@@ -3424,6 +3448,7 @@ export class Barracks extends Entity {
                         unit = new Rifleman(this.x, spawnY, engine);
                     }
                     
+                    unit.isInitialExit = true;
                     unit.destination = { x: this.x, y: this.y + 100 };
                     this.units.push(unit);
                     engine.entities.units.push(unit);
@@ -3593,6 +3618,7 @@ export class Armory extends Entity {
                 else if (current.type === 'anti-air') unit = new AntiAirVehicle(this.x, spawnY, engine);
                 
                 if (unit) {
+                    unit.isInitialExit = true;
                     unit.destination = { x: this.x, y: this.y + 100 };
                     this.units.push(unit);
                     engine.entities.units.push(unit);
@@ -3940,10 +3966,20 @@ export class Airport extends Entity {
                     unit = new ScoutPlane(this.x + 55, this.y - 80, engine);
                 }
                 
+                unit.isInitialExit = true; // 출격 모드 설정 (활주로 이탈 전까지 충돌 무시)
                 unit.destination = { x: this.x + 55, y: this.y + 140 };
                 this.units.push(unit);
                 engine.entities.units.push(unit);
+                
+                // 수송기의 경우 전용 리스트에도 추가 (렌더링 레이어 대응)
+                if (current.type === 'cargo-plane' && engine.entities.cargoPlanes) {
+                    engine.entities.cargoPlanes.push(unit);
+                }
+                
                 this.spawnQueue.shift();
+                
+                // 유닛 생산 후 인구수 갱신
+                if (engine.updatePopulation) engine.updatePopulation();
             }
         }
     }
@@ -3955,6 +3991,17 @@ export class Airport extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
+
+        // [추가] 전력 부족 경고 표시
+        if (!this.isPowered) {
+            ctx.save();
+            ctx.fillStyle = '#ff0';
+            ctx.font = 'bold 40px Arial';
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#000';
+            ctx.fillText('⚡!', 0, 20);
+            ctx.restore();
+        }
 
         // 1. 거대 베이스 플랫폼 (두께감 있는 콘크리트 슬래브)
         // 하부 그림자 및 측면 두께
@@ -4161,6 +4208,7 @@ export class Apartment extends Entity {
         this.maxHp = 3000;
         this.hp = 3000;
         this.isPowered = false;
+        this.popProvide = 10;
     }
 
     update(deltaTime, engine) {
@@ -4294,6 +4342,7 @@ export class ScoutPlane extends PlayerUnit {
         this.hp = 250;       // 체력 상향
         this.maxHp = 250;
         this.size = 70;      // 크기 대폭 확장
+        this.popCost = 1;
     }
 
     draw(ctx) {
@@ -4556,10 +4605,10 @@ export class Bomber extends PlayerUnit {
         super(x, y, engine);
         this.type = 'bomber';
         this.name = '전략 폭격기';
-        this.domain = 'ground'; // 초기 상태는 지상
+        this.domain = 'ground'; // 지상 시작
         this.baseSpeed = 2.2; 
         this.airSpeed = 5.0;   // 공중 비행 속도 (7.0 -> 5.0 하향)
-        this.speed = 0.5;      // 초기 속도는 낮게 시작
+        this.speed = 0.5;      // 낮은 속도로 시작
         this.visionRange = 12;
         this.hp = 1200; 
         this.maxHp = 1200;
@@ -4573,7 +4622,7 @@ export class Bomber extends PlayerUnit {
         this.bombInterval = 500; 
 
         // 이착륙 시스템
-        this.altitude = 0.0;
+        this.altitude = 0.0; // 지상 시작
         this.isLandingZoneSafe = false;
         this.lastX = x;
         this.lastY = y;
@@ -4583,6 +4632,7 @@ export class Bomber extends PlayerUnit {
         this.maneuverFrameCount = 0;    // 활주 시작 프레임 카운터
         this.takeoffDistance = 0;       // 활주 거리 누적
         this.isBombingActive = false;   // 폭격 모드 활성화 여부
+        this.popCost = 6;
     }
 
     // 스킬 설정 정보 제공
@@ -4859,7 +4909,7 @@ export class CargoPlane extends PlayerUnit {
         super(x, y, engine);
         this.type = 'cargo-plane';
         this.name = '전략 수송기';
-        this.domain = 'ground'; // 지상에서 시작
+        this.domain = 'ground'; // 지상 시작
         this.baseSpeed = 1.8;   // 지상 이동/활주 속도
         this.airSpeed = 4.5;    // 공중 비행 속도
         this.speed = 0.5;       // 초기 속도
@@ -4870,7 +4920,7 @@ export class CargoPlane extends PlayerUnit {
         this.height = 140;
 
         // 이착륙 시스템 (폭격기와 동일)
-        this.altitude = 0.0;
+        this.altitude = 0.0; // 지상 시작
         this.isLandingZoneSafe = false;
         this.lastX = x;
         this.lastY = y;
@@ -4886,6 +4936,7 @@ export class CargoPlane extends PlayerUnit {
         this.isUnloading = false;
         this.unloadTimer = 0;
         this.unloadInterval = 300; 
+        this.popCost = 4;
     }
 
     // 현재 적재된 총 부피 계산
@@ -4963,22 +5014,22 @@ export class CargoPlane extends PlayerUnit {
 
     startCombatDrop() {
         if (this.altitude < 0.8) {
-            this.engine.addEffect?.('system', this.x, this.y, '고도가 너무 낮습니다!');
+            this.engine.addEffect?.('system', this.x, this.y, '#ff3131', '고도가 너무 낮습니다!');
             return;
         }
         if (this.cargo.length === 0) {
-            this.engine.addEffect?.('system', this.x, this.y, '탑승한 유닛이 없습니다.');
+            this.engine.addEffect?.('system', this.x, this.y, '#ff3131', '탑승한 유닛이 없습니다.');
             return;
         }
         if (this.engine.resources.gold < 100) {
-            this.engine.addEffect?.('system', this.x, this.y, '골드가 부족합니다 (100G)');
+            this.engine.addEffect?.('system', this.x, this.y, '#ff3131', '골드가 부족합니다 (100G)');
             return;
         }
 
         this.engine.resources.gold -= 100;
         this.isCombatDropping = true;
         this.dropTimer = 0;
-        this.engine.addEffect?.('system', this.x, this.y, '전투 강하 개시!');
+        this.engine.addEffect?.('system', this.x, this.y, '#fff', '전투 강하 개시!');
     }
 
     processCombatDrop(deltaTime) {
@@ -5012,11 +5063,11 @@ export class CargoPlane extends PlayerUnit {
             unit.command = 'stop';
 
             this.engine.entities.units.push(unit);
-            this.engine.addEffect?.('system', this.x, this.y, 'Drop!');
+            this.engine.addEffect?.('system', this.x, this.y, '#fff', 'Drop!');
 
             if (this.cargo.length === 0) {
                 this.isCombatDropping = false;
-                this.engine.addEffect?.('system', this.x, this.y, '강하 완료');
+                this.engine.addEffect?.('system', this.x, this.y, '#fff', '강하 완료');
             }
         }
     }
@@ -5362,6 +5413,17 @@ export class CargoPlane extends PlayerUnit {
         }
 
         ctx.restore();
+
+        // HP 바 상시 표시 (수송기 크기에 맞춰 확장)
+        const barW = 110;
+        const barY = this.y - 85;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.x - barW/2, barY, barW, 6);
     }
 }
 

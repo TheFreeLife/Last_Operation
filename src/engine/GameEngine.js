@@ -114,7 +114,7 @@ export class GameEngine {
             'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 }
         };
 
-        this.resources = { gold: 999999, oil: 0, iron: 0 };
+        this.resources = { gold: 999999, oil: 0, iron: 0, population: 0, maxPopulation: 20 };
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
 
         // 플레이어 시스템 초기화
@@ -166,6 +166,9 @@ export class GameEngine {
             edgeThreshold: 30,
             selectionBox: null 
         };
+
+        // 초기 인구수 계산
+        this.updatePopulation();
 
         window.addEventListener('resize', () => this.resize());
         this.initInput();
@@ -686,15 +689,35 @@ export class GameEngine {
                 
                 if (target && target.isUnderConstruction) return;
     
-                            // 생산형 스킬 처리
-                            const productionSkills = ['tank', 'missile', 'cargo', 'cargo-plane', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
-                            if (productionSkills.includes(skill)) {                    if (target && target.requestUnit) {
+                // 생산형 스킬 처리
+                const productionSkills = ['tank', 'missile', 'cargo', 'cargo-plane', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
+                if (productionSkills.includes(skill)) {
+                    if (target && target.requestUnit) {
                         const cost = item.cost || 0;
+                        let unitKey = skill;
+                        if (skill === 'missile') unitKey = 'missile-launcher';
+                        if (skill === 'cargo') unitKey = 'cargo-plane';
+
+                        const popMap = {
+                            'tank': 3, 'missile-launcher': 3, 'artillery': 4, 'anti-air': 3,
+                            'rifleman': 1, 'sniper': 1, 'engineer': 1,
+                            'scout-plane': 1, 'bomber': 6, 'cargo-plane': 4
+                        };
+                        const unitPopCost = popMap[unitKey] || 0;
+
+                        if (this.resources.population + unitPopCost > this.resources.maxPopulation) {
+                            if (this.addEffect) {
+                                // 화면 중앙에 가깝게 메시지 표시 (인자 순서: type, x, y, color, text)
+                                this.addEffect('system', target.x, target.y - 60, '#ff3131', '보급품 부족 (건물을 더 건설하십시오)');
+                            }
+                            console.warn("Population limit reached!");
+                            return;
+                        }
+
                         if (this.resources.gold >= cost) {
-                            let unitKey = skill;
-                            if (skill === 'missile') unitKey = 'missile-launcher';
                             if (target.requestUnit(unitKey)) {
                                 this.resources.gold -= cost;
+                                this.updatePopulation(); // 즉시 갱신
                                 this.updateBuildMenu();
                             }
                         }
@@ -1684,102 +1707,261 @@ export class GameEngine {
         }
     }
 
-    update(deltaTime) {
-        if (this.gameState !== 'playing') return;
+        update(deltaTime) {
 
-        // 효과 업데이트
-        for (let i = this.effects.length - 1; i >= 0; i--) {
-            const fx = this.effects[i];
-            fx.timer += deltaTime;
-            if (fx.timer >= fx.duration) {
-                this.effects.splice(i, 1);
-            }
-        }
+            if (this.gameState !== 'playing') return;
 
-        this.updateEdgeScroll();
-        this.updatePower();
-        this.updateOilNetwork();
-        this.updateVisibility();
+    
 
-        const checkDestruction = (list) => {
-            return list.filter(obj => {
-                if (obj.hp <= 0) {
-                    this.clearBuildingTiles(obj);
-                    return false;
+            // 효과 업데이트
+
+            for (let i = this.effects.length - 1; i >= 0; i--) {
+
+                const fx = this.effects[i];
+
+                fx.timer += deltaTime;
+
+                if (fx.timer >= fx.duration) {
+
+                    this.effects.splice(i, 1);
+
                 }
+
+            }
+
+    
+
+            this.updateEdgeScroll();
+
+            this.updatePower();
+
+            this.updateOilNetwork();
+
+            this.updateVisibility();
+
+    
+
+            let needsPopUpdate = false;
+
+    
+
+            const checkDestruction = (list) => {
+
+                const initialLen = list.length;
+
+                const filtered = list.filter(obj => {
+
+                    if (obj.hp <= 0) {
+
+                        this.clearBuildingTiles(obj);
+
+                        return false;
+
+                    }
+
+                    return true;
+
+                });
+
+                if (filtered.length !== initialLen) needsPopUpdate = true;
+
+                return filtered;
+
+            };
+
+    
+
+            this.entities.turrets = checkDestruction(this.entities.turrets);
+
+            this.entities.generators = this.entities.generators.filter(obj => {
+
+                obj.update(deltaTime);
+
+                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+
+                    this.clearBuildingTiles(obj);
+
+                    needsPopUpdate = true;
+
+                    return false;
+
+                }
+
                 return true;
+
             });
-        };
 
-        this.entities.turrets = checkDestruction(this.entities.turrets);
-        this.entities.generators = this.entities.generators.filter(obj => {
-            obj.update(deltaTime);
-            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-                this.clearBuildingTiles(obj);
-                return false;
+                    this.entities.powerLines = checkDestruction(this.entities.powerLines);
+
+                    this.entities.walls = checkDestruction(this.entities.walls);
+
+                    this.entities.airports = this.entities.airports.filter(obj => {
+
+                        obj.update(deltaTime, this);
+
+                        return obj.hp > 0;
+
+                    });
+
+                    this.entities.pipeLines = checkDestruction(this.entities.pipeLines);
+
+            this.entities.refineries = this.entities.refineries.filter(obj => {
+
+                obj.update(deltaTime, this);
+
+                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+
+                    this.clearBuildingTiles(obj);
+
+                    needsPopUpdate = true;
+
+                    return false;
+
+                }
+
+                return true;
+
+            });
+
+            this.entities.goldMines = this.entities.goldMines.filter(obj => {
+
+                obj.update(deltaTime, this);
+
+                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+
+                    this.clearBuildingTiles(obj);
+
+                    needsPopUpdate = true;
+
+                    return false;
+
+                }
+
+                return true;
+
+            });
+
+            this.entities.ironMines = this.entities.ironMines.filter(obj => {
+
+                obj.update(deltaTime, this);
+
+                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
+
+                    this.clearBuildingTiles(obj);
+
+                    needsPopUpdate = true;
+
+                    return false;
+
+                }
+
+                return true;
+
+            });
+
+            
+
+            const oldStorageLen = this.entities.storage.length;
+
+            this.entities.storage.forEach(s => s.update(deltaTime, this));
+
+            this.entities.storage = checkDestruction(this.entities.storage);
+
+            if (this.entities.storage.length !== oldStorageLen) needsPopUpdate = true;
+
+    
+
+            this.entities.base.update(deltaTime, this);
+
+            if (this.entities.base.hp <= 0) needsPopUpdate = true;
+
+    
+
+            this.entities.armories.forEach(a => a.update(deltaTime, this));
+
+            this.entities.armories = checkDestruction(this.entities.armories);
+
+            
+
+            this.entities.barracks.forEach(b => b.update(deltaTime, this));
+
+            this.entities.barracks = checkDestruction(this.entities.barracks);
+
+    
+
+            this.entities.apartments.forEach(a => a.update(deltaTime, this));
+
+            this.entities.apartments = checkDestruction(this.entities.apartments);
+
+    
+
+            const oldCargoLen = this.entities.cargoPlanes.length;
+
+            this.entities.cargoPlanes.forEach(p => p.update(deltaTime));
+
+            this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive && p.hp > 0);
+
+            if (this.entities.cargoPlanes.length !== oldCargoLen) needsPopUpdate = true;
+
+    
+
+            const oldUnitsLen = this.entities.units.length;
+
+            this.entities.units.forEach(u => u.update(deltaTime));
+
+            this.entities.units = this.entities.units.filter(u => u.alive && u.hp > 0);
+
+            if (this.entities.units.length !== oldUnitsLen) needsPopUpdate = true;
+
+    
+
+            const oldEnemiesLen = this.entities.enemies.length;
+
+            this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings, this));
+
+            this.entities.enemies = this.entities.enemies.filter(enemy => {
+
+                const isDead = !enemy.active || enemy.hp <= 0;
+
+                if (isDead) {
+
+                    if (enemy.active) this.resources.gold += 10;
+
+                    return false;
+
+                }
+
+                return true;
+
+            });
+
+            if (this.entities.enemies.length !== oldEnemiesLen) needsPopUpdate = true;
+
+    
+
+            this.entities.neutral.forEach(n => n.update(deltaTime));
+
+            this.entities.neutral = this.entities.neutral.filter(n => n.alive && n.hp > 0);
+
+    
+
+            this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles, this));
+
+    
+
+            this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
+
+            this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
+
+    
+
+            // 인구수 변화가 감지되었을 때만 재계산
+
+            if (needsPopUpdate) {
+
+                this.updatePopulation();
+
             }
-            return true;
-        });
-        this.entities.powerLines = checkDestruction(this.entities.powerLines);
-        this.entities.walls = checkDestruction(this.entities.walls);
-        this.entities.airports = checkDestruction(this.entities.airports);
-        this.entities.pipeLines = checkDestruction(this.entities.pipeLines);
-        this.entities.refineries = this.entities.refineries.filter(obj => {
-            obj.update(deltaTime, this);
-            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-                this.clearBuildingTiles(obj);
-                return false;
-            }
-            return true;
-        });
-                        this.entities.goldMines = this.entities.goldMines.filter(obj => {
-                            obj.update(deltaTime, this);
-                            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-                                this.clearBuildingTiles(obj);
-                                return false;
-                            }
-                            return true;
-                        });
-                        this.entities.ironMines = this.entities.ironMines.filter(obj => {
-                            obj.update(deltaTime, this);
-                            if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-                                this.clearBuildingTiles(obj);
-                                return false;
-                            }
-                            return true;
-                        });
-                        this.entities.storage.forEach(s => s.update(deltaTime, this));                this.entities.storage = checkDestruction(this.entities.storage);
-                this.entities.base.update(deltaTime, this); // 총사령부 업데이트 추가
-                this.entities.armories.forEach(a => a.update(deltaTime, this));
-                this.entities.armories = checkDestruction(this.entities.armories);
-                this.entities.barracks.forEach(b => b.update(deltaTime, this));
-                this.entities.barracks = checkDestruction(this.entities.barracks);
-                this.entities.apartments.forEach(a => a.update(deltaTime, this));
-                this.entities.apartments = checkDestruction(this.entities.apartments);
-        this.entities.cargoPlanes.forEach(p => p.update(deltaTime));
-        this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive && p.hp > 0);
-
-        this.entities.units.forEach(u => u.update(deltaTime));
-        this.entities.units = this.entities.units.filter(u => u.alive && u.hp > 0);
-
-        this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings, this));
-        this.entities.enemies = this.entities.enemies.filter(enemy => {
-            const isDead = !enemy.active || enemy.hp <= 0;
-            if (isDead) {
-                // 적 처치 시 보상 (이미 죽은 상태가 아닐 때만 한 번 지급)
-                if (enemy.active) this.resources.gold += 10;
-                return false;
-            }
-            return true;
-        });
-
-        this.entities.neutral.forEach(n => n.update(deltaTime));
-        this.entities.neutral = this.entities.neutral.filter(n => n.alive && n.hp > 0);
-
-        this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles, this));
-
-        this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
-        this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
 
         // [UI 갱신] 선택된 유닛이 폭격기나 수송기인 경우, 상태 변화(비행중/기동중) 시 메뉴를 즉시 업데이트
         const selectedFlyer = this.selectedEntities.find(ent => ent.type === 'bomber' || ent.type === 'cargo-plane');
@@ -1811,6 +1993,16 @@ export class GameEngine {
         document.getElementById('resource-gold').textContent = Math.floor(this.resources.gold);
         document.getElementById('resource-oil').textContent = Math.floor(this.resources.oil);
         document.getElementById('resource-iron').textContent = Math.floor(this.resources.iron);
+
+        const popValue = document.getElementById('resource-population');
+        if (popValue) {
+            popValue.textContent = `${this.resources.population} / ${this.resources.maxPopulation}`;
+            if (this.resources.population > this.resources.maxPopulation) {
+                popValue.style.color = '#ff3131';
+            } else {
+                popValue.style.color = '#fff';
+            }
+        }
     }
 
     render() {
@@ -2924,6 +3116,46 @@ export class GameEngine {
                 reveal(b.x, b.y, 3);
             }
         });
+    }
+
+    updatePopulation() {
+        // 1. 최대 인구수 계산 (Base + Apartments)
+        let maxPop = 0;
+        if (this.entities.base && this.entities.base.active) {
+            maxPop += this.entities.base.popProvide || 0;
+        }
+        this.entities.apartments.forEach(apt => {
+            if (apt.active && !apt.isUnderConstruction) {
+                maxPop += apt.popProvide || 0;
+            }
+        });
+        this.resources.maxPopulation = maxPop;
+
+        // 2. 현재 인구수 계산 (아군 유닛만)
+        let currentPop = 0;
+        this.entities.units.forEach(unit => {
+            if (unit.ownerId === 1 && unit.active && unit.hp > 0) {
+                currentPop += unit.popCost || 0;
+            }
+        });
+
+        // 3. 생산 큐에 있는 유닛들도 인구수에 포함 (스타크래프트 방식)
+        const productionBuildings = [this.entities.base, ...this.entities.barracks, ...this.entities.armories, ...this.entities.airports];
+        const popMap = {
+            'tank': 3, 'missile-launcher': 3, 'artillery': 4, 'anti-air': 3,
+            'rifleman': 1, 'sniper': 1, 'engineer': 1,
+            'scout-plane': 1, 'bomber': 6, 'cargo-plane': 4
+        };
+
+        productionBuildings.forEach(b => {
+            if (b && b.spawnQueue) {
+                b.spawnQueue.forEach(item => {
+                    currentPop += popMap[item.type] || 0;
+                });
+            }
+        });
+
+        this.resources.population = currentPop;
     }
 
     updateEdgeScroll() {
