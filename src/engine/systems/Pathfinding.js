@@ -205,24 +205,16 @@ export class Pathfinding {
         // 기본적으로 occupied가 true면 막힌 것으로 보되, 
         // 해당 위치의 엔티티가 passable 속성을 가지고 있다면 통과 가능으로 간주
         if (tile.occupied) {
-            // 해당 타일에 있는 모든 엔티티 리스트를 뒤져서 통과 불가능한 건물이 있는지 확인
-            // (전선, 파이프 등은 passable이 true이므로 무시됨)
+            // 해당 타일에 있는 모든 건물 리스트를 가져와 통과 불가능한 것이 있는지 확인
             const worldPos = this.engine.tileMap.gridToWorld(x, y);
-            const blockingEntity = [
-                ...this.engine.entities.turrets,
-                ...this.engine.entities.generators,
-                ...this.engine.entities.walls,
-                ...this.engine.entities.airports,
-                ...this.engine.entities.refineries,
-                ...this.engine.entities.goldMines,
-                ...this.engine.entities.ironMines,
-                ...this.engine.entities.storage,
-                ...this.engine.entities.armories,
-                ...this.engine.entities.barracks,
-                this.engine.entities.base
-            ].find(ent => {
+            const allBuildings = this.engine.getAllBuildings();
+            
+            const blockingEntity = allBuildings.find(ent => {
                 if (!ent || ent.passable) return false;
+                
+                // 해당 엔티티가 이 타일을 실제로 점유하고 있는지 확인 (바운딩 박스)
                 const bounds = ent.getSelectionBounds();
+                // 타일의 중심점이 엔티티 영역 안에 있으면 막힌 것으로 간주
                 return worldPos.x >= bounds.left && worldPos.x <= bounds.right &&
                        worldPos.y >= bounds.top && worldPos.y <= bounds.bottom;
             });

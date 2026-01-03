@@ -175,20 +175,30 @@ export class GameEngine {
         this.initUI();
     }
 
-    // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 하나의 배열로 수집
+    // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 동적으로 수집
     getAllBuildings() {
-        const buildingLists = [
-            'turrets', 'generators', 'powerLines', 'walls', 'airports', 'apartments',
-            'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 
-            'barracks', 'pipeLines'
-        ];
         const all = [];
-        buildingLists.forEach(listName => {
-            if (this.entities[listName]) {
-                all.push(...this.entities[listName]);
+        const seenLists = new Set();
+
+        // 1. 레지스트리에 등록된 모든 건물 리스트 순회
+        for (const type in this.buildingRegistry) {
+            const listName = this.buildingRegistry[type].list;
+            if (listName && this.entities[listName] && !seenLists.has(listName)) {
+                const entry = this.entities[listName];
+                if (Array.isArray(entry)) {
+                    all.push(...entry);
+                } else if (entry instanceof Entity) {
+                    all.push(entry);
+                }
+                seenLists.add(listName);
             }
-        });
-        if (this.entities.base) all.push(this.entities.base);
+        }
+
+        // 2. 레지스트리에 없더라도 별도로 관리되는 특수 객체 체크
+        if (this.entities.base && !all.includes(this.entities.base)) {
+            all.push(this.entities.base);
+        }
+
         return all;
     }
 
@@ -1540,39 +1550,37 @@ export class GameEngine {
         const tileInfo = this.tileMap.getTileAt(worldX, worldY);
         if (!tileInfo || !tileInfo.tile.occupied) return;
 
-        let foundEntity = null;
-        let listName = '';
-        let foundIdx = -1;
-
-        // All potential building lists
-        const lists = ['turrets', 'generators', 'powerLines', 'walls', 'airports', 'refineries', 'goldMines', 'storage', 'armories', 'pipeLines', 'barracks'];
-        
-        for (const name of lists) {
-            const idx = this.entities[name].findIndex(e => {
-                if (!e) return false;
-                const bounds = e.getSelectionBounds();
-                return worldX >= bounds.left && worldX <= bounds.right && 
-                       worldY >= bounds.top && worldY <= bounds.bottom;
-            });
-
-            if (idx !== -1) {
-                foundEntity = this.entities[name][idx];
-                listName = name;
-                foundIdx = idx;
-                break;
-            }
-        }
+        // [최적화] 모든 건물 중에서 판매 대상 찾기
+        const allBuildings = this.getAllBuildings();
+        let foundEntity = allBuildings.find(e => {
+            if (!e || e.type === 'base') return false; // 기지는 판매 불가
+            const bounds = e.getSelectionBounds();
+            return worldX >= bounds.left && worldX <= bounds.right && 
+                   worldY >= bounds.top && worldY <= bounds.bottom;
+        });
 
         if (foundEntity) {
+            // 인벤토리나 리스트에서 제거하기 위해 소속 리스트 찾기
             const buildInfo = this.buildingRegistry[foundEntity.type];
-            const cost = buildInfo ? buildInfo.cost : 0;
-            this.resources.gold += Math.floor(cost * 0.1);
+            const listName = buildInfo ? buildInfo.list : null;
             
-            // 전용 헬퍼 함수를 사용하여 점유된 타일 해제
-            this.clearBuildingTiles(foundEntity);
+            if (listName && this.entities[listName]) {
+                const foundIdx = this.entities[listName].indexOf(foundEntity);
+                if (foundIdx !== -1) {
+                    const cost = buildInfo ? buildInfo.cost : 0;
+                    this.resources.gold += Math.floor(cost * 0.1);
+                    
+                    // 전용 헬퍼 함수를 사용하여 점유된 타일 해제
+                    this.clearBuildingTiles(foundEntity);
 
-            // Remove from list
-            this.entities[listName].splice(foundIdx, 1);
+                    // 리스트에서 제거
+                    this.entities[listName].splice(foundIdx, 1);
+                    
+                    // 판매 후 인구수 및 전력 갱신
+                    this.updatePopulation();
+                    this.updatePower();
+                }
+            }
         }
     }
 
@@ -2026,28 +2034,14 @@ export class GameEngine {
         this.entities.pipeLines.forEach(pl => pl.draw(this.ctx, allBuildings, this));
         
         // --- 2.2 건물 (Building Layer) ---
-        // 리스트를 돌며 모든 건물 그리기
-        const excludedFromGenericDraw = ['powerLines', 'pipeLines', 'base'];
-        for (const key in this.entities) {
-            if (excludedFromGenericDraw.includes(key)) continue;
-            const entry = this.entities[key];
-            if (Array.isArray(entry) && entry.length > 0 && entry[0] instanceof Entity && !this.entities.units.includes(entry[0])) {
-                entry.forEach(ent => ent.draw(this.ctx));
-            }
-        }
-        
-        // [수정] 위 방식이 불확실할 수 있으므로, 명시적으로 채굴장들 그리기 포함
-        this.entities.refineries.forEach(ref => ref.draw(this.ctx));
-        this.entities.goldMines.forEach(gm => gm.draw(this.ctx));
-        this.entities.ironMines.forEach(im => im.draw(this.ctx));
-        this.entities.storage.forEach(s => s.draw(this.ctx));
-        this.entities.armories.forEach(a => a.draw(this.ctx));
-        this.entities.barracks.forEach(b => b.draw(this.ctx));
-        this.entities.apartments.forEach(a => a.draw(this.ctx));
-        this.entities.generators.forEach(g => g.draw(this.ctx));
-        this.entities.airports.forEach(a => a.draw(this.ctx));
-        this.entities.walls.forEach(w => w.draw(this.ctx));
-        this.entities.turrets.forEach(t => t.draw(this.ctx, this.isBuildMode));
+        // 기지 및 유틸리티 라인을 제외한 모든 건물 일괄 렌더링
+        allBuildings.forEach(b => {
+            if (b === this.entities.base || b.type === 'power-line' || b.type === 'pipe-line') return;
+            
+            // 포탑의 경우 건설 모드일 때 사거리 표시 지원
+            const showRange = b.type && b.type.startsWith('turret') ? this.isBuildMode : false;
+            b.draw(this.ctx, showRange);
+        });
         
         // --- 2.3 유닛 레이어 분리 (Ground vs Air) ---
         const groundUnits = this.entities.units.filter(u => u.domain !== 'air');
@@ -2975,14 +2969,11 @@ export class GameEngine {
 
     updatePower() {
         // 1. 초기화
-        const consumers = [
-            ...this.entities.turrets,
-            ...this.entities.armories,
-            ...this.entities.barracks,
-            ...this.entities.airports,
-            ...this.entities.apartments,
-            ...this.entities.storage
-        ];
+        const allBuildings = this.getAllBuildings();
+        
+        // 전력 소비자: isPowered 속성을 가진 모든 건물 (전선 자체는 별도 관리)
+        const consumers = allBuildings.filter(b => b.hasOwnProperty('isPowered') && b.type !== 'power-line');
+        
         consumers.forEach(c => c.isPowered = false);
         this.entities.powerLines.forEach(pl => pl.isPowered = false);
 
@@ -3006,8 +2997,6 @@ export class GameEngine {
                 // 2. 전력망 매핑
                 const powerGrid = {};
                 
-                const allBuildings = this.getAllBuildings();
-        
                 // 모든 건물 등록 (모든 점유 타일에 등록)
                 allBuildings.forEach(b => {
                     const tiles = getOccupiedTiles(b);
@@ -3119,14 +3108,13 @@ export class GameEngine {
     }
 
     updatePopulation() {
-        // 1. 최대 인구수 계산 (Base + Apartments)
+        const allBuildings = this.getAllBuildings();
+
+        // 1. 최대 인구수 계산 (모든 건물의 popProvide 합산)
         let maxPop = 0;
-        if (this.entities.base && this.entities.base.active) {
-            maxPop += this.entities.base.popProvide || 0;
-        }
-        this.entities.apartments.forEach(apt => {
-            if (apt.active && !apt.isUnderConstruction) {
-                maxPop += apt.popProvide || 0;
+        allBuildings.forEach(b => {
+            if (b.active && !b.isUnderConstruction) {
+                maxPop += b.popProvide || 0;
             }
         });
         this.resources.maxPopulation = maxPop;
@@ -3139,15 +3127,14 @@ export class GameEngine {
             }
         });
 
-        // 3. 생산 큐에 있는 유닛들도 인구수에 포함 (스타크래프트 방식)
-        const productionBuildings = [this.entities.base, ...this.entities.barracks, ...this.entities.armories, ...this.entities.airports];
+        // 3. 생산 큐에 있는 유닛들도 인구수에 포함
         const popMap = {
             'tank': 3, 'missile-launcher': 3, 'artillery': 4, 'anti-air': 3,
             'rifleman': 1, 'sniper': 1, 'engineer': 1,
             'scout-plane': 1, 'bomber': 6, 'cargo-plane': 4
         };
 
-        productionBuildings.forEach(b => {
+        allBuildings.forEach(b => {
             if (b && b.spawnQueue) {
                 b.spawnQueue.forEach(item => {
                     currentPop += popMap[item.type] || 0;

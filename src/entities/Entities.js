@@ -10,6 +10,7 @@ export class Entity {
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상 (기본값 지상/해상)
         this.popCost = 0; // 인구수 비용 (유닛용)
         this.popProvide = 0; // 인구수 제공 (건물용)
+        this.passable = false; // 통과 가능 여부 (기본값: 불가능)
         
         // 소유권 속성 추가
         this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
