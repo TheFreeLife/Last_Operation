@@ -235,6 +235,86 @@ export class Base extends Entity {
         drawFlowerBed(x1 + 10, yBottom + 5, 80, 15);
         drawFlowerBed(x3 + 10, yBottom + 5, 80, 15);
 
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // --- 1.5 돌출형 정문 (Protruding Entrance - Fixed) ---
+        const entW = 60;
+        const entH = 45;
+        const entX = x2 + (centerW - entW) / 2;
+        const entY = yBottom - entH;
+        
+        // 돌출 깊이 설정 (앞으로 튀어나오게 반전)
+        const pDepth = 15; 
+        // angle이 -45도(우상단 향함)이므로, 앞으로 나오려면 +135도(좌하단) 방향이어야 함.
+        // 즉, dx, dy의 부호를 반대로 적용
+        const pdx = -Math.cos(angle) * pDepth;
+        const pdy = -Math.sin(angle) * pDepth;
+
+        // 1. 돌출된 구조물 지붕 (Roof of protruding entrance)
+        ctx.fillStyle = '#bdc3c7'; // 건물 측면색과 동일
+        ctx.beginPath();
+        ctx.moveTo(entX, entY); 
+        ctx.lineTo(entX + entW, entY); 
+        ctx.lineTo(entX + entW + pdx, entY + pdy); 
+        ctx.lineTo(entX + pdx, entY + pdy); 
+        ctx.closePath();
+        ctx.fill();
+
+        // 2. 돌출된 구조물 측면 (Right Side Wall)
+        ctx.fillStyle = '#95a5a6'; // 건물 짙은 측면색
+        ctx.beginPath();
+        ctx.moveTo(entX + entW, entY); 
+        ctx.lineTo(entX + entW + pdx, entY + pdy); 
+        ctx.lineTo(entX + entW + pdx, yBottom + pdy); 
+        ctx.lineTo(entX + entW, yBottom); 
+        ctx.closePath();
+        ctx.fill();
+
+        // 3. 정면 프레임 (Front Face)
+        ctx.fillStyle = '#95a5a6'; // 프레임도 짙은 회색으로 통일
+        ctx.fillRect(entX + pdx, entY + pdy, entW, entH);
+
+        // 4. 유리문 디테일 (Glass Door)
+        ctx.fillStyle = '#2c3e50'; // 창문과 동일한 유리색
+        ctx.fillRect(entX + pdx + 4, entY + pdy + 4, entW - 8, entH - 4);
+        
+        // 문 중앙 분할선
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(entX + pdx + entW/2 - 1, entY + pdy + 4, 2, entH - 4);
+
+        // 5. 캐노피 (Canopy)
+        const cDepth = 25;
+        const cdx = -Math.cos(angle) * cDepth;
+        const cdy = -Math.sin(angle) * cDepth;
+        
+        ctx.fillStyle = '#7f8c8d'; // 짙은 석재색
+        ctx.beginPath();
+        ctx.moveTo(entX - 4 + pdx, entY + pdy); 
+        ctx.lineTo(entX + entW + 4 + pdx, entY + pdy);
+        ctx.lineTo(entX + entW + 4 + cdx, entY + cdy); 
+        ctx.lineTo(entX - 4 + cdx, entY + cdy);
+        ctx.closePath();
+        ctx.fill();
+        
+        // 캐노피 측면 두께
+        ctx.fillStyle = '#636e72';
+        ctx.beginPath();
+        ctx.moveTo(entX + entW + 4 + pdx, entY + pdy);
+        ctx.lineTo(entX + entW + 4 + cdx, entY + cdy);
+        ctx.lineTo(entX + entW + 4 + cdx, entY + cdy + 4);
+        ctx.lineTo(entX + entW + 4 + pdx, entY + pdy + 4);
+        ctx.fill();
+
+        // 입구 바닥 조명 (앞으로 그림자처럼)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.moveTo(entX + pdx, yBottom + pdy);
+        ctx.lineTo(entX + entW + pdx, yBottom + pdy);
+        ctx.lineTo(entX + entW + 10 + pdx, yBottom + 10 + pdy);
+        ctx.lineTo(entX - 10 + pdx, yBottom + 10 + pdy);
+        ctx.fill();
+
         // --- 2. 창문 디테일 ---
         ctx.fillStyle = '#2c3e50'; 
         const winW = 12; const winH = 10;
@@ -245,12 +325,15 @@ export class Base extends Entity {
             }
         }
 
-        // 중앙 유리창 (Glass)
-        const gCols = 4; const gRows = 8; const gMargin = 15;
+        // 중앙 유리창 (Glass - Upper part only)
+        const gCols = 4; 
+        const gRows = 5; // 정문 공간 확보를 위해 행 수 감소 (8 -> 5)
+        const gMargin = 15;
         const gAreaW = centerW - gMargin * 2;
         const gAreaH = (yBottom - yCenter) - 25;
         const gWinW = (gAreaW - (gCols - 1) * 4) / gCols; 
-        const gWinH = (gAreaH - (gRows - 1) * 4) / gRows; 
+        const gWinH = (gAreaH - (8 - 1) * 4) / 8; // 높이 비율은 유지
+        
         for(let r=0; r<gRows; r++) {
             for(let c=0; c<gCols; c++) {
                 const wx = x2 + gMargin + c * (gWinW + 4);
