@@ -152,7 +152,7 @@ export class Base extends Entity {
         const yCenter = startY - (centerH - baseH); 
         const yBottom = startY + baseH; 
 
-        // --- 1. 건물 본체 구조 (Main Structure Only) ---
+        // [변수 선언부 이동] Entry Path에서 사용하기 위해 상단으로 배치
         const centerW = 100;
         const wingW = (totalW - centerW) / 2;
         const x1 = startX;
@@ -160,6 +160,83 @@ export class Base extends Entity {
         const x3 = startX + wingW + centerW;
         const x4 = startX + totalW;
 
+        // --- 0. 진입로 (Entry Path Only) ---
+        const plazaW = 360;
+        const plazaH = 240;
+        const pStartX = -plazaW / 2;
+        const pStartY = yBottom - 20;
+
+        // 0.5 진입로 (Entry Path - Styled)
+        const pathW = 60; // 정문 너비와 동일하게 맞춤
+        const pathEndW = 80; // 바깥쪽은 약간 넓어지게
+        const pathX = x2 + (centerW - pathW) / 2; // 정문 중앙 좌표 기준 (이제 x2 참조 가능)
+        
+        // 정문 바로 앞에서 시작
+        const entOffset = 15; 
+        const pdxStart = -Math.cos(angle) * entOffset;
+        const pdyStart = -Math.sin(angle) * entOffset;
+        
+        const pathStartX = pathX + pdxStart;
+        const pathStartY = yBottom + pdyStart;
+        
+        const pathLen = 50;
+        const plx = -Math.cos(angle) * pathLen;
+        const ply = -Math.sin(angle) * pathLen;
+
+        // 진입로 바닥 (Gradient Asphalt)
+        const pGrad = ctx.createLinearGradient(pathStartX, pathStartY, pathStartX + plx, pathStartY + ply);
+        pGrad.addColorStop(0, '#546e7a');
+        pGrad.addColorStop(1, '#455a64');
+        ctx.fillStyle = pGrad;
+        
+        ctx.beginPath();
+        ctx.moveTo(pathStartX, pathStartY); // 좌상
+        ctx.lineTo(pathStartX + pathW, pathStartY); // 우상
+        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply); // 우하
+        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply); // 좌하
+        ctx.closePath();
+        ctx.fill();
+
+        // 진입로 경계 및 연석 (Raised Curb)
+        const curbH = 4; // 연석 높이
+        
+        // 좌측 연석
+        ctx.fillStyle = '#95a5a6'; // 연석 윗면
+        ctx.beginPath();
+        ctx.moveTo(pathStartX, pathStartY);
+        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx - 4, pathStartY + ply); // 두께
+        ctx.lineTo(pathStartX - 4, pathStartY);
+        ctx.fill();
+        
+        ctx.fillStyle = '#7f8c8d'; // 연석 측면 (그림자)
+        ctx.beginPath();
+        ctx.moveTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx - 4, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx - 4, pathStartY + ply + curbH);
+        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply + curbH);
+        ctx.fill();
+
+        // 우측 연석
+        ctx.fillStyle = '#95a5a6'; // 연석 윗면
+        ctx.beginPath();
+        ctx.moveTo(pathStartX + pathW, pathStartY);
+        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx + 4, pathStartY + ply); // 두께
+        ctx.lineTo(pathStartX + pathW + 4, pathStartY);
+        ctx.fill();
+        
+        ctx.fillStyle = '#7f8c8d'; // 연석 측면
+        ctx.beginPath();
+        ctx.moveTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx + 4, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx + 4, pathStartY + ply + curbH);
+        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply + curbH);
+        ctx.fill();
+
+        // --- 1. 건물 본체 구조 (Main Structure Only) ---
+        // (변수 선언부는 위로 이동됨)
+        
         const colors = {
             front: '#ecf0f1', 
             roof: '#ffffff',  
