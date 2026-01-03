@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Enemy, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
+        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -21,7 +21,6 @@ export class GameEngine {
         this.entities = {
             enemies: [],
             neutral: [], // 중립 유닛 리스트 신설
-            turrets: [],
             projectiles: [],
             generators: [],
             powerLines: [],
@@ -114,11 +113,6 @@ export class GameEngine {
         this.updateVisibility();
 
         this.buildingRegistry = {
-            'turret-basic': { cost: 50, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
-            'turret-fast': { cost: 100, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
-            'turret-sniper': { cost: 150, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
-            'turret-tesla': { cost: 200, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
-            'turret-flamethrower': { cost: 250, size: [1, 1], className: 'Turret', list: 'turrets', buildTime: 1 },
             'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines', buildTime: 1 },
             'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
             'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
@@ -581,9 +575,9 @@ export class GameEngine {
                 ];
             } else {
                 items = [
-                    { type: 'turret-basic', name: '기본 포탑', cost: 50 }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
-                    { type: 'menu:city', name: '도시', action: 'menu:city' }, { type: 'menu:power', name: '에너지', action: 'menu:power' },
-                    { type: 'wall', name: '철조망', cost: 15 }, { type: 'menu:military', name: '군사', action: 'menu:military' },
+                    { type: 'menu:city', name: '도시', action: 'menu:city' }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
+                    { type: 'menu:power', name: '에너지', action: 'menu:power' }, { type: 'menu:military', name: '군사', action: 'menu:military' },
+                    { type: 'wall', name: '철조망', cost: 15 }, null,
                     null,
                     null, 
                     { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
@@ -671,13 +665,7 @@ export class GameEngine {
                 }
 
                 // Add specialized descriptions
-                if (item.type === 'turret-basic') {
-                    const stats = this.getTurretStats('turret-basic');
-                    desc += `<div class="item-stats-box">
-                        <div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${stats.damage}</span></div>
-                        <div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${stats.range}</span></div>
-                    </div>`;
-                } else if (item.action === 'toggle:sell') {
+                if (item.action === 'toggle:sell') {
                     desc += `<div class="item-stats-box text-red">건물을 철거하고 자원의 10%를 회수합니다.</div>`;
                 } else if (item.action?.startsWith('unit:')) {
                     const cmd = item.action.split(':')[1];
@@ -1771,7 +1759,6 @@ export class GameEngine {
 
         // 모든 건물 및 유닛 업데이트
         const buildings = this.getAllBuildings();
-        this.entities.turrets = processList(this.entities.turrets, (t) => t.update(deltaTime, this.entities.enemies, this.entities.projectiles, this));
         this.entities.generators = processList(this.entities.generators, (g) => g.update(deltaTime));
         this.entities.refineries = processList(this.entities.refineries, (r) => r.update(deltaTime, this));
         this.entities.goldMines = processList(this.entities.goldMines, (gm) => gm.update(deltaTime, this));
@@ -1849,10 +1836,7 @@ export class GameEngine {
         // 기지 및 유틸리티 라인을 제외한 모든 건물 일괄 렌더링
         allBuildings.forEach(b => {
             if (b === this.entities.base || b.type === 'power-line' || b.type === 'pipe-line') return;
-            
-            // 포탑의 경우 건설 모드일 때 사거리 표시 지원
-            const showRange = b.type && b.type.startsWith('turret') ? this.isBuildMode : false;
-            b.draw(this.ctx, showRange);
+            b.draw(this.ctx);
         });
         
         // --- 2.3 유닛 레이어 분리 (Ground vs Air) ---
@@ -2338,18 +2322,6 @@ export class GameEngine {
         this.ctx.restore();
     }
 
-    getTurretStats(type) {
-        // 임시 포탑 인스턴스를 만들어 기본 스탯을 가져옴
-        const { Turret } = this.entityClasses;
-        const temp = new Turret(0, 0, type);
-        return {
-            damage: temp.damage,
-            fireRate: temp.fireRate,
-            range: temp.range,
-            maxHp: temp.maxHp
-        };
-    }
-
     renderTooltip() {
         if (this.isHoveringUI) return;
 
@@ -2372,19 +2344,6 @@ export class GameEngine {
             title = hoveredGenerator.type === 'coal-generator' ? '석탄 발전소' : '석유 발전소';
             desc = `<div class="stat-row"><span>⛽ 남은 자원:</span> <span class="highlight">${Math.ceil(hoveredGenerator.fuel)}</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredGenerator.hp)}/${hoveredGenerator.maxHp}</span></div>`;
-        }
-
-        // 3. Check Turrets
-        const hoveredTurret = this.entities.turrets.find(t => Math.hypot(t.x - worldX, t.y - worldY) < 15);
-        if (hoveredTurret) {
-            const typeNames = { 'turret-basic': '기본 포탑', 'turret-fast': 'Fast 포탑', 'turret-sniper': 'Sniper 포탑', 'turret-tesla': 'Tesla 포탑', 'turret-flamethrower': 'Flame 포탑' };
-            title = typeNames[hoveredTurret.type] || '포탑';
-            const fireRateSec = (1000 / hoveredTurret.fireRate).toFixed(1);
-            desc = `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hoveredTurret.damage}</span></div>
-                    <div class="stat-row"><span>⚡ 연사 속도:</span> <span class="highlight">${fireRateSec}/s</span></div>
-                    <div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${hoveredTurret.range}</span></div>
-                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredTurret.hp)}/${hoveredTurret.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredTurret.isPowered ? 'text-green' : 'text-red'}">${hoveredTurret.isPowered ? '공급 중' : '중단됨'}</span></div>`;
         }
 
         // 5. Check Walls
@@ -2580,55 +2539,51 @@ export class GameEngine {
             mCtx.beginPath(); mCtx.arc(base.x, base.y, 40, 0, Math.PI * 2); mCtx.fill();
         }
 
-        mCtx.fillStyle = '#39ff14'; 
-        this.entities.turrets.forEach(t => {
-            if (isVisible(t.x, t.y)) mCtx.fillRect(t.x - 20, t.y - 20, 40, 40);
-        });
+        // 모든 건물 일괄 렌더링 (동적 지원)
+        const allBuildings = this.getAllBuildings();
+        allBuildings.forEach(b => {
+            if (b === base) return; // 기지는 이미 위에서 그림
+            if (!isVisible(b.x, b.y)) return;
 
-        mCtx.fillStyle = '#ffff00'; 
-        this.entities.generators.forEach(g => {
-            if (isVisible(g.x, g.y)) mCtx.fillRect(g.x - 20, g.y - 20, 40, 40);
-        });
+            // 타입별 미니맵 색상 결정
+            let color = '#aaa'; // 기본색
+            if (b.type === 'power-line') color = '#ffff00';
+            else if (b.type === 'pipe-line') color = '#9370DB';
+            else if (b.type === 'wall') color = '#666';
+            else if (b.type === 'refinery') color = '#32cd32';
+            else if (b.type === 'gold-mine') color = '#FFD700';
+            else if (b.type === 'iron-mine') color = '#a5a5a5';
+            else if (b.type === 'apartment') color = '#3498db';
+            else if (b.type === 'storage') color = '#00d2ff';
+            else if (b.type === 'armory') color = '#34495e';
+            else if (b.type === 'barracks') color = '#27ae60';
+            else if (b.type === 'airport') color = '#7f8c8d';
 
-        mCtx.fillStyle = '#9370DB'; 
-        this.entities.pipeLines.forEach(pl => {
-            if (isVisible(pl.x, pl.y)) mCtx.fillRect(pl.x - 10, pl.y - 10, 20, 20);
-        });
-
-        mCtx.fillStyle = '#666'; 
-        this.entities.walls.forEach(w => {
-            if (isVisible(w.x, w.y)) mCtx.fillRect(w.x - 15, w.y - 15, 30, 30);
-        });
-
-        mCtx.fillStyle = '#aaa'; 
-        this.entities.airports.forEach(a => {
-            if (isVisible(a.x, a.y)) mCtx.fillRect(a.x - 20, a.y - 20, 40, 40);
-        });
-
-        mCtx.fillStyle = '#32cd32'; 
-        this.entities.refineries.forEach(ref => {
-            if (isVisible(ref.x, ref.y)) mCtx.fillRect(ref.x - 15, ref.y - 15, 30, 30);
-        });
-
-        mCtx.fillStyle = '#FFD700'; 
-        this.entities.goldMines.forEach(gm => {
-            if (isVisible(gm.x, gm.y)) mCtx.fillRect(gm.x - 15, gm.y - 15, 30, 30);
-        });
-
-        mCtx.fillStyle = '#00d2ff'; 
-        this.entities.storage.forEach(s => {
-            if (isVisible(s.x, s.y)) mCtx.fillRect(s.x - 20, s.y - 20, 40, 40);
-        });
-
-        mCtx.fillStyle = '#34495e'; 
-        this.entities.armories.forEach(a => {
-            if (isVisible(a.x, a.y)) mCtx.fillRect(a.x - 20, a.y - 20, 40, 40);
+            mCtx.fillStyle = color;
+            const size = (b.type === 'power-line' || b.type === 'pipe-line') ? 20 : 40;
+            mCtx.fillRect(b.x - size/2, b.y - size/2, size, size);
         });
 
         this.entities.units.forEach(u => {
             if (isVisible(u.x, u.y)) {
-                mCtx.fillStyle = u.type === 'tank' ? '#39ff14' : '#ff3131';
-                mCtx.fillRect(u.x - 5, u.y - 5, 10, 10);
+                // 아군 유닛은 초록색 계열, 적군은 빨간색
+                const relation = this.getRelation(1, u.ownerId);
+                mCtx.fillStyle = (relation === 'self' || relation === 'ally') ? '#39ff14' : '#ff3131';
+                mCtx.fillRect(u.x - 10, u.y - 10, 20, 20);
+            }
+        });
+
+        this.entities.enemies.forEach(e => {
+            if (isVisible(e.x, e.y)) {
+                mCtx.fillStyle = '#ff3131';
+                mCtx.fillRect(e.x - 10, e.y - 10, 20, 20);
+            }
+        });
+
+        this.entities.neutral.forEach(n => {
+            if (isVisible(n.x, n.y)) {
+                mCtx.fillStyle = '#ffff00';
+                mCtx.fillRect(n.x - 10, n.y - 10, 20, 20);
             }
         });
 
@@ -2636,13 +2591,6 @@ export class GameEngine {
             if (isVisible(r.x, r.y)) {
                 mCtx.fillStyle = r.color; 
                 mCtx.fillRect(r.x - 15, r.y - 15, 30, 30); 
-            }
-        });
-
-        mCtx.fillStyle = '#ff3131'; 
-        this.entities.enemies.forEach(e => { 
-            if (isVisible(e.x, e.y)) {
-                mCtx.beginPath(); mCtx.arc(e.x, e.y, 15, 0, Math.PI * 2); mCtx.fill(); 
             }
         });
 
