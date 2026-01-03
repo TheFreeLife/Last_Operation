@@ -115,10 +115,15 @@ export class TileMap {
                     this.ctx.fillStyle = tile.cachedColor;
                     this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
 
-                    // 베이스 등 특수 오버레이
+                    // 베이스 타일 석조 바닥 효과 (불투명)
                     if (tile.type === 'base') {
-                        this.ctx.fillStyle = 'rgba(0, 210, 255, 0.15)';
+                        this.ctx.fillStyle = '#7f8c8d'; // 불투명한 석재 회색
                         this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
+                        
+                        // 격자 무늬 디테일
+                        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+                        this.ctx.lineWidth = 1;
+                        this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
                     }
                 }
             }

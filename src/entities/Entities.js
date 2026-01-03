@@ -144,55 +144,21 @@ export class Base extends Entity {
         // Building Dimensions
         const totalW = 320;
         const baseH = 110;
-        const centerH = 150; // 중앙부가 더 높음
-        const startX = -totalW / 2 - 15; // 오른쪽으로 15px 복구 (최종 -15px)
+        const centerH = 150; 
+        const startX = -totalW / 2 - 15;
         const startY = -40;
 
-        // --- 0. 조경 (Landscape) ---
-        // 전체 바닥 그림자
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.moveTo(startX + 10, startY + baseH);
-        ctx.lineTo(startX + totalW + 10, startY + baseH);
-        ctx.lineTo(startX + totalW + dx + 10, startY + dy + baseH);
-        ctx.lineTo(startX + dx + 10, startY + dy + baseH); 
-        ctx.fill();
+        const yBase = startY;           
+        const yCenter = startY - (centerH - baseH); 
+        const yBottom = startY + baseH; 
 
-        // 진입로
-        ctx.fillStyle = '#7f8c8d';
-        ctx.beginPath();
-        ctx.moveTo(-60, startY + baseH);
-        ctx.lineTo(60, startY + baseH);
-        ctx.lineTo(80, startY + baseH + 40);
-        ctx.lineTo(-80, startY + baseH + 40);
-        ctx.fill();
-
-        // 조경수
-        const drawTree = (tx, ty) => {
-            ctx.fillStyle = '#27ae60';
-            ctx.beginPath(); ctx.arc(tx, ty, 8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#2ecc71'; 
-            ctx.beginPath(); ctx.arc(tx-2, ty-2, 5, 0, Math.PI*2); ctx.fill();
-        };
-        for(let i=0; i<4; i++) {
-            drawTree(startX + 20 + i*25, startY + baseH + 10);
-            drawTree(startX + totalW - 20 - i*25, startY + baseH + 10);
-        }
-
-        // --- 1. 통합 건물 구조 (Unified Structure) ---
-        // 우리는 건물을 하나의 덩어리로 그리기 위해, "중앙이 솟은 형태"의 폴리곤을 직접 그립니다.
-        
+        // --- 1. 건물 본체 구조 (Main Structure Only) ---
         const centerW = 100;
         const wingW = (totalW - centerW) / 2;
-        
-        const x1 = startX;              // 좌측 끝
-        const x2 = startX + wingW;      // 중앙 시작 (좌)
-        const x3 = startX + wingW + centerW; // 중앙 끝 (우)
-        const x4 = startX + totalW;     // 우측 끝
-
-        const yBase = startY;           // 윙 상단 Y
-        const yCenter = startY - (centerH - baseH); // 중앙 상단 Y (더 높음)
-        const yBottom = startY + baseH; // 건물 바닥 Y
+        const x1 = startX;
+        const x2 = startX + wingW;
+        const x3 = startX + wingW + centerW;
+        const x4 = startX + totalW;
 
         const colors = {
             front: '#ecf0f1', 
@@ -201,193 +167,124 @@ export class Base extends Entity {
             sideDark: '#95a5a6'
         };
 
-        // 1-1. 측면 (Right Side Face) - 우측 윙의 측면
+        // 측면 (Sides)
         ctx.fillStyle = colors.side;
         ctx.beginPath();
-        ctx.moveTo(x4, yBase);
-        ctx.lineTo(x4 + dx, yBase + dy);
-        ctx.lineTo(x4 + dx, yBottom + dy);
-        ctx.lineTo(x4, yBottom);
+        ctx.moveTo(x4, yBase); ctx.lineTo(x4 + dx, yBase + dy);
+        ctx.lineTo(x4 + dx, yBottom + dy); ctx.lineTo(x4, yBottom);
         ctx.fill();
 
-        // 1-2. 지붕 (Roof - Complex Stepped Shape)
+        // 지붕 (Roofs)
         ctx.fillStyle = colors.roof;
-        ctx.beginPath();
-        // 좌측 윙 지붕
-        ctx.moveTo(x1, yBase);
-        ctx.lineTo(x1 + dx, yBase + dy);
-        ctx.lineTo(x2 + dx, yBase + dy);
-        ctx.lineTo(x2, yBase);
-        ctx.fill();
+        ctx.beginPath(); // 좌측 윙
+        ctx.moveTo(x1, yBase); ctx.lineTo(x1 + dx, yBase + dy);
+        ctx.lineTo(x2 + dx, yBase + dy); ctx.lineTo(x2, yBase); ctx.fill();
+        ctx.beginPath(); // 중앙 타워
+        ctx.moveTo(x2, yCenter); ctx.lineTo(x2 + dx, yCenter + dy);
+        ctx.lineTo(x3 + dx, yCenter + dy); ctx.lineTo(x3, yCenter); ctx.fill();
+        ctx.beginPath(); // 우측 윙
+        ctx.moveTo(x3, yBase); ctx.lineTo(x3 + dx, yBase + dy);
+        ctx.lineTo(x4 + dx, yBase + dy); ctx.lineTo(x4, yBase); ctx.fill();
 
-        // 중앙 타워 지붕
-        ctx.beginPath();
-        ctx.moveTo(x2, yCenter);
-        ctx.lineTo(x2 + dx, yCenter + dy);
-        ctx.lineTo(x3 + dx, yCenter + dy);
-        ctx.lineTo(x3, yCenter);
-        ctx.fill();
-
-        // 우측 윙 지붕
-        ctx.beginPath();
-        ctx.moveTo(x3, yBase);
-        ctx.lineTo(x3 + dx, yBase + dy);
-        ctx.lineTo(x4 + dx, yBase + dy);
-        ctx.lineTo(x4, yBase);
-        ctx.fill();
-
-        // 1-3. 중앙 타워 측면 (Exposed Side of Center Tower)
-        // 우측 윙 위로 솟은 중앙 타워의 우측면
+        // 중앙 타워 노출된 측면
         ctx.fillStyle = colors.side;
         ctx.beginPath();
-        ctx.moveTo(x3, yCenter);
-        ctx.lineTo(x3 + dx, yCenter + dy);
-        ctx.lineTo(x3 + dx, yBase + dy);
-        ctx.lineTo(x3, yBase);
-        ctx.fill();
-        
-        // 좌측 윙 위로 솟은 중앙 타워의 좌측면 (보이는 경우) - 2.5D 각도상 거의 안 보임
+        ctx.moveTo(x3, yCenter); ctx.lineTo(x3 + dx, yCenter + dy);
+        ctx.lineTo(x3 + dx, yBase + dy); ctx.lineTo(x3, yBase); ctx.fill();
 
-        // 1-4. 전면 (Front Face - Unified)
+        // 전면 (Front Faces)
         ctx.fillStyle = colors.front;
         ctx.beginPath();
-        ctx.moveTo(x1, yBase);      // 좌측 상단
-        ctx.lineTo(x2, yBase);      // 중앙 좌측 꺾임
-        ctx.lineTo(x2, yCenter);    // 중앙 상단으로 올라감
-        ctx.lineTo(x3, yCenter);    // 중앙 상단
-        ctx.lineTo(x3, yBase);      // 중앙 우측 꺾임
-        ctx.lineTo(x4, yBase);      // 우측 상단
-        ctx.lineTo(x4, yBottom);    // 우측 하단
-        ctx.lineTo(x1, yBottom);    // 좌측 하단
-        ctx.closePath();
-        ctx.fill();
-
-        // 윤곽선
-        ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1;
+        ctx.moveTo(x1, yBase); ctx.lineTo(x2, yBase); ctx.lineTo(x2, yCenter);
+        ctx.lineTo(x3, yCenter); ctx.lineTo(x3, yBase); ctx.lineTo(x4, yBase);
+        ctx.lineTo(x4, yBottom); ctx.lineTo(x1, yBottom); ctx.closePath(); ctx.fill();
+        
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
         ctx.stroke();
 
-        // --- 2. 창문 및 디테일 ---
+        // --- 1.5 정면 조경 (Landscaping in front) ---
+        const drawBush = (bx, by, bSize) => {
+            // 수풀 (Bush)
+            ctx.fillStyle = '#27ae60';
+            ctx.beginPath(); ctx.arc(bx, by, bSize, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath(); ctx.arc(bx - bSize*0.3, by - bSize*0.3, bSize*0.6, 0, Math.PI*2); ctx.fill();
+            
+            // 작은 꽃들 (Tiny flowers)
+            const flowers = [{x:-2, y:1, c:'#e74c3c'}, {x:3, y:-2, c:'#f1c40f'}, {x:0, y:4, c:'#fff'}];
+            flowers.forEach(f => {
+                ctx.fillStyle = f.c;
+                ctx.beginPath(); ctx.arc(bx + f.x, by + f.y, 1.5, 0, Math.PI*2); ctx.fill();
+            });
+        };
+
+        const drawFlowerBed = (fbx, fby, fbw, fbh) => {
+            // 화단 틀 (Stone Frame)
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(fbx - 2, fby - 2, fbw + 4, fbh + 4);
+            ctx.fillStyle = '#34495e'; // 흙
+            ctx.fillRect(fbx, fby, fbw, fbh);
+            
+            // 수풀들 배치
+            for(let i=0; i<3; i++) {
+                drawBush(fbx + 10 + i * (fbw/3), fby + fbh/2, 8);
+            }
+        };
+
+        // 입구 좌우에 화단 배치
+        drawFlowerBed(x1 + 10, yBottom + 5, 80, 15);
+        drawFlowerBed(x3 + 10, yBottom + 5, 80, 15);
+
+        // --- 2. 창문 디테일 ---
         ctx.fillStyle = '#2c3e50'; 
-        const winW = 12;
-        const winH = 10;
-        
-        // 좌측 윙 창문
+        const winW = 12; const winH = 10;
         for(let r=0; r<6; r++) {
             for(let c=0; c<7; c++) {
                 ctx.fillRect(x1 + 15 + c*15, yBase + 15 + r*15, winW, winH);
-            }
-        }
-        // 우측 윙 창문
-        for(let r=0; r<6; r++) {
-            for(let c=0; c<7; c++) {
                 ctx.fillRect(x3 + 10 + c*15, yBase + 15 + r*15, winW, winH);
             }
         }
 
-        // 중앙 유리 커튼월 (Grid Windows)
-        const gCols = 4;
-        const gRows = 8;
-        const gMargin = 15;
+        // 중앙 유리창 (Glass)
+        const gCols = 4; const gRows = 8; const gMargin = 15;
         const gAreaW = centerW - gMargin * 2;
         const gAreaH = (yBottom - yCenter) - 25;
-        
         const gWinW = (gAreaW - (gCols - 1) * 4) / gCols; 
         const gWinH = (gAreaH - (gRows - 1) * 4) / gRows; 
-        const gStartX = x2 + gMargin;
-        const gStartY = yCenter + 15;
-
         for(let r=0; r<gRows; r++) {
             for(let c=0; c<gCols; c++) {
-                const wx = gStartX + c * (gWinW + 4);
-                const wy = gStartY + r * (gWinH + 4);
-                
-                ctx.fillStyle = '#3498db'; // 푸른 유리
+                const wx = x2 + gMargin + c * (gWinW + 4);
+                const wy = yCenter + 15 + r * (gWinH + 4);
+                ctx.fillStyle = '#34495e'; 
                 ctx.fillRect(wx, wy, gWinW, gWinH);
-                
-                // 개별 창문 반사광
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                ctx.fillRect(wx, wy, gWinW, gWinH * 0.4);
             }
         }
 
-        // 캐노피
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(x2 - 10, yBottom - 15, centerW + 20, 15);
-        // 캐노피 입체감 (지붕)
-        ctx.fillStyle = '#636e72';
-        ctx.beginPath();
-        ctx.moveTo(x2 - 10, yBottom - 15);
-        ctx.lineTo(x2 - 10 + 10, yBottom - 15 - 10);
-        ctx.lineTo(x3 + 10 + 10, yBottom - 15 - 10);
-        ctx.lineTo(x3 + 10, yBottom - 15);
-        ctx.fill();
-
-        // --- 3. 옥상 디테일 ---
-        const roofShiftX = dx * 0.5;
-        const roofShiftY = dy * 0.5;
-
-        // 현대 육군 전술기 (Modern Tactical ROKA Flag - Black with Stylized Emblem)
-        const flagX = x2 + centerW/2 + roofShiftX;
-        const flagY = yCenter + roofShiftY;
+        // --- 3. 옥상 디테일 (Tactical Flag) ---
+        const flagX = x2 + centerW/2 + dx * 0.5;
+        const flagY = yCenter + dy * 0.5;
         
         ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(flagX, flagY); ctx.lineTo(flagX, flagY - 45); ctx.stroke();
         
-        // 깃발 본체
-        ctx.fillStyle = '#1a1a1a'; // 택티컬 블랙
+        // 깃발 본체 (Tactical Black)
+        ctx.fillStyle = '#1a1a1a'; 
         ctx.fillRect(flagX, flagY - 45, 32, 22);
         
-        // 현대적 육군 엠블럼 (Modern Stylized Emblem)
-        const ex = flagX + 16;
+        // 무채색 엠블럼
+        const ex = flagX + 16; 
         const ey = flagY - 34;
-        
-        // 1. 외곽 엣지 (Sharp Silver Edge)
         ctx.strokeStyle = '#dfe6e9'; ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(ex - 10, ey - 4);
-        ctx.lineTo(ex, ey - 10);
-        ctx.lineTo(ex + 10, ey - 4);
-        ctx.lineTo(ex + 8, ey + 8);
-        ctx.lineTo(ex, ey + 4);
-        ctx.lineTo(ex - 8, ey + 8);
-        ctx.closePath();
-        ctx.stroke();
+        ctx.moveTo(ex - 10, ey - 4); ctx.lineTo(ex, ey - 10); ctx.lineTo(ex + 10, ey - 4);
+        ctx.lineTo(ex + 8, ey + 8); ctx.lineTo(ex, ey + 4); ctx.lineTo(ex - 8, ey + 8);
+        ctx.closePath(); ctx.stroke();
         
-        // 2. 중앙 태극 (Vibrant Taegeuk)
-        ctx.fillStyle = '#ff3131'; // 밝은 레드
-        ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, Math.PI, 0); ctx.fill();
-        ctx.fillStyle = '#00d2ff'; // 밝은 블루
-        ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, 0, Math.PI); ctx.fill();
-        
-        // 3. 하단 장식 (Modern Wing/V-shape)
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(ex - 6, ey + 2);
-        ctx.lineTo(ex, ey + 6);
-        ctx.lineTo(ex + 6, ey + 2);
-        ctx.stroke();
-        
-        // 광택 효과
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
-        ctx.strokeRect(flagX, flagY - 45, 32, 22);
+        // 태극 문양 (색상 복구)
+        ctx.fillStyle = '#ff3131'; ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#00d2ff'; ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, 0, Math.PI); ctx.fill();
 
         ctx.restore();
-
-        // --- UI ---
-        const barWidth = 340;
-        const barY = this.y - 170; 
-        ctx.fillStyle = 'rgba(5, 10, 15, 0.95)';
-        ctx.beginPath(); ctx.roundRect(this.x-barWidth/2-10, barY-15, barWidth+20, 40, 2); ctx.fill();
-        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1; ctx.stroke();
-        
-        const hpP = this.hp / this.maxHp;
-        ctx.fillStyle = '#1a252f'; ctx.fillRect(this.x-barWidth/2, barY+8, barWidth, 12);
-        ctx.fillStyle = '#00d2ff'; ctx.fillRect(this.x-barWidth/2, barY+8, hpP*barWidth, 12);
-        
-        ctx.fillStyle = '#fff'; ctx.font = '900 13px "Segoe UI"'; ctx.textAlign = 'left';
-        ctx.fillText(`ROK DEFENSE COMMAND`, this.x - barWidth/2, barY);
-        ctx.textAlign = 'right';
-        ctx.fillText(`${Math.floor(hpP*100)}%`, this.x + barWidth/2, barY);
     }
 }
 
