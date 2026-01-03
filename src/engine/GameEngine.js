@@ -17,7 +17,7 @@ export class GameEngine {
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
-        const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY);
+        const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY - 0.5);
         this.entities = {
             enemies: [],
             neutral: [], // 중립 유닛 리스트 신설
@@ -124,7 +124,7 @@ export class GameEngine {
             'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
             'armory': { cost: 600, size: [3, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
-            'base': { cost: 0, size: [5, 5], className: 'Base', list: 'base' }, 
+            'base': { cost: 0, size: [9, 6], className: 'Base', list: 'base' }, 
             'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 }
         };
 
