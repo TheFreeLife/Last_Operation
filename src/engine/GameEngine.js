@@ -1626,6 +1626,12 @@ export class GameEngine {
             if (hovered.speed > 0) {
                 desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
             }
+            if (hovered.maxAmmo > 0) {
+                const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
+                const name = ammoNames[hovered.ammoType] || '탄약';
+                const colorClass = (hovered.ammo <= 0) ? 'text-red' : 'highlight';
+                desc += `<div class="stat-row"><span>🔋 ${name}:</span> <span class="${colorClass}">${Math.floor(hovered.ammo)} / ${hovered.maxAmmo}</span></div>`;
+            }
             if (hovered.domain) {
                 const domainMap = { ground: '지상', air: '공중', sea: '해상' };
                 desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;

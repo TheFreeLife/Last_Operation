@@ -1029,6 +1029,13 @@ export class PlayerUnit extends Entity {
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
         this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
         this.isInitialExit = false; // 생산 후 건물 밖으로 나가는 중인지 여부
+        this.popCost = 0; // 초기화 로직 보강 시 필요
+        
+        // --- 탄약 시스템 속성 ---
+        this.ammoType = null; // 'bullet', 'shell', 'missile'
+        this.maxAmmo = 0;
+        this.ammo = 0;
+        this.ammoConsumption = 1; // 기본 발당 소모량
         
         // 공격 특성 설정
         this.attackType = 'hitscan'; // 'hitscan' (즉시 타격) 또는 'projectile' (탄환 발사)
@@ -1072,6 +1079,20 @@ export class PlayerUnit extends Entity {
     performAttack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
+
+        // --- 탄약 체크 로직 ---
+        if (this.maxAmmo > 0) { // 탄약 시스템을 사용하는 유닛인 경우
+            if (this.ammo < this.ammoConsumption) {
+                // 탄약 부족 알림
+                if (now - (this._lastAmmoMsgTime || 0) > 2000) {
+                    this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
+                    this._lastAmmoMsgTime = now;
+                }
+                return;
+            }
+            // 탄약 소모 (설정된 소모량만큼 차감)
+            this.ammo -= this.ammoConsumption;
+        }
 
         if (this.attackType === 'hitscan') {
             this.executeHitscanAttack();
@@ -1532,6 +1553,10 @@ export class Tank extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'explosion';
         this.popCost = 3;
+        
+        this.ammoType = 'shell';
+        this.maxAmmo = 20;
+        this.ammo = 20;
     }
 
     attack() {
@@ -1945,6 +1970,10 @@ export class MissileLauncher extends PlayerUnit {
         this.attackType = 'projectile';
         this.attackTargets = ['ground', 'sea']; 
         this.popCost = 3;
+        
+        this.ammoType = 'missile';
+        this.maxAmmo = 6;
+        this.ammo = 6;
     }
 
     getSkillConfig(cmd) {
@@ -2008,6 +2037,15 @@ export class MissileLauncher extends PlayerUnit {
 
     fireAt(targetX, targetY) {
         if (!this.isSieged || this.isTransitioning || this.isFiring) return;
+        
+        // 탄약 체크 추가
+        if (this.ammo <= 0) {
+            if (this.engine.addEffect) {
+                this.engine.addEffect('system', this.x, this.y - 40, '#ff3131', '미사일 고갈!');
+            }
+            return;
+        }
+
         const dist = Math.hypot(targetX - this.x, targetY - this.y);
         if (dist > this.attackRange) return;
 
@@ -2020,6 +2058,8 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     executeFire() {
+        if (this.ammo <= 0) return; // 안전장치
+
         const { x: targetX, y: targetY } = this.pendingFirePos;
         const launchDist = 35 * 2;
         const tiltDir = Math.cos(this.angle) >= 0 ? -1 : 1;
@@ -2032,6 +2072,10 @@ export class MissileLauncher extends PlayerUnit {
         missile.peakHeight = Math.max(missile.peakHeight, 150); 
         
         this.engine.entities.projectiles.push(missile);
+        
+        // 탄약 1발 소모
+        this.ammo--;
+        
         this.lastFireTime = Date.now();
         this.recoil = 15; 
     }
@@ -2163,6 +2207,10 @@ export class Artillery extends PlayerUnit {
         this.cargoSize = 5; // 자주포 부피 5
         this.attackType = 'projectile';
         this.popCost = 4;
+        
+        this.ammoType = 'shell';
+        this.maxAmmo = 20;
+        this.ammo = 20;
     }
 
     attack() {
@@ -2272,6 +2320,11 @@ export class AntiAirVehicle extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'flak';
         this.popCost = 3;
+        
+        this.ammoType = 'bullet';
+        this.maxAmmo = 200;
+        this.ammo = 200;
+        this.ammoConsumption = 2;
     }
 
     attack() {
@@ -2453,6 +2506,11 @@ export class Rifleman extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'bullet';
         this.popCost = 1;
+        
+        this.ammoType = 'bullet';
+        this.maxAmmo = 150;
+        this.ammo = 150;
+        this.ammoConsumption = 3;
     }
 
     attack() {
@@ -2672,6 +2730,10 @@ export class Sniper extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'hit';
         this.popCost = 1;
+        
+        this.ammoType = 'bullet';
+        this.maxAmmo = 10;
+        this.ammo = 10;
     }
 
     attack() {
@@ -4263,15 +4325,8 @@ export class FallingBomb {
         const potentialTargets = [
             ...this.engine.entities.enemies,
             ...this.engine.entities.neutral,
-            ...this.engine.entities.turrets,
-            ...this.engine.entities.generators,
-            ...this.engine.entities.airports,
-            ...this.engine.entities.refineries,
-            ...this.engine.entities.goldMines,
-            ...this.engine.entities.storage,
-            ...this.engine.entities.armories,
-            ...this.engine.entities.barracks,
-            this.engine.entities.base
+            ...this.engine.entities.units,
+            ...this.engine.getAllBuildings()
         ];
 
         potentialTargets.forEach(target => {
@@ -4393,6 +4448,10 @@ export class Bomber extends PlayerUnit {
         this.takeoffDistance = 0;       // 활주 거리 누적
         this.isBombingActive = false;   // 폭격 모드 활성화 여부
         this.popCost = 6;
+        
+        this.ammoType = 'shell';
+        this.maxAmmo = 12;
+        this.ammo = 12;
     }
 
     // 스킬 설정 정보 제공
@@ -4461,9 +4520,19 @@ export class Bomber extends PlayerUnit {
         if (this.isBombingActive && this.altitude > 0.8) {
             this.bombTimer += deltaTime;
             if (this.bombTimer >= this.bombInterval) {
-                this.bombTimer = 0;
-                const bomb = new FallingBomb(this.x, this.y, this.engine, 300, this);
-                this.engine.entities.projectiles.push(bomb);
+                // 탄약 체크
+                if (this.ammo > 0) {
+                    this.bombTimer = 0;
+                    this.ammo--; // 포탄 1발 소모
+                    const bomb = new FallingBomb(this.x, this.y, this.engine, 300, this);
+                    this.engine.entities.projectiles.push(bomb);
+                } else {
+                    // 탄약 고갈 시 폭격 중단 및 알림
+                    this.isBombingActive = false;
+                    if (this.engine.addEffect) {
+                        this.engine.addEffect('system', this.x, this.y - 40, '#ff3131', '포탄 고갈! 폭격 중단');
+                    }
+                }
             }
         }
 
@@ -4670,9 +4739,9 @@ export class CargoPlane extends PlayerUnit {
         this.type = 'cargo-plane';
         this.name = '전략 수송기';
         this.domain = 'ground'; // 지상 시작
-        this.baseSpeed = 1.8;   // 지상 이동/활주 속도
-        this.airSpeed = 4.5;    // 공중 비행 속도
-        this.speed = 0.5;       // 초기 속도
+        this.baseSpeed = 0.8;   // 지상 이동/활주 속도 (하향)
+        this.airSpeed = 2.2;    // 공중 비행 속도 (반으로 하향)
+        this.speed = 0.3;       // 초기 속도 (하향)
         this.hp = 1500;
         this.maxHp = 1500;
         this.size = 110;
@@ -4869,7 +4938,7 @@ export class CargoPlane extends PlayerUnit {
         if (this.isTakeoffStarting) {
             if (this.altitude <= 0) {
                 const takeoffProgress = Math.min(1.0, this.takeoffDistance / 350); // 수송기는 더 긴 활주 거리 필요
-                this.speed = 0.5 + (this.baseSpeed - 0.5) * takeoffProgress;
+                this.speed = 0.3 + (this.baseSpeed - 0.3) * takeoffProgress;
             } else {
                 this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
             }
