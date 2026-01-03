@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Turret, Enemy, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -13,7 +13,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer };
+        this.entityClasses = { PlayerUnit, Base, Turret, Enemy, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -27,6 +27,7 @@ export class GameEngine {
             powerLines: [],
             walls: [],
             airports: [],
+            apartments: [],
             refineries: [],
             goldMines: [],
             ironMines: [], // 철 채굴장 리스트 추가
@@ -102,6 +103,7 @@ export class GameEngine {
             'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
             'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
             'airport': { cost: 500, size: [5, 7], className: 'Airport', list: 'airports', buildTime: 1 },
+            'apartment': { cost: 800, size: [4, 5], className: 'Apartment', list: 'apartments', buildTime: 1 },
             'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
             'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
             'iron-mine': { cost: 400, size: [1, 1], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
@@ -173,7 +175,7 @@ export class GameEngine {
     // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 하나의 배열로 수집
     getAllBuildings() {
         const buildingLists = [
-            'turrets', 'generators', 'powerLines', 'walls', 'airports', 
+            'turrets', 'generators', 'powerLines', 'walls', 'airports', 'apartments',
             'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 
             'barracks', 'pipeLines'
         ];
@@ -538,10 +540,15 @@ export class GameEngine {
                     { type: 'armory', name: '병기창', cost: 600 }, { type: 'airport', name: '공항', cost: 500 },
                     { type: 'barracks', name: '병영', cost: 400 }, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
+            } else if (this.currentMenuName === 'city') {
+                header.textContent = '도시 시설';
+                items = [
+                    { type: 'apartment', name: '아파트', cost: 800 }, null, null, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                ];
             } else {
                 items = [
                     { type: 'turret-basic', name: '기본 포탑', cost: 50 }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
-                    null, { type: 'menu:power', name: '에너지', action: 'menu:power' },
+                    { type: 'menu:city', name: '도시', action: 'menu:city' }, { type: 'menu:power', name: '에너지', action: 'menu:power' },
                     { type: 'wall', name: '철조망', cost: 15 }, { type: 'menu:military', name: '군사', action: 'menu:military' },
                     null,
                     null, 
@@ -1747,6 +1754,8 @@ export class GameEngine {
                 this.entities.armories = checkDestruction(this.entities.armories);
                 this.entities.barracks.forEach(b => b.update(deltaTime, this));
                 this.entities.barracks = checkDestruction(this.entities.barracks);
+                this.entities.apartments.forEach(a => a.update(deltaTime, this));
+                this.entities.apartments = checkDestruction(this.entities.apartments);
         this.entities.cargoPlanes.forEach(p => p.update(deltaTime));
         this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive && p.hp > 0);
 
@@ -1842,6 +1851,7 @@ export class GameEngine {
         this.entities.storage.forEach(s => s.draw(this.ctx));
         this.entities.armories.forEach(a => a.draw(this.ctx));
         this.entities.barracks.forEach(b => b.draw(this.ctx));
+        this.entities.apartments.forEach(a => a.draw(this.ctx));
         this.entities.generators.forEach(g => g.draw(this.ctx));
         this.entities.airports.forEach(a => a.draw(this.ctx));
         this.entities.walls.forEach(w => w.draw(this.ctx));
@@ -2778,6 +2788,7 @@ export class GameEngine {
             ...this.entities.armories,
             ...this.entities.barracks,
             ...this.entities.airports,
+            ...this.entities.apartments,
             ...this.entities.storage
         ];
         consumers.forEach(c => c.isPowered = false);
