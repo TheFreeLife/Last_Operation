@@ -3158,8 +3158,9 @@ export class CombatEngineer extends PlayerUnit {
                         if (resIdx !== -1) resList.splice(resIdx, 1);
                     }
                     
-                    // 건물 건설 완료 시 인구수 갱신 (아파트 등 대비)
+                    // 건물 건설 완료 시 인구수 및 전력망 갱신 트리거
                     if (this.engine.updatePopulation) {
+                        this.engine.needsPowerUpdate = true; // 전력망 갱신 트리거 추가
                         this.engine.updatePopulation();
                         
                         // 시각적 알림 추가

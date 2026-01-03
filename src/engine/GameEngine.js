@@ -48,41 +48,61 @@ export class GameEngine {
 
         this.initResources();
         
-        // Spawn starting units near base
-        const spawnOffset = 100;
-        const startTank = new Tank(basePos.x - spawnOffset, basePos.y + spawnOffset, this);
-        const startMissile = new MissileLauncher(basePos.x + spawnOffset, basePos.y + spawnOffset, this);
-        const startInfantry = new Rifleman(basePos.x, basePos.y + spawnOffset + 20, this);
-        const startArtillery = new Artillery(basePos.x - spawnOffset - 40, basePos.y + spawnOffset + 20, this);
-        const startAntiAir = new AntiAirVehicle(basePos.x + spawnOffset + 40, basePos.y + spawnOffset + 20, this);
-        const startScout = new ScoutPlane(basePos.x, basePos.y + spawnOffset + 80, this);
-        const startBomber = new Bomber(basePos.x - 200, basePos.y - 200, this);
-        const startCargo = new CargoPlane(basePos.x + 200, basePos.y - 200, this);
-        const startSniper = new Sniper(basePos.x - 40, basePos.y + spawnOffset + 20, this);
-        
-        // 소유권 명시
-        [startTank, startMissile, startInfantry, startArtillery, startAntiAir, startScout, startBomber, startCargo, startSniper].forEach(u => u.ownerId = 1);
+        // --- 초기 유닛 배치 (사령부 주변 대열 정렬) ---
+        const startX = basePos.x;
+        const spX = 90; // 가로 간격
+        const spY = 90; // 세로 간격
 
+        // [북쪽 배치] 항공 전력 (지상 상태로 대기)
+        const airY = basePos.y - 180;
+        const startBomber = new Bomber(startX - spX, airY, this);
+        const startCargo = new CargoPlane(startX, airY, this);
+        const startScout = new ScoutPlane(startX + spX, airY, this);
+
+        // [남쪽 배치] 지상군 시작점
+        const groundY = basePos.y + 180; 
+
+        // 1열: 기갑 및 중화기
+        const startTank = new Tank(startX - spX, groundY, this);
+        const startMissile = new MissileLauncher(startX, groundY, this);
+        const startAntiAir = new AntiAirVehicle(startX + spX, groundY, this);
+
+        // 2열: 보병 및 지원 화력
+        const startSniper = new Sniper(startX - spX, groundY + spY, this);
+        const startInfantry = new Rifleman(startX, groundY + spY, this);
+        const startArtillery = new Artillery(startX + spX, groundY + spY, this);
+
+        // 3열: 공병대
         const startEngineers = [
-            new CombatEngineer(basePos.x - 40, basePos.y + spawnOffset + 40, this),
-            new CombatEngineer(basePos.x, basePos.y + spawnOffset + 40, this),
-            new CombatEngineer(basePos.x + 40, basePos.y + spawnOffset + 40, this)
+            new CombatEngineer(startX - spX, groundY + spY * 2, this),
+            new CombatEngineer(startX, groundY + spY * 2, this),
+            new CombatEngineer(startX + spX, groundY + spY * 2, this)
         ];
-        startEngineers.forEach(e => e.ownerId = 1);
         
-        startTank.destination = { x: basePos.x - spawnOffset - 40, y: basePos.y + spawnOffset + 40 };
-        startMissile.destination = { x: basePos.x + spawnOffset + 40, y: basePos.y + spawnOffset + 40 };
-        startInfantry.destination = { x: basePos.x, y: basePos.y + spawnOffset + 60 };
-        startSniper.destination = { x: basePos.x - 60, y: basePos.y + spawnOffset + 60 };
-        
-        this.entities.units.push(startTank, startMissile, startInfantry, startSniper, startArtillery, startAntiAir, startScout, startBomber, startCargo, ...startEngineers);
+        // 모든 아군 유닛 설정 및 등록
+        const allStartingUnits = [
+            startTank, startMissile, startAntiAir, 
+            startSniper, startInfantry, startArtillery, 
+            ...startEngineers, 
+            startBomber, startCargo, startScout
+        ];
 
-        // 테스트용 중립 유닛 (플레이어 3)
-        const neutralTank = new Tank(basePos.x - 250, basePos.y - 100, this);
+        allStartingUnits.forEach(u => {
+            u.ownerId = 1;
+            // 살짝 아래를 바라보게 설정
+            u.angle = Math.PI / 2;
+            this.entities.units.push(u);
+            
+            // 수송기는 전용 리스트에도 등록
+            if (u.type === 'cargo-plane') this.entities.cargoPlanes.push(u);
+        });
+
+        // 테스트용 중립 유닛 (플레이어 3) - 조금 더 멀리 배치
+        const neutralTank = new Tank(basePos.x - 350, basePos.y - 100, this);
         neutralTank.ownerId = 3;
         neutralTank.name = "중립 전차 (P3)";
         
-        const neutralDrone = new ScoutPlane(basePos.x - 300, basePos.y - 100, this);
+        const neutralDrone = new ScoutPlane(basePos.x - 450, basePos.y - 100, this);
         neutralDrone.ownerId = 3;
         neutralDrone.name = "정찰 무인기 (P3)";
         
@@ -152,6 +172,7 @@ export class GameEngine {
         this.lastPlacedGrid = { x: -1, y: -1 }; 
         this.isEngineerBuilding = false; 
         this.currentBuildSessionQueue = null; 
+        this.needsPowerUpdate = true; // 전력망 재계산 필요 여부
 
         // Camera State
         const baseWorldPos = this.entities.base;
@@ -1484,6 +1505,7 @@ export class GameEngine {
                 }
 
                 this.lastPlacedGrid = { x: gridX, y: gridY };
+                this.needsPowerUpdate = true; // 전력망 갱신 트리거
                 return true;
             }
         }
@@ -1576,9 +1598,8 @@ export class GameEngine {
                     // 리스트에서 제거
                     this.entities[listName].splice(foundIdx, 1);
                     
-                    // 판매 후 인구수 및 전력 갱신
-                    this.updatePopulation();
-                    this.updatePower();
+                    // 판매 후 전력망 및 인구수 갱신 트리거
+                    this.needsPowerUpdate = true;
                 }
             }
         }
@@ -1715,302 +1736,93 @@ export class GameEngine {
         }
     }
 
-        update(deltaTime) {
-
-            if (this.gameState !== 'playing') return;
-
-    
-
-            // 효과 업데이트
-
-            for (let i = this.effects.length - 1; i >= 0; i--) {
-
-                const fx = this.effects[i];
-
-                fx.timer += deltaTime;
-
-                if (fx.timer >= fx.duration) {
-
-                    this.effects.splice(i, 1);
-
-                }
-
-            }
-
-    
-
-            this.updateEdgeScroll();
-
-            this.updatePower();
-
-            this.updateOilNetwork();
-
-            this.updateVisibility();
-
-    
-
-            let needsPopUpdate = false;
-
-    
-
-            const checkDestruction = (list) => {
-
-                const initialLen = list.length;
-
-                const filtered = list.filter(obj => {
-
-                    if (obj.hp <= 0) {
-
-                        this.clearBuildingTiles(obj);
-
-                        return false;
-
-                    }
-
-                    return true;
-
-                });
-
-                if (filtered.length !== initialLen) needsPopUpdate = true;
-
-                return filtered;
-
-            };
-
-    
-
-            this.entities.turrets = checkDestruction(this.entities.turrets);
-
-            this.entities.generators = this.entities.generators.filter(obj => {
-
-                obj.update(deltaTime);
-
-                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-
-                    this.clearBuildingTiles(obj);
-
-                    needsPopUpdate = true;
-
-                    return false;
-
-                }
-
-                return true;
-
-            });
-
-                    this.entities.powerLines = checkDestruction(this.entities.powerLines);
-
-                    this.entities.walls = checkDestruction(this.entities.walls);
-
-                    this.entities.airports = this.entities.airports.filter(obj => {
-
-                        obj.update(deltaTime, this);
-
-                        return obj.hp > 0;
-
-                    });
-
-                    this.entities.pipeLines = checkDestruction(this.entities.pipeLines);
-
-            this.entities.refineries = this.entities.refineries.filter(obj => {
-
-                obj.update(deltaTime, this);
-
-                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-
-                    this.clearBuildingTiles(obj);
-
-                    needsPopUpdate = true;
-
-                    return false;
-
-                }
-
-                return true;
-
-            });
-
-            this.entities.goldMines = this.entities.goldMines.filter(obj => {
-
-                obj.update(deltaTime, this);
-
-                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-
-                    this.clearBuildingTiles(obj);
-
-                    needsPopUpdate = true;
-
-                    return false;
-
-                }
-
-                return true;
-
-            });
-
-            this.entities.ironMines = this.entities.ironMines.filter(obj => {
-
-                obj.update(deltaTime, this);
-
-                if (obj.hp <= 0 || (obj.fuel !== undefined && obj.fuel <= 0)) {
-
-                    this.clearBuildingTiles(obj);
-
-                    needsPopUpdate = true;
-
-                    return false;
-
-                }
-
-                return true;
-
-            });
-
-            
-
-            const oldStorageLen = this.entities.storage.length;
-
-            this.entities.storage.forEach(s => s.update(deltaTime, this));
-
-            this.entities.storage = checkDestruction(this.entities.storage);
-
-            if (this.entities.storage.length !== oldStorageLen) needsPopUpdate = true;
-
-    
-
-            this.entities.base.update(deltaTime, this);
-
-            if (this.entities.base.hp <= 0) needsPopUpdate = true;
-
-    
-
-            this.entities.armories.forEach(a => a.update(deltaTime, this));
-
-            this.entities.armories = checkDestruction(this.entities.armories);
-
-            
-
-            this.entities.barracks.forEach(b => b.update(deltaTime, this));
-
-            this.entities.barracks = checkDestruction(this.entities.barracks);
-
-    
-
-            this.entities.apartments.forEach(a => a.update(deltaTime, this));
-
-            this.entities.apartments = checkDestruction(this.entities.apartments);
-
-    
-
-            const oldCargoLen = this.entities.cargoPlanes.length;
-
-            this.entities.cargoPlanes.forEach(p => p.update(deltaTime));
-
-            this.entities.cargoPlanes = this.entities.cargoPlanes.filter(p => p.alive && p.hp > 0);
-
-            if (this.entities.cargoPlanes.length !== oldCargoLen) needsPopUpdate = true;
-
-    
-
-            const oldUnitsLen = this.entities.units.length;
-
-            this.entities.units.forEach(u => u.update(deltaTime));
-
-            this.entities.units = this.entities.units.filter(u => u.alive && u.hp > 0);
-
-            if (this.entities.units.length !== oldUnitsLen) needsPopUpdate = true;
-
-    
-
-            const oldEnemiesLen = this.entities.enemies.length;
-
-            this.entities.enemies.forEach(enemy => enemy.update(deltaTime, this.entities.base, buildings, this));
-
-            this.entities.enemies = this.entities.enemies.filter(enemy => {
-
-                const isDead = !enemy.active || enemy.hp <= 0;
-
-                if (isDead) {
-
-                    if (enemy.active) this.resources.gold += 10;
-
-                    return false;
-
-                }
-
-                return true;
-
-            });
-
-            if (this.entities.enemies.length !== oldEnemiesLen) needsPopUpdate = true;
-
-    
-
-            this.entities.neutral.forEach(n => n.update(deltaTime));
-
-            this.entities.neutral = this.entities.neutral.filter(n => n.alive && n.hp > 0);
-
-    
-
-            this.entities.turrets.forEach(turret => turret.update(deltaTime, this.entities.enemies, this.entities.projectiles, this));
-
-    
-
-            this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
-
-            this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
-
-    
-
-            // 인구수 변화가 감지되었을 때만 재계산
-
-            if (needsPopUpdate) {
-
-                this.updatePopulation();
-
-            }
-
-        // [UI 갱신] 선택된 유닛이 폭격기나 수송기인 경우, 상태 변화(비행중/기동중) 시 메뉴를 즉시 업데이트
-        const selectedFlyer = this.selectedEntities.find(ent => ent.type === 'bomber' || ent.type === 'cargo-plane');
-        if (selectedFlyer) {
-            const isFlying = selectedFlyer.altitude > 0.8;
-            const isManeuvering = selectedFlyer.isTakeoffStarting || selectedFlyer.isManualLanding;
-            const isBombing = selectedFlyer.isBombingActive || false;
-
-            if (this._lastFlyerFlying !== isFlying || 
-                this._lastFlyerManeuvering !== isManeuvering || 
-                this._lastFlyerBombing !== isBombing) {
+    update(deltaTime) {
+        if (this.gameState !== 'playing') return;
+
+        // 1. 효과 및 카메라 업데이트 (매 프레임)
+        for (let i = this.effects.length - 1; i >= 0; i--) {
+            const fx = this.effects[i];
+            fx.timer += deltaTime;
+            if (fx.timer >= fx.duration) this.effects.splice(i, 1);
+        }
+        this.updateEdgeScroll();
+        this.updateVisibility();
+
+        // 2. 엔티티 상태 업데이트 및 파괴 처리
+        const processList = (list, updateFn) => {
+            const initialLen = list.length;
+            const filtered = list.filter(obj => {
+                const oldFuel = obj.fuel;
+                if (updateFn) updateFn(obj);
                 
-                this.updateBuildMenu();
-                this._lastFlyerFlying = isFlying;
-                this._lastFlyerManeuvering = isManeuvering;
-                this._lastFlyerBombing = isBombing;
+                // 발전소 연료 상태 변화 감지
+                if (oldFuel > 0 && obj.fuel <= 0) this.needsPowerUpdate = true;
+                if (oldFuel <= 0 && obj.fuel > 0) this.needsPowerUpdate = true;
+
+                if (obj.hp <= 0) {
+                    this.clearBuildingTiles(obj);
+                    return false;
+                }
+                return true;
+            });
+            if (filtered.length !== initialLen) this.needsPowerUpdate = true;
+            return filtered;
+        };
+
+        // 모든 건물 및 유닛 업데이트
+        const buildings = this.getAllBuildings();
+        this.entities.turrets = processList(this.entities.turrets, (t) => t.update(deltaTime, this.entities.enemies, this.entities.projectiles, this));
+        this.entities.generators = processList(this.entities.generators, (g) => g.update(deltaTime));
+        this.entities.refineries = processList(this.entities.refineries, (r) => r.update(deltaTime, this));
+        this.entities.goldMines = processList(this.entities.goldMines, (gm) => gm.update(deltaTime, this));
+        this.entities.ironMines = processList(this.entities.ironMines, (im) => im.update(deltaTime, this));
+        this.entities.airports = processList(this.entities.airports, (a) => a.update(deltaTime, this));
+        this.entities.storage = processList(this.entities.storage, (s) => s.update(deltaTime, this));
+        this.entities.armories = processList(this.entities.armories, (a) => a.update(deltaTime, this));
+        this.entities.barracks = processList(this.entities.barracks, (b) => b.update(deltaTime, this));
+        this.entities.apartments = processList(this.entities.apartments, (a) => a.update(deltaTime, this));
+        this.entities.powerLines = processList(this.entities.powerLines);
+        this.entities.walls = processList(this.entities.walls);
+        this.entities.pipeLines = processList(this.entities.pipeLines);
+
+        if (this.entities.base) {
+            this.entities.base.update(deltaTime, this);
+            if (this.entities.base.hp <= 0) {
+                this.needsPowerUpdate = true;
+                this.gameState = 'gameOver';
+                document.getElementById('game-over-modal').classList.remove('hidden');
             }
-        } else {
-            this._lastFlyerFlying = null;
-            this._lastFlyerManeuvering = null;
-            this._lastFlyerBombing = null;
         }
 
-        if (this.entities.base.hp <= 0) {
-            this.gameState = 'gameOver';
-            document.getElementById('game-over-modal').classList.remove('hidden');
-        }
+        // 유닛 사망 시 인구수 갱신
+        const oldUnitsLen = this.entities.units.length;
+        this.entities.units = processList(this.entities.units, (u) => u.update(deltaTime));
+        if (this.entities.units.length !== oldUnitsLen) this.updatePopulation();
 
-        document.getElementById('resource-gold').textContent = Math.floor(this.resources.gold);
-        document.getElementById('resource-oil').textContent = Math.floor(this.resources.oil);
-        document.getElementById('resource-iron').textContent = Math.floor(this.resources.iron);
+        this.entities.cargoPlanes = processList(this.entities.cargoPlanes, (p) => p.update(deltaTime));
+        this.entities.neutral = processList(this.entities.neutral, (n) => n.update(deltaTime));
+        this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
+        this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
 
-        const popValue = document.getElementById('resource-population');
-        if (popValue) {
-            popValue.textContent = `${this.resources.population} / ${this.resources.maxPopulation}`;
-            if (this.resources.population > this.resources.maxPopulation) {
-                popValue.style.color = '#ff3131';
-            } else {
-                popValue.style.color = '#fff';
+        this.entities.enemies = this.entities.enemies.filter(enemy => {
+            enemy.update(deltaTime, this.entities.base, buildings, this);
+            if (!enemy.active || enemy.hp <= 0) {
+                if (enemy.active) this.resources.gold += 10;
+                return false;
             }
+            return true;
+        });
+
+        // 3. 조건부 논리 업데이트 (프레임 내 모든 변화를 수집한 후 마지막에 실행)
+        if (this.needsPowerUpdate) {
+            this.updatePower();
+            this.updateOilNetwork();
+            this.needsPowerUpdate = false;
         }
+
+        // 4. UI 및 데이터 동기화
+        this.refreshFlyerUI();
+        this.updateResourceUI();
     }
 
     render() {
@@ -3014,9 +2826,9 @@ export class GameEngine {
                 if (!visited.has(key)) {
                     visited.add(key);
                     queue.push(t);
-                    // 타일에 있는 건물이 있으면 전력 공급 상태로 (전선 제외)
+                    // 타일에 있는 건물이 있으면 전력 공급 상태로 (전선 제외, 건설 중인 건물 제외)
                     const ent = powerGrid[key];
-                    if (ent && ent.type !== 'power-line') {
+                    if (ent && ent.type !== 'power-line' && !ent.isUnderConstruction) {
                         ent.isPowered = true;
                     }
                 }
@@ -3051,16 +2863,22 @@ export class GameEngine {
                 
                 if (ent && !visited.has(key)) {
                     visited.add(key);
-                    ent.isPowered = true;
                     
-                    // 오직 전선(power-line)을 통해서만 전력이 전파되도록 수정
-                    // 일반 건물은 전력을 받기만 하고 다른 곳으로 전달하지 않음
-                    if (ent.type === 'power-line') {
+                    // 건설 완료된 건물만 전력을 받음
+                    if (!ent.isUnderConstruction) {
+                        ent.isPowered = true;
+                    }
+                    
+                    // 오직 '건설 완료된 전선'을 통해서만 전력이 전파됨
+                    if (ent.type === 'power-line' && !ent.isUnderConstruction) {
                         queue.push({x: nx, y: ny});
                     }
                 }
             }
         }
+
+        // 전력망 갱신 후 즉시 인구수 동기화
+        this.updatePopulation();
     }
 
     updateVisibility() {
@@ -3110,11 +2928,14 @@ export class GameEngine {
     updatePopulation() {
         const allBuildings = this.getAllBuildings();
 
-        // 1. 최대 인구수 계산 (모든 건물의 popProvide 합산)
+        // 1. 최대 인구수 계산 (전력이 공급되는 건물의 popProvide 합산)
         let maxPop = 0;
         allBuildings.forEach(b => {
             if (b.active && !b.isUnderConstruction) {
-                maxPop += b.popProvide || 0;
+                // 사령부는 자체 전력이 있으므로 항상 포함, 그 외 건물은 isPowered 상태 확인
+                if (b.type === 'base' || b.isPowered) {
+                    maxPop += b.popProvide || 0;
+                }
             }
         });
         this.resources.maxPopulation = maxPop;
@@ -3143,6 +2964,36 @@ export class GameEngine {
         });
 
         this.resources.population = currentPop;
+    }
+
+    updateResourceUI() {
+        document.getElementById('resource-gold').textContent = Math.floor(this.resources.gold);
+        document.getElementById('resource-oil').textContent = Math.floor(this.resources.oil);
+        document.getElementById('resource-iron').textContent = Math.floor(this.resources.iron);
+
+        const popValue = document.getElementById('resource-population');
+        if (popValue) {
+            popValue.textContent = `${this.resources.population} / ${this.resources.maxPopulation}`;
+            popValue.style.color = (this.resources.population > this.resources.maxPopulation) ? '#ff3131' : '#fff';
+        }
+    }
+
+    refreshFlyerUI() {
+        const selectedFlyer = this.selectedEntities.find(ent => ent.type === 'bomber' || ent.type === 'cargo-plane');
+        if (selectedFlyer) {
+            const isFlying = selectedFlyer.altitude > 0.8;
+            const isManeuvering = selectedFlyer.isTakeoffStarting || selectedFlyer.isManualLanding;
+            const isBombing = selectedFlyer.isBombingActive || false;
+
+            if (this._lastFlyerFlying !== isFlying || this._lastFlyerManeuvering !== isManeuvering || this._lastFlyerBombing !== isBombing) {
+                this.updateBuildMenu();
+                this._lastFlyerFlying = isFlying;
+                this._lastFlyerManeuvering = isManeuvering;
+                this._lastFlyerBombing = isBombing;
+            }
+        } else {
+            this._lastFlyerFlying = this._lastFlyerManeuvering = this._lastFlyerBombing = null;
+        }
     }
 
     updateEdgeScroll() {
