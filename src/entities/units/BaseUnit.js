@@ -190,13 +190,19 @@ export class BaseUnit extends Entity {
 
         // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
         if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
-            const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
-            const unitRadius = this.collisionRadius; // 중앙화된 반경 사용
+            const unitRadius = this.collisionRadius;
+            // [최적화] 모든 건물을 검사하는 대신 주변 장애물만 가져옴
+            const nearbyObstacles = this.engine.entityManager.getNearby(this.x, this.y, this.size * 2, (e) => {
+                if (e.passable) return false;
+                const typeStr = e.type || "";
+                return (typeof typeStr === 'string' && typeStr.includes('resource')) ||
+                    (this.engine.buildingRegistry && this.engine.buildingRegistry[e.type]);
+            });
 
-            for (const b of obstacles) {
-                if (b === this || b.passable) continue;
+            for (const b of nearbyObstacles) {
+                if (b === this) continue;
 
-                if (b.isResource) {
+                if (b.resourceType) { // Resource check
                     const d = Math.hypot(this.x - b.x, this.y - b.y);
                     const minD = unitRadius + (b.size * 0.5);
                     if (d < minD) {
@@ -399,48 +405,10 @@ export class BaseUnit extends Entity {
             }
         }
 
-        // 2. 장애물 끼임 탈출 (건물 및 자원)
-        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
-            const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
-            for (const b of obstacles) {
-                if (b === this || b.passable) continue;
-
-                if (b.isResource) {
-                    const d = Math.hypot(this.x - b.x, this.y - b.y);
-                    // 자원 크기가 80px(2x2)이므로 반경은 40px + 유닛 반경(약 15-20px)
-                    const minDist = (this.size * 0.4) + (b.size * 0.5);
-                    if (d < minDist) {
-                        const pushAngle = Math.atan2(this.y - b.y, this.x - b.x);
-                        // 원형 자원에서 밖으로 밀어내는 힘 강화
-                        const force = (minDist - d) / minDist * 6.0;
-                        pushX += Math.cos(pushAngle) * force;
-                        pushY += Math.sin(pushAngle) * force;
-                    }
-                } else {
-                    const bounds = b.getSelectionBounds();
-                    // 건물의 실제 영역보다 약간 더 넓게 탈출 판정
-                    const margin = 2;
-
-                    if (this.x > bounds.left - margin && this.x < bounds.right + margin &&
-                        this.y > bounds.top - margin && this.y < bounds.bottom + margin) {
-
-                        // 네 방향 중 가장 가까운 밖으로 계산
-                        const distL = this.x - (bounds.left - 5);
-                        const distR = (bounds.right + 5) - this.x;
-                        const distT = this.y - (bounds.top - 5);
-                        const distB = (bounds.bottom + 5) - this.y;
-
-                        const minD = Math.min(distL, distR, distT, distB);
-                        const pushForce = 4.0; // 매우 강력하게 밀어냄
-
-                        if (minD === distL) pushX -= pushForce;
-                        else if (minD === distR) pushX += pushForce;
-                        else if (minD === distT) pushY -= pushForce;
-                        else if (minD === distB) pushY += pushForce;
-                    }
-                }
-            }
-        }
+        // 2. 장애물 끼임 탈출 (건물 및 자원) - [중복 로직 제거 및 최적화]
+        // 위에서 이미 pushX/pushY가 아닌 직접 좌표 수정으로 처리했으므로 
+        // 여기서의 중복 검사는 건너뛰거나 push 벡터 방식으로 통일할 수 있으나, 
+        // 하단은 유닛 간 밀어내기 위주로 재편성합니다.
 
         this.x += pushX;
         this.y += pushY;

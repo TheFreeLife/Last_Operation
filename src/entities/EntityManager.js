@@ -58,7 +58,7 @@ export class EntityManager {
     }
 
     /**
-     * 엔티티 생성 (팩토리 메서드)
+     * 엔티티 생성 (팩토리 메서드 - 오브젝트 풀링 적용)
      * @param {string} type - 엔티티 타입
      * @param {number} x - X 좌표
      * @param {number} y - Y 좌표
@@ -73,9 +73,20 @@ export class EntityManager {
         }
 
         const { EntityClass, listName } = registration;
+        let entity = null;
 
-        // 엔티티 인스턴스 생성
-        const entity = new EntityClass(x, y, this.engine);
+        // 1. 오브젝트 풀 확인 (투사체 등 빈번한 생성 객체 우선 적용)
+        const pool = this.pools.get(type);
+        if (pool && pool.length > 0) {
+            entity = pool.pop();
+            entity.x = x;
+            entity.y = y;
+            entity.active = true;
+            if (entity.init) entity.init(x, y, this.engine); // 재사용 초기화 메서드 호출
+        } else {
+            // 2. 풀에 없으면 새로 생성
+            entity = new EntityClass(x, y, this.engine);
+        }
 
         // 추가 옵션 적용
         Object.assign(entity, options);
@@ -86,12 +97,14 @@ export class EntityManager {
         } else {
             const list = this.entities[listName];
             if (Array.isArray(list)) {
-                list.push(entity);
+                if (!list.includes(entity)) list.push(entity);
             }
         }
 
         // 전체 엔티티 리스트에 추가
-        this.allEntities.push(entity);
+        if (!this.allEntities.includes(entity)) {
+            this.allEntities.push(entity);
+        }
 
         // 공간 그리드에 등록
         this.spatialGrid.add(entity);
@@ -100,16 +113,27 @@ export class EntityManager {
     }
 
     /**
-     * 엔티티 제거
+     * 엔티티 제거 (오브젝트 풀로 반환)
      * @param {Entity} entity - 제거할 엔티티
      */
     remove(entity) {
-        if (!entity) return;
+        if (!entity || !entity.active) return;
 
         entity.active = false;
 
         // 공간 그리드에서 제거
         this.spatialGrid.remove(entity);
+
+        // 오브젝트 풀에 반환 (투사체 타입 위주)
+        if (entity.type === 'projectile' || entity.type === 'bullet' || entity.type === 'shell') {
+            if (!this.pools.has(entity.type)) {
+                this.pools.set(entity.type, []);
+            }
+            const pool = this.pools.get(entity.type);
+            if (pool.length < 500) { // 풀 크기 제한
+                pool.push(entity);
+            }
+        }
 
         // 전체 리스트에서 제거는 cleanup에서 일괄 처리
     }

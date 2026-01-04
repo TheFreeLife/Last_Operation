@@ -3,7 +3,7 @@ export class TileMap {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.tileSize = tileSize;
-        this.cols = 240; 
+        this.cols = 240;
         this.rows = 240;
 
         // 중앙 좌표 계산
@@ -24,7 +24,7 @@ export class TileMap {
                     terrain: 'dirt',
                     occupied: false,
                     buildable: true,
-                    visible: false, 
+                    visible: false,
                     inSight: false,
                     cachedColor: null // 렌더링 최적화를 위한 색상 캐시
                 };
@@ -49,7 +49,7 @@ export class TileMap {
 
     generateTerrain() {
         // 1. 잔디 초원 및 흙 지형 생성 (큼지막한 덩어리)
-        const numGrassPatches = 40; 
+        const numGrassPatches = 40;
         const minRadius = 8;
         const maxRadius = 20;
 
@@ -62,7 +62,7 @@ export class TileMap {
             for (let y = -r; y <= r; y++) {
                 for (let x = -r; x <= r; x++) {
                     const dist = Math.hypot(x, y);
-                    const noise = (Math.random() - 0.5) * 4; 
+                    const noise = (Math.random() - 0.5) * 4;
                     if (dist + noise <= radius) {
                         const nx = cx + x;
                         const ny = cy + y;
@@ -80,7 +80,6 @@ export class TileMap {
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const tile = this.grid[y][x];
-                // 유기적 패턴을 위한 노이즈 연산
                 const n1 = Math.sin(x * 0.12) * Math.cos(y * 0.15) * 4;
                 const n2 = Math.sin(x * 0.5 + y * 0.3) * 2;
                 const n3 = ((x * 93 + y * 71) % 5) - 2;
@@ -89,8 +88,27 @@ export class TileMap {
                 const baseR = tile.terrain === 'fertile-soil' ? 74 : 61;
                 const baseG = tile.terrain === 'fertile-soil' ? 55 : 90;
                 const baseB = tile.terrain === 'fertile-soil' ? 40 : 45;
-                
+
                 tile.cachedColor = `rgb(${baseR + brightness}, ${baseG + brightness}, ${baseB + brightness})`;
+            }
+        }
+
+        // 3. 오프스크린 캔버스에 지형 미리 그리기 (NEW)
+        this.offscreenCanvas = document.createElement('canvas');
+        this.offscreenCanvas.width = this.cols * this.tileSize;
+        this.offscreenCanvas.height = this.rows * this.tileSize;
+        const octx = this.offscreenCanvas.getContext('2d');
+
+        for (let y = 0; y < this.rows; y++) {
+            for (let x = 0; x < this.cols; x++) {
+                const tile = this.grid[y][x];
+                octx.fillStyle = tile.cachedColor;
+                octx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+
+                if (tile.type === 'base') {
+                    octx.fillStyle = '#7f8c8d';
+                    octx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                }
             }
         }
     }
@@ -104,29 +122,19 @@ export class TileMap {
         const endX = Math.min(this.cols, Math.ceil((this.canvas.width - camera.x) / (this.tileSize * camera.zoom)));
         const endY = Math.min(this.rows, Math.ceil((this.canvas.height - camera.y) / (this.tileSize * camera.zoom)));
 
-        // 1. 전체 영역을 기본 지형 색상으로 먼저 채움 (틈새 방지용 베이스)
-        this.ctx.fillStyle = '#3d5a2d';
-        this.ctx.fillRect(startX * this.tileSize, startY * this.tileSize, (endX - startX) * this.tileSize, (endY - startY) * this.tileSize);
+        // [최적화] 안개가 없는 경우 오프스크린 전체를 한 번에 그림
+        // 하지만 Fog of War가 있으므로, visible 영역만 그려야 함.
+        // 여기서는 하단 지형을 한 번에 다 그리고, drawFog에서 가리는 방식이 더 효율적입니다.
+        const sourceX = startX * this.tileSize;
+        const sourceY = startY * this.tileSize;
+        const sourceW = (endX - startX) * this.tileSize;
+        const sourceH = (endY - startY) * this.tileSize;
 
-        for (let y = startY; y < endY; y++) {
-            for (let x = startX; x < endX; x++) {
-                const tile = this.grid[y][x];
-                if (tile.visible) {
-                    const px = x * this.tileSize;
-                    const py = y * this.tileSize;
-
-                    // 미리 캐싱된 색상 사용 (연산량 0)
-                    this.ctx.fillStyle = tile.cachedColor;
-                    this.ctx.fillRect(px, py, this.tileSize + 1.0, this.tileSize + 1.0);
-
-                    // 베이스 타일 석조 바닥 효과 (불투명)
-                    if (tile.type === 'base') {
-                        this.ctx.fillStyle = '#7f8c8d'; // 불투명한 석재 회색
-                        this.ctx.fillRect(px, py, this.tileSize + 1.0, this.tileSize + 1.0);
-                    }
-                }
-            }
-        }
+        this.ctx.drawImage(
+            this.offscreenCanvas,
+            sourceX, sourceY, sourceW, sourceH, // Source
+            sourceX, sourceY, sourceW, sourceH  // Destination (카메라 변환이 되어있으므로 월드 좌표 그대로)
+        );
     }
 
     drawFog(camera) {

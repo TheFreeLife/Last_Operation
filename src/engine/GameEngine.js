@@ -438,9 +438,7 @@ export class GameEngine {
         };
 
         // EntityManager를 통해 리소스 생성
-        const res = this.entityManager.create('resource', pos.x, pos.y, { resourceType: type });
-        // type 프로퍼티가 constructor에서 설정될 수 있으므로 resourceType으로 보냄 (Resource 클래스 확인 필요)
-        // 일단 기존 호환성을 위해 resources 배열에도 직접 들어가는지 확인 (EntityManager.create가 해줌)
+        const res = this.entityManager.create('resource', pos.x, pos.y, { type: type });
 
         // 2x2 타일 점유 처리
         for (let dy = 0; dy < 2; dy++) {

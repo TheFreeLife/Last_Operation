@@ -1,21 +1,32 @@
 import { Entity } from '../BaseEntity.js';
 
 export class Resource extends Entity {
-    constructor(x, y, type = 'gold') {
+    constructor(x, y, engine, type = 'gold') {
         super(x, y);
-        this.type = type;
-        this.isResource = true; // ReferenceError 방지를 위한 타입 플래그
-        this.size = 80; // 2x2 타일 크기
+        this.engine = engine;
+        this.isResource = true;
+        this.size = 80;
         this.width = 80;
         this.height = 80;
         this.covered = false;
 
-        switch (type) {
+        // 초기 타입 설정 (Setter가 호출됨)
+        this.type = (typeof type === 'string') ? type : 'gold';
+    }
+
+    // [수정] 타입이 바뀔 때마다 시각적 속성(색상, 이름)을 동기화
+    set type(val) {
+        this._type = val;
+        switch (val) {
             case 'oil': this.color = '#2F4F4F'; this.name = '석유'; break;
             case 'gold': this.color = '#FFD700'; this.name = '금'; break;
             case 'iron': this.color = '#a5a5a5'; this.name = '철'; break;
             default: this.color = '#778899'; this.name = '자원'; break;
         }
+    }
+
+    get type() {
+        return this._type;
     }
 
     draw(ctx) {
