@@ -89,6 +89,17 @@ export class Entity {
             bottom: this.y + h / 2
         };
     }
+
+    // --- 자동 계산 로직 추가 ---
+    // 유닛의 크기에 따른 물리 충돌 반경 (0.45는 대형 유닛 우회 마진 포함)
+    get collisionRadius() {
+        return (this.size || 40) * 0.45;
+    }
+
+    // 길찾기 엔진에 전달할 크기
+    get pathfindingSize() {
+        return this.size || 40;
+    }
 }
 
 export class Base extends Entity {
@@ -1336,8 +1347,8 @@ export class PlayerUnit extends Entity {
                 // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
                 this.path = [{ x: value.x, y: value.y }];
             } else {
-                // 지상 유닛은 기존대로 A* 경로 탐색 수행
-                this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.canBypassObstacles) || [];
+                // 지상 유닛은 기존대로 A* 경로 탐색 수행 (중앙 집중형 크기 로직 사용)
+                this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.canBypassObstacles, this.pathfindingSize) || [];
                 
                 while (this.path.length > 0) {
                     const first = this.path[0];
@@ -1511,7 +1522,7 @@ export class PlayerUnit extends Entity {
         // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
         if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
-            const unitRadius = this.size * 0.3;
+            const unitRadius = this.collisionRadius; // 중앙화된 반경 사용
 
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
@@ -1574,10 +1585,9 @@ export class PlayerUnit extends Entity {
                     }
                 } else {
                     // 장애물 회피를 위해 정식 길찾기 경로 생성
-                    // 매 프레임 계산하면 무거우므로 목적지가 일정 거리 이상 변했을 때만 갱신
                     if (!this._destination || Math.hypot(this._destination.x - entranceX, this._destination.y - entranceY) > 40) {
                         this._destination = { x: entranceX, y: entranceY };
-                        this.path = this.engine.pathfinding.findPath(this.x, this.y, entranceX, entranceY, this.canBypassObstacles) || [];
+                        this.path = this.engine.pathfinding.findPath(this.x, this.y, entranceX, entranceY, this.canBypassObstacles, this.pathfindingSize) || [];
                     }
                 }
             }
@@ -1778,7 +1788,7 @@ export class PlayerUnit extends Entity {
 
         if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
-            const unitRadius = this.size * 0.3; 
+            const unitRadius = this.collisionRadius; 
 
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
@@ -5475,7 +5485,7 @@ export class Enemy extends Entity {
         this.pathTimer += deltaTime;
         if (this.pathTimer >= 2000 || (this.path.length === 0 && this.hp > 0)) {
             const pf = engine.pathfinding;
-            this.path = pf.findPath(this.x, this.y, this.currentTarget.x, this.currentTarget.y, false) || [];
+            this.path = pf.findPath(this.x, this.y, this.currentTarget.x, this.currentTarget.y, false, this.pathfindingSize) || [];
             this.pathTimer = 0;
         }
 
@@ -5494,10 +5504,53 @@ export class Enemy extends Entity {
         }
 
         const angleToTarget = Math.atan2(moveTarget.y - this.y, moveTarget.x - this.x);
-        let nextX = this.x + Math.cos(angleToTarget) * this.speed;
-        let nextY = this.y + Math.sin(angleToTarget) * this.speed;
+        this.angle = angleToTarget; // 방향 업데이트
         
-        let blockedBy = null;
+        // --- 슬라이딩 충돌 이동 적용 (Enemy도 동일하게) ---
+        const dist = this.speed;
+        const nextX = this.x + Math.cos(this.angle) * dist;
+        const nextY = this.y + Math.sin(this.angle) * dist;
+
+        let canMoveX = true;
+        let canMoveY = true;
+
+        const obstacles = [...engine.getAllBuildings(), ...engine.entities.resources.filter(r => !r.covered)];
+        const unitRadius = this.collisionRadius;
+
+        for (const b of obstacles) {
+            if (b === this || b.passable) continue;
+            
+            if (b instanceof Resource) {
+                const minCollisionDist = unitRadius + (b.size * 0.5);
+                if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
+                if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
+            } else {
+                const bounds = b.getSelectionBounds();
+                const margin = unitRadius;
+                if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) canMoveX = false;
+                if (this.x + margin > bounds.left && this.x - margin < bounds.right && (nextY + margin > bounds.top && nextY - margin < bounds.bottom)) canMoveY = false;
+            }
+        }
+
+        if (canMoveX) this.x = nextX;
+        if (canMoveY) this.y = nextY;
+        
+        // --- 유닛 간 밀어내기 및 끼임 탈출 ---
+        let pushX = 0;
+        let pushY = 0;
+        const allUnits = [...engine.entities.units, ...engine.entities.enemies];
+        for (const other of allUnits) {
+            if (other === this || !other.active) continue;
+            const d = Math.hypot(this.x - other.x, this.y - other.y);
+            const minDist = (this.size + other.size) * 0.4;
+            if (d < minDist) {
+                const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                pushX += Math.cos(pushAngle) * 0.5;
+                pushY += Math.sin(pushAngle) * 0.5;
+            }
+        }
+        this.x += pushX;
+        this.y += pushY;
         
         // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
         for (const obs of buildings) {

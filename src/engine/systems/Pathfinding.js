@@ -74,23 +74,31 @@ export class Pathfinding {
         this.engine = engine;
     }
 
-    findPath(startWorldX, startWorldY, endWorldX, endWorldY, canBypassObstacles = false) {
+    findPath(startWorldX, startWorldY, endWorldX, endWorldY, canBypassObstacles = false, unitSize = 40) {
         const start = this.engine.tileMap.worldToGrid(startWorldX, startWorldY);
         const end = this.engine.tileMap.worldToGrid(endWorldX, endWorldY);
+        const tileSize = this.engine.tileMap.tileSize;
+        
+        // 유닛이 차지하는 타일 수 계산 (더 넉넉하게 올림 처리)
+        // 기본 1x1, 폭격기(92px)의 경우 3x3 타일 공간을 확보하도록 변경
+        let unitTileSize = Math.ceil(unitSize / tileSize);
+        
+        // 대형 유닛(1.5타일 초과)은 길찾기 시 1타일의 추가 여유 공간(Padding)을 두어 건물에 끼이지 않게 함
+        if (unitTileSize > 1) {
+            unitTileSize += 1;
+        }
 
         if (!this.isValid(end.x, end.y)) return null;
 
         let finalEnd = { ...end };
         // 도착지가 막혀있으면 주변 탐색 (RTS 필수)
-        if (!canBypassObstacles && this.isOccupied(finalEnd.x, finalEnd.y)) {
-            finalEnd = this.findNearestWalkable(finalEnd.x, finalEnd.y);
+        if (!canBypassObstacles && this.isOccupied(finalEnd.x, finalEnd.y, unitTileSize)) {
+            finalEnd = this.findNearestWalkable(finalEnd.x, finalEnd.y, unitTileSize);
             if (!finalEnd) return null;
         }
 
         // 최소 힙 사용으로 대규모 맵에서의 성능 최적화 O(log N)
         const openSet = new MinHeap();
-        // 빠른 조회를 위해 방문 여부와 비용을 Map으로 관리 (메모리 vs 속도 트레이드오프)
-        // 맵이 매우 크다면 1차원 배열이나 Int32Array 등을 고려할 수 있음
         const closedSet = new Map(); 
 
         const startNode = {
@@ -104,22 +112,16 @@ export class Pathfinding {
         startNode.f = startNode.g + startNode.h;
         openSet.push(startNode);
         
-        // 검색 키 생성 함수 (비트 연산으로 최적화 가능하지만 가독성/확장성 위해 문자열 유지)
-        // 맵이 65536x65536 이하라면 `(y << 16) | x` 정수 키가 훨씬 빠름.
-        // 여기선 안전하게 문자열 사용.
         const gridKey = (x, y) => `${x},${y}`;
-        
-        // G 비용 관리 (이미 더 짧은 경로로 방문했는지 체크용)
         const gScores = new Map();
         gScores.set(gridKey(start.x, start.y), 0);
 
-        // 성능 안전장치 (너무 깊은 탐색 방지)
         let iterations = 0;
-        const maxIterations = 5000; // 맵 크기에 따라 조절 필요
+        const maxIterations = 5000;
 
         while (openSet.size() > 0) {
             iterations++;
-            if (iterations > maxIterations) return null; // 너무 먼 경로는 포기 (렉 방지)
+            if (iterations > maxIterations) return null;
 
             const current = openSet.pop();
 
@@ -128,7 +130,6 @@ export class Pathfinding {
             }
 
             const currentKey = gridKey(current.x, current.y);
-            // 힙에는 중복 노드가 들어갈 수 있으므로, 꺼낼 때 이미 더 좋은 경로로 처리되었는지 확인
             if (closedSet.has(currentKey)) continue;
             closedSet.set(currentKey, true);
 
@@ -144,18 +145,15 @@ export class Pathfinding {
                 const ny = current.y + neighbor.y;
 
                 if (!this.isValid(nx, ny)) continue;
-                
-                // 닫힌 목록에 있으면 스킵 (이미 최적 경로 찾음)
                 if (closedSet.has(gridKey(nx, ny))) continue;
 
-                // 장애물 체크
-                if (!canBypassObstacles && this.isOccupied(nx, ny)) continue;
+                // 장애물 체크 (유닛 크기 반영)
+                if (!canBypassObstacles && this.isOccupied(nx, ny, unitTileSize)) continue;
 
-                // 대각선 이동 시 코너 끼임 방지 (Corner Cutting 방지)
-                // 대각선으로 이동하려는 방향의 인접한 두 타일 중 하나만 막혀있어도 대각선 이동 금지
+                // 대각선 이동 시 코너 끼임 방지 (유닛 크기 고려하여 강화)
                 if (neighbor.x !== 0 && neighbor.y !== 0) {
-                    if (this.isOccupied(current.x + neighbor.x, current.y) || 
-                        this.isOccupied(current.x, current.y + neighbor.y)) {
+                    if (this.isOccupied(current.x + neighbor.x, current.y, unitTileSize) || 
+                        this.isOccupied(current.x, current.y + neighbor.y, unitTileSize)) {
                         continue;
                     }
                 }
@@ -163,10 +161,8 @@ export class Pathfinding {
                 const tentativeG = current.g + neighbor.cost;
                 const neighborKey = gridKey(nx, ny);
                 
-                // 기존에 발견된 경로보다 더 나쁘면 스킵
                 if (gScores.has(neighborKey) && tentativeG >= gScores.get(neighborKey)) continue;
 
-                // 더 좋은 경로 발견
                 gScores.set(neighborKey, tentativeG);
                 
                 const neighborNode = {
@@ -187,7 +183,6 @@ export class Pathfinding {
     }
 
     heuristic(x1, y1, x2, y2) {
-        // Octile Distance (대각선 이동 허용 시 가장 정확한 휴리스틱)
         const D = 1;
         const D2 = 1.414;
         const dx = Math.abs(x1 - x2);
@@ -199,46 +194,59 @@ export class Pathfinding {
         return x >= 0 && x < this.engine.tileMap.cols && y >= 0 && y < this.engine.tileMap.rows;
     }
 
-    isOccupied(x, y) {
+    /**
+     * 특정 위치에 유닛이 위치할 수 있는지 확인
+     * @param {number} x 그리드 X
+     * @param {number} y 그리드 Y
+     * @param {number} unitTileSize 유닛이 차지하는 타일 크기 (보통 1 또는 2)
+     */
+    isOccupied(x, y, unitTileSize = 1) {
+        // 유닛 크기가 1보다 크면 중심점을 기준으로 주변 타일들을 모두 검사
+        const halfSize = Math.floor(unitTileSize / 2);
+        const startX = x - halfSize;
+        const startY = y - halfSize;
+        const endX = startX + unitTileSize - 1;
+        const endY = startY + unitTileSize - 1;
+
+        for (let checkY = startY; checkY <= endY; checkY++) {
+            for (let checkX = startX; checkX <= endX; checkX++) {
+                if (this._isSingleTileOccupied(checkX, checkY)) return true;
+            }
+        }
+        return false;
+    }
+
+    // 기존의 단일 타일 체크 로직을 내부 메서드로 분리
+    _isSingleTileOccupied(x, y) {
         if (!this.isValid(x, y)) return true;
         const tile = this.engine.tileMap.grid[y][x];
         
-        // 1. 타일 자체가 파괴 불가능한 장애물(자원 등)인 경우
         if (tile.type === 'resource') return true;
         if (!tile.buildable && tile.type !== 'base') return true;
 
-        // 2. 실시간 건물(Entity) 점유 체크
-        // 타일 데이터의 occupied에만 의존하지 않고, 실제 배치된 건물들의 영역을 직접 확인
         const worldPos = this.engine.tileMap.gridToWorld(x, y);
         const allBuildings = this.engine.getAllBuildings();
         
         const blockingEntity = allBuildings.find(ent => {
-            // 통과 가능한 객체(전선 등)이거나 활성화되지 않은 경우 제외
             if (!ent || !ent.active || ent.passable) return false;
-            
-            // 엔티티의 실시간 경계(Bounds) 가져오기
             const bounds = ent.getSelectionBounds();
-            
-            // 타일의 중심점이 엔티티 영역 안에 있는지 확인 (마진 1px 추가하여 타이트하게 체크)
             const margin = 1;
             return worldPos.x >= bounds.left + margin && worldPos.x <= bounds.right - margin &&
                    worldPos.y >= bounds.top + margin && worldPos.y <= bounds.bottom - margin;
         });
 
-        if (blockingEntity) return true;
-        
-        return false;
+        return !!blockingEntity;
     }
 
-    findNearestWalkable(tx, ty) {
-        // 나선형 탐색으로 가장 가까운 빈 타일 찾기
+    findNearestWalkable(tx, ty, unitTileSize = 1) {
+        // 나선형 탐색으로 가장 가까운 빈 공간 찾기
         for (let radius = 1; radius <= 5; radius++) {
             for (let dy = -radius; dy <= radius; dy++) {
                 for (let dx = -radius; dx <= radius; dx++) {
                     if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
                     const nx = tx + dx;
                     const ny = ty + dy;
-                    if (this.isValid(nx, ny) && !this.isOccupied(nx, ny)) {
+                    if (this.isValid(nx, ny) && !this.isOccupied(nx, ny, unitTileSize)) {
                         return { x: nx, y: ny };
                     }
                 }
