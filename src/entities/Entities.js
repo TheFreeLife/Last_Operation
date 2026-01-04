@@ -11,6 +11,7 @@ export class Entity {
         this.popCost = 0; // 인구수 비용 (유닛용)
         this.popProvide = 0; // 인구수 제공 (건물용)
         this.passable = false; // 통과 가능 여부 (기본값: 불가능)
+        this.isBoarded = false; // 수송기 탑승 여부
         
         // 소유권 속성 추가
         this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
@@ -4933,13 +4934,21 @@ export class CargoPlane extends PlayerUnit {
         if (this.getOccupiedSize() + uSize > this.cargoCapacity) return false;
         if (this.altitude > 0.1) return false;
 
-        unit.active = false; 
+        // 탑승 상태 설정
+        unit.isBoarded = true; 
         unit.command = 'stop';
+        unit.destination = null;
+        unit.path = [];
         this.cargo.push(unit);
         
-        // 엔진 리스트에서 유닛 제거 (업데이트 및 렌더링 루프 제외)
-        const idx = this.engine.entities.units.indexOf(unit);
-        if (idx > -1) this.engine.entities.units.splice(idx, 1);
+        // 선택 해제
+        if (this.engine.selectedEntities) {
+            this.engine.selectedEntities = this.engine.selectedEntities.filter(e => e !== unit);
+        }
+        if (this.engine.selectedEntity === unit) this.engine.selectedEntity = null;
+
+        // 시각 효과
+        this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', '유닛 탑승');
         
         return true;
     }
@@ -4968,6 +4977,7 @@ export class CargoPlane extends PlayerUnit {
             const rearX = this.x + Math.cos(this.angle + Math.PI) * rearDist;
             const rearY = this.y + Math.sin(this.angle + Math.PI) * rearDist;
 
+            unit.isBoarded = false;
             unit.active = true;
             unit.x = rearX;
             unit.y = rearY;
@@ -4978,7 +4988,7 @@ export class CargoPlane extends PlayerUnit {
             const exitDestY = rearY + Math.sin(this.angle + Math.PI) * 60;
             unit.destination = { x: exitDestX, y: exitDestY };
             
-            this.engine.entities.units.push(unit);
+            // this.engine.entities.units.push(unit); // 제거: 이미 리스트에 있음
 
             if (this.cargo.length === 0) this.isUnloading = false;
         }
@@ -5024,6 +5034,7 @@ export class CargoPlane extends PlayerUnit {
             }
 
             const unit = this.cargo.shift();
+            unit.isBoarded = false; // 탑승 해제
             unit.active = true;
             unit.x = this.x;
             unit.y = this.y;
@@ -5034,7 +5045,7 @@ export class CargoPlane extends PlayerUnit {
             unit.destination = null;
             unit.command = 'stop';
 
-            this.engine.entities.units.push(unit);
+            // this.engine.entities.units.push(unit); // 제거: 이미 리스트에 있음
             this.engine.addEffect?.('system', this.x, this.y, '#fff', 'Drop!');
 
             if (this.cargo.length === 0) {

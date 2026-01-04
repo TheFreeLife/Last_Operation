@@ -1179,6 +1179,9 @@ export class GameEngine {
 
         // 클릭 지점에 있는 첫 번째 엔티티 찾기
         const found = potentialEntities.find(ent => {
+            // 비활성화된 엔티티(탑승 중 등)는 선택 불가
+            if (!ent || (ent.active === false && !ent.isBoarded) || ent.isBoarded) return false;
+
             const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                 left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
             };
@@ -1237,7 +1240,8 @@ export class GameEngine {
         const selectedBuildings = [];
 
         potentialEntities.forEach(ent => {
-            if (!ent || (!ent.active && ent !== this.entities.base)) return;
+            if (!ent || (!ent.active && ent !== this.entities.base && !ent.isBoarded)) return;
+            if (ent.isBoarded) return; // 탑승 중인 유닛은 선택 불가
             
             const bounds = ent.getSelectionBounds();
             const overlaps = !(bounds.right < left || bounds.left > right || bounds.bottom < top || bounds.top > bottom);
@@ -1747,14 +1751,18 @@ export class GameEngine {
             const initialLen = list.length;
             const filtered = list.filter(obj => {
                 const oldFuel = obj.fuel;
-                if (updateFn) updateFn(obj);
+                
+                // 탑승 중인 유닛은 업데이트 함수 호출 스킵 (하지만 리스트에는 유지)
+                if (updateFn && !obj.isBoarded) updateFn(obj);
                 
                 // 발전소 연료 상태 변화 감지
                 if (oldFuel > 0 && obj.fuel <= 0) this.needsPowerUpdate = true;
                 if (oldFuel <= 0 && obj.fuel > 0) this.needsPowerUpdate = true;
 
-                if (obj.hp <= 0) {
-                    this.clearBuildingTiles(obj);
+                // HP가 0 이하이거나 완전히 비활성화된 경우 리스트에서 제거
+                // isBoarded인 상태는 리스트에서 제거하지 않음 (인구수 계산용)
+                if (obj.hp <= 0 || (obj.active === false && !obj.isBoarded)) {
+                    if (obj.hp <= 0) this.clearBuildingTiles(obj);
                     return false;
                 }
                 return true;
@@ -1855,11 +1863,12 @@ export class GameEngine {
 
         // 1. 지상 유닛 렌더링
         groundUnits.forEach(u => {
-            u.draw(this.ctx);
+            if (!u.isBoarded) u.draw(this.ctx);
         });
         
         // 지상 적 유닛 (시야 내)
         groundEnemies.forEach(e => {
+            if (e.isBoarded) return;
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
@@ -1871,11 +1880,12 @@ export class GameEngine {
 
         // 3. 지상 중립 유닛
         groundNeutral.forEach(n => {
-            n.draw(this.ctx);
+            if (!n.isBoarded) n.draw(this.ctx);
         });
 
         // 4. [최상위 공중 레이어] 공중 유닛 및 수송기 렌더링
         airUnits.forEach(u => {
+            if (u.isBoarded) return;
             u.draw(this.ctx);
             // [전투 강하] 낙하산 렌더링
             if (u.isFalling) {
@@ -2906,7 +2916,8 @@ export class GameEngine {
         // 2. 현재 인구수 계산 (아군 유닛만)
         let currentPop = 0;
         this.entities.units.forEach(unit => {
-            if (unit.ownerId === 1 && unit.active && unit.hp > 0) {
+            // 탑승 중인 유닛(isBoarded)도 인구수에 포함되어야 함
+            if (unit.ownerId === 1 && (unit.active || unit.isBoarded) && unit.hp > 0) {
                 currentPop += unit.popCost || 0;
             }
         });
