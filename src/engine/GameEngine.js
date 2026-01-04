@@ -1663,7 +1663,7 @@ export class GameEngine {
             }
             // 탄약 상자 전용 수량 표시
             if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
-                desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.floor(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
+                desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
             }
             if (hovered.maxAmmo > 0) {
                 const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
