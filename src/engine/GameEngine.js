@@ -1861,7 +1861,7 @@ export class GameEngine {
         const groundNeutral = this.entities.neutral.filter(n => n.domain !== 'air');
         const airNeutral = this.entities.neutral.filter(n => n.domain === 'air');
 
-        // 1. 지상 유닛 렌더링
+        // 1. [지상 레이어] 모든 지상 유닛 렌더링
         groundUnits.forEach(u => {
             if (!u.isBoarded) u.draw(this.ctx);
         });
@@ -1875,15 +1875,15 @@ export class GameEngine {
             }
         });
 
-        // 2. 지형지물 위에 안개 그리기
-        this.tileMap.drawFog(this.camera);
-
-        // 3. 지상 중립 유닛
+        // 지상 중립 유닛
         groundNeutral.forEach(n => {
             if (!n.isBoarded) n.draw(this.ctx);
         });
 
-        // 4. [최상위 공중 레이어] 공중 유닛 및 수송기 렌더링
+        // 2. [안개 레이어] 지형 및 지상 유닛 위에 안개 그리기
+        this.tileMap.drawFog(this.camera);
+
+        // 3. [공중 레이어] 최상위 공중 유닛 렌더링 (안개 및 지상 요소 위)
         airUnits.forEach(u => {
             if (u.isBoarded) return;
             u.draw(this.ctx);
@@ -1920,9 +1920,6 @@ export class GameEngine {
                 this.ctx.restore();
             }
         });
-        this.entities.cargoPlanes.forEach(p => {
-            if (!p.isBoarded) p.draw(this.ctx);
-        });
         
         // 공중 적 유닛 (시야 내)
         airEnemies.forEach(e => {
@@ -1938,7 +1935,7 @@ export class GameEngine {
             if (!n.isBoarded) n.draw(this.ctx);
         });
 
-        // 5. 투사체 및 효과 (최상단)
+        // 4. 투사체 및 효과 (최상단)
         this.entities.projectiles.forEach(p => p.draw(this.ctx));
 
         // 시각 효과 렌더링
