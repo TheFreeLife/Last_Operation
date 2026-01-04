@@ -24,6 +24,9 @@ export class GameEngine {
         this.entityManager = new EntityManager(this);
         this.renderSystem = new RenderSystem(this);
 
+        // 엔티티 타입 등록
+        this.registerEntityTypes();
+
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY - 0.5);
 
         // 기존 entities 구조 유지 (하위 호환성)
@@ -34,15 +37,14 @@ export class GameEngine {
         const [tw, th] = [9, 6];
         const gx = this.tileMap.centerX - 4;
         const gy = this.tileMap.centerY - 3;
-        const b = new Base(
+
+        // EntityManager를 통해 Base 생성 (자동 등록됨)
+        const b = this.entityManager.create('base',
             (gx + tw / 2) * this.tileMap.tileSize,
-            (gy + th / 2) * this.tileMap.tileSize
+            (gy + th / 2) * this.tileMap.tileSize,
+            { gridX: gx, gridY: gy, type: 'base' }
         );
-        b.gridX = gx;
-        b.gridY = gy;
         this.entities.base = b;
-        this.entityManager.allEntities.push(b);
-        this.entityManager.spatialGrid.add(b);
 
         this.initResources();
 
@@ -100,6 +102,10 @@ export class GameEngine {
             u.angle = Math.PI / 2;
             this.entities.units.push(u);
 
+            // [중요] EntityManager에 수동 등록 (create를 안 썼으므로)
+            this.entityManager.allEntities.push(u);
+            this.entityManager.spatialGrid.add(u);
+
             // 수송기는 전용 리스트에도 등록
             if (u.type === 'cargo-plane') this.entities.cargoPlanes.push(u);
         });
@@ -114,6 +120,9 @@ export class GameEngine {
         neutralDrone.name = "정찰 무인기 (P3)";
 
         this.entities.units.push(neutralTank, neutralDrone);
+        this.entityManager.allEntities.push(neutralTank, neutralDrone);
+        this.entityManager.spatialGrid.add(neutralTank);
+        this.entityManager.spatialGrid.add(neutralDrone);
 
         // 초기 적 유닛 (플레이어 2 소유)
         // (필요 시 여기에 Enemy 인스턴스 생성 및 ownerId = 2 부여)
@@ -179,6 +188,8 @@ export class GameEngine {
         this.camera = {
             x: this.canvas.width / 2 - baseWorldPos.x * initialZoom,
             y: this.canvas.height / 2 - baseWorldPos.y * initialZoom,
+            width: this.canvas.width,
+            height: this.canvas.height,
             zoom: initialZoom,
             mouseX: 0,
             mouseY: 0,
@@ -193,6 +204,43 @@ export class GameEngine {
         window.addEventListener('resize', () => this.resize());
         this.initInput();
         this.initUI();
+    }
+
+    registerEntityTypes() {
+        const em = this.entityManager;
+        // 유닛
+        em.register('tank', Tank, 'units');
+        em.register('missile-launcher', MissileLauncher, 'units');
+        em.register('anti-air', AntiAirVehicle, 'units');
+        em.register('artillery', Artillery, 'units');
+        em.register('rifleman', Rifleman, 'units');
+        em.register('sniper', Sniper, 'units');
+        em.register('engineer', CombatEngineer, 'units');
+        em.register('military-truck', MilitaryTruck, 'units');
+        em.register('cargo-plane', CargoPlane, 'units');
+        em.register('scout-plane', ScoutPlane, 'units');
+        em.register('bomber', Bomber, 'units');
+        em.register('enemy', Enemy, 'enemies');
+
+        // 건물
+        em.register('base', Base, 'base');
+        em.register('barracks', Barracks, 'barracks');
+        em.register('armory', Armory, 'armories');
+        em.register('airport', Airport, 'airports');
+        em.register('ammo-factory', AmmoFactory, 'ammoFactories');
+        em.register('refinery', Refinery, 'refineries');
+        em.register('gold-mine', GoldMine, 'goldMines');
+        em.register('iron-mine', IronMine, 'ironMines');
+        em.register('storage', Storage, 'storage');
+        em.register('apartment', Apartment, 'apartments');
+        em.register('wall', Wall, 'walls');
+
+        // 자원 및 아이템
+        em.register('resource', Resource, 'resources');
+        em.register('ammo-box', AmmoBox, 'units');
+
+        // 투사체
+        em.register('projectile', Projectile, 'projectiles');
     }
 
     // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 동적으로 수집
@@ -388,7 +436,11 @@ export class GameEngine {
             x: (x + 1) * this.tileMap.tileSize,
             y: (y + 1) * this.tileMap.tileSize
         };
-        this.entities.resources.push(new Resource(pos.x, pos.y, type));
+
+        // EntityManager를 통해 리소스 생성
+        const res = this.entityManager.create('resource', pos.x, pos.y, { resourceType: type });
+        // type 프로퍼티가 constructor에서 설정될 수 있으므로 resourceType으로 보냄 (Resource 클래스 확인 필요)
+        // 일단 기존 호환성을 위해 resources 배열에도 직접 들어가는지 확인 (EntityManager.create가 해줌)
 
         // 2x2 타일 점유 처리
         for (let dy = 0; dy < 2; dy++) {

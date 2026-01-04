@@ -189,8 +189,8 @@ export class RenderSystem {
         if (!entities) return;
 
         for (const entity of entities) {
-            // [수정] Fog of War에 의해 가려진 유닛(visible: false)은 렌더링하지 않음
-            if (!entity || !entity.active || entity.visible === false) continue;
+            // [수정] Fog of War에 의해 가려진 유닛 또는 탑승 중인 유닛은 렌더링하지 않음
+            if (!entity || !entity.active || entity.visible === false || entity.isBoarded) continue;
 
             // 뷰포트 컬링
             if (!this.isInViewport(entity, viewportBounds)) continue;

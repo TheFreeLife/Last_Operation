@@ -158,7 +158,7 @@ export class EntityManager {
         for (const list of lists) {
             if (Array.isArray(list)) {
                 for (const entity of list) {
-                    if (!entity || !entity.active) continue;
+                    if (!entity || !entity.active || entity.isBoarded) continue;
                     this.spatialGrid.update(entity);
                 }
             } else if (list && list.active) {

@@ -1,0 +1,196 @@
+import { Entity } from '../BaseEntity.js';
+
+
+export class Enemy extends Entity {
+    constructor(x, y) {
+        super(x, y);
+        this.ownerId = 2; // 플레이어 2 (적) 소유
+        this.speed = 1.8;
+        this.maxHp = 50;
+        this.hp = this.maxHp;
+        this.size = 40; // 20 -> 40
+        this.damage = 10;
+        this.attackRange = 35;
+        this.attackInterval = 1000;
+        this.lastAttackTime = 0;
+        this.currentTarget = null;
+        this.path = [];
+        this.pathTimer = Math.random() * 2000; // 초기 경로 계산 분산
+    }
+
+    update(deltaTime, base, buildings, engine) {
+        if (!engine) return;
+        if (this.hitTimer > 0) this.hitTimer -= deltaTime;
+        const now = Date.now();
+
+        // 1. 타겟 결정 로직 (관계 기반)
+        if (!this.currentTarget || !this.currentTarget.active || this.currentTarget.hp <= 0) {
+            // 가장 가까운 적(Player 1 등) 찾기
+            const potentialTargets = [
+                engine.entities.base,
+                ...engine.entities.units,
+                ...engine.getAllBuildings()
+            ];
+
+            let minDist = Infinity;
+            let bestTarget = null;
+
+            for (const target of potentialTargets) {
+                if (!target || !target.active || target.hp <= 0) continue;
+
+                // 관계 확인
+                if (engine.getRelation(this.ownerId, target.ownerId) === 'enemy') {
+                    const d = Math.hypot(this.x - target.x, this.y - target.y);
+                    if (d < minDist) {
+                        minDist = d;
+                        bestTarget = target;
+                    }
+                }
+            }
+            this.currentTarget = bestTarget;
+        }
+
+        if (!this.currentTarget) return;
+
+        // 2초마다 경로 재계산
+        this.pathTimer += deltaTime;
+        if (this.pathTimer >= 2000 || (this.path.length === 0 && this.hp > 0)) {
+            const pf = engine.pathfinding;
+            this.path = pf.findPath(this.x, this.y, this.currentTarget.x, this.currentTarget.y, false, this.pathfindingSize) || [];
+            this.pathTimer = 0;
+        }
+
+        let moveTarget = this.currentTarget;
+
+        // 경로 추종 로직
+        while (this.path.length > 0) {
+            const waypoint = this.path[0];
+            const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
+            if (distToWaypoint < 15) {
+                this.path.shift();
+            } else {
+                moveTarget = waypoint;
+                break;
+            }
+        }
+
+        const angleToTarget = Math.atan2(moveTarget.y - this.y, moveTarget.x - this.x);
+        this.angle = angleToTarget; // 방향 업데이트
+
+        // --- 슬라이딩 충돌 이동 적용 (Enemy도 동일하게) ---
+        const dist = this.speed;
+        const nextX = this.x + Math.cos(this.angle) * dist;
+        const nextY = this.y + Math.sin(this.angle) * dist;
+
+        let canMoveX = true;
+        let canMoveY = true;
+
+        const obstacles = [...engine.getAllBuildings(), ...engine.entities.resources.filter(r => !r.covered)];
+        const unitRadius = this.collisionRadius;
+
+        for (const b of obstacles) {
+            if (b === this || b.passable) continue;
+
+            if (b.isResource) {
+                const minCollisionDist = unitRadius + (b.size * 0.5);
+                if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
+                if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
+            } else {
+                const bounds = b.getSelectionBounds();
+                const margin = unitRadius;
+                if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) canMoveX = false;
+                if (this.x + margin > bounds.left && this.x - margin < bounds.right && (nextY + margin > bounds.top && nextY - margin < bounds.bottom)) canMoveY = false;
+            }
+        }
+
+        if (canMoveX) this.x = nextX;
+        if (canMoveY) this.y = nextY;
+
+        // --- 유닛 간 밀어내기 및 끼임 탈출 ---
+        let pushX = 0;
+        let pushY = 0;
+        const allUnits = [...engine.entities.units, ...engine.entities.enemies];
+        for (const other of allUnits) {
+            if (other === this || !other.active) continue;
+            const d = Math.hypot(this.x - other.x, this.y - other.y);
+            const minDist = (this.size + other.size) * 0.4;
+            if (d < minDist) {
+                const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                pushX += Math.cos(pushAngle) * 0.5;
+                pushY += Math.sin(pushAngle) * 0.5;
+            }
+        }
+        this.x += pushX;
+        this.y += pushY;
+
+        // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
+        let blockedBy = null;
+        for (const obs of buildings) {
+            if ([].includes(obs.type)) continue;
+            if (obs === this) continue;
+            const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
+            const minDist = (this.size / 2) + (obs.size / 2) + 2;
+            if (dNext < minDist) {
+                blockedBy = obs;
+                break;
+            }
+        }
+
+        if (!blockedBy) {
+            // 위에서 이미 update 했으므로 중복 적용 안 함 (canMoveX, canMoveY로 직접 수정함)
+            // this.x = nextX; // (X)
+            // this.y = nextY; // (X)
+        }
+
+        // 공격 로직
+        if (this.currentTarget && (this.currentTarget.active !== false) && this.currentTarget.hp > 0) {
+            const attackDist = Math.hypot(this.x - this.currentTarget.x, this.y - this.currentTarget.y);
+            const rangeThreshold = (this.size / 2 + (this.currentTarget.width || this.currentTarget.size || 40) / 2 + 5);
+
+            if (attackDist <= rangeThreshold) {
+                if (now - this.lastAttackTime > this.attackInterval) {
+                    this.currentTarget.hp -= this.damage;
+                    this.lastAttackTime = now;
+                }
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // 적군 외형: 육각형 모양의 위협적인 기계 유닛
+        ctx.fillStyle = '#441111';
+        ctx.strokeStyle = '#ff3131';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3;
+            const px = Math.cos(angle) * (this.size / 2.5);
+            const py = Math.sin(angle) * (this.size / 2.5);
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 중앙 '코어' (빛남)
+        ctx.fillStyle = '#ff3131';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ff3131';
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+
+        // HP 바 (적군은 빨간색)
+        const barY = this.y + this.size / 2 + 5;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(this.x - 15, barY, 30, 4);
+        ctx.fillStyle = '#ff3131';
+        ctx.fillRect(this.x - 15, barY, (this.hp / this.maxHp) * 30, 4);
+    }
+}
