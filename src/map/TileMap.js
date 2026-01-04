@@ -249,4 +249,16 @@ export class TileMap {
             y: gridY * this.tileSize + this.tileSize / 2
         };
     }
+
+    isVisible(worldX, worldY) {
+        const x = Math.floor(worldX / this.tileSize);
+        const y = Math.floor(worldY / this.tileSize);
+        return (this.grid[y] && this.grid[y][x]) ? this.grid[y][x].visible : false;
+    }
+
+    isInSight(worldX, worldY) {
+        const x = Math.floor(worldX / this.tileSize);
+        const y = Math.floor(worldY / this.tileSize);
+        return (this.grid[y] && this.grid[y][x]) ? this.grid[y][x].inSight : false;
+    }
 }

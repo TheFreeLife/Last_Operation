@@ -1700,6 +1700,12 @@ export class GameEngine {
     updateTooltip(hovered, x, y) {
         if (!hovered) return;
 
+        // [추가] 호버링 중인 대상이 시야에서 사라지면 툴팁 숨김
+        if (this.tileMap && !this.tileMap.isInSight(hovered.x, hovered.y)) {
+            this.hideUITooltip();
+            return;
+        }
+
         let title = hovered.name || hovered.type;
         const isEnemy = this.entities.enemies.includes(hovered);
         if (isEnemy) title = `[적] ${title}`;
@@ -2446,6 +2452,12 @@ export class GameEngine {
 
         const worldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
         const worldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
+
+        // [추가] 현재 마우스 위치가 시야 확보(inSight)된 지역이 아니면 툴팁을 표시하지 않음
+        if (this.tileMap && !this.tileMap.isInSight(worldX, worldY)) {
+            this.hideUITooltip();
+            return;
+        }
 
         let title = '';
         let desc = '';
