@@ -7,6 +7,12 @@ export const ICONS = {
         <circle cx="20" cy="25" r="5" fill="#a5a5a5"/>
         <path d="M15 30 H25" stroke="#a5a5a5" stroke-width="2"/>
     </svg></div>`,
+    'ammo-factory': `<div class="btn-icon gray"><svg viewBox="0 0 40 40">
+        <rect x="5" y="15" width="30" height="20" fill="#2c3e50" stroke="#7f8c8d" stroke-width="2"/>
+        <path d="M8 15 L12 8 L16 15 M18 15 L22 8 L26 15" fill="#7f8c8d"/>
+        <circle cx="20" cy="25" r="4" fill="#f1c40f"/>
+        <rect x="18" y="29" width="4" height="6" fill="#f1c40f"/>
+    </svg></div>`,
     'storage': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><rect x="5" y="15" width="30" height="20" fill="#333" stroke="#00d2ff" stroke-width="2"/><path d="M5 15 L20 5 L35 15" fill="#555" stroke="#00d2ff" stroke-width="2"/><rect x="18" y="25" width="4" height="10" fill="#00d2ff" opacity="0.5"/></svg></div>`,
     'apartment': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><rect x="10" y="5" width="20" height="30" fill="#333" stroke="#00d2ff" stroke-width="2"/><rect x="14" y="10" width="4" height="4" fill="#f1c40f"/><rect x="22" y="10" width="4" height="4" fill="#2c3e50"/><rect x="14" y="18" width="4" height="4" fill="#2c3e50"/><rect x="22" y="18" width="4" height="4" fill="#f1c40f"/><rect x="14" y="26" width="4" height="4" fill="#f1c40f"/><rect x="22" y="26" width="4" height="4" fill="#2c3e50"/></svg></div>`,
     'airport': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">
@@ -91,7 +97,10 @@ export const ICONS = {
         <path d="M10 15 L20 5 L30 15 M20 5 V35 M10 25 L20 35 L30 25" stroke="#00ffff" stroke-width="3" fill="none"/>
         <path d="M5 20 H35" stroke="#fff" stroke-width="1" stroke-dasharray="2,2"/>
     </svg></div>`,
-    'skill:engineer': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#f1c40f"/><path d="M15 15 L25 25 M25 15 L15 25" stroke="#333" stroke-width="2"/><circle cx="20" cy="20" r="4" fill="#3498db"/></svg></div>`,
+    'skill-ammo-bullet': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" fill="#8d6e63" stroke="#3e2723" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#333" font-size="10" font-weight="bold">BUL</text></svg></div>`,
+    'skill-ammo-shell': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" fill="#795548" stroke="#3e2723" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#f1c40f" font-size="10" font-weight="bold">SHL</text></svg></div>`,
+    'skill-ammo-missile': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" fill="#5d4037" stroke="#3e2723" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#e74c3c" font-size="10" font-weight="bold">MSL</text></svg></div>`,
+    'skill-engineer': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#f1c40f"/><path d="M15 15 L25 25 M25 15 L15 25" stroke="#333" stroke-width="2"/><circle cx="20" cy="20" r="4" fill="#3498db"/></svg></div>`,
     'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
     'unit:stop': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#ff3131"/></svg></div>`,
     'unit:hold': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M20 5 L32 12 V25 L20 35 L8 25 V12 Z" fill="#333" stroke="#ffff00" stroke-width="2"/></svg></div>`,

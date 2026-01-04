@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -14,7 +14,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
+        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -30,6 +30,7 @@ export class GameEngine {
             goldMines: [],
             ironMines: [], // 철 채굴장 리스트 추가
             storage: [],
+            ammoFactories: [],
             armories: [],
             barracks: [],
             units: [],
@@ -81,12 +82,20 @@ export class GameEngine {
             new CombatEngineer(startX, groundY + spY * 2, this),
             new CombatEngineer(startX + spX, groundY + spY * 2, this)
         ];
+
+        // 4열: 탄약 보급품 (상자 유닛)
+        const startAmmoBoxes = [
+            new AmmoBox(startX - spX, groundY + spY * 3, this, 'bullet'),
+            new AmmoBox(startX, groundY + spY * 3, this, 'shell'),
+            new AmmoBox(startX + spX, groundY + spY * 3, this, 'missile')
+        ];
         
         // 모든 아군 유닛 설정 및 등록
         const allStartingUnits = [
             startTank, startMissile, startAntiAir, 
             startSniper, startInfantry, startArtillery, 
             ...startEngineers, 
+            ...startAmmoBoxes,
             startBomber, startCargo, startScout
         ];
 
@@ -124,7 +133,7 @@ export class GameEngine {
             'gold-mine': { cost: 400, size: [2, 2], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
             'iron-mine': { cost: 400, size: [2, 2], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
             'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
-            'armory': { cost: 600, size: [4, 3], className: 'Armory', list: 'armories', buildTime: 1 },
+            'ammo-factory': { cost: 1000, size: [4, 3], className: 'AmmoFactory', list: 'ammoFactories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
             'base': { cost: 0, size: [9, 6], className: 'Base', list: 'base' }
         };
@@ -549,6 +558,13 @@ export class GameEngine {
                         { type: 'skill-engineer', name: '공병 생산', cost: 150, action: 'skill:engineer' },
                         null, null, null, null, null, null, null, null
                     ];
+                } else if (type === 'ammo-factory') {
+                    items = [
+                        { type: 'skill-ammo-bullet', name: '총알 탄약 상자', cost: 100, action: 'skill:bullet' },
+                        { type: 'skill-ammo-shell', name: '포탄 탄약 상자', cost: 200, action: 'skill:shell' },
+                        { type: 'skill-ammo-missile', name: '미사일 탄약 상자', cost: 300, action: 'skill:missile' },
+                        null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                    ];
                 } else {
                     items = [
                         null, null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null,
@@ -568,7 +584,7 @@ export class GameEngine {
                 items = [
                     { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
                     { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '보급고', cost: 200 }, 
-                    null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'ammo-factory', name: '탄약 공장', cost: 1000 }, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'military') {
                 header.textContent = '군사 시설';
@@ -717,7 +733,7 @@ export class GameEngine {
                 if (target && target.isUnderConstruction) return;
     
                 // 생산형 스킬 처리
-                const productionSkills = ['tank', 'missile', 'cargo', 'cargo-plane', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
+                const productionSkills = ['tank', 'missile', 'shell', 'bullet', 'cargo', 'cargo-plane', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
                 if (productionSkills.includes(skill)) {
                     if (target && target.requestUnit) {
                         const cost = item.cost || 0;
@@ -953,7 +969,7 @@ export class GameEngine {
                         return;
                     }
 
-                    // [수송기 탑승 로직] 아군 수송기 클릭 여부 확인 (기존 유지하되 소유주 체크 추가)
+                    // [수송기 탑승 로직] 아군 수송기 클릭 여부 확인 (지상 유닛만 가능)
                     if (clickedTarget && clickedTarget.type === 'cargo-plane' && clickedTarget.ownerId === 1 && clickedTarget.altitude < 0.1) {
                         this.selectedEntities.forEach(u => {
                             if (u.domain === 'ground' && u !== clickedTarget) {
@@ -1645,6 +1661,10 @@ export class GameEngine {
             if (hovered.speed > 0) {
                 desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
             }
+            // 탄약 상자 전용 수량 표시
+            if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
+                desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.floor(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
+            }
             if (hovered.maxAmmo > 0) {
                 const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
                 const name = ammoNames[hovered.ammoType] || '탄약';
@@ -1774,6 +1794,7 @@ export class GameEngine {
         this.entities.ironMines = processList(this.entities.ironMines, (im) => im.update(deltaTime, this));
         this.entities.airports = processList(this.entities.airports, (a) => a.update(deltaTime, this));
         this.entities.storage = processList(this.entities.storage, (s) => s.update(deltaTime, this));
+        this.entities.ammoFactories = processList(this.entities.ammoFactories, (af) => af.update(deltaTime, this));
         this.entities.armories = processList(this.entities.armories, (a) => a.update(deltaTime, this));
         this.entities.barracks = processList(this.entities.barracks, (b) => b.update(deltaTime, this));
         this.entities.apartments = processList(this.entities.apartments, (a) => a.update(deltaTime, this));
@@ -2454,10 +2475,16 @@ export class GameEngine {
         
         if (activeUnit) {
             title = activeUnit.name || '유닛';
+            let amountInfo = '';
+            if (activeUnit.type?.startsWith('ammo-')) {
+                amountInfo = `<div class="stat-row"><span>📦 탄약량:</span> <span class="highlight">${activeUnit.amount} / ${activeUnit.maxAmount}</span></div>`;
+            }
+
             desc = `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${activeUnit.damage}</span></div>
                     <div class="stat-row"><span>🔭 공격 사거리:</span> <span class="highlight">${activeUnit.attackRange}</span></div>
                     <div class="stat-row"><span>👁️ 시야 범위:</span> <span class="highlight">${activeUnit.visionRange}</span></div>
                     <div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.ceil(activeUnit.hp)}/${activeUnit.maxHp}</span></div>
+                    ${amountInfo}
                     <div class="stat-row"><span>🏠 소속:</span> <span>부대 유닛</span></div>`;
         }
 
@@ -2528,6 +2555,7 @@ export class GameEngine {
             else if (b.type === 'iron-mine') color = '#a5a5a5';
             else if (b.type === 'apartment') color = '#3498db';
             else if (b.type === 'storage') color = '#00d2ff';
+            else if (b.type === 'ammo-factory') color = '#7f8c8d';
             else if (b.type === 'armory') color = '#34495e';
             else if (b.type === 'barracks') color = '#27ae60';
             else if (b.type === 'airport') color = '#7f8c8d';
