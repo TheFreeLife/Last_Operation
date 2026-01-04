@@ -53,7 +53,7 @@ export class RenderSystem {
      * 엔티티가 뷰포트 내에 있는지 확인
      */
     isInViewport(entity, bounds) {
-        if (!entity || !entity.active) return false;
+        if (!entity || (!entity.active && !entity.arrived)) return false;
 
         const w = entity.width || entity.size || 40;
         const h = entity.height || entity.size || 40;
@@ -109,8 +109,8 @@ export class RenderSystem {
             ...(entities.neutral || [])
         ].filter(e => e && e.active);
 
-        // 발사체
-        sorted[this.layers.PROJECTILES] = (entities.projectiles || []).filter(e => e && e.active);
+        // 발사체 (폭발 중인 객체 포함)
+        sorted[this.layers.PROJECTILES] = (entities.projectiles || []).filter(e => e && (e.active || e.arrived));
 
         // 이펙트
         sorted[this.layers.EFFECTS] = (this.engine.effects || []).filter(e => e && e.active);
@@ -190,7 +190,9 @@ export class RenderSystem {
 
         for (const entity of entities) {
             // [수정] Fog of War에 의해 가려진 유닛 또는 탑승 중인 유닛은 렌더링하지 않음
-            if (!entity || !entity.active || entity.visible === false || entity.isBoarded) continue;
+            // 발사체는 arrived 상태일 때도 렌더링을 허용해야 함
+            if (!entity || (!entity.active && !entity.arrived)) continue;
+            if (entity.visible === false || entity.isBoarded) continue;
 
             // 뷰포트 컬링
             if (!this.isInViewport(entity, viewportBounds)) continue;
@@ -255,6 +257,39 @@ export class RenderSystem {
                 this.ctx.beginPath();
                 this.ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
                 this.ctx.stroke();
+            } else if (effect.type === 'hit') {
+                // 피격 스파크 효과
+                const size = (1 - progress) * 8;
+                this.ctx.fillStyle = effect.color || '#fff';
+                this.ctx.beginPath();
+                this.ctx.arc(effect.x, effect.y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // 사방으로 튀는 짧은 선 (스파크)
+                this.ctx.strokeStyle = effect.color || '#fff';
+                this.ctx.lineWidth = 2 * (1 - progress);
+                for (let i = 0; i < 4; i++) {
+                    const angle = (i * Math.PI / 2) + (progress * 2);
+                    const len = 12 * progress;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(effect.x + Math.cos(angle) * 3, effect.y + Math.sin(angle) * 3);
+                    this.ctx.lineTo(effect.x + Math.cos(angle) * (3 + len), effect.y + Math.sin(angle) * (3 + len));
+                    this.ctx.stroke();
+                }
+            } else if (effect.type === 'flak') {
+                // 대공포 피격 효과 (공중 폭발 느낌)
+                const radius = 5 + progress * 15;
+                const alpha = 1 - progress;
+                
+                this.ctx.fillStyle = `rgba(255, 200, 50, ${alpha})`;
+                this.ctx.beginPath();
+                this.ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                this.ctx.fillStyle = `rgba(200, 200, 200, ${alpha * 0.5})`;
+                this.ctx.beginPath();
+                this.ctx.arc(effect.x, effect.y, radius * 1.5, 0, Math.PI * 2);
+                this.ctx.fill();
             } else if (effect.type === 'system') {
                 this.ctx.fillStyle = effect.color;
                 this.ctx.font = '14px Arial';

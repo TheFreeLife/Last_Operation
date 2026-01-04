@@ -218,7 +218,7 @@ export class Sniper extends PlayerUnit {
         this.maxHp = 40;
         this.attackTargets = ['ground', 'sea', 'air'];
         this.attackType = 'hitscan';
-        this.hitEffectType = 'hit';
+        this.hitEffectType = 'hit'; // 피격 이펙트 타입 설정
         this.popCost = 1;
 
         this.ammoType = 'bullet';

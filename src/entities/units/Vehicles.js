@@ -204,7 +204,7 @@ export class MissileLauncher extends PlayerUnit {
         this.speed = 1.4;
         this.baseSpeed = 1.4;
         this.fireRate = 2500;
-        this.damage = 350;
+        this.damage = 1000; // 350 -> 1000 (대폭 상향)
         this.attackRange = 1800;
         this.visionRange = 8;
         this.recoil = 0;

@@ -11,23 +11,22 @@ export class Missile extends Entity {
         this.targetY = targetY;
         this.damage = damage;
         this.engine = engine;
-        this.speed = 7; // 비행 속도 상향 (4 -> 7)
+        this.speed = 7; 
         this.angle = Math.atan2(targetY - startY, targetX - startX);
         this.totalDistance = Math.hypot(targetX - startX, targetY - startY);
         this.active = true;
-        this.explosionRadius = 80; // 약 2칸 반경
+        this.explosionRadius = 150; // 80 -> 150 (약 4타일 반경)
         this.arrived = false;
         this.explosionTimer = 0;
-        this.maxExplosionTime = 120; // 약 2초간 지속 (충분한 연기 감상 시간)
-        // 거리에 따라 고도를 동적으로 조절 (최소 200, 최대 600)
+        this.maxExplosionTime = 300; 
         this.peakHeight = Math.max(200, Math.min(this.totalDistance * 0.4, 600));
         this.trail = [];
     }
 
     update(deltaTime) {
-        if (!this.active && !this.arrived) return;
+        if (!this.active) return;
 
-        if (this.active) {
+        if (!this.arrived) {
             const currentDist = Math.hypot(this.x - this.startX, this.y - this.startY);
             const progress = Math.min(currentDist / this.totalDistance, 1);
 
@@ -39,32 +38,35 @@ export class Missile extends Entity {
 
                 const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
                 this.trail.push({ x: this.x, y: this.y - altitude, alpha: 1.0 });
-                if (this.trail.length > 25) this.trail.shift();
+                if (this.trail.length > 60) this.trail.shift();
             }
-        } else if (this.arrived) {
+        } else {
             this.explosionTimer++;
-            if (this.explosionTimer >= this.maxExplosionTime) {
-                this.arrived = false;
+            if (this.explosionTimer >= this.maxExplosionTime && this.trail.length === 0) {
+                this.active = false;
             }
         }
 
-        this.trail.forEach(p => p.alpha -= 0.04);
+        this.trail.forEach(p => {
+            const decay = (deltaTime / 16.6) * 0.015;
+            p.alpha -= decay;
+        });
         this.trail = this.trail.filter(p => p.alpha > 0);
     }
 
     explode() {
-        this.active = false;
         this.arrived = true;
         this.explosionTimer = 0;
 
         this.smokeParticles = [];
-        for (let i = 0; i < 15; i++) {
+        // 반경 상향에 맞춰 파티클 개수 증가 (15 -> 25)
+        for (let i = 0; i < 25; i++) {
             this.smokeParticles.push({
                 angle: Math.random() * Math.PI * 2,
-                dist: Math.random() * this.explosionRadius * 0.8,
-                size: 30 + Math.random() * 30,
-                vx: (Math.random() - 0.5) * 0.4,
-                vy: (Math.random() - 0.5) * 0.4 - 0.5,
+                dist: Math.random() * this.explosionRadius * 0.9, // 더 넓게 퍼짐
+                size: 40 + Math.random() * 40, // 파티클 크기도 상향
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.6 - 0.8,
                 color: Math.random() > 0.5 ? '#7f8c8d' : '#95a5a6'
             });
         }
@@ -78,15 +80,9 @@ export class Missile extends Entity {
 
         targets.forEach(target => {
             if (!target || target.hp === undefined || !target.active || target.hp <= 0) return;
-
-            // 공중 유닛 공격 제외
             if (target.domain === 'air') return;
-
-            // 관계 체크 (자신 및 아군 오사 방지)
             const relation = this.engine.getRelation(this.ownerId, target.ownerId);
             const isManualTarget = (this.source && this.source.manualTarget === target);
-
-            // 강제 공격 대상이면 관계 무시
             if (!isManualTarget && (relation === 'self' || relation === 'ally')) return;
 
             const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
@@ -94,12 +90,13 @@ export class Missile extends Entity {
                 target.takeDamage(this.damage);
             }
         });
+        this.damage = 0;
     }
 
     draw(ctx) {
-        if (!this.active && !this.arrived) return;
+        if (!this.active) return;
 
-        // 1. 비행 연기 트레일
+        // 1. 비행 연기 트레일 (항상 그림)
         this.trail.forEach(p => {
             ctx.save();
             ctx.globalAlpha = p.alpha * 0.5;
@@ -110,12 +107,56 @@ export class Missile extends Entity {
             ctx.restore();
         });
 
-        if (this.active) {
+        if (this.arrived) {
+            // 2. 폭발 이펙트
+            ctx.save();
+            const progress = this.explosionTimer / this.maxExplosionTime;
+            const fireAlpha = Math.max(0, 1 - progress * 5);
+            const smokeAlpha = Math.max(0, 1 - Math.pow(progress, 0.7)); 
+
+            if (this.smokeParticles) {
+                this.smokeParticles.forEach(p => {
+                    const shiftX = p.vx * this.explosionTimer * 0.5;
+                    const shiftY = (p.vy * this.explosionTimer * 0.5) - (this.explosionTimer * 0.2); 
+                    const size = p.size * (1 + Math.sqrt(progress) * 1.5); 
+
+                    ctx.save();
+                    ctx.globalAlpha = smokeAlpha * 0.8; 
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    const px = this.targetX + Math.cos(p.angle) * p.dist + shiftX;
+                    const py = this.targetY + Math.sin(p.angle) * p.dist + shiftY;
+                    ctx.arc(px, py, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+
+            if (progress < 0.2) {
+                ctx.beginPath();
+                ctx.arc(this.targetX, this.targetY, this.explosionRadius * Math.pow(progress / 0.2, 0.5), 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress / 0.2) * 0.8})`;
+                ctx.lineWidth = 5;
+                ctx.stroke();
+            }
+
+            if (fireAlpha > 0) {
+                const grad = ctx.createRadialGradient(this.targetX, this.targetY, 0, this.targetX, this.targetY, this.explosionRadius);
+                grad.addColorStop(0, `rgba(255, 255, 255, ${fireAlpha})`);
+                grad.addColorStop(0.3, `rgba(255, 215, 0, ${fireAlpha * 0.9})`);
+                grad.addColorStop(1, `rgba(255, 69, 0, 0)`);
+                ctx.beginPath();
+                ctx.arc(this.targetX, this.targetY, this.explosionRadius * (1 + progress), 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+            }
+            ctx.restore();
+        } else {
+            // 3. 미사일 본체 (비행 중)
             const currentDist = Math.hypot(this.x - this.startX, this.y - this.startY);
             const progress = Math.min(currentDist / this.totalDistance, 1);
             const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
 
-            // 2. 그림자 (고도에 따라 크기 변화)
             ctx.save();
             ctx.globalAlpha = 0.2;
             ctx.fillStyle = '#000';
@@ -125,24 +166,12 @@ export class Missile extends Entity {
             ctx.fill();
             ctx.restore();
 
-            // 3. 미사일 본체
             ctx.save();
             ctx.translate(this.x, this.y - altitude);
-
-            // --- 정밀 탄도 각도 계산 (접선 벡터) ---
-            // 수평 속도 벡터
             const vx = Math.cos(this.angle);
             const vy = Math.sin(this.angle);
-
-            // 수직 고도 변화율 (sin 미분 -> cos)
-            // altitude = peakHeight * sin(progress * PI)
-            // d(altitude)/d(progress) = peakHeight * PI * cos(progress * PI)
             const dAlt = this.peakHeight * Math.PI * Math.cos(progress * Math.PI);
-
-            // progress = dist / totalDist 이므로 d(progress)/dt 연쇄법칙 적용
-            // 최종적으로 비행 기울기 산출
             const flightAngle = Math.atan2(vy * this.totalDistance - dAlt, vx * this.totalDistance);
-
             ctx.rotate(flightAngle);
 
             ctx.fillStyle = '#f5f6fa';
@@ -159,54 +188,6 @@ export class Missile extends Entity {
             ctx.beginPath(); ctx.arc(-13, 0, flameSize, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#e67e22';
             ctx.beginPath(); ctx.arc(-13, 0, flameSize * 0.6, 0, Math.PI * 2); ctx.fill();
-            ctx.restore();
-        } else if (this.arrived) {
-            ctx.save();
-            const progress = this.explosionTimer / this.maxExplosionTime;
-            const fireAlpha = Math.max(0, 1 - progress * 4); // 화염은 아주 짧게 (0.5초 이내)
-            const smokeAlpha = Math.max(0, 1 - progress);   // 연기는 2초 동안 서서히
-
-            // 1. 잔류 연기 효과 (Lingering Smoke)
-            if (this.smokeParticles) {
-                this.smokeParticles.forEach(p => {
-                    const shiftX = p.vx * this.explosionTimer;
-                    const shiftY = p.vy * this.explosionTimer;
-                    const size = p.size * (1 + progress * 2); // 연기가 대폭 확산
-
-                    ctx.save();
-                    ctx.globalAlpha = smokeAlpha * 0.95; // 연기 농도 대폭 강화
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath();
-                    const px = this.targetX + Math.cos(p.angle) * p.dist + shiftX;
-                    const py = this.targetY + Math.sin(p.angle) * p.dist + shiftY;
-                    ctx.arc(px, py, size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
-                });
-            }
-
-            // 2. 충격파 고리
-            if (progress < 0.2) {
-                ctx.beginPath();
-                ctx.arc(this.targetX, this.targetY, this.explosionRadius * Math.pow(progress / 0.2, 0.5), 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress / 0.2) * 0.8})`;
-                ctx.lineWidth = 5;
-                ctx.stroke();
-            }
-
-            // 3. 메인 화염 (Fire)
-            if (fireAlpha > 0) {
-                const grad = ctx.createRadialGradient(this.targetX, this.targetY, 0, this.targetX, this.targetY, this.explosionRadius);
-                grad.addColorStop(0, `rgba(255, 255, 255, ${fireAlpha})`);
-                grad.addColorStop(0.3, `rgba(255, 215, 0, ${fireAlpha * 0.9})`);
-                grad.addColorStop(1, `rgba(255, 69, 0, 0)`);
-
-                ctx.beginPath();
-                ctx.arc(this.targetX, this.targetY, this.explosionRadius * (1 + progress), 0, Math.PI * 2);
-                ctx.fillStyle = grad;
-                ctx.fill();
-            }
-
             ctx.restore();
         }
     }
