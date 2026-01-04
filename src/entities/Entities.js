@@ -751,17 +751,15 @@ export class Refinery extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'refinery';
-        this.size = 30;
-        this.width = 40;
-        this.height = 40;
-        this.maxHp = 200;
-        this.hp = 200;
+        this.size = 80;
+        this.width = 80;
+        this.height = 80;
+        this.maxHp = 1200;
+        this.hp = 1200;
         this.maxFuel = 800;
         this.fuel = 800;
         this.productionRate = 5;
         this.color = '#32cd32';
-        this.isConnectedToBase = false; 
-        this.connectedTarget = null;
     }
 
     update(deltaTime, engine) {
@@ -784,33 +782,62 @@ export class Refinery extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
+
+        // 1. 기반 및 플랫폼 (Steel Foundation)
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-35, -35, 70, 70);
+        ctx.strokeStyle = '#34495e'; ctx.lineWidth = 2;
+        ctx.strokeRect(-35, -35, 70, 70);
+
+        // 2. 고층 증류탑 (Distillation Tower) - 좌측 후방
+        const drawTower = (tx, ty) => {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(tx, ty, 15, 50);
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(tx + 2, ty, 3, 50); // 하이라이트
+            // 가로 링 (Ring details)
+            ctx.strokeStyle = '#2c3e50';
+            for(let i=10; i<50; i+=10) {
+                ctx.beginPath(); ctx.moveTo(tx, ty + i); ctx.lineTo(tx + 15, ty + i); ctx.stroke();
+            }
+        };
+        drawTower(-30, -45);
+
+        // 3. 구형 저장 탱크 (Spherical Tank) - 우측 후방
+        ctx.fillStyle = '#95a5a6';
+        ctx.beginPath(); ctx.arc(20, -15, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#2c3e50'; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath(); ctx.arc(15, -20, 5, 0, Math.PI * 2); ctx.fill(); // 반사광
+
+        // 4. 가스 굴뚝 (Gas Flare) - 중앙
         ctx.fillStyle = '#333';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.strokeStyle = (this.fuel > 0) ? this.color : '#555';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -15, 30, 30);
-        ctx.fillStyle = '#555';
-        ctx.fillRect(-10, -10, 8, 20);
-        ctx.fillRect(2, -10, 8, 20);
-        ctx.strokeStyle = '#777'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(2, 0); ctx.stroke();
+        ctx.fillRect(-5, -30, 8, 40);
         if (this.fuel > 0) {
-            const liquidHeight = (this.fuel / this.maxFuel) * 18;
-            ctx.fillStyle = '#9370DB'; ctx.fillRect(-9, 9 - liquidHeight, 6, liquidHeight);
-            ctx.fillStyle = '#ffd700'; ctx.fillRect(3, 9 - liquidHeight, 6, liquidHeight);
+            // 화염 효과
+            const flicker = Math.random() * 5;
+            const grad = ctx.createRadialGradient(-1, -35, 2, -1, -40, 15);
+            grad.addColorStop(0, '#fff'); grad.addColorStop(0.4, '#f1c40f'); grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(-4, -30); ctx.lineTo(-1, -45 - flicker); ctx.lineTo(2, -30);
+            ctx.fill();
         }
+
+        // 5. 정면 복잡한 파이프라인
+        ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-30, 5); ctx.lineTo(30, 5);
+        ctx.moveTo(-15, 15); ctx.lineTo(15, 15);
+        ctx.stroke();
+        
         ctx.restore();
 
-        // HP 바 상시 표시
+        // HP 바 (위치 조정)
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillRect(this.x - 30, this.y - 55, 60, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
-        ctx.fillStyle = '#32cd32';
-        ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
+        ctx.fillRect(this.x - 30, this.y - 55, (this.hp / this.maxHp) * 60, 4);
     }
 }
 
@@ -818,17 +845,15 @@ export class GoldMine extends Entity {
     constructor(x, y) {
         super(x, y);
         this.type = 'gold-mine';
-        this.size = 30;
-        this.width = 40;
-        this.height = 40;
-        this.maxHp = 250;
-        this.hp = 250;
-        this.maxFuel = 1000; // 자원 매장량
+        this.size = 80;
+        this.width = 80;
+        this.height = 80;
+        this.maxHp = 1500;
+        this.hp = 1500;
+        this.maxFuel = 1000;
         this.fuel = 1000;
-        this.productionRate = 8; // 초당 골드 생산량
+        this.productionRate = 8;
         this.color = '#FFD700';
-        this.isConnectedToBase = false;
-        this.connectedTarget = null;
     }
 
     update(deltaTime, engine) {
@@ -851,36 +876,57 @@ export class GoldMine extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.strokeStyle = (this.fuel > 0) ? this.color : '#555';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -15, 30, 30);
-        
-        // 채굴 기계 표현
-        ctx.fillStyle = '#666';
-        ctx.fillRect(-12, -8, 24, 16);
+
+        // 1. 기반 시설 (Concrete Pad)
+        ctx.fillStyle = '#34495e';
+        ctx.fillRect(-38, -38, 76, 76);
+        ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2;
+        ctx.strokeRect(-38, -38, 76, 76);
+
+        // 2. 메인 기계동 (Engine Room) - 중앙 후방
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-20, -35, 40, 30);
+        // 유리창 (Control Room)
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(-15, -30, 10, 5);
+        ctx.fillRect(5, -30, 10, 5);
+
+        // 3. 대형 회전 굴착 드릴 (Excavation Drill) - 전방
         const drillAngle = (this.fuel > 0) ? (Date.now() / 100) : 0;
         ctx.save();
+        ctx.translate(0, 15);
+        // 지지 구조물
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(-5, -15, 10, 15);
+        // 드릴 헤드 (회전)
         ctx.rotate(drillAngle);
-        ctx.fillStyle = '#aaa';
+        ctx.fillStyle = '#95a5a6';
         ctx.beginPath();
-        ctx.moveTo(0, 0); ctx.lineTo(8, -4); ctx.lineTo(8, 4);
+        for(let i=0; i<3; i++) {
+            ctx.rotate(Math.PI * 2 / 3);
+            ctx.moveTo(0, 0); ctx.lineTo(-8, 15); ctx.lineTo(8, 15);
+        }
         ctx.closePath(); ctx.fill();
         ctx.restore();
 
+        // 4. 금색 입자 및 광석 컨베이어 (Conveyor details)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(-30, 5, 60, 8);
+        if (this.fuel > 0) {
+            const shift = (Date.now() / 50) % 15;
+            ctx.fillStyle = '#FFD700';
+            for(let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.arc(-25 + i*15 + shift, 9, 2, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
         ctx.restore();
 
-        // HP 바 상시 표시
+        // HP 바
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillRect(this.x - 30, this.y - 55, 60, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
+        ctx.fillRect(this.x - 30, this.y - 55, (this.hp / this.maxHp) * 60, 4);
     }
 }
 
@@ -889,17 +935,15 @@ export class IronMine extends Entity {
         super(x, y);
         this.type = 'iron-mine';
         this.name = '제철소';
-        this.size = 30;
-        this.width = 40;
-        this.height = 40;
-        this.maxHp = 300;
-        this.hp = 300;
-        this.maxFuel = 1200; // 철 매장량은 금보다 조금 많음
+        this.size = 80;
+        this.width = 80;
+        this.height = 80;
+        this.maxHp = 1800;
+        this.hp = 1800;
+        this.maxFuel = 1200;
         this.fuel = 1200;
-        this.productionRate = 10; // 초당 철 생산량
+        this.productionRate = 10;
         this.color = '#a5a5a5';
-        this.isConnectedToBase = false;
-        this.connectedTarget = null;
     }
 
     update(deltaTime, engine) {
@@ -922,37 +966,55 @@ export class IronMine extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.strokeStyle = (this.fuel > 0) ? this.color : '#555';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -15, 30, 30);
 
-        // 제철 공장 표현 (고열 가마/용광로 느낌)
-        ctx.fillStyle = '#444';
-        ctx.fillRect(-12, -10, 24, 20);
+        // 1. 기반 플랫폼 (Heavy Reinforced Base)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-38, -38, 76, 76);
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 3;
+        ctx.strokeRect(-38, -38, 76, 76);
+
+        // 2. 메인 용광로 (Blast Furnace) - 중앙
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath();
+        ctx.moveTo(-20, 30); ctx.lineTo(-15, -20);
+        ctx.lineTo(15, -20); ctx.lineTo(20, 30);
+        ctx.closePath(); ctx.fill();
         
+        // 용광로 열기 (Heat Glow)
         if (this.fuel > 0) {
-            // 용광로 열기 표현
             const flicker = Math.random() * 0.3 + 0.7;
-            ctx.fillStyle = `rgba(255, 69, 0, ${flicker})`;
-            ctx.beginPath();
-            ctx.arc(0, 5, 6, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.fillStyle = `rgba(255, 69, 0, ${flicker * 0.6})`;
+            ctx.fillRect(-10, 10, 20, 15);
+            // 흐르는 쇳물 효과
+            ctx.fillStyle = `rgba(255, 165, 0, ${flicker})`;
+            ctx.fillRect(-2, 15, 4, 15);
         }
+
+        // 3. 배기 굴뚝 (Exhaust Pipes) - 후방 좌우
+        const drawExhaust = (ex, ey) => {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(ex, ey, 8, 25);
+            if (this.fuel > 0) {
+                // 연기 (Smoke)
+                const time = Date.now() / 800;
+                ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
+                ctx.beginPath(); ctx.arc(ex + 4 + Math.sin(time)*5, ey - 10, 8, 0, Math.PI*2); ctx.fill();
+            }
+        };
+        drawExhaust(-30, -35);
+        drawExhaust(22, -35);
+
+        // 4. 상단 연결 통로
+        ctx.fillStyle = '#444';
+        ctx.fillRect(-30, -25, 60, 5);
 
         ctx.restore();
 
-        // HP 바 상시 표시
+        // HP 바
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
+        ctx.fillRect(this.x - 30, this.y - 55, 60, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
+        ctx.fillRect(this.x - 30, this.y - 55, (this.hp / this.maxHp) * 60, 4);
     }
 }
 
@@ -1586,11 +1648,12 @@ export class PlayerUnit extends Entity {
                 
                 if (b instanceof Resource) {
                     const d = Math.hypot(this.x - b.x, this.y - b.y);
-                    const minDist = (this.size * 0.2) + (b.size * 0.5); 
+                    // 자원 크기가 80px(2x2)이므로 반경은 40px + 유닛 반경(약 15-20px)
+                    const minDist = (this.size * 0.4) + (b.size * 0.5); 
                     if (d < minDist) {
                         const pushAngle = Math.atan2(this.y - b.y, this.x - b.x);
                         // 원형 자원에서 밖으로 밀어내는 힘 강화
-                        const force = (minDist - d) / minDist * 5.0; 
+                        const force = (minDist - d) / minDist * 6.0; 
                         pushX += Math.cos(pushAngle) * force;
                         pushY += Math.sin(pushAngle) * force;
                     }
@@ -1647,6 +1710,7 @@ export class PlayerUnit extends Entity {
                 if (b === this || b.passable) continue;
                 
                 if (b instanceof Resource) {
+                    // 자원 크기 80px에 따른 충돌 반경 확장
                     const minCollisionDist = unitRadius + (b.size * 0.5);
                     if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
                     if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
@@ -3017,6 +3081,7 @@ export class CombatEngineer extends PlayerUnit {
         this.currentSharedTask = null; // 현재 맡은 공유 작업
         this.buildingTarget = null; // 현재 짓고 있는 건물 객체
         this.myGroupQueue = null; // 이 유닛이 속한 건설 그룹의 큐 (배열 참조)
+        this.stuckTimer = 0; // 도달 불가능한 건설지 체크용 타이머
         this.popCost = 1;
     }
 
@@ -3208,6 +3273,19 @@ export class CombatEngineer extends PlayerUnit {
                     const closestY = Math.max(minY, Math.min(this.y, maxY));
 
                     this.destination = { x: closestX, y: closestY };
+
+                    // [추가] 도달 불가능한 지점 체크: 이동 중인데 속도가 거의 없다면 stuck 타이머 증가
+                    if (this.path.length === 0 && Math.hypot(this.x - closestX, this.y - closestY) > 50) {
+                        this.stuckTimer += deltaTime;
+                        if (this.stuckTimer > 3000) { // 3초 이상 못 가면 포기
+                            this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '경로 차단됨: 건설 취소');
+                            this.clearBuildQueue();
+                            this.command = 'stop';
+                            this.stuckTimer = 0;
+                        }
+                    } else {
+                        this.stuckTimer = 0;
+                    }
                 }
             } else if (!this.buildingTarget && this.myGroupQueue.length === 0) {
                 // 더 이상 할 일이 없으면 정지
@@ -5703,17 +5781,15 @@ export class Projectile extends Entity {
 }
 
 export class Resource extends Entity {
-    constructor(x, y, type = 'ore') {
+    constructor(x, y, type = 'gold') {
         super(x, y);
         this.type = type;
-        this.size = 25;
-        this.covered = false; // 건설 중일 때 숨김 처리
-        this.initType();
-    }
-
-    initType() {
-        switch (this.type) {
-            case 'coal': this.color = '#333333'; this.name = '석탄'; break;
+        this.size = 80; // 2x2 타일 크기
+        this.width = 80;
+        this.height = 80;
+        this.covered = false;
+        
+        switch (type) {
             case 'oil': this.color = '#2F4F4F'; this.name = '석유'; break;
             case 'gold': this.color = '#FFD700'; this.name = '금'; break;
             case 'iron': this.color = '#a5a5a5'; this.name = '철'; break;
@@ -5722,20 +5798,109 @@ export class Resource extends Entity {
     }
 
     draw(ctx) {
-        if (this.covered) return; // 건물에 의해 가려졌으면 그리지 않음
+        if (this.covered) return;
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.fillStyle = this.color;
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (i * Math.PI) / 3;
-            const px = Math.cos(angle) * (this.size / 2);
-            const py = Math.sin(angle) * (this.size / 2);
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+
+        if (this.type === 'oil') {
+            // [석유: 천연 타르 늪 컨셉]
+            // 1. 깊은 검은색 중심부
+            ctx.fillStyle = '#0a0a0a';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 35, 25, Math.PI / 10, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 2. 주변으로 번진 기름 얼룩
+            ctx.fillStyle = 'rgba(20, 30, 20, 0.6)';
+            for(let i=0; i<5; i++) {
+                const ang = (i * Math.PI * 2) / 5;
+                ctx.beginPath();
+                ctx.ellipse(Math.cos(ang)*20, Math.sin(ang)*15, 15, 10, ang, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 3. 점성 있는 기포 (Bubbling effect)
+            ctx.fillStyle = '#1a1a1a';
+            const bubbleTime = Date.now() / 1000;
+            for(let i=0; i<3; i++) {
+                const bx = Math.sin(bubbleTime + i) * 15;
+                const by = Math.cos(bubbleTime * 0.7 + i) * 10;
+                const size = (Math.sin(bubbleTime * 2 + i) + 1) * 3;
+                if (size > 1) {
+                    ctx.beginPath(); ctx.arc(bx, by, size, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.stroke();
+                }
+            }
+
+        } else if (this.type === 'gold') {
+            // [금: 거친 원석 결정 컨셉]
+            const drawGoldSppike = (sx, sy, w, h, ang) => {
+                ctx.save();
+                ctx.translate(sx, sy);
+                ctx.rotate(ang);
+                // 어두운 황금색 베이스
+                ctx.fillStyle = '#b8860b';
+                ctx.beginPath();
+                ctx.moveTo(-w/2, 0); ctx.lineTo(0, -h); ctx.lineTo(w/2, 0); ctx.closePath();
+                ctx.fill();
+                // 밝은 금색 면
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.moveTo(0, -h); ctx.lineTo(w/2, 0); ctx.lineTo(0, 0); ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            };
+
+            // 바닥에 깔린 자갈들
+            ctx.fillStyle = '#5d4037';
+            for(let i=0; i<8; i++) {
+                ctx.beginPath(); ctx.arc((Math.random()-0.5)*50, (Math.random()-0.5)*40, 3, 0, Math.PI*2); ctx.fill();
+            }
+
+            // 솟아오른 금 결정체들
+            drawGoldSppike(-15, 10, 20, 35, -0.2);
+            drawGoldSppike(10, 5, 25, 45, 0.1);
+            drawGoldSppike(5, 15, 15, 25, 0.4);
+            drawGoldSppike(-5, -5, 12, 20, -0.5);
+            
+            // 반짝임 입자
+            if (Math.sin(Date.now()/300) > 0.5) {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(12, -25, 2, 0, Math.PI*2); ctx.fill();
+            }
+
+        } else if (this.type === 'iron') {
+            // [철: 산화된 금속 암반 컨셉]
+            const drawIronRock = (rx, ry, rw, rh, color) => {
+                ctx.save();
+                ctx.translate(rx, ry);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(-rw/2, rh/2); ctx.lineTo(-rw/2 + 5, -rh/2); 
+                ctx.lineTo(rw/2, -rh/2 + 5); ctx.lineTo(rw/2, rh/2); ctx.closePath();
+                ctx.fill();
+                // 금속 질감 하이라이트
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.stroke();
+                ctx.restore();
+            };
+
+            // 1. 산화된 붉은 흙 (Rust/Oxidation)
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.4)';
+            ctx.beginPath(); ctx.ellipse(0, 5, 40, 25, 0, 0, Math.PI*2); ctx.fill();
+
+            // 2. 무거운 철광석 바위들
+            drawIronRock(0, 0, 50, 35, '#333');      // 메인 바위
+            drawIronRock(-20, 15, 30, 20, '#444');   // 앞쪽 바위
+            drawIronRock(25, 5, 25, 25, '#2c3e50');  // 우측 바위
+            
+            // 3. 금속 줄기 (Metallic veins)
+            ctx.strokeStyle = '#7f8c8d';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-20, -5); ctx.lineTo(10, 0); ctx.lineTo(20, 10);
+            ctx.stroke();
         }
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
         ctx.restore();
     }
 }

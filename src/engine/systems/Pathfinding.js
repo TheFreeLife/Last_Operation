@@ -221,9 +221,11 @@ export class Pathfinding {
         if (!this.isValid(x, y)) return true;
         const tile = this.engine.tileMap.grid[y][x];
         
-        if (tile.type === 'resource') return true;
+        // 1. 타일 데이터 기반 체크 (자원 및 건물 점유 타일)
+        if (tile.occupied) return true;
         if (!tile.buildable && tile.type !== 'base') return true;
 
+        // 2. 실시간 엔티티 기반 정밀 체크
         const worldPos = this.engine.tileMap.gridToWorld(x, y);
         const allBuildings = this.engine.getAllBuildings();
         

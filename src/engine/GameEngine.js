@@ -122,9 +122,9 @@ export class GameEngine {
             'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
             'airport': { cost: 500, size: [5, 7], className: 'Airport', list: 'airports', buildTime: 1 },
             'apartment': { cost: 800, size: [4, 5], className: 'Apartment', list: 'apartments', buildTime: 1 },
-            'refinery': { cost: 300, size: [1, 1], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
-            'gold-mine': { cost: 400, size: [1, 1], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
-            'iron-mine': { cost: 400, size: [1, 1], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
+            'refinery': { cost: 300, size: [2, 2], className: 'Refinery', list: 'refineries', onResource: 'oil', buildTime: 1 },
+            'gold-mine': { cost: 400, size: [2, 2], className: 'GoldMine', list: 'goldMines', onResource: 'gold', buildTime: 1 },
+            'iron-mine': { cost: 400, size: [2, 2], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
             'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
             'armory': { cost: 600, size: [4, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
@@ -288,25 +288,22 @@ export class GameEngine {
         return this.getRelation(viewerId, ownerId);
     }
 
-            initResources() {
-        
-                const resourceTypes = ['coal', 'oil', 'gold', 'iron'];
-        
-                const numberOfVeins = 120; // Increased count to accommodate gold
-    
+    initResources() {
+        const resourceTypes = ['oil', 'gold', 'iron'];
+        const numberOfClusters = 18; // 덩어리(허브) 개수 감소
 
-            for (let i = 0; i < numberOfVeins; i++) {
-
-                let startX, startY;
+        for (let i = 0; i < numberOfClusters; i++) {
+            let startX, startY;
             let validStart = false;
             let attempts = 0;
 
+            // 1. 군집 중심점 찾기
             while (!validStart && attempts < 100) {
-                startX = Math.floor(Math.random() * (this.tileMap.cols - 4)) + 2;
-                startY = Math.floor(Math.random() * (this.tileMap.rows - 4)) + 2;
+                startX = Math.floor(Math.random() * (this.tileMap.cols - 15)) + 7;
+                startY = Math.floor(Math.random() * (this.tileMap.rows - 15)) + 7;
 
                 const distToBase = Math.hypot(startX - this.tileMap.centerX, startY - this.tileMap.centerY);
-                if (distToBase > 5) {
+                if (distToBase > 20) { // 기지에서 더 멀리 배치
                     validStart = true;
                 }
                 attempts++;
@@ -314,25 +311,30 @@ export class GameEngine {
 
             if (!validStart) continue;
 
-            const currentVeinType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
-            const patternType = Math.random();
+            const currentType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
+            
+            // 2. 해당 지점을 중심으로 적은 수의 소형 클러스터 생성
+            const subClusters = 2 + Math.floor(Math.random() * 3); // 한 군집당 2~4개로 감소
+            for (let j = 0; j < subClusters; j++) {
+                const offsetX = Math.floor((Math.random() - 0.5) * 10);
+                const offsetY = Math.floor((Math.random() - 0.5) * 10);
+                const clusterType = Math.random();
 
-            if (patternType < 0.4) {
-                this.generateBlob(startX, startY, currentVeinType);
-            } else if (patternType < 0.7) {
-                this.generateSnake(startX, startY, currentVeinType);
-            } else {
-                this.generateScatter(startX, startY, currentVeinType);
+                if (clusterType < 0.7) {
+                    this.generateBlob(startX + offsetX, startY + offsetY, currentType);
+                } else {
+                    this.generateSnake(startX + offsetX, startY + offsetY, currentType);
+                }
             }
         }
     }
 
     generateBlob(cx, cy, type) {
-        const radius = 2; 
-        for (let y = -radius; y <= radius; y++) {
-            for (let x = -radius; x <= radius; x++) {
-                if (x*x + y*y <= radius*radius + 0.5) {
-                    if (Math.abs(x) <= 1 && Math.abs(y) <= 1 || Math.random() > 0.2) {
+        const radius = 1.5 + Math.random() * 1.5; // 크기 축소
+        for (let y = -Math.floor(radius); y <= radius; y++) {
+            for (let x = -Math.floor(radius); x <= radius; x++) {
+                if (x*x + y*y <= radius*radius) {
+                    if (x % 2 === 0 && y % 2 === 0) {
                         this.tryPlaceResource(cx + x, cy + y, type);
                     }
                 }
@@ -343,42 +345,55 @@ export class GameEngine {
     generateSnake(startX, startY, type) {
         let x = startX;
         let y = startY;
-        const length = 5 + Math.floor(Math.random() * 5);
+        const length = 4 + Math.floor(Math.random() * 4); // 길이 축소
 
         for (let i = 0; i < length; i++) {
-            this.tryPlaceResource(x, y, type);
-            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            if (i % 2 === 0) { 
+                this.tryPlaceResource(x, y, type);
+            }
+            const dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]];
             const dir = dirs[Math.floor(Math.random() * dirs.length)];
             x += dir[0];
             y += dir[1];
         }
     }
 
-    generateScatter(cx, cy, type) {
-        const count = 6 + Math.floor(Math.random() * 4);
-        for (let i = 0; i < count; i++) {
-            const ox = Math.floor((Math.random() - 0.5) * 6);
-            const oy = Math.floor((Math.random() - 0.5) * 6);
-            this.tryPlaceResource(cx + ox, cy + oy, type);
-        }
-    }
-
     tryPlaceResource(x, y, type) {
-        if (x >= 0 && x < this.tileMap.cols && y >= 0 && y < this.tileMap.rows) {
-            const tile = this.tileMap.grid[y][x];
+        if (x >= 0 && x + 1 < this.tileMap.cols && y >= 0 && y + 1 < this.tileMap.rows) {
+            // 2x2 영역이 모두 건설 가능하고 비어있는지 확인
+            let canPlace = true;
+            for (let dy = 0; dy < 2; dy++) {
+                for (let dx = 0; dx < 2; dx++) {
+                    const tile = this.tileMap.grid[y + dy][x + dx];
+                    if (!tile.buildable || tile.occupied) {
+                        canPlace = false; break;
+                    }
+                }
+                if (!canPlace) break;
+            }
+
             const distToBase = Math.hypot(x - this.tileMap.centerX, y - this.tileMap.centerY);
-            
-            if (tile.buildable && !tile.occupied && distToBase > 5) {
+            if (canPlace && distToBase > 8) { // 기지에서 조금 더 멀리 배치
                 this.placeResource(x, y, type);
             }
         }
     }
 
     placeResource(x, y, type) {
-        const pos = this.tileMap.gridToWorld(x, y);
+        // 2x2 중심 월드 좌표 계산
+        const pos = {
+            x: (x + 1) * this.tileMap.tileSize,
+            y: (y + 1) * this.tileMap.tileSize
+        };
         this.entities.resources.push(new Resource(pos.x, pos.y, type));
-        this.tileMap.grid[y][x].occupied = true;
-        this.tileMap.grid[y][x].type = 'resource'; // 타일 타입을 resource로 명시
+        
+        // 2x2 타일 점유 처리
+        for (let dy = 0; dy < 2; dy++) {
+            for (let dx = 0; dx < 2; dx++) {
+                this.tileMap.grid[y + dy][x + dx].occupied = true;
+                this.tileMap.grid[y + dy][x + dx].type = 'resource';
+            }
+        }
     }
 
     initUI() {
@@ -1390,12 +1405,37 @@ export class GameEngine {
     handleInput(worldX, worldY) {
         if (!this.isBuildMode || !this.selectedBuildType) return false;
 
-        const tileInfo = this.tileMap.getTileAt(worldX, worldY);
+        let tileInfo = this.tileMap.getTileAt(worldX, worldY);
         const buildInfo = this.buildingRegistry[this.selectedBuildType];
         if (!tileInfo || !tileInfo.tile.visible || !buildInfo) return false;
 
+        let gridX = tileInfo.x;
+        let gridY = tileInfo.y;
+
+        // [추가] 자원 건물 건설 시 스냅 로직
+        if (buildInfo.onResource) {
+            // 마우스 위치 주변의 자원 엔티티 검색
+            const nearestResource = this.entities.resources.find(r => 
+                Math.abs(r.x - worldX) < 60 && Math.abs(r.y - worldY) < 60 && r.type === buildInfo.onResource
+            );
+
+            if (nearestResource) {
+                // 자원의 월드 좌표(중심점)를 기반으로 건물의 좌상단 그리드 좌표 역계산
+                // 자원 중심이 (x+1, y+1)*40 이므로, 40으로 나누고 1을 빼면 정확한 좌상단 타일 인덱스가 나옵니다.
+                gridX = Math.round(nearestResource.x / this.tileMap.tileSize) - 1;
+                gridY = Math.round(nearestResource.y / this.tileMap.tileSize) - 1;
+                
+                // 타일 정보 동기화
+                const snappedTile = this.tileMap.grid[gridY]?.[gridX];
+                if (!snappedTile) return false;
+                tileInfo = { x: gridX, y: gridY, tile: snappedTile };
+            } else {
+                return false; // 주변에 적절한 자원이 없으면 건설 불가
+            }
+        }
+
         // 동일한 타일에 중복 예약 방지 (드래그 시 중요)
-        if (this.lastPlacedGrid.x === tileInfo.x && this.lastPlacedGrid.y === tileInfo.y) return false;
+        if (this.lastPlacedGrid.x === gridX && this.lastPlacedGrid.y === gridY) return false;
 
         const isFromItem = this.pendingItemIndex !== -1;
         const cost = isFromItem ? 0 : buildInfo.cost;
@@ -1403,8 +1443,6 @@ export class GameEngine {
         if (this.resources.gold < cost) return false;
 
         const [tw, th] = buildInfo.size;
-        const gridX = tileInfo.x;
-        const gridY = tileInfo.y;
         let canPlace = true;
 
         // 1. 위치 검증 (좌상단에서 양수 방향으로 순회)
@@ -1435,21 +1473,12 @@ export class GameEngine {
             if (!canPlace) break;
         }
 
-        // 2. 자원 전용 체크
-        if (buildInfo.onResource) {
-            const pos = this.tileMap.gridToWorld(gridX, gridY);
-            const resourceIndex = this.entities.resources.findIndex(r => 
-                Math.abs(r.x - pos.x) < 5 && Math.abs(r.y - pos.y) < 5 && r.type === buildInfo.onResource
-            );
-            if (resourceIndex === -1) canPlace = false;
-        }
-
         if (canPlace) {
             // 선택된 모든 공병 수집
             const engineers = this.selectedEntities.filter(u => u.type === 'engineer');
             
             if (engineers.length > 0) {
-                // 월드 좌표 계산 (타일 좌상단 기준 -> 건물 중심점)
+                // 월드 좌표 계산 (2x2 건물의 중심점 좌표로 통일)
                 const centerX = (gridX + tw / 2) * this.tileMap.tileSize;
                 const centerY = (gridY + th / 2) * this.tileMap.tileSize;
                 
@@ -1506,9 +1535,10 @@ export class GameEngine {
 
         let worldPos;
         if (stw > 1 || sth > 1) {
+            // 2x2 건물의 경우, 자원(Resource)의 좌표와 동일하게 (gridX+1, gridY+1) 지점을 중심으로 설정
             worldPos = {
                 x: (gridX + stw / 2) * this.tileMap.tileSize,
-                y: (gridY - (sth / 2 - 1)) * this.tileMap.tileSize
+                y: (gridY + sth / 2) * this.tileMap.tileSize
             };
         } else {
             worldPos = this.tileMap.gridToWorld(gridX, gridY);
@@ -1599,7 +1629,7 @@ export class GameEngine {
         let desc = '<div class="item-stats-box">';
         
         // 자원 엔티티 전용 표시
-        if (hovered instanceof Resource || (hovered.type === 'coal' || hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
+        if (hovered instanceof Resource || (hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
             desc += `<div class="stat-row"><span>💎 종류:</span> <span class="highlight">${hovered.name}</span></div>
                      <div class="stat-row"><span>💡 도움말:</span> <span>적절한 채굴 건물을 지으세요.</span></div>`;
         } else {
@@ -1686,10 +1716,12 @@ export class GameEngine {
                 const nx = gridX + dx;
                 const ny = gridY + dy;
                 if (this.tileMap.grid[ny] && this.tileMap.grid[ny][nx]) {
-                    const worldPos = this.tileMap.gridToWorld(nx, ny);
-                    // 해당 위치에 실제 자원이 있는지 확인
+                    const tileCenterX = (nx + 0.5) * this.tileMap.tileSize;
+                    const tileCenterY = (ny + 0.5) * this.tileMap.tileSize;
+
+                    // 해당 타일이 어느 자원의 영역에 포함되는지 확인 (2x2 자원 크기 80px 고려)
                     const resource = this.entities.resources.find(r => 
-                        Math.abs(r.x - worldPos.x) < 5 && Math.abs(r.y - worldPos.y) < 5
+                        Math.abs(r.x - tileCenterX) < 30 && Math.abs(r.y - tileCenterY) < 30
                     );
 
                     if (resource) {
@@ -2149,10 +2181,24 @@ export class GameEngine {
 
         // 4.2 Ghost Preview for Building
         if (this.isBuildMode && this.selectedBuildType) {
-            const tileInfo = this.tileMap.getTileAt(mouseWorldX, mouseWorldY);
+            let tileInfo = this.tileMap.getTileAt(mouseWorldX, mouseWorldY);
             const buildInfo = this.buildingRegistry[this.selectedBuildType];
             
             if (tileInfo && buildInfo) {
+                let gx = tileInfo.x;
+                let gy = tileInfo.y;
+
+                // [추가] 고스트 미리보기 스냅 로직
+                if (buildInfo.onResource) {
+                    const nearest = this.entities.resources.find(r => 
+                        Math.abs(r.x - mouseWorldX) < 60 && Math.abs(r.y - mouseWorldY) < 60 && r.type === buildInfo.onResource
+                    );
+                    if (nearest) {
+                        gx = Math.round(nearest.x / this.tileMap.tileSize) - 1;
+                        gy = Math.round(nearest.y / this.tileMap.tileSize) - 1;
+                    }
+                }
+
                 this.ctx.save();
                 this.ctx.globalAlpha = 0.5;
 
@@ -2160,13 +2206,12 @@ export class GameEngine {
                 let worldPos;
 
                 if (tw > 1 || th > 1) {
-                    // Generic multi-tile position calculation
                     worldPos = {
-                        x: (tileInfo.x + tw / 2) * this.tileMap.tileSize,
-                        y: (tileInfo.y - (th / 2 - 1)) * this.tileMap.tileSize
+                        x: (gx + tw / 2) * this.tileMap.tileSize,
+                        y: (gy + th / 2) * this.tileMap.tileSize
                     };
                 } else {
-                    worldPos = this.tileMap.gridToWorld(tileInfo.x, tileInfo.y);
+                    worldPos = this.tileMap.gridToWorld(gx, gy);
                 }
 
                 const ClassRef = this.entityClasses[buildInfo.className];
@@ -2260,7 +2305,7 @@ export class GameEngine {
                     if (stw > 1 || sth > 1) {
                         worldPos = {
                             x: (gx + stw / 2) * this.tileMap.tileSize,
-                            y: (gy - (sth / 2 - 1)) * this.tileMap.tileSize
+                            y: (gy + sth / 2) * this.tileMap.tileSize
                         };
                     } else {
                         worldPos = this.tileMap.gridToWorld(gx, gy);
