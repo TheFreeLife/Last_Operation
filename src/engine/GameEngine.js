@@ -153,6 +153,13 @@ export class GameEngine {
             3: { name: 'Player 3 (Neutral)', team: 3 }
         };
 
+        // 부대 지정 시스템 (StarCraft Style)
+        this.controlGroups = {
+            1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 0: []
+        };
+        this.lastControlGroupKey = null;
+        this.lastControlGroupTime = 0;
+
         // 관계 설정 (나중에 외부 설정 파일로 분리 가능)
         this.relations = {
             '1-2': 'enemy',
@@ -881,6 +888,41 @@ export class GameEngine {
                     this.updateCursor();
                 }
             }
+
+            // --- 부대 지정 시스템 (0-9) ---
+            if (e.key >= '0' && e.key <= '9') {
+                e.preventDefault(); // 브라우저 기본 동작(탭 전환 등) 방지
+                const groupNum = parseInt(e.key);
+                const now = Date.now();
+
+                if (e.ctrlKey) {
+                    // Ctrl + 숫자: 현재 선택된 유닛들 저장
+                    // 아군 유닛만 저장 가능하도록 필터링
+                    this.controlGroups[groupNum] = this.selectedEntities.filter(ent => ent.ownerId === 1 && ent.hp > 0);
+                    // console.log(`Group ${groupNum} saved:`, this.controlGroups[groupNum].length);
+                } else {
+                    // 숫자: 부대 선택
+                    // 죽은 유닛 제외
+                    const group = this.controlGroups[groupNum].filter(ent => ent.active && ent.hp > 0);
+                    this.controlGroups[groupNum] = group; // 유효한 유닛들로 갱신
+
+                    if (group.length > 0) {
+                        // 선택 업데이트
+                        this.selectedEntities = [...group];
+                        this.selectedEntity = group[0];
+                        this.updateBuildMenu();
+                        this.updateCursor();
+
+                        // 더블 탭 체크 (카메라 점프)
+                        if (this.lastControlGroupKey === e.key && (now - this.lastControlGroupTime) < 300) {
+                            this.jumpToGroup(group);
+                        }
+                    }
+                }
+                this.lastControlGroupKey = e.key;
+                this.lastControlGroupTime = now;
+            }
+
             // 스타크래프트 단축키
             if (this.selectedEntities.length > 0) {
                 const key = e.key.toLowerCase();
@@ -3162,5 +3204,21 @@ export class GameEngine {
 
     start() {
         requestAnimationFrame((t) => this.loop(t));
+    }
+
+    jumpToGroup(group) {
+        if (!group || group.length === 0) return;
+
+        let avgX = 0;
+        let avgY = 0;
+        group.forEach(u => {
+            avgX += u.x;
+            avgY += u.y;
+        });
+        avgX /= group.length;
+        avgY /= group.length;
+
+        this.camera.x = this.canvas.width / 2 - avgX * this.camera.zoom;
+        this.camera.y = this.canvas.height / 2 - avgY * this.camera.zoom;
     }
 }
