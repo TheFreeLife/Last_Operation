@@ -6,6 +6,7 @@ export class DebugSystem {
         this.isSpawnSandbagMode = false;
         this.isSpawnAirSandbagMode = false;
         this.isEraserMode = false;
+        this.spawnUnitType = null; // 현재 소환할 유닛 타입
         this.init();
     }
 
@@ -20,7 +21,62 @@ export class DebugSystem {
         document.getElementById('db-heal-all')?.addEventListener('click', () => this.healAll());
         document.getElementById('db-clear-fog')?.addEventListener('click', () => this.toggleFullVision());
 
+        // 유닛 소환 버튼들
+        this.unitTypeMap = {
+            'db-spawn-tank': { type: 'tank' },
+            'db-spawn-artillery': { type: 'artillery' },
+            'db-spawn-anti-air': { type: 'anti-air' },
+            'db-spawn-missile': { type: 'missile-launcher' },
+            'db-spawn-rifleman': { type: 'rifleman' },
+            'db-spawn-sniper': { type: 'sniper' },
+            'db-spawn-engineer': { type: 'engineer' },
+            'db-spawn-truck': { type: 'military-truck' },
+            'db-spawn-bomber': { type: 'bomber' },
+            'db-spawn-cargo-plane': { type: 'cargo-plane' },
+            'db-spawn-scout-plane': { type: 'scout-plane' },
+            'db-spawn-ammo-bullet': { type: 'ammo-box', options: { ammoType: 'bullet' } },
+            'db-spawn-ammo-shell': { type: 'ammo-box', options: { ammoType: 'shell' } },
+            'db-spawn-ammo-missile': { type: 'ammo-box', options: { ammoType: 'missile' } }
+        };
+
+        for (const id in this.unitTypeMap) {
+            document.getElementById(id)?.addEventListener('click', () => this.toggleSpawnUnitMode(id));
+        }
+
         console.log("[DebugSystem] Practice Tool Initialized");
+    }
+
+    toggleSpawnUnitMode(btnId) {
+        const wasSameId = this.activeSpawnBtnId === btnId;
+        this.engine.cancelModes?.();
+
+        if (!wasSameId) {
+            this.activeSpawnBtnId = btnId;
+            this.spawnUnitType = this.unitTypeMap[btnId].type;
+            this.spawnUnitOptions = this.unitTypeMap[btnId].options || {};
+            
+            const btn = document.getElementById(btnId);
+            if (btn) btn.classList.add('active');
+        } else {
+            this.activeSpawnBtnId = null;
+            this.spawnUnitType = null;
+            this.spawnUnitOptions = null;
+        }
+    }
+
+    executeSpawnUnit(worldX, worldY) {
+        if (!this.spawnUnitType) return;
+
+        const baseOptions = { ownerId: 1 };
+        const finalOptions = Object.assign({}, baseOptions, this.spawnUnitOptions);
+
+        const entity = this.engine.entityManager?.create(this.spawnUnitType, worldX, worldY, finalOptions);
+
+        if (entity) {
+            let label = entity.name || this.spawnUnitType;
+            if (this.spawnUnitOptions?.ammoType) label += ` (${this.spawnUnitOptions.ammoType})`;
+            this.engine.addEffect?.('system', worldX, worldY - 40, '#39ff14', `${label} 생성`);
+        }
     }
 
     toggleGodMode() {

@@ -867,7 +867,7 @@ export class GameEngine {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 // 1. 활성화된 특수 모드(건설, 판매, 스킬, 명령 타겟팅, 디버그 모드) 취소
-                const isDebugMode = this.debugSystem && (this.debugSystem.isSpawnSandbagMode || this.debugSystem.isSpawnAirSandbagMode || this.debugSystem.isEraserMode);
+                const isDebugMode = this.debugSystem && (this.debugSystem.isSpawnSandbagMode || this.debugSystem.isSpawnAirSandbagMode || this.debugSystem.spawnUnitType || this.debugSystem.isEraserMode);
                 if (this.isBuildMode || this.isSellMode || this.isSkillMode || this.unitCommandMode || isDebugMode) {
                     this.cancelModes();
                     this.unitCommandMode = null;
@@ -1045,6 +1045,8 @@ export class GameEngine {
                     this.debugSystem.executeSpawnSandbag(worldX, worldY);
                 } else if (this.debugSystem && this.debugSystem.isSpawnAirSandbagMode) {
                     this.debugSystem.executeSpawnAirSandbag(worldX, worldY);
+                } else if (this.debugSystem && this.debugSystem.spawnUnitType) {
+                    this.debugSystem.executeSpawnUnit(worldX, worldY);
                 } else if (this.debugSystem && this.debugSystem.isEraserMode) {
                     this.debugSystem.executeEraser(worldX, worldY);
                 } else {
@@ -1319,16 +1321,17 @@ export class GameEngine {
         if (this.debugSystem) {
             this.debugSystem.isSpawnSandbagMode = false;
             this.debugSystem.isSpawnAirSandbagMode = false;
+            this.debugSystem.spawnUnitType = null;
             this.debugSystem.isEraserMode = false;
             
-            const btnSandbag = document.getElementById('db-spawn-sandbag');
-            if (btnSandbag) btnSandbag.classList.remove('active');
-
-            const btnAirSandbag = document.getElementById('db-spawn-air-sandbag');
-            if (btnAirSandbag) btnAirSandbag.classList.remove('active');
+            const dbBtns = ['db-spawn-sandbag', 'db-spawn-air-sandbag', 'db-eraser', 
+                           'db-spawn-tank', 'db-spawn-rifleman', 'db-spawn-sniper', 
+                           'db-spawn-engineer', 'db-spawn-missile'];
             
-            const btnEraser = document.getElementById('db-eraser');
-            if (btnEraser) btnEraser.classList.remove('active');
+            dbBtns.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.remove('active');
+            });
         }
     }
 

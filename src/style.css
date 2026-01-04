@@ -465,3 +465,57 @@ canvas {
 .debug-btn:hover ~ .debug-tooltip {
     opacity: 1;
 }
+
+/* --- Debug Sub-Panel --- */
+.debug-sub-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    pointer-events: auto; /* 호버 감지 보장 */
+}
+
+.debug-sub-panel {
+    position: absolute;
+    left: 45px; /* 버튼 너비에 맞춰 밀착 */
+    top: 0;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid #c8aa6e;
+    padding: 8px;
+    border-radius: 4px;
+    display: none;
+    grid-template-columns: repeat(4, 40px); /* 3열 -> 4열 확장 */
+    gap: 8px;
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.8);
+    pointer-events: auto;
+    z-index: 10001;
+}
+
+/* 마우스 이동 시 끊김 방지를 위한 보이지 않는 가교(Bridge) */
+.debug-sub-panel::before {
+    content: "";
+    position: absolute;
+    left: -15px;
+    top: 0;
+    width: 15px;
+    height: 100%;
+    background: transparent;
+}
+
+/* 메인 버튼에 마우스를 올리거나, 패널 자체에 마우스가 있을 때 표시 */
+.debug-sub-container:hover .debug-sub-panel {
+    display: grid;
+}
+
+.debug-sub-panel .debug-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+}
+
+/* 서브 패널 내 툴팁 위치 상단으로 조정 */
+.debug-sub-panel .debug-tooltip {
+    left: 50%;
+    bottom: 50px;
+    top: auto;
+    transform: translateX(-50%);
+}
