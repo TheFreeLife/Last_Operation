@@ -627,6 +627,12 @@ export class GameEngine {
                         { type: 'skill-engineer', name: '공병 생산', cost: 150, action: 'skill:engineer' },
                         null, null, null, null, null, null, null, null
                     ];
+                } else if (type === 'apartment') {
+                    // 아파트(벙커) 전용 메뉴
+                    items = [
+                        { id: 'unload_all', name: '전원 출동 (U)', icon: '🚪', action: 'unit:unload_all', skillType: 'instant', locked: firstEnt.cargo.length === 0 },
+                        null, null, null, null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    ];
                 } else if (type === 'ammo-factory') {
                     items = [
                         { type: 'skill-ammo-bullet', name: '총알 탄약 상자', cost: 100, action: 'skill:bullet' },
@@ -1075,39 +1081,38 @@ export class GameEngine {
                         return;
                     }
 
-                    // [수송기/트럭 탑승 로직] 아군 수송 유닛 클릭 여부 확인
-                    if (clickedTarget && (clickedTarget.type === 'cargo-plane' || clickedTarget.type === 'military-truck') && clickedTarget.ownerId === 1) {
-                        // 공중 수송기는 착륙 상태여야 함
-                        const canBoard = clickedTarget.type === 'military-truck' || (clickedTarget.altitude < 0.1);
+                // [탑승 명령] 수송기 또는 아파트(벙커) 클릭 시
+                const transport = [...this.entities.cargoPlanes, ...this.entities.apartments].find(t => {
+                    if (!t || !t.active || t.hp <= 0) return false;
+                    const b = t.getSelectionBounds ? t.getSelectionBounds() : {
+                        left: t.x - 50, right: t.x + 50, top: t.y - 50, bottom: t.y + 50
+                    };
+                    return worldX >= b.left && worldX <= b.right && worldY >= b.top && worldY <= b.bottom;
+                });
 
-                        if (canBoard) {
-                            this.selectedEntities.forEach(u => {
-                                if (u.domain === 'ground' && u !== clickedTarget) {
-                                    u.transportTarget = clickedTarget;
+                if (transport) {
+                    this.selectedEntities.forEach(u => {
+                        if (u.ownerId === 1 && u.domain === 'ground') {
+                            // 아파트(벙커)에는 보병 계열만 탑승 가능
+                            if (transport.type === 'apartment') {
+                                const isHuman = ['rifleman', 'sniper', 'engineer'].includes(u.type);
+                                if (isHuman) {
+                                    u.transportTarget = transport;
                                     u.command = 'move';
+                                } else if (u === this.selectedEntities[0]) {
+                                    this.addEffect?.('system', u.x, u.y - 30, '#ff3131', '차량은 진입 불가');
                                 }
-                            });
-                            return;
-                        }
-                    }
-
-                    // 2. 공병 수리 로직 (아군 건물인 경우만)
-                    const engineer = this.selectedEntities.find(u => u.type === 'engineer');
-                    if (engineer && clickedTarget && clickedTarget.ownerId === 1 && clickedTarget.hp < clickedTarget.maxHp) {
-                        this.selectedEntities.forEach(u => {
-                            if (u.type === 'engineer') {
-                                if (u.clearBuildQueue) u.clearBuildQueue();
-                                u.command = 'repair';
-                                u.targetObject = clickedTarget;
                             } else {
-                                this.executeUnitCommand('move', worldX, worldY);
+                                // 수송기 등 일반 수송 수단
+                                u.transportTarget = transport;
+                                u.command = 'move';
                             }
-                        });
-                        return;
-                    }
+                        }
+                    });
+                    return;
+                }
 
-                    // 3. 기본 이동 명령
-                    this.executeUnitCommand('move', worldX, worldY);
+                this.executeUnitCommand('move', worldX, worldY, clickedTarget);
                 }
             }
         });
@@ -1284,6 +1289,10 @@ export class GameEngine {
                 unit.destination = unit.patrolEnd;
             } else if (finalCmd === 'attack' && worldX !== null) {
                 unit.destination = { x: worldX, y: worldY };
+            } else if (finalCmd === 'unload_all') {
+                if (unit.unloadAll) unit.unloadAll();
+                // 유닛 하차 완료 후 인구수 등 갱신을 위해 메뉴 업데이트
+                setTimeout(() => this.updateBuildMenu(), 500);
             }
         });
         this.unitCommandMode = null;
@@ -1726,11 +1735,21 @@ export class GameEngine {
                     const cost = buildInfo ? buildInfo.cost : 0;
                     this.resources.gold += Math.floor(cost * 0.1);
 
+                    // 판매 시에도 내부 유닛 방출 처리
+                    if (foundEntity.onDestruction) foundEntity.onDestruction(this);
+
                     // 전용 헬퍼 함수를 사용하여 점유된 타일 해제
                     this.clearBuildingTiles(foundEntity);
 
                     // 리스트에서 제거
                     this.entities[listName].splice(foundIdx, 1);
+
+                    // [추가] EntityManager 및 SpatialGrid에서도 제거하여 렌더링 잔상 방지
+                    if (this.entityManager) {
+                        const allIdx = this.entityManager.allEntities.indexOf(foundEntity);
+                        if (allIdx !== -1) this.entityManager.allEntities.splice(allIdx, 1);
+                        this.entityManager.spatialGrid.remove(foundEntity);
+                    }
 
                     // 판매 후 인구수 즉시 갱신
                     this.updatePopulation();
@@ -1908,10 +1927,15 @@ export class GameEngine {
                 // 탑승 중인 유닛은 업데이트 함수 호출 스킵 (하지만 리스트에는 유지)
                 if (updateFn && !obj.isBoarded) updateFn(obj);
 
+                // [중요] 탑승 중(isBoarded)인 엔티티는 active 여부와 상관없이 무조건 유지
+                if (obj.isBoarded) return true;
+
                 // HP가 0 이하이거나 완전히 비활성화된 경우 리스트에서 제거
-                // isBoarded인 상태는 리스트에서 제거하지 않음 (인구수 계산용)
-                if (obj.hp <= 0 || (obj.active === false && !obj.isBoarded)) {
-                    if (obj.hp <= 0) this.clearBuildingTiles(obj);
+                if (obj.hp <= 0 || obj.active === false) {
+                    if (obj.hp <= 0) {
+                        if (obj.onDestruction) obj.onDestruction(this); // [추가] 벙커 유닛 방출 등 처리
+                        this.clearBuildingTiles(obj);
+                    }
                     return false;
                 }
                 return true;

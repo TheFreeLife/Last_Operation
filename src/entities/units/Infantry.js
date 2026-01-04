@@ -440,27 +440,32 @@ export class CombatEngineer extends PlayerUnit {
                     this.buildingTarget.isUnderConstruction = false;
                     this.buildingTarget.hp = this.buildingTarget.maxHp;
 
-                    // [버그 수정] 건물 내부 끼임 방지: 실제로 겹쳤을 때만 자연스럽게 바깥으로 탈출
-                    const currentGrid = this.engine.tileMap.worldToGrid(this.x, this.y);
-                    const currentTile = this.engine.tileMap.grid[currentGrid.y]?.[currentGrid.x];
+                    // [버그 수정] 건물 내부 끼임 방지 강화: 건물의 실제 범위를 계산하여 외곽으로 밀어냄
+                    const bounds = this.buildingTarget.getSelectionBounds ? 
+                                   this.buildingTarget.getSelectionBounds() : 
+                                   { left: this.buildingTarget.x - 40, right: this.buildingTarget.x + 40, 
+                                     top: this.buildingTarget.y - 40, bottom: this.buildingTarget.y + 40 };
+                    
+                    const margin = this.size / 2 + 10;
+                    // 현재 위치가 건물 경계 내부인지 확인
+                    if (this.x > bounds.left - 5 && this.x < bounds.right + 5 &&
+                        this.y > bounds.top - 5 && this.y < bounds.bottom + 5) {
+                        
+                        // 상하좌우 중 가장 가까운 외곽 계산
+                        const distL = Math.abs(this.x - (bounds.left - margin));
+                        const distR = Math.abs(this.x - (bounds.right + margin));
+                        const distT = Math.abs(this.y - (bounds.top - margin));
+                        const distB = Math.abs(this.y - (bounds.bottom + margin));
+                        const minDist = Math.min(distL, distR, distT, distB);
 
-                    // 현재 서 있는 타일이 점유(occupied)된 상태일 때만 튕겨내기 수행
-                    if (currentTile && currentTile.occupied) {
-                        const freeTile = this.engine.pathfinding.findNearestWalkable(currentGrid.x, currentGrid.y);
-                        if (freeTile) {
-                            const worldPos = this.engine.tileMap.gridToWorld(freeTile.x, freeTile.y);
+                        if (minDist === distL) this.x = bounds.left - margin;
+                        else if (minDist === distR) this.x = bounds.right + margin;
+                        else if (minDist === distT) this.y = bounds.top - margin;
+                        else this.y = bounds.bottom + margin;
 
-                            // 1. 탈출 방향을 바라보게 함
-                            this.angle = Math.atan2(worldPos.y - this.y, worldPos.x - this.x);
-
-                            // 2. 위치를 외곽으로 어느 정도 밀어내고 (튕겨나가는 시작점)
-                            this.x = this.x * 0.3 + worldPos.x * 0.7;
-                            this.y = this.y * 0.3 + worldPos.y * 0.7;
-
-                            // 3. 남은 거리는 직선 경로를 강제 주입하여 부드럽게 걸어나오게 함
-                            this.destination = worldPos;
-                            this.path = [worldPos];
-                        }
+                        // 밀려난 위치를 새로운 목적지로 설정하여 자연스럽게 멈추게 함
+                        this.destination = { x: this.x, y: this.y };
+                        this.path = [];
                     }
 
                     if (this.buildingTarget.targetResource) {

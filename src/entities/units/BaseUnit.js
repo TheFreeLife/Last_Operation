@@ -189,45 +189,43 @@ export class BaseUnit extends Entity {
         }
 
         // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
-        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
-            const unitRadius = this.collisionRadius;
-            // [최적화] 모든 건물을 검사하는 대신 주변 장애물만 가져옴
-            const nearbyObstacles = this.engine.entityManager.getNearby(this.x, this.y, this.size * 2, (e) => {
-                if (e.passable) return false;
-                const typeStr = e.type || "";
-                return (typeof typeStr === 'string' && typeStr.includes('resource')) ||
-                    (this.engine.buildingRegistry && this.engine.buildingRegistry[e.type]);
+        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit && !this.isBoarded) {
+            const unitRadius = this.size / 2;
+            // 주변 건물 및 자원 검색 범위를 400px로 확대 (큰 건물 대응)
+            const nearbyObstacles = this.engine.entityManager.getNearby(this.x, this.y, 400, (e) => {
+                return (e.type && (this.engine.buildingRegistry[e.type] || e.type.includes('resource'))) && !e.passable;
             });
 
             for (const b of nearbyObstacles) {
                 if (b === this) continue;
 
-                if (b.resourceType) { // Resource check
-                    const d = Math.hypot(this.x - b.x, this.y - b.y);
-                    const minD = unitRadius + (b.size * 0.5);
-                    if (d < minD) {
-                        const ang = Math.atan2(this.y - b.y, this.x - b.x);
-                        this.x = b.x + Math.cos(ang) * minD;
-                        this.y = b.y + Math.sin(ang) * minD;
-                    }
-                } else {
-                    const bounds = b.getSelectionBounds();
-                    const margin = unitRadius;
-                    // 건물 내부에 있는지 확인
-                    if (this.x + margin > bounds.left && this.x - margin < bounds.right &&
-                        this.y + margin > bounds.top && this.y - margin < bounds.bottom) {
+                const bounds = b.getSelectionBounds ? b.getSelectionBounds() : null;
+                if (!bounds) continue;
 
-                        // 가장 가까운 바깥 지점 찾기
-                        const dL = Math.abs(this.x - (bounds.left - margin));
-                        const dR = Math.abs(this.x - (bounds.right + margin));
-                        const dT = Math.abs(this.y - (bounds.top - margin));
-                        const dB = Math.abs(this.y - (bounds.bottom + margin));
-                        const min = Math.min(dL, dR, dT, dB);
+                // 마진을 15px 더 주어 확실하게 밀어냄
+                const margin = unitRadius + 15;
+                // 유닛이 건물의 물리적 영역 내부에 있는지 체크 (판정 범위를 살짝 더 넓게)
+                if (this.x > bounds.left - 5 && this.x < bounds.right + 5 &&
+                    this.y > bounds.top - 5 && this.y < bounds.bottom + 5) {
+                    
+                    // 가장 가까운 바깥쪽 경계로 즉시 이동 (강제 탈출)
+                    const dL = Math.abs(this.x - (bounds.left - margin));
+                    const dR = Math.abs(this.x - (bounds.right + margin));
+                    const dT = Math.abs(this.y - (bounds.top - margin));
+                    const dB = Math.abs(this.y - (bounds.bottom + margin));
+                    const min = Math.min(dL, dR, dT, dB);
 
-                        if (min === dL) this.x = bounds.left - margin;
-                        else if (min === dR) this.x = bounds.right + margin;
-                        else if (min === dT) this.y = bounds.top - margin;
-                        else if (min === dB) this.y = bounds.bottom + margin;
+                    if (min === dL) this.x = bounds.left - margin;
+                    else if (min === dR) this.x = bounds.right + margin;
+                    else if (min === dT) this.y = bounds.top - margin;
+                    else this.y = bounds.bottom + margin;
+
+                    // 끼임 탈출 시 이동 상태 및 경로 초기화 (물리적 튕겨나감 강조)
+                    this.path = [];
+                    if (this.destination) {
+                        // 목적지가 건물 안쪽이라면 목적지 자체를 취소 (무한 루프 방지)
+                        const dDist = Math.hypot(this.destination.x - this.x, this.destination.y - this.y);
+                        if (dDist < 20) this.destination = null;
                     }
                 }
             }
@@ -245,15 +243,25 @@ export class BaseUnit extends Entity {
                 this.transportTarget = null;
                 this.command = 'stop';
             } else {
-                // 수송 유닛 종류별 입구 위치 차별화 (트럭은 가깝게, 비행기는 멀게)
-                const entranceDist = target.type === 'cargo-plane' ? 90 : 40;
-                const entranceX = target.x + Math.cos(target.angle + Math.PI) * entranceDist;
-                const entranceY = target.y + Math.sin(target.angle + Math.PI) * entranceDist;
+                // 수송 유닛 종류별 입구 위치 차별화
+                let entranceX, entranceY;
+                
+                if (target.isBunker || (target.width && target.height)) {
+                    // 건물형(아파트 등): 건물 아래쪽 중앙을 입구로 설정
+                    entranceX = target.x;
+                    entranceY = target.y + (target.height / 2 || 100) + 10;
+                } else {
+                    // 유닛형(수송기 등): 유닛 뒤쪽을 입구로 설정
+                    const entranceDist = target.type === 'cargo-plane' ? 90 : 40;
+                    entranceX = target.x + Math.cos(target.angle + Math.PI) * entranceDist;
+                    entranceY = target.y + Math.sin(target.angle + Math.PI) * entranceDist;
+                }
 
                 const d = Math.hypot(this.x - entranceX, this.y - entranceY);
 
-                // 후방 입구에 아주 가까워지면 탑승 (판정 거리 단축: 25 -> 15)
-                if (d < 15) {
+                // 입구에 충분히 가까워지면 탑승 (건물은 판정 거리 완화: 15 -> 30)
+                const boardingDist = (target.isBunker) ? 35 : 15;
+                if (d < boardingDist) {
                     if (target.loadUnit && target.loadUnit(this)) {
                         this.transportTarget = null;
                         return;
@@ -498,6 +506,64 @@ export class BaseUnit extends Entity {
     }
 
     attack() { }
+
+    /**
+     * 벙커(아파트) 내부에서의 사격 로직 (최적화)
+     * @param {number} deltaTime 
+     * @param {object} engine 
+     * @param {Array} nearbyTargets 공유된 타겟 리스트
+     * @param {object} bunker 현재 탑승 중인 벙커 객체
+     */
+    updateBunkerFire(deltaTime, engine, nearbyTargets, bunker) {
+        if (!this.alive || this.damage <= 0) return;
+
+        const now = Date.now();
+        // 연사력 체크
+        if (now - this.lastFireTime < this.fireRate) return;
+
+        // 벙커 사거리(보너스 포함) 내의 가장 가까운 적 찾기
+        const range = this.attackRange + 50; // 벙커 탑승 시 사거리 보너스
+        let bestTarget = null;
+        let minDist = Infinity;
+
+        for (const target of nearbyTargets) {
+            const d = Math.hypot(target.x - bunker.x, target.y - bunker.y);
+            if (d <= range && d < minDist) {
+                minDist = d;
+                bestTarget = target;
+            }
+        }
+
+        if (bestTarget) {
+            // 탄약 체크
+            if (this.maxAmmo > 0 && this.ammo < this.ammoConsumption) {
+                if (now - (this._lastAmmoMsgTime || 0) > 3000) {
+                    engine.addEffect?.('system', bunker.x, bunker.y - 40, '#ff3131', `내부 유닛(${this.name}) 탄약 부족!`);
+                    this._lastAmmoMsgTime = now;
+                }
+                return;
+            }
+
+            // 사격 각도 (벙커 위치 기준)
+            this.angle = Math.atan2(bestTarget.y - bunker.y, bestTarget.x - bunker.x);
+
+            // 공격 실행
+            if (this.attackType === 'hitscan') {
+                bestTarget.takeDamage(this.damage);
+                if (engine.addEffect) {
+                    engine.addEffect(this.hitEffectType || 'hit', bestTarget.x, bestTarget.y, this.color || '#fff');
+                }
+            } else if (this.attackType === 'projectile') {
+                const { Projectile } = engine.entityClasses;
+                const p = new Projectile(bunker.x, bunker.y, bestTarget, this.damage, this.color || '#ffff00', this);
+                engine.entities.projectiles.push(p);
+            }
+
+            // 탄약 소모 및 시간 갱신
+            if (this.maxAmmo > 0) this.ammo -= this.ammoConsumption;
+            this.lastFireTime = now;
+        }
+    }
 }
 
 // 하위 호환성을 위해 별칭 제공
