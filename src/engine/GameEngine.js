@@ -2,6 +2,7 @@ import { TileMap } from '../map/TileMap.js';
 import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
+import { EntityManager } from '../entities/EntityManager.js';
 
 export class GameEngine {
     constructor() {
@@ -14,44 +15,35 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
+        this.entityClasses = { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
+        // EntityManager 초기화 (새로운 최적화 시스템)
+        this.entityManager = new EntityManager(this);
+
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY - 0.5);
-        this.entities = {
-            enemies: [],
-            neutral: [], // 중립 유닛 리스트 신설
-            projectiles: [],
-            walls: [],
-            airports: [],
-            apartments: [],
-            refineries: [],
-            goldMines: [],
-            ironMines: [], // 철 채굴장 리스트 추가
-            storage: [],
-            ammoFactories: [],
-            armories: [],
-            barracks: [],
-            units: [],
-            cargoPlanes: [],
-            resources: [],
-            base: (() => {
-                const [tw, th] = [9, 6];
-                const gx = this.tileMap.centerX - 4;
-                const gy = this.tileMap.centerY - 3;
-                const b = new Base(
-                    (gx + tw / 2) * this.tileMap.tileSize,
-                    (gy + th / 2) * this.tileMap.tileSize
-                );
-                b.gridX = gx;
-                b.gridY = gy; 
-                return b;
-            })()
-        };
+
+        // 기존 entities 구조 유지 (하위 호환성)
+        // EntityManager의 entities 객체를 직접 참조하여 기존 코드와 호환
+        this.entities = this.entityManager.entities;
+
+        // Base 생성
+        const [tw, th] = [9, 6];
+        const gx = this.tileMap.centerX - 4;
+        const gy = this.tileMap.centerY - 3;
+        const b = new Base(
+            (gx + tw / 2) * this.tileMap.tileSize,
+            (gy + th / 2) * this.tileMap.tileSize
+        );
+        b.gridX = gx;
+        b.gridY = gy;
+        this.entities.base = b;
+        this.entityManager.allEntities.push(b);
+        this.entityManager.spatialGrid.add(b);
 
         this.initResources();
-        
+
         // --- 초기 유닛 배치 (사령부 주변 대열 정렬) ---
         const startX = basePos.x;
         const spX = 90; // 가로 간격
@@ -64,7 +56,7 @@ export class GameEngine {
         const startScout = new ScoutPlane(startX + spX, airY, this);
 
         // [남쪽 배치] 지상군 시작점
-        const groundY = basePos.y + 180; 
+        const groundY = basePos.y + 180;
 
         // 1열: 기갑 및 중화기
         const startTank = new Tank(startX - spX, groundY, this);
@@ -90,12 +82,12 @@ export class GameEngine {
             new AmmoBox(startX, groundY + spY * 3, this, 'shell'),
             new AmmoBox(startX + spX, groundY + spY * 3, this, 'missile')
         ];
-        
+
         // 모든 아군 유닛 설정 및 등록
         const allStartingUnits = [
-            startTank, startMissile, startAntiAir, 
-            startSniper, startInfantry, startArtillery, 
-            ...startEngineers, 
+            startTank, startMissile, startAntiAir,
+            startSniper, startInfantry, startArtillery,
+            ...startEngineers,
             ...startAmmoBoxes,
             startBomber, startCargo, startScout
         ];
@@ -105,7 +97,7 @@ export class GameEngine {
             // 살짝 아래를 바라보게 설정
             u.angle = Math.PI / 2;
             this.entities.units.push(u);
-            
+
             // 수송기는 전용 리스트에도 등록
             if (u.type === 'cargo-plane') this.entities.cargoPlanes.push(u);
         });
@@ -114,11 +106,11 @@ export class GameEngine {
         const neutralTank = new Tank(basePos.x - 350, basePos.y - 100, this);
         neutralTank.ownerId = 3;
         neutralTank.name = "중립 전차 (P3)";
-        
+
         const neutralDrone = new ScoutPlane(basePos.x - 450, basePos.y - 100, this);
         neutralDrone.ownerId = 3;
         neutralDrone.name = "정찰 무인기 (P3)";
-        
+
         this.entities.units.push(neutralTank, neutralDrone);
 
         // 초기 적 유닛 (플레이어 2 소유)
@@ -161,23 +153,23 @@ export class GameEngine {
         };
 
         this.lastTime = 0;
-        this.gameState = 'playing'; 
+        this.gameState = 'playing';
         this.selectedBuildType = null;
         this.isBuildMode = false;
         this.isSellMode = false;
         this.isSkillMode = false;
         this.selectedSkill = null;
-        this.unitCommandMode = null; 
+        this.unitCommandMode = null;
         this.selectedAirport = null;
-        this.selectedEntity = null; 
-        this.selectedEntities = []; 
-        this.currentMenuName = 'main'; 
+        this.selectedEntity = null;
+        this.selectedEntities = [];
+        this.currentMenuName = 'main';
         this.hoveredEntity = null; // 호버 중인 엔티티 저장용
         this.isHoveringUI = false;
         this.effects = []; // 시각 효과(파티클 등) 관리용 배열 추가
-        this.lastPlacedGrid = { x: -1, y: -1 }; 
-        this.isEngineerBuilding = false; 
-        this.currentBuildSessionQueue = null; 
+        this.lastPlacedGrid = { x: -1, y: -1 };
+        this.isEngineerBuilding = false;
+        this.currentBuildSessionQueue = null;
 
         // Camera State
         const baseWorldPos = this.entities.base;
@@ -190,7 +182,7 @@ export class GameEngine {
             mouseY: 0,
             edgeScrollSpeed: 15,
             edgeThreshold: 30,
-            selectionBox: null 
+            selectionBox: null
         };
 
         // 초기 인구수 계산
@@ -237,17 +229,17 @@ export class GameEngine {
 
     getRelation(p1Id, p2Id) {
         if (p1Id === p2Id) return 'self';
-        
+
         const p1 = this.players[p1Id];
         const p2 = this.players[p2Id];
-        
+
         // 1. 같은 팀이면 아군
         if (p1 && p2 && p1.team === p2.team) return 'ally';
-        
+
         // 2. 명시적 관계 확인
         const key = p1Id < p2Id ? `${p1Id}-${p2Id}` : `${p2Id}-${p1Id}`;
         const relation = this.relations[key];
-        
+
         if (relation === 'enemy') return 'enemy';
         if (relation === 'neutral') return 'neutral';
         if (relation === 'ally') return 'ally'; // 명시적 동맹 지원
@@ -321,7 +313,7 @@ export class GameEngine {
             if (!validStart) continue;
 
             const currentType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
-            
+
             // 2. 해당 지점을 중심으로 적은 수의 소형 클러스터 생성
             const subClusters = 2 + Math.floor(Math.random() * 3); // 한 군집당 2~4개로 감소
             for (let j = 0; j < subClusters; j++) {
@@ -342,7 +334,7 @@ export class GameEngine {
         const radius = 1.5 + Math.random() * 1.5; // 크기 축소
         for (let y = -Math.floor(radius); y <= radius; y++) {
             for (let x = -Math.floor(radius); x <= radius; x++) {
-                if (x*x + y*y <= radius*radius) {
+                if (x * x + y * y <= radius * radius) {
                     if (x % 2 === 0 && y % 2 === 0) {
                         this.tryPlaceResource(cx + x, cy + y, type);
                     }
@@ -357,7 +349,7 @@ export class GameEngine {
         const length = 4 + Math.floor(Math.random() * 4); // 길이 축소
 
         for (let i = 0; i < length; i++) {
-            if (i % 2 === 0) { 
+            if (i % 2 === 0) {
                 this.tryPlaceResource(x, y, type);
             }
             const dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]];
@@ -395,7 +387,7 @@ export class GameEngine {
             y: (y + 1) * this.tileMap.tileSize
         };
         this.entities.resources.push(new Resource(pos.x, pos.y, type));
-        
+
         // 2x2 타일 점유 처리
         for (let dy = 0; dy < 2; dy++) {
             for (let dx = 0; dx < 2; dx++) {
@@ -417,10 +409,10 @@ export class GameEngine {
     updateBuildMenu() {
         const grid = document.getElementById('build-grid');
         grid.innerHTML = '';
-        
+
         const header = document.querySelector('.panel-header');
         if (!header) return;
-        
+
         // 안전장치: 공병이 선택되지 않았다면 건설 모드 강제 해제
         const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
         if (!hasEngineer) {
@@ -433,7 +425,7 @@ export class GameEngine {
         // 유닛 명령 메뉴가 건설 메뉴보다 우선순위가 높아야 함
         if (this.selectedEntities.length > 0 && !this.isEngineerBuilding) {
             const firstEnt = this.selectedEntities[0];
-            
+
             // 모든 선택된 개체가 사용자의 것인지 확인
             const isUserOwned = this.selectedEntities.every(ent => ent.ownerId === 1);
             const isEnemy = firstEnt.ownerId === 2;
@@ -441,18 +433,18 @@ export class GameEngine {
             const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
 
             // 유닛 여부 판별 (PlayerUnit 상속 여부 또는 speed 속성 존재 여부)
-            const allUnits = this.selectedEntities.every(ent => 
+            const allUnits = this.selectedEntities.every(ent =>
                 ent instanceof PlayerUnit || (ent.speed !== undefined && ent.hp !== 99999999 && !ent.type?.includes('turret'))
             );
 
             if (isUserOwned && allUnits) {                // [아군 유닛 메뉴]
                 menuType = 'unit';
                 header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
-                
+
                 items = [
                     { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move', skillType: 'targeted' },
                     { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
-                    null, 
+                    null,
                     { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
                     { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol', skillType: 'targeted' },
                     { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack', skillType: 'targeted' },
@@ -472,27 +464,27 @@ export class GameEngine {
                         const isManeuvering = firstEnt.isTakeoffStarting || firstEnt.isManualLanding;
 
                         if (unitType === 'bomber') {
-                            items[6] = { 
-                                id: 'bombing', 
-                                name: isFlying ? '폭격 (B)' : '폭격 (비행 시 가능)', 
+                            items[6] = {
+                                id: 'bombing',
+                                name: isFlying ? '폭격 (B)' : '폭격 (비행 시 가능)',
                                 action: 'unit:bombing',
                                 skillType: 'toggle',
                                 locked: !isFlying,
                                 active: firstEnt.isBombingActive
                             };
                         } else if (unitType === 'cargo-plane' || unitType === 'military-truck') {
-                            items[6] = { 
-                                id: 'unload_all', 
-                                name: isLanded ? '전체 하차 (U)' : '하차 (지상 시 가능)', 
+                            items[6] = {
+                                id: 'unload_all',
+                                name: isLanded ? '전체 하차 (U)' : '하차 (지상 시 가능)',
                                 action: 'unit:unload_all',
                                 skillType: 'instant',
                                 locked: !isLanded || firstEnt.cargo.length === 0
                             };
-                            
+
                             if (unitType === 'cargo-plane') {
-                                items[7] = { 
-                                    id: 'combat_drop', 
-                                    name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)', 
+                                items[7] = {
+                                    id: 'combat_drop',
+                                    name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)',
                                     action: 'unit:combat_drop',
                                     skillType: 'instant',
                                     locked: !isFlying || firstEnt.cargo.length === 0,
@@ -513,13 +505,13 @@ export class GameEngine {
                                 actionName = firstEnt.isTakeoffStarting ? '이륙 중...' : '착륙 중...';
                             }
 
-                            items[8] = { 
-                                id: 'takeoff_landing', 
-                                name: actionName, 
+                            items[8] = {
+                                id: 'takeoff_landing',
+                                name: actionName,
                                 action: 'unit:takeoff_landing',
                                 skillType: 'state',
-                                iconKey: actionIcon, 
-                                active: isManeuvering 
+                                iconKey: actionIcon,
+                                active: isManeuvering
                             };
                         }
                     }
@@ -534,7 +526,7 @@ export class GameEngine {
                 // [아군 건물 메뉴]
                 const type = firstEnt.type;
                 header.textContent = this.selectedEntities.length > 1 ? `${firstEnt.name} (${this.selectedEntities.length})` : firstEnt.name;
-                
+
                 if (type === 'armory') {
                     items = [
                         { type: 'skill-tank', name: '전차 생산', cost: 300, action: 'skill:tank' },
@@ -586,19 +578,19 @@ export class GameEngine {
         } else if (this.isEngineerBuilding) {
             // 공병 건설 메뉴 (공병이 선택된 상태에서 '건설'을 눌렀을 때만 진입)
             header.textContent = '공병 건설';
-            
+
             if (this.currentMenuName === 'industry') {
                 header.textContent = '산업 시설';
                 items = [
                     { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
-                    { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '보급고', cost: 200 }, 
+                    { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '보급고', cost: 200 },
                     null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'military') {
                 header.textContent = '군사 시설';
                 items = [
                     { type: 'armory', name: '병기창', cost: 600 }, { type: 'airport', name: '공항', cost: 500 },
-                    { type: 'barracks', name: '병영', cost: 400 }, { type: 'ammo-factory', name: '탄약 공장', cost: 1000 }, 
+                    { type: 'barracks', name: '병영', cost: 400 }, { type: 'ammo-factory', name: '탄약 공장', cost: 1000 },
                     null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'city') {
@@ -608,11 +600,11 @@ export class GameEngine {
                 ];
             } else {
                 items = [
-                    { type: 'menu:city', name: '도시', action: 'menu:city' }, 
+                    { type: 'menu:city', name: '도시', action: 'menu:city' },
                     { type: 'menu:power', name: '산업', action: 'menu:industry' }, { type: 'menu:military', name: '군사', action: 'menu:military' },
                     { type: 'wall', name: '철조망', cost: 15 }, null,
                     null,
-                    null, 
+                    null,
                     { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
                 // 6번 슬롯에 '취소(명령으로 복귀)' 버튼
@@ -630,7 +622,7 @@ export class GameEngine {
         items.forEach(item => {
             const btn = document.createElement('div');
             btn.className = 'build-btn';
-            
+
             if (!item) {
                 grid.appendChild(btn);
                 return;
@@ -653,7 +645,7 @@ export class GameEngine {
             // Determine which icon key to use
             const iconKey = item.iconKey || item.action || item.type || item.id;
             let iconHtml = this.getIconSVG(iconKey);
-            
+
             // --- Mandatory Icon Check & Fallback to item.icon (Emoji) ---
             if (!iconHtml) {
                 if (item.icon) {
@@ -662,13 +654,13 @@ export class GameEngine {
                     // 아이콘이 없으면 타입 이름으로 다시 시도
                     iconHtml = this.getIconSVG(item.type);
                 }
-                
+
                 if (!iconHtml) {
                     console.warn(`[GameEngine] Icon missing for key: ${iconKey}`);
                     iconHtml = `<div class="btn-icon gray"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#555" stroke="#fff" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#fff" font-size="12">?</text></svg></div>`;
                 }
             }
-            
+
             btn.innerHTML = iconHtml; // Icons only (Mandatory)
 
             btn.onclick = (e) => {
@@ -691,7 +683,7 @@ export class GameEngine {
                 if (cost) {
                     desc += `<div class="stat-row"><span>💰 비용:</span> <span class="highlight">${cost}G</span></div>`;
                 }
-                
+
                 // 건설 시간 표시 추가
                 if (buildInfo && buildInfo.buildTime) {
                     desc += `<div class="stat-row"><span>⏳ 건설 시간:</span> <span class="highlight">${buildInfo.buildTime}s</span></div>`;
@@ -702,8 +694,8 @@ export class GameEngine {
                     desc += `<div class="item-stats-box text-red">건물을 철거하고 자원의 10%를 회수합니다.</div>`;
                 } else if (item.action?.startsWith('unit:')) {
                     const cmd = item.action.split(':')[1];
-                    const hotkeys = { 
-                        move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A', 
+                    const hotkeys = {
+                        move: 'M', stop: 'S', hold: 'H', patrol: 'P', attack: 'A',
                         siege: 'O', manual_fire: 'F', combat_drop: 'D',
                         unload_all: 'U', takeoff_landing: 'T'
                     };
@@ -721,78 +713,78 @@ export class GameEngine {
         });
     }
 
-        handleMenuAction(action, item) {
-            if (action === 'menu:engineer_build') {
-                this.isEngineerBuilding = true;
-                this.currentMenuName = 'main';
-                this.updateBuildMenu();
-            } else if (action === 'menu:unit_cmds') {
-                this.isEngineerBuilding = false;
-                this.updateBuildMenu();
-            } else if (action.startsWith('menu:')) {
-                this.currentMenuName = action.split(':')[1];
-                this.updateBuildMenu();
-            } else if (action === 'toggle:sell') {
-                if (this.isSellMode) this.cancelSellMode();
-                else this.startSellMode();
-            } else if (action.startsWith('skill:')) {
-                const skill = action.split(':')[1];
-                const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
-                
-                if (target && target.isUnderConstruction) return;
-    
-                // 생산형 스킬 처리
-                const productionSkills = ['tank', 'missile', 'shell', 'bullet', 'cargo', 'cargo-plane', 'military-truck', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
-                if (productionSkills.includes(skill)) {
-                    if (target && target.requestUnit) {
-                        const cost = item.cost || 0;
-                        let unitKey = skill;
-                        if (skill === 'missile') unitKey = 'missile-launcher';
-                        if (skill === 'cargo') unitKey = 'cargo-plane';
+    handleMenuAction(action, item) {
+        if (action === 'menu:engineer_build') {
+            this.isEngineerBuilding = true;
+            this.currentMenuName = 'main';
+            this.updateBuildMenu();
+        } else if (action === 'menu:unit_cmds') {
+            this.isEngineerBuilding = false;
+            this.updateBuildMenu();
+        } else if (action.startsWith('menu:')) {
+            this.currentMenuName = action.split(':')[1];
+            this.updateBuildMenu();
+        } else if (action === 'toggle:sell') {
+            if (this.isSellMode) this.cancelSellMode();
+            else this.startSellMode();
+        } else if (action.startsWith('skill:')) {
+            const skill = action.split(':')[1];
+            const target = this.selectedEntities.length > 0 ? this.selectedEntities[0] : this.selectedEntity;
 
-                        const popMap = {
-                            'tank': 3, 'missile-launcher': 3, 'artillery': 4, 'anti-air': 3,
-                            'rifleman': 1, 'sniper': 1, 'engineer': 1,
-                            'scout-plane': 1, 'bomber': 6, 'cargo-plane': 4
-                        };
-                        const unitPopCost = popMap[unitKey] || 0;
+            if (target && target.isUnderConstruction) return;
 
-                        if (this.resources.population + unitPopCost > this.resources.maxPopulation) {
-                            if (this.addEffect) {
-                                // 화면 중앙에 가깝게 메시지 표시 (인자 순서: type, x, y, color, text)
-                                this.addEffect('system', target.x, target.y - 60, '#ff3131', '보급품 부족 (건물을 더 건설하십시오)');
-                            }
-                            console.warn("Population limit reached!");
-                            return;
+            // 생산형 스킬 처리
+            const productionSkills = ['tank', 'missile', 'shell', 'bullet', 'cargo', 'cargo-plane', 'military-truck', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
+            if (productionSkills.includes(skill)) {
+                if (target && target.requestUnit) {
+                    const cost = item.cost || 0;
+                    let unitKey = skill;
+                    if (skill === 'missile') unitKey = 'missile-launcher';
+                    if (skill === 'cargo') unitKey = 'cargo-plane';
+
+                    const popMap = {
+                        'tank': 3, 'missile-launcher': 3, 'artillery': 4, 'anti-air': 3,
+                        'rifleman': 1, 'sniper': 1, 'engineer': 1,
+                        'scout-plane': 1, 'bomber': 6, 'cargo-plane': 4
+                    };
+                    const unitPopCost = popMap[unitKey] || 0;
+
+                    if (this.resources.population + unitPopCost > this.resources.maxPopulation) {
+                        if (this.addEffect) {
+                            // 화면 중앙에 가깝게 메시지 표시 (인자 순서: type, x, y, color, text)
+                            this.addEffect('system', target.x, target.y - 60, '#ff3131', '보급품 부족 (건물을 더 건설하십시오)');
                         }
+                        console.warn("Population limit reached!");
+                        return;
+                    }
 
-                        if (this.resources.gold >= cost) {
-                            if (target.requestUnit(unitKey)) {
-                                this.resources.gold -= cost;
-                                this.updatePopulation(); // 즉시 갱신
-                                this.updateBuildMenu();
-                            }
+                    if (this.resources.gold >= cost) {
+                        if (target.requestUnit(unitKey)) {
+                            this.resources.gold -= cost;
+                            this.updatePopulation(); // 즉시 갱신
+                            this.updateBuildMenu();
                         }
                     }
-                } else {
-                    this.startSkillMode(skill);
                 }
-            } else if (action.startsWith('unit:')) {
-                const cmd = action.split(':')[1];
-                
-                // [정리] 스킬 유형별 분기 처리
-                const skillType = item.skillType || 'state'; // 기본값은 상태 변환
-    
-                if (skillType === 'targeted') {
-                    // 1. 목표 지정형: 타겟팅 모드 진입
-                    this.unitCommandMode = cmd;
-                    this.updateCursor();
-                } else {
-                    // 2. 토글형 또는 상태 변환형: 즉시 실행
-                    this.executeUnitCommand(cmd);
-                }
+            } else {
+                this.startSkillMode(skill);
+            }
+        } else if (action.startsWith('unit:')) {
+            const cmd = action.split(':')[1];
+
+            // [정리] 스킬 유형별 분기 처리
+            const skillType = item.skillType || 'state'; // 기본값은 상태 변환
+
+            if (skillType === 'targeted') {
+                // 1. 목표 지정형: 타겟팅 모드 진입
+                this.unitCommandMode = cmd;
+                this.updateCursor();
+            } else {
+                // 2. 토글형 또는 상태 변환형: 즉시 실행
+                this.executeUnitCommand(cmd);
             }
         }
+    }
     initInput() {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
@@ -832,7 +824,7 @@ export class GameEngine {
                 const key = e.key.toLowerCase();
                 if (key === 'm') { this.unitCommandMode = 'move'; this.updateCursor(); }
                 else if (key === 's') this.executeUnitCommand('stop');
-                else if (key === 'o') this.executeUnitCommand('siege'); 
+                else if (key === 'o') this.executeUnitCommand('siege');
                 else if (key === 'f') { this.unitCommandMode = 'manual_fire'; this.updateCursor(); }
                 else if (key === 'h') this.executeUnitCommand('hold');
                 else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
@@ -843,7 +835,7 @@ export class GameEngine {
                 else if (key === 'b') {
                     const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
                     const hasBomber = this.selectedEntities.some(ent => ent.type === 'bomber');
-                    
+
                     if (hasBomber) {
                         this.executeUnitCommand('bombing');
                     } else if (hasEngineer) {
@@ -899,7 +891,7 @@ export class GameEngine {
                     // 모든 유닛 및 건물 중에서 타겟 찾기
                     const potentialTargets = [
                         ...this.entities.units,
-                        ...this.entities.enemies, 
+                        ...this.entities.enemies,
                         ...this.entities.neutral,
                         ...this.getAllBuildings()
                     ];
@@ -911,7 +903,7 @@ export class GameEngine {
                         };
                         return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
                     });
-                    
+
                     // [수정] 어택 명령('A') 시에는 관계에 상관없이 (자신 제외) 타겟으로 지정 가능하도록 허용
                     let canTarget = false;
                     if (clickedTarget) {
@@ -924,7 +916,7 @@ export class GameEngine {
                             if (relation !== 'self' && relation !== 'ally') canTarget = true;
                         }
                     }
-                    
+
                     const finalTarget = canTarget ? clickedTarget : null;
                     this.executeUnitCommand(this.unitCommandMode, worldX, worldY, finalTarget);
                 } else if (this.isSellMode) {
@@ -959,7 +951,7 @@ export class GameEngine {
                     // 1. 클릭 대상 확인 (강제 공격/탑승/수리 타겟팅용)
                     const potentialTargets = [
                         ...this.entities.units,
-                        ...this.entities.enemies, 
+                        ...this.entities.enemies,
                         ...this.entities.neutral,
                         ...this.getAllBuildings()
                     ];
@@ -983,7 +975,7 @@ export class GameEngine {
                     if (clickedTarget && (clickedTarget.type === 'cargo-plane' || clickedTarget.type === 'military-truck') && clickedTarget.ownerId === 1) {
                         // 공중 수송기는 착륙 상태여야 함
                         const canBoard = clickedTarget.type === 'military-truck' || (clickedTarget.altitude < 0.1);
-                        
+
                         if (canBoard) {
                             this.selectedEntities.forEach(u => {
                                 if (u.domain === 'ground' && u !== clickedTarget) {
@@ -1045,12 +1037,12 @@ export class GameEngine {
 
                 const hovered = potentialEntities.find(ent => {
                     if (!ent || (ent.active === false && ent.hp !== 99999999 && !ent.type?.includes('resource') && ent.covered !== true)) return false;
-                    
+
                     // 선택 범위 계산
                     const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                         left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                     };
-                    
+
                     return worldX >= b.left && worldX <= b.right && worldY >= b.top && worldY <= b.bottom;
                 });
 
@@ -1131,7 +1123,7 @@ export class GameEngine {
         } else if (this.unitCommandMode === 'patrol') {
             this.canvas.classList.add('cmd-patrol-cursor');
         }
-        
+
         // 인라인 스타일 초기화 (CSS 클래스가 우선하도록)
         this.canvas.style.cursor = '';
     }
@@ -1146,7 +1138,7 @@ export class GameEngine {
             // 명령 변경 시 기존 수동 타겟, 예약 건설, 수송기 탑승 타겟 취소
             unit.manualTarget = (cmd === 'attack') ? targetObject : null;
             unit.transportTarget = null; // 탑승 명령 취소
-            
+
             if (unit.type === 'engineer' && unit.clearBuildQueue) {
                 unit.clearBuildQueue();
             }
@@ -1164,7 +1156,7 @@ export class GameEngine {
                 }
                 return; // 스킬을 처리했으면 일반 명령 로직 건너뜀
             }
-            
+
             let finalCmd = cmd;
             // 공격 불가능한 유닛(또는 상태)인 경우 '어택 땅'을 '이동'으로 전환
             if (cmd === 'attack') {
@@ -1205,7 +1197,7 @@ export class GameEngine {
         // 선택 가능한 엔티티들 수집 (자동화)
         const potentialEntities = [
             ...this.entities.units,
-            ...this.entities.enemies, 
+            ...this.entities.enemies,
             ...this.entities.neutral,
             ...this.getAllBuildings()
         ];
@@ -1224,7 +1216,7 @@ export class GameEngine {
         if (found) {
             // 적 유닛인 경우 단일 선택만 허용
             const isEnemy = this.entities.enemies.includes(found);
-            
+
             if (isEnemy) {
                 this.selectedEntities = [found];
                 this.selectedEntity = found;
@@ -1246,7 +1238,7 @@ export class GameEngine {
             this.selectedEntities = [];
             this.selectedEntity = null;
         }
-        
+
         this.updateBuildMenu();
         this.updateCursor();
     }
@@ -1275,10 +1267,10 @@ export class GameEngine {
         potentialEntities.forEach(ent => {
             if (!ent || (!ent.active && ent !== this.entities.base && !ent.isBoarded)) return;
             if (ent.isBoarded) return; // 탑승 중인 유닛은 선택 불가
-            
+
             const bounds = ent.getSelectionBounds();
             const overlaps = !(bounds.right < left || bounds.left > right || bounds.bottom < top || bounds.top > bottom);
-            
+
             if (overlaps) {
                 // PlayerUnit 클래스를 상속받은 모든 객체(전차, 공병 등)를 유닛으로 판정
                 if (ent instanceof this.entityClasses.PlayerUnit || ent.speed !== undefined && ent.hp !== 99999999 && !ent.type?.includes('turret')) {
@@ -1301,7 +1293,7 @@ export class GameEngine {
             this.selectedEntity = this.selectedEntities[0];
             if (this.selectedEntity.type === 'airport') this.selectedAirport = this.selectedEntity;
         }
-        
+
         this.updateCursor();
         this.updateBuildMenu();
     }
@@ -1438,7 +1430,7 @@ export class GameEngine {
         // [추가] 자원 건물 건설 시 스냅 로직
         if (buildInfo.onResource) {
             // 마우스 위치 주변의 자원 엔티티 검색
-            const nearestResource = this.entities.resources.find(r => 
+            const nearestResource = this.entities.resources.find(r =>
                 Math.abs(r.x - worldX) < 60 && Math.abs(r.y - worldY) < 60 && r.type === buildInfo.onResource
             );
 
@@ -1447,7 +1439,7 @@ export class GameEngine {
                 // 자원 중심이 (x+1, y+1)*40 이므로, 40으로 나누고 1을 빼면 정확한 좌상단 타일 인덱스가 나옵니다.
                 gridX = Math.round(nearestResource.x / this.tileMap.tileSize) - 1;
                 gridY = Math.round(nearestResource.y / this.tileMap.tileSize) - 1;
-                
+
                 // 타일 정보 동기화
                 const snappedTile = this.tileMap.grid[gridY]?.[gridX];
                 if (!snappedTile) return false;
@@ -1477,7 +1469,7 @@ export class GameEngine {
                     canPlace = false; break;
                 }
                 const tile = this.tileMap.grid[ny][nx];
-                
+
                 // 기본 검증: 지을 수 있는 땅인지, 안개가 걷혔는지
                 if (!tile.buildable || !tile.visible) {
                     canPlace = false; break;
@@ -1487,7 +1479,7 @@ export class GameEngine {
                 if (tile.occupied) {
                     const isResourceBuilding = !!buildInfo.onResource;
                     const isResourceTile = (tile.type === 'resource');
-                    
+
                     if (!(isResourceBuilding && isResourceTile)) {
                         canPlace = false; break;
                     }
@@ -1499,28 +1491,28 @@ export class GameEngine {
         if (canPlace) {
             // 선택된 모든 공병 수집
             const engineers = this.selectedEntities.filter(u => u.type === 'engineer');
-            
+
             if (engineers.length > 0) {
                 // 월드 좌표 계산 (2x2 건물의 중심점 좌표로 통일)
                 const centerX = (gridX + tw / 2) * this.tileMap.tileSize;
                 const centerY = (gridY + th / 2) * this.tileMap.tileSize;
-                
+
                 // 1. 현재 세션 큐가 없으면 생성
                 if (!this.currentBuildSessionQueue) {
                     this.currentBuildSessionQueue = [];
                 }
 
                 // 2. 새로운 작업 생성
-                const newTask = { 
-                    type: this.selectedBuildType, 
-                    x: centerX, 
+                const newTask = {
+                    type: this.selectedBuildType,
+                    x: centerX,
                     y: centerY,
                     gridX: gridX,
                     gridY: gridY,
-                    assignedEngineer: null 
+                    assignedEngineer: null
                 };
                 this.currentBuildSessionQueue.push(newTask);
-                
+
                 // 3. 모든 선택된 공병에게 이 큐를 할당
                 engineers.forEach(eng => {
                     if (eng.myGroupQueue !== this.currentBuildSessionQueue) {
@@ -1529,7 +1521,7 @@ export class GameEngine {
                         eng.command = 'build';
                     }
                 });
-                
+
                 // 자원 차감 및 타일 점유 (양수 방향 루프)
                 this.resources.gold -= cost;
                 for (let dy = 0; dy < th; dy++) {
@@ -1593,7 +1585,7 @@ export class GameEngine {
 
             // 자원 채취 건물인 경우 실제 자원 오브젝트 숨김 처리 (삭제 대신)
             if (buildInfo.onResource) {
-                const resource = this.entities.resources.find(r => 
+                const resource = this.entities.resources.find(r =>
                     Math.abs(r.x - worldPos.x) < 20 && Math.abs(r.y - worldPos.y) < 20
                 );
                 if (resource) {
@@ -1615,27 +1607,27 @@ export class GameEngine {
         let foundEntity = allBuildings.find(e => {
             if (!e || e.type === 'base') return false; // 기지는 판매 불가
             const bounds = e.getSelectionBounds();
-            return worldX >= bounds.left && worldX <= bounds.right && 
-                   worldY >= bounds.top && worldY <= bounds.bottom;
+            return worldX >= bounds.left && worldX <= bounds.right &&
+                worldY >= bounds.top && worldY <= bounds.bottom;
         });
 
         if (foundEntity) {
             // 인벤토리나 리스트에서 제거하기 위해 소속 리스트 찾기
             const buildInfo = this.buildingRegistry[foundEntity.type];
             const listName = buildInfo ? buildInfo.list : null;
-            
+
             if (listName && this.entities[listName]) {
                 const foundIdx = this.entities[listName].indexOf(foundEntity);
                 if (foundIdx !== -1) {
                     const cost = buildInfo ? buildInfo.cost : 0;
                     this.resources.gold += Math.floor(cost * 0.1);
-                    
+
                     // 전용 헬퍼 함수를 사용하여 점유된 타일 해제
                     this.clearBuildingTiles(foundEntity);
 
                     // 리스트에서 제거
                     this.entities[listName].splice(foundIdx, 1);
-                    
+
                     // 판매 후 인구수 즉시 갱신
                     this.updatePopulation();
                 }
@@ -1651,7 +1643,7 @@ export class GameEngine {
         if (isEnemy) title = `[적] ${title}`;
 
         let desc = '<div class="item-stats-box">';
-        
+
         // 자원 엔티티 전용 표시
         if (hovered instanceof Resource || (hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
             desc += `<div class="stat-row"><span>💎 종류:</span> <span class="highlight">${hovered.name}</span></div>
@@ -1659,7 +1651,7 @@ export class GameEngine {
         } else {
             // 일반 유닛/건물 표시
             desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
-            
+
             // 채굴 건물의 경우 남은 광물 표시
             if (['refinery', 'gold-mine', 'iron-mine'].includes(hovered.type) && hovered.fuel !== undefined) {
                 const fuelName = '남은 광물';
@@ -1700,7 +1692,7 @@ export class GameEngine {
                 desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
             }
         }
-        
+
         desc += `</div>`;
         this.showUITooltip(title, desc, x, y);
     }
@@ -1757,7 +1749,7 @@ export class GameEngine {
                     const tileCenterY = (ny + 0.5) * this.tileMap.tileSize;
 
                     // 해당 타일이 어느 자원의 영역에 포함되는지 확인 (2x2 자원 크기 80px 고려)
-                    const resource = this.entities.resources.find(r => 
+                    const resource = this.entities.resources.find(r =>
                         Math.abs(r.x - tileCenterX) < 30 && Math.abs(r.y - tileCenterY) < 30
                     );
 
@@ -1791,10 +1783,10 @@ export class GameEngine {
             const initialLen = list.length;
             const filtered = list.filter(obj => {
                 const oldFuel = obj.fuel;
-                
+
                 // 탑승 중인 유닛은 업데이트 함수 호출 스킵 (하지만 리스트에는 유지)
                 if (updateFn && !obj.isBoarded) updateFn(obj);
-                
+
                 // HP가 0 이하이거나 완전히 비활성화된 경우 리스트에서 제거
                 // isBoarded인 상태는 리스트에서 제거하지 않음 (인구수 계산용)
                 if (obj.hp <= 0 || (obj.active === false && !obj.isBoarded)) {
@@ -1803,7 +1795,7 @@ export class GameEngine {
                 }
                 return true;
             });
-            
+
             // 리스트의 길이가 변했다면(건물이 파괴되었다면) 인구수 즉시 갱신
             if (filtered.length !== initialLen) {
                 this.updatePopulation();
@@ -1873,14 +1865,14 @@ export class GameEngine {
         // --- 2.1 기초 기반시설 (Ground Layer) ---
         if (this.entities.base) this.entities.base.draw(this.ctx);
         this.entities.resources.forEach(r => r.draw(this.ctx));
-        
+
         // --- 2.2 건물 (Building Layer) ---
         // 기지 및 유틸리티 라인을 제외한 모든 건물 일괄 렌더링
         allBuildings.forEach(b => {
             if (b === this.entities.base) return;
             b.draw(this.ctx);
         });
-        
+
         // --- 2.3 유닛 레이어 분리 (Ground vs Air) ---
         const groundUnits = this.entities.units.filter(u => u.domain !== 'air');
         const airUnits = this.entities.units.filter(u => u.domain === 'air');
@@ -1893,7 +1885,7 @@ export class GameEngine {
         groundUnits.forEach(u => {
             if (!u.isBoarded) u.draw(this.ctx);
         });
-        
+
         // 지상 적 유닛 (시야 내)
         groundEnemies.forEach(e => {
             if (e.isBoarded) return;
@@ -1920,7 +1912,7 @@ export class GameEngine {
                 this.ctx.save();
                 this.ctx.translate(u.x, u.y);
                 const progress = u.fallTimer / u.fallDuration;
-                const scale = 1.5 - (progress * 0.5); 
+                const scale = 1.5 - (progress * 0.5);
                 this.ctx.scale(scale, scale);
                 const swing = Math.sin(Date.now() / 200) * 0.1;
                 this.ctx.rotate(swing);
@@ -1928,7 +1920,7 @@ export class GameEngine {
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
                 this.ctx.lineWidth = 1.5;
                 this.ctx.beginPath();
-                this.ctx.moveTo(-12, -25); this.ctx.lineTo(0, -5); 
+                this.ctx.moveTo(-12, -25); this.ctx.lineTo(0, -5);
                 this.ctx.moveTo(12, -25); this.ctx.lineTo(0, -5);
                 this.ctx.stroke();
 
@@ -1937,18 +1929,18 @@ export class GameEngine {
                 grd.addColorStop(1, '#bdc3c7');
                 this.ctx.fillStyle = grd;
                 this.ctx.beginPath();
-                this.ctx.arc(0, -25, 22, Math.PI, 0); 
+                this.ctx.arc(0, -25, 22, Math.PI, 0);
                 this.ctx.bezierCurveTo(15, -20, 5, -20, 0, -25);
                 this.ctx.bezierCurveTo(-5, -20, -15, -20, -22, -25);
                 this.ctx.fill();
-                
+
                 this.ctx.strokeStyle = '#95a5a6';
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
                 this.ctx.restore();
             }
         });
-        
+
         // 공중 적 유닛 (시야 내)
         airEnemies.forEach(e => {
             if (e.isBoarded) return;
@@ -2030,7 +2022,7 @@ export class GameEngine {
         const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
 
         // 6. Draw Active Previews and Highlights on TOP of everything
-        
+
         // 6.1 Selected Object Highlight
         if (this.selectedEntities.length > 0) {
 
@@ -2039,13 +2031,13 @@ export class GameEngine {
             this.selectedEntities.forEach(ent => {
                 // 관계에 따른 하이라이트 색상 결정
                 const relation = this.getRelation(1, ent.ownerId);
-                
+
                 if (relation === 'self') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 자신: 초록
                 else if (relation === 'enemy') this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // 적군: 빨강
                 else if (relation === 'neutral') this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노랑
                 else if (relation === 'ally') this.ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // 아군: 파랑
                 else this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 기타: 흰색
-                
+
                 const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                     left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                 };
@@ -2056,9 +2048,9 @@ export class GameEngine {
                 // 공격 사거리 표시 (내 유닛 또는 아군 유닛인 경우)
                 if ((relation === 'self' || relation === 'ally') && ent.attackRange) {
                     this.ctx.save();
-                    
+
                     let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색
-                    
+
                     // 수동 조준 모드일 때 사거리 피드백 추가
                     if (this.unitCommandMode === 'manual_fire' && ent.type === 'missile-launcher') {
                         const dist = Math.hypot(mouseWorldX - ent.x, mouseWorldY - ent.y);
@@ -2089,7 +2081,7 @@ export class GameEngine {
                 if (ent.destination) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(ent.x, ent.y);
-                    
+
                     // A* 경로가 있으면 경로를 따라 그리기
                     if (ent.path && ent.path.length > 0) {
                         for (const p of ent.path) {
@@ -2132,7 +2124,7 @@ export class GameEngine {
 
                 // 미사일 발사대 수동 조준/발사 준비 지점 (플레이어 조작이므로 포함)
                 if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
-                    const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => 
+                    const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent =>
                         (ent.active !== false && ent.alive !== false) && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
                     );
                     if (fireTarget) targetsToHighlight.add(fireTarget);
@@ -2144,7 +2136,7 @@ export class GameEngine {
                 const hoverTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
                     if (ent.active === false || ent.alive === false) return false;
                     const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
-                        left: ent.x-20, right: ent.x+20, top: ent.y-20, bottom: ent.y+20
+                        left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                     };
                     return mouseWorldX >= b.left && mouseWorldX <= b.right && mouseWorldY >= b.top && mouseWorldY <= b.bottom;
                 });
@@ -2166,9 +2158,9 @@ export class GameEngine {
                 this.ctx.lineWidth = 3;
                 const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
                 this.ctx.globalAlpha = 0.5 + pulse * 0.5; // 불투명도 상향
-                
+
                 this.ctx.strokeRect(tX, tY, tW, tH);
-                
+
                 const len = 12;
                 this.ctx.beginPath();
                 this.ctx.moveTo(tX, tY + len); this.ctx.lineTo(tX, tY); this.ctx.lineTo(tX + len, tY);
@@ -2176,7 +2168,7 @@ export class GameEngine {
                 this.ctx.moveTo(tX, tY + tH - len); this.ctx.lineTo(tX, tY + tH); this.ctx.lineTo(tX + len, tY + tH);
                 this.ctx.moveTo(tX + tW - len, tY + tH); this.ctx.lineTo(tX + tW, tY + tH); this.ctx.lineTo(tX + tW, tY + tH - len);
                 this.ctx.stroke();
-                
+
                 this.ctx.fillStyle = '#ff3131';
                 this.ctx.font = 'bold 12px Arial';
                 this.ctx.textAlign = 'center';
@@ -2191,13 +2183,13 @@ export class GameEngine {
             this.ctx.lineWidth = 2;
             this.ctx.shadowBlur = 5;
             this.ctx.shadowColor = 'rgba(0, 255, 204, 0.5)';
-            
+
             const bounds = this.selectedEntity.getSelectionBounds();
             const w = bounds.right - bounds.left;
             const h = bounds.bottom - bounds.top;
-            
+
             this.ctx.strokeRect(bounds.left, bounds.top, w, h);
-            
+
             // 유닛(전차, 미사일) 선택 시 공격 사거리(Attack Range) 표시
             if (this.selectedEntity.attackRange) {
                 this.ctx.save();
@@ -2208,7 +2200,7 @@ export class GameEngine {
                 this.ctx.stroke();
                 this.ctx.restore();
             }
-            
+
             if (this.selectedEntity.type && this.selectedEntity.type.startsWith('turret')) {
                 // 포탑은 사거리 원을 아주 연하게 추가 표시
                 this.ctx.setLineDash([5, 10]);
@@ -2222,14 +2214,14 @@ export class GameEngine {
         if (this.isBuildMode && this.selectedBuildType) {
             let tileInfo = this.tileMap.getTileAt(mouseWorldX, mouseWorldY);
             const buildInfo = this.buildingRegistry[this.selectedBuildType];
-            
+
             if (tileInfo && buildInfo) {
                 let gx = tileInfo.x;
                 let gy = tileInfo.y;
 
                 // [추가] 고스트 미리보기 스냅 로직
                 if (buildInfo.onResource) {
-                    const nearest = this.entities.resources.find(r => 
+                    const nearest = this.entities.resources.find(r =>
                         Math.abs(r.x - mouseWorldX) < 60 && Math.abs(r.y - mouseWorldY) < 60 && r.type === buildInfo.onResource
                     );
                     if (nearest) {
@@ -2290,7 +2282,7 @@ export class GameEngine {
         }
 
         this.ctx.restore();
-        
+
         // 5. 건설 예약 청사진 (Ghost Previews for Build Queue)
         this.renderBuildQueue(allBuildings);
 
@@ -2308,58 +2300,58 @@ export class GameEngine {
         }
     }
 
-        renderBuildQueue(allBuildings) {
-            // 모든 공병을 순회하며 유니크한 그룹 큐들을 수집
-            const uniqueQueues = new Set();
-            this.entities.units.forEach(u => {
-                if (u.type === 'engineer' && u.myGroupQueue) {
-                    uniqueQueues.add(u.myGroupQueue);
+    renderBuildQueue(allBuildings) {
+        // 모든 공병을 순회하며 유니크한 그룹 큐들을 수집
+        const uniqueQueues = new Set();
+        this.entities.units.forEach(u => {
+            if (u.type === 'engineer' && u.myGroupQueue) {
+                uniqueQueues.add(u.myGroupQueue);
+            }
+        });
+
+        if (uniqueQueues.size === 0) return;
+
+        this.ctx.save();
+        this.ctx.translate(this.camera.x, this.camera.y);
+        this.ctx.scale(this.camera.zoom, this.camera.zoom);
+
+        uniqueQueues.forEach(queue => {
+            queue.forEach((task, index) => {
+                const buildInfo = this.buildingRegistry[task.type];
+                if (!buildInfo) return;
+
+                // 1. 청사진 건물 그리기
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.3;
+
+                const size = buildInfo.size;
+                const stw = size[0], sth = size[1];
+                let worldPos;
+                const gx = task.gridX, gy = task.gridY;
+
+                if (stw > 1 || sth > 1) {
+                    worldPos = {
+                        x: (gx + stw / 2) * this.tileMap.tileSize,
+                        y: (gy + sth / 2) * this.tileMap.tileSize
+                    };
+                } else {
+                    worldPos = this.tileMap.gridToWorld(gx, gy);
                 }
-            });
-    
-            if (uniqueQueues.size === 0) return;
-    
-            this.ctx.save();
-            this.ctx.translate(this.camera.x, this.camera.y);
-            this.ctx.scale(this.camera.zoom, this.camera.zoom);
-    
-            uniqueQueues.forEach(queue => {
-                queue.forEach((task, index) => {
-                    const buildInfo = this.buildingRegistry[task.type];
-                    if (!buildInfo) return;
-    
-                    // 1. 청사진 건물 그리기
-                    this.ctx.save();
-                    this.ctx.globalAlpha = 0.3;
-    
-                    const size = buildInfo.size;
-                    const stw = size[0], sth = size[1];
-                    let worldPos;
-                    const gx = task.gridX, gy = task.gridY;
-    
-                    if (stw > 1 || sth > 1) {
-                        worldPos = {
-                            x: (gx + stw / 2) * this.tileMap.tileSize,
-                            y: (gy + sth / 2) * this.tileMap.tileSize
-                        };
+
+                const ClassRef = this.entityClasses[buildInfo.className];
+                if (ClassRef) {
+                    let ghost;
+                    if (buildInfo.className === 'Turret') {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, task.type);
                     } else {
-                        worldPos = this.tileMap.gridToWorld(gx, gy);
+                        ghost = new ClassRef(worldPos.x, worldPos.y, this);
                     }
-    
-                    const ClassRef = this.entityClasses[buildInfo.className];
-                    if (ClassRef) {
-                        let ghost;
-                        if (buildInfo.className === 'Turret') {
-                            ghost = new ClassRef(worldPos.x, worldPos.y, task.type);
-                        } else {
-                            ghost = new ClassRef(worldPos.x, worldPos.y, this);
-                        }
-                        
-                        if (ghost.draw) {
-                            ghost.draw(this.ctx);
-                        }
+
+                    if (ghost.draw) {
+                        ghost.draw(this.ctx);
                     }
-                    this.ctx.restore();
+                }
+                this.ctx.restore();
                 // 2. 예약 정보 표시
                 this.ctx.fillStyle = task.assignedEngineer ? '#39ff14' : '#00ffcc';
                 this.ctx.font = 'bold 12px Arial';
@@ -2376,7 +2368,7 @@ export class GameEngine {
 
         const worldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
         const worldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
-        
+
         let title = '';
         let desc = '';
 
@@ -2496,7 +2488,7 @@ export class GameEngine {
         // 15. Check Units
         const hoveredUnit = this.entities.units.find(u => Math.hypot(u.x - worldX, u.y - worldY) < 15);
         const activeUnit = hoveredUnit || (this.selectedEntity && this.entities.units.includes(this.selectedEntity) ? this.selectedEntity : null);
-        
+
         if (activeUnit) {
             title = activeUnit.name || '유닛';
             let amountInfo = '';
@@ -2532,7 +2524,7 @@ export class GameEngine {
         mCtx.save();
         mCtx.translate(offsetX, offsetY);
         mCtx.scale(scale, scale);
-        
+
         // 1. 전체 배경을 아주 어두운 색(안개)으로 채움
         mCtx.fillStyle = '#0a0a0a';
         mCtx.fillRect(0, 0, mapWorldWidth, mapWorldHeight);
@@ -2586,7 +2578,7 @@ export class GameEngine {
 
             mCtx.fillStyle = color;
             const size = 40;
-            mCtx.fillRect(b.x - size/2, b.y - size/2, size, size);
+            mCtx.fillRect(b.x - size / 2, b.y - size / 2, size, size);
         });
 
         this.entities.units.forEach(u => {
@@ -2615,10 +2607,10 @@ export class GameEngine {
             }
         });
 
-        this.entities.resources.forEach(r => { 
+        this.entities.resources.forEach(r => {
             if (isVisible(r.x, r.y)) {
-                mCtx.fillStyle = r.color; 
-                mCtx.fillRect(r.x - 15, r.y - 15, 30, 30); 
+                mCtx.fillStyle = r.color;
+                mCtx.fillRect(r.x - 15, r.y - 15, 30, 30);
             }
         });
 
@@ -2629,7 +2621,7 @@ export class GameEngine {
         const viewH = this.canvas.height / this.camera.zoom;
 
         mCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-        mCtx.lineWidth = 15; 
+        mCtx.lineWidth = 15;
         mCtx.strokeRect(viewX, viewY, viewW, viewH);
 
         mCtx.restore();
@@ -2758,14 +2750,14 @@ export class GameEngine {
         if (mouseY < edgeThreshold) { this.camera.y += edgeScrollSpeed; direction = 'n' + direction; }
         else if (mouseY > height - edgeThreshold) { this.camera.y -= edgeScrollSpeed; direction = 's' + direction; }
         const scClasses = ['sc-n', 'sc-s', 'sc-e', 'sc-w', 'sc-ne', 'sc-nw', 'sc-se', 'sc-sw'];
-        
+
         const oldDirection = scClasses.find(cls => document.body.classList.contains(cls));
         document.body.classList.remove(...scClasses);
-        
-        if (direction && !this.isBuildMode) { 
-            document.body.classList.add(`sc-${direction}`); 
+
+        if (direction && !this.isBuildMode) {
+            document.body.classList.add(`sc-${direction}`);
         }
-        
+
         // If direction changed or stopped, update mode cursors
         if (direction !== (oldDirection ? oldDirection.replace('sc-', '') : '')) {
             this.updateCursor();
