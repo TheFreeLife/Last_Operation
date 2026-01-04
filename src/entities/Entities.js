@@ -12,16 +12,16 @@ export class Entity {
         this.popProvide = 0; // 인구수 제공 (건물용)
         this.passable = false; // 통과 가능 여부 (기본값: 불가능)
         this.isBoarded = false; // 수송기 탑승 여부
-        
+
         // 소유권 속성 추가
         this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
-        
+
         // 건설 관련 속성
         this.isUnderConstruction = false;
         this.buildProgress = 0; // 0 to 1
         this.totalBuildTime = 0;
         this.targetResource = null; // 건설 중인 자원 객체 보관용
-        
+
         // 피격 효과 관련
         this.hitTimer = 0;
     }
@@ -31,7 +31,7 @@ export class Entity {
         if (this.hp === undefined || !this.active) return;
         this.hp -= amount;
         this.hitTimer = 150; // 150ms 동안 피격 상태 유지 (깜빡임 효과용)
-        
+
         if (this.hp <= 0) {
             this.active = false;
             if (this.alive !== undefined) this.alive = false;
@@ -41,7 +41,7 @@ export class Entity {
     // 대상이 이 주체(Entity/Projectile)로부터 피해를 입을 수 있는지 확인
     canDamage(target, engine) {
         if (!target || !target.active || target.hp === undefined) return false;
-        
+
         // 1. 도메인 확인 (공중/지상 등)
         if (!this.attackTargets.includes(target.domain)) return false;
 
@@ -50,7 +50,7 @@ export class Entity {
             const relation = engine.getRelation(this.ownerId, target.ownerId);
             // 강제 공격 대상(manualTarget)인 경우 관계에 상관없이 공격 허용
             if (this.manualTarget === target) return true;
-            
+
             if (relation === 'self' || relation === 'ally') return false; // 자신 및 아군은 공격 불가
             if (relation === 'neutral') return false; // 중립은 명시적 명령 전까지 공격 불가
         }
@@ -60,23 +60,23 @@ export class Entity {
 
     drawConstruction(ctx) {
         if (!this.isUnderConstruction) return;
-        
+
         const w = this.width || this.size || 40;
         const h = this.height || this.size || 40;
-        
+
         // 1. 건설 부지 가이드 (점선)
         ctx.save();
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.setLineDash([5, 5]);
-        ctx.strokeRect(this.x - w/2, this.y - h/2, w, h);
-        
+        ctx.strokeRect(this.x - w / 2, this.y - h / 2, w, h);
+
         // 2. 진행 바
         const barW = w * 0.8;
         const barH = 6;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(this.x - barW/2, this.y + h/2 + 5, barW, barH);
+        ctx.fillRect(this.x - barW / 2, this.y + h / 2 + 5, barW, barH);
         ctx.fillStyle = '#f1c40f'; // 건설은 노란색
-        ctx.fillRect(this.x - barW/2, this.y + h/2 + 5, barW * this.buildProgress, barH);
+        ctx.fillRect(this.x - barW / 2, this.y + h / 2 + 5, barW * this.buildProgress, barH);
         ctx.restore();
     }
 
@@ -107,7 +107,7 @@ export class PlayerUnit extends Entity {
     constructor(x, y, engine) {
         super(x, y);
         this.engine = engine;
-        this.attackRange = 250; 
+        this.attackRange = 250;
         this.visionRange = 5; // Default vision range in tiles
         this.angle = Math.random() * Math.PI * 2;
         this.speed = 1;
@@ -118,7 +118,7 @@ export class PlayerUnit extends Entity {
         this.alive = true;
         this.size = 40; // 20 -> 40
         this.damage = 0; // 하위 클래스에서 정의
-        this._destination = null; 
+        this._destination = null;
         this.path = []; // A* 경로 저장용
         this.pathRecalculateTimer = 0;
         this.command = 'stop'; // 'move', 'attack', 'patrol', 'stop', 'hold'
@@ -129,17 +129,20 @@ export class PlayerUnit extends Entity {
         this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
         this.isInitialExit = false; // 생산 후 건물 밖으로 나가는 중인지 여부
         this.popCost = 0; // 초기화 로직 보강 시 필요
-        
+
         // --- 탄약 시스템 속성 ---
         this.ammoType = null; // 'bullet', 'shell', 'missile'
         this.maxAmmo = 0;
         this.ammo = 0;
         this.ammoConsumption = 1; // 기본 발당 소모량
-        
+
         // 공격 특성 설정
         this.attackType = 'hitscan'; // 'hitscan' (즉시 타격) 또는 'projectile' (탄환 발사)
         this.explosionRadius = 0;    // 0보다 크면 범위 공격 적용
         this.hitEffectType = 'bullet'; // 기본 피격 효과
+
+        // [최적화] 타겟팅 연산 부하 분산을 위한 타이머
+        this.targetingTimer = Math.random() * 500;
     }
 
     get destination() { return this._destination; }
@@ -149,7 +152,7 @@ export class PlayerUnit extends Entity {
         if (value && this.transportTarget) {
             this.transportTarget = null;
         }
-        
+
         if (value) {
             if (this.domain === 'air') {
                 // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
@@ -157,7 +160,7 @@ export class PlayerUnit extends Entity {
             } else {
                 // 지상 유닛은 기존대로 A* 경로 탐색 수행 (중앙 집중형 크기 로직 사용)
                 this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.canBypassObstacles, this.pathfindingSize) || [];
-                
+
                 while (this.path.length > 0) {
                     const first = this.path[0];
                     if (Math.hypot(first.x - this.x, first.y - this.y) < 20) {
@@ -167,8 +170,8 @@ export class PlayerUnit extends Entity {
                     }
                 }
             }
-            
-            this.pathRecalculateTimer = 1000; 
+
+            this.pathRecalculateTimer = 1000;
         } else {
             this.path = [];
         }
@@ -202,100 +205,100 @@ export class PlayerUnit extends Entity {
         this.lastFireTime = now;
     }
 
-        executeHitscanAttack() {
+    executeHitscanAttack() {
 
-            const tx = this.target.x;
+        const tx = this.target.x;
 
-            const ty = this.target.y;
+        const ty = this.target.y;
 
-    
 
-            if (this.explosionRadius > 0) {
 
-                // 범위 공격 (전차 등)
+        if (this.explosionRadius > 0) {
 
-                const radiusSq = this.explosionRadius * this.explosionRadius;
+            // 범위 공격 (전차 등)
 
-                const entities = this.engine.entities;
+            const radiusSq = this.explosionRadius * this.explosionRadius;
 
-    
+            const entities = this.engine.entities;
 
-                const applyAoE = (ent) => {
 
-                    if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
 
-                    if (!this.attackTargets.includes(ent.domain || 'ground')) return;
+            const applyAoE = (ent) => {
 
-                    
+                if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
 
-                    const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
+                if (!this.attackTargets.includes(ent.domain || 'ground')) return;
 
-                    // 자신 및 아군 오사 방지 (수동 타겟 제외)
 
-                    if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
 
-    
+                const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
 
-                    const dx = ent.x - tx;
+                // 자신 및 아군 오사 방지 (수동 타겟 제외)
 
-                    const dy = ent.y - ty;
+                if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
 
-                    if (dx * dx + dy * dy <= radiusSq) {
 
-                        ent.takeDamage(this.damage);
 
-                    }
+                const dx = ent.x - tx;
 
-                };
+                const dy = ent.y - ty;
 
-    
+                if (dx * dx + dy * dy <= radiusSq) {
 
-                if (entities.base) applyAoE(entities.base);
-
-                entities.enemies.forEach(applyAoE);
-
-                entities.units.forEach(applyAoE);
-
-                entities.neutral.forEach(applyAoE);
-
-                
-
-                const bLists = ['turrets', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks'];
-
-                for (const listName of bLists) {
-
-                    const list = entities[listName];
-
-                    if (list) list.forEach(applyAoE);
+                    ent.takeDamage(this.damage);
 
                 }
 
-            } else {
+            };
 
-                // 단일 대상 공격 (보병, 대공포 등)
 
-                this.target.takeDamage(this.damage);
+
+            if (entities.base) applyAoE(entities.base);
+
+            entities.enemies.forEach(applyAoE);
+
+            entities.units.forEach(applyAoE);
+
+            entities.neutral.forEach(applyAoE);
+
+
+
+            const bLists = ['turrets', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks'];
+
+            for (const listName of bLists) {
+
+                const list = entities[listName];
+
+                if (list) list.forEach(applyAoE);
 
             }
 
-    
+        } else {
 
-            if (this.engine.addEffect) {
+            // 단일 대상 공격 (보병, 대공포 등)
 
-                // 유닛 타입별 커스텀 효과 타입 전달 (기본값 hit)
-
-                const effect = this.hitEffectType || (this.explosionRadius > 0 ? 'explosion' : 'hit');
-
-                this.engine.addEffect(effect, tx, ty, this.color || '#fff');
-
-            }
+            this.target.takeDamage(this.damage);
 
         }
+
+
+
+        if (this.engine.addEffect) {
+
+            // 유닛 타입별 커스텀 효과 타입 전달 (기본값 hit)
+
+            const effect = this.hitEffectType || (this.explosionRadius > 0 ? 'explosion' : 'hit');
+
+            this.engine.addEffect(effect, tx, ty, this.color || '#fff');
+
+        }
+
+    }
 
     executeProjectileAttack() {
         const { Projectile } = this.engine.entityClasses;
         const p = new Projectile(this.x, this.y, this.target, this.damage, this.color || '#ffff00', this);
-        
+
         // 유닛 설정값 전달
         if (this.explosionRadius > 0) {
             p.type = 'shell';
@@ -304,12 +307,13 @@ export class PlayerUnit extends Entity {
             p.type = 'tracer';
             p.speed = 18;
         }
-        
+
         this.engine.entities.projectiles.push(p);
     }
 
     update(deltaTime) {
         if (!this.alive) return;
+        if (this.targetingTimer > 0) this.targetingTimer -= deltaTime;
         if (this.hitTimer > 0) this.hitTimer -= deltaTime;
 
         // --- 공수 강하 낙하 로직 ---
@@ -334,7 +338,7 @@ export class PlayerUnit extends Entity {
 
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
-                
+
                 if (b instanceof Resource) {
                     const d = Math.hypot(this.x - b.x, this.y - b.y);
                     const minD = unitRadius + (b.size * 0.5);
@@ -349,14 +353,14 @@ export class PlayerUnit extends Entity {
                     // 건물 내부에 있는지 확인
                     if (this.x + margin > bounds.left && this.x - margin < bounds.right &&
                         this.y + margin > bounds.top && this.y - margin < bounds.bottom) {
-                        
+
                         // 가장 가까운 바깥 지점 찾기
                         const dL = Math.abs(this.x - (bounds.left - margin));
                         const dR = Math.abs(this.x - (bounds.right + margin));
                         const dT = Math.abs(this.y - (bounds.top - margin));
                         const dB = Math.abs(this.y - (bounds.bottom + margin));
                         const min = Math.min(dL, dR, dT, dB);
-                        
+
                         if (min === dL) this.x = bounds.left - margin;
                         else if (min === dR) this.x = bounds.right + margin;
                         else if (min === dT) this.y = bounds.top - margin;
@@ -382,14 +386,14 @@ export class PlayerUnit extends Entity {
                 const entranceDist = target.type === 'cargo-plane' ? 90 : 40;
                 const entranceX = target.x + Math.cos(target.angle + Math.PI) * entranceDist;
                 const entranceY = target.y + Math.sin(target.angle + Math.PI) * entranceDist;
-                
+
                 const d = Math.hypot(this.x - entranceX, this.y - entranceY);
-                
+
                 // 후방 입구에 아주 가까워지면 탑승 (판정 거리 단축: 25 -> 15)
                 if (d < 15) {
                     if (target.loadUnit && target.loadUnit(this)) {
                         this.transportTarget = null;
-                        return; 
+                        return;
                     }
                 } else {
                     // 장애물 회피를 위해 정식 길찾기 경로 생성
@@ -423,7 +427,7 @@ export class PlayerUnit extends Entity {
                 } else if (canHit) {
                     // 강제 공격: 수동 타겟이 지정되면 관계와 상관없이 타겟으로 확정
                     const distToManual = Math.hypot(this.manualTarget.x - this.x, this.manualTarget.y - this.y);
-                    
+
                     if (distToManual <= this.attackRange) {
                         bestTarget = this.manualTarget; // 사거리 안이면 공격 대상 확정
                     } else {
@@ -433,20 +437,25 @@ export class PlayerUnit extends Entity {
                         }
                     }
                 }
-            } 
-            
+            }
+
             // [2. 자동 타겟팅 로직] 수동 지정 대상이 없을 때만 수행 (어택땅 등)
-            if (!bestTarget && !this.manualTarget) {
-                const potentialTargets = [
-                    ...this.engine.entities.enemies, 
-                    ...this.engine.entities.neutral,
-                    ...this.engine.entities.units,
-                    ...this.engine.getAllBuildings()
-                ];
+            // [최적화] 스로틀링: 0.2~0.3초마다 실행
+            if (!bestTarget && !this.manualTarget && this.targetingTimer <= 0) {
+                this.targetingTimer = 200 + Math.random() * 100;
+                // [최적화] SpatialGrid를 사용하여 범위 내 엔티티만 검색
+                const potentialTargets = this.engine.entityManager && this.engine.entityManager.getNearby
+                    ? this.engine.entityManager.getNearby(this.x, this.y, this.attackRange)
+                    : [
+                        ...this.engine.entities.enemies,
+                        ...this.engine.entities.neutral,
+                        ...this.engine.entities.units,
+                        ...this.engine.getAllBuildings()
+                    ];
 
                 for (const e of potentialTargets) {
                     if (e === this || !e.active || e.hp <= 0) continue;
-                    
+
                     // 관계 확인 (적군만 자동 타겟팅)
                     const relation = this.engine.getRelation(this.ownerId, e.ownerId);
                     if (relation !== 'enemy') continue;
@@ -468,7 +477,7 @@ export class PlayerUnit extends Entity {
             this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
             this.attack();
             if (this.command === 'attack') {
-                this._destination = null; 
+                this._destination = null;
                 this.path = [];
             }
         } else if (this._destination) {
@@ -476,7 +485,7 @@ export class PlayerUnit extends Entity {
             while (this.path.length > 0) {
                 const waypoint = this.path[0];
                 const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
-                if (distToWaypoint < 5) { 
+                if (distToWaypoint < 5) {
                     this.path.shift();
                 } else {
                     break;
@@ -506,7 +515,7 @@ export class PlayerUnit extends Entity {
 
                     this.pathRecalculateTimer -= deltaTime;
                     if (this.pathRecalculateTimer <= 0) {
-                        this.destination = this._destination; 
+                        this.destination = this._destination;
                     }
                 }
             }
@@ -524,7 +533,7 @@ export class PlayerUnit extends Entity {
             if (this.domain !== other.domain) continue;
 
             const d = Math.hypot(this.x - other.x, this.y - other.y);
-            const minDist = (this.size + other.size) * 0.4; 
+            const minDist = (this.size + other.size) * 0.4;
             if (d < minDist) {
                 const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
                 const force = (minDist - d) / minDist;
@@ -538,35 +547,35 @@ export class PlayerUnit extends Entity {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
-                
+
                 if (b instanceof Resource) {
                     const d = Math.hypot(this.x - b.x, this.y - b.y);
                     // 자원 크기가 80px(2x2)이므로 반경은 40px + 유닛 반경(약 15-20px)
-                    const minDist = (this.size * 0.4) + (b.size * 0.5); 
+                    const minDist = (this.size * 0.4) + (b.size * 0.5);
                     if (d < minDist) {
                         const pushAngle = Math.atan2(this.y - b.y, this.x - b.x);
                         // 원형 자원에서 밖으로 밀어내는 힘 강화
-                        const force = (minDist - d) / minDist * 6.0; 
+                        const force = (minDist - d) / minDist * 6.0;
                         pushX += Math.cos(pushAngle) * force;
                         pushY += Math.sin(pushAngle) * force;
                     }
                 } else {
                     const bounds = b.getSelectionBounds();
                     // 건물의 실제 영역보다 약간 더 넓게 탈출 판정
-                    const margin = 2; 
-                    
+                    const margin = 2;
+
                     if (this.x > bounds.left - margin && this.x < bounds.right + margin &&
                         this.y > bounds.top - margin && this.y < bounds.bottom + margin) {
-                        
+
                         // 네 방향 중 가장 가까운 밖으로 계산
                         const distL = this.x - (bounds.left - 5);
                         const distR = (bounds.right + 5) - this.x;
                         const distT = this.y - (bounds.top - 5);
                         const distB = (bounds.bottom + 5) - this.y;
-                        
+
                         const minD = Math.min(distL, distR, distT, distB);
                         const pushForce = 4.0; // 매우 강력하게 밀어냄
-                        
+
                         if (minD === distL) pushX -= pushForce;
                         else if (minD === distR) pushX += pushForce;
                         else if (minD === distT) pushY -= pushForce;
@@ -581,8 +590,8 @@ export class PlayerUnit extends Entity {
 
         const mapW = this.engine.tileMap.cols * this.engine.tileMap.tileSize;
         const mapH = this.engine.tileMap.rows * this.engine.tileMap.tileSize;
-        this.x = Math.max(this.size/2, Math.min(mapW - this.size/2, this.x));
-        this.y = Math.max(this.size/2, Math.min(mapH - this.size/2, this.y));
+        this.x = Math.max(this.size / 2, Math.min(mapW - this.size / 2, this.x));
+        this.y = Math.max(this.size / 2, Math.min(mapH - this.size / 2, this.y));
 
         if (this.hp <= 0) this.alive = false;
     }
@@ -598,7 +607,7 @@ export class PlayerUnit extends Entity {
         if (this.unloadTimer >= this.unloadInterval) {
             this.unloadTimer = 0;
             const unit = this.cargo.shift();
-            
+
             // 후방 하차 위치 계산
             const rearDist = this.type === 'cargo-plane' ? 80 : 40;
             const rearX = this.x + Math.cos(this.angle + Math.PI) * rearDist;
@@ -608,12 +617,12 @@ export class PlayerUnit extends Entity {
             unit.active = true;
             unit.x = rearX;
             unit.y = rearY;
-            unit.angle = this.angle + Math.PI; 
-            
+            unit.angle = this.angle + Math.PI;
+
             const exitDestX = rearX + Math.cos(this.angle + Math.PI) * 40;
             const exitDestY = rearY + Math.sin(this.angle + Math.PI) * 40;
             unit.destination = { x: exitDestX, y: exitDestY };
-            
+
             if (this.cargo.length === 0) this.isUnloading = false;
         }
     }
@@ -628,11 +637,11 @@ export class PlayerUnit extends Entity {
 
         if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
             const obstacles = [...this.engine.getAllBuildings(), ...this.engine.entities.resources.filter(r => !r.covered)];
-            const unitRadius = this.collisionRadius; 
+            const unitRadius = this.collisionRadius;
 
             for (const b of obstacles) {
                 if (b === this || b.passable) continue;
-                
+
                 if (b instanceof Resource) {
                     // 자원 크기 80px에 따른 충돌 반경 확장
                     const minCollisionDist = unitRadius + (b.size * 0.5);
@@ -641,10 +650,10 @@ export class PlayerUnit extends Entity {
                 } else {
                     const bounds = b.getSelectionBounds();
                     const margin = unitRadius;
-                    
+
                     // 현재 위치가 이미 건물 안인지 확인 (탈출 허용을 위해)
-                    const isCurrentlyInside = (this.x > bounds.left && this.x < bounds.right && 
-                                               this.y > bounds.top && this.y < bounds.bottom);
+                    const isCurrentlyInside = (this.x > bounds.left && this.x < bounds.right &&
+                        this.y > bounds.top && this.y < bounds.bottom);
 
                     // X축 이동 시 충돌 확인
                     if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) {
@@ -663,7 +672,7 @@ export class PlayerUnit extends Entity {
         if (canMoveY) this.y = nextY;
     }
 
-    attack() {}
+    attack() { }
 }
 
 export class Base extends Entity {
@@ -707,23 +716,23 @@ export class Base extends Entity {
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
-        
+
         // 2.5D Projection Constants
-        const depth = 35; 
-        const angle = -Math.PI / 4; 
+        const depth = 35;
+        const angle = -Math.PI / 4;
         const dx = Math.cos(angle) * depth;
         const dy = Math.sin(angle) * depth;
 
         // Building Dimensions
         const totalW = 320;
         const baseH = 110;
-        const centerH = 150; 
+        const centerH = 150;
         const startX = -totalW / 2 - 15;
         const startY = -40;
 
-        const yBase = startY;           
-        const yCenter = startY - (centerH - baseH); 
-        const yBottom = startY + baseH; 
+        const yBase = startY;
+        const yCenter = startY - (centerH - baseH);
+        const yBottom = startY + baseH;
 
         // [변수 선언부 이동] Entry Path에서 사용하기 위해 상단으로 배치
         const centerW = 100;
@@ -743,15 +752,15 @@ export class Base extends Entity {
         const pathW = 60; // 정문 너비와 동일하게 맞춤
         const pathEndW = 80; // 바깥쪽은 약간 넓어지게
         const pathX = x2 + (centerW - pathW) / 2; // 정문 중앙 좌표 기준 (이제 x2 참조 가능)
-        
+
         // 정문 바로 앞에서 시작
-        const entOffset = 15; 
+        const entOffset = 15;
         const pdxStart = -Math.cos(angle) * entOffset;
         const pdyStart = -Math.sin(angle) * entOffset;
-        
+
         const pathStartX = pathX + pdxStart;
         const pathStartY = yBottom + pdyStart;
-        
+
         const pathLen = 50;
         const plx = -Math.cos(angle) * pathLen;
         const ply = -Math.sin(angle) * pathLen;
@@ -761,58 +770,58 @@ export class Base extends Entity {
         pGrad.addColorStop(0, '#546e7a');
         pGrad.addColorStop(1, '#455a64');
         ctx.fillStyle = pGrad;
-        
+
         ctx.beginPath();
         ctx.moveTo(pathStartX, pathStartY); // 좌상
         ctx.lineTo(pathStartX + pathW, pathStartY); // 우상
-        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply); // 우하
-        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply); // 좌하
+        ctx.lineTo(pathStartX + pathW / 2 + pathEndW / 2 + plx, pathStartY + ply); // 우하
+        ctx.lineTo(pathStartX + pathW / 2 - pathEndW / 2 + plx, pathStartY + ply); // 좌하
         ctx.closePath();
         ctx.fill();
 
         // 진입로 경계 및 연석 (Raised Curb)
         const curbH = 4; // 연석 높이
-        
+
         // 좌측 연석
         ctx.fillStyle = '#95a5a6'; // 연석 윗면
         ctx.beginPath();
         ctx.moveTo(pathStartX, pathStartY);
-        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply);
-        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx - 4, pathStartY + ply); // 두께
+        ctx.lineTo(pathStartX + pathW / 2 - pathEndW / 2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW / 2 - pathEndW / 2 + plx - 4, pathStartY + ply); // 두께
         ctx.lineTo(pathStartX - 4, pathStartY);
         ctx.fill();
-        
+
         ctx.fillStyle = '#7f8c8d'; // 연석 측면 (그림자)
         ctx.beginPath();
-        ctx.moveTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply);
-        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx - 4, pathStartY + ply);
-        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx - 4, pathStartY + ply + curbH);
-        ctx.lineTo(pathStartX + pathW/2 - pathEndW/2 + plx, pathStartY + ply + curbH);
+        ctx.moveTo(pathStartX + pathW / 2 - pathEndW / 2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW / 2 - pathEndW / 2 + plx - 4, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW / 2 - pathEndW / 2 + plx - 4, pathStartY + ply + curbH);
+        ctx.lineTo(pathStartX + pathW / 2 - pathEndW / 2 + plx, pathStartY + ply + curbH);
         ctx.fill();
 
         // 우측 연석
         ctx.fillStyle = '#95a5a6'; // 연석 윗면
         ctx.beginPath();
         ctx.moveTo(pathStartX + pathW, pathStartY);
-        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply);
-        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx + 4, pathStartY + ply); // 두께
+        ctx.lineTo(pathStartX + pathW / 2 + pathEndW / 2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW / 2 + pathEndW / 2 + plx + 4, pathStartY + ply); // 두께
         ctx.lineTo(pathStartX + pathW + 4, pathStartY);
         ctx.fill();
-        
+
         ctx.fillStyle = '#7f8c8d'; // 연석 측면
         ctx.beginPath();
-        ctx.moveTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply);
-        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx + 4, pathStartY + ply);
-        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx + 4, pathStartY + ply + curbH);
-        ctx.lineTo(pathStartX + pathW/2 + pathEndW/2 + plx, pathStartY + ply + curbH);
+        ctx.moveTo(pathStartX + pathW / 2 + pathEndW / 2 + plx, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW / 2 + pathEndW / 2 + plx + 4, pathStartY + ply);
+        ctx.lineTo(pathStartX + pathW / 2 + pathEndW / 2 + plx + 4, pathStartY + ply + curbH);
+        ctx.lineTo(pathStartX + pathW / 2 + pathEndW / 2 + plx, pathStartY + ply + curbH);
         ctx.fill();
 
         // --- 1. 건물 본체 구조 (Main Structure Only) ---
         // (변수 선언부는 위로 이동됨)
-        
+
         const colors = {
-            front: '#ecf0f1', 
-            roof: '#ffffff',  
+            front: '#ecf0f1',
+            roof: '#ffffff',
             side: '#bdc3c7',
             sideDark: '#95a5a6'
         };
@@ -848,7 +857,7 @@ export class Base extends Entity {
         ctx.moveTo(x1, yBase); ctx.lineTo(x2, yBase); ctx.lineTo(x2, yCenter);
         ctx.lineTo(x3, yCenter); ctx.lineTo(x3, yBase); ctx.lineTo(x4, yBase);
         ctx.lineTo(x4, yBottom); ctx.lineTo(x1, yBottom); ctx.closePath(); ctx.fill();
-        
+
         ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
         ctx.stroke();
 
@@ -856,15 +865,15 @@ export class Base extends Entity {
         const drawBush = (bx, by, bSize) => {
             // 수풀 (Bush)
             ctx.fillStyle = '#27ae60';
-            ctx.beginPath(); ctx.arc(bx, by, bSize, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(bx, by, bSize, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#2ecc71';
-            ctx.beginPath(); ctx.arc(bx - bSize*0.3, by - bSize*0.3, bSize*0.6, 0, Math.PI*2); ctx.fill();
-            
+            ctx.beginPath(); ctx.arc(bx - bSize * 0.3, by - bSize * 0.3, bSize * 0.6, 0, Math.PI * 2); ctx.fill();
+
             // 작은 꽃들 (Tiny flowers)
-            const flowers = [{x:-2, y:1, c:'#e74c3c'}, {x:3, y:-2, c:'#f1c40f'}, {x:0, y:4, c:'#fff'}];
+            const flowers = [{ x: -2, y: 1, c: '#e74c3c' }, { x: 3, y: -2, c: '#f1c40f' }, { x: 0, y: 4, c: '#fff' }];
             flowers.forEach(f => {
                 ctx.fillStyle = f.c;
-                ctx.beginPath(); ctx.arc(bx + f.x, by + f.y, 1.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(bx + f.x, by + f.y, 1.5, 0, Math.PI * 2); ctx.fill();
             });
         };
 
@@ -874,10 +883,10 @@ export class Base extends Entity {
             ctx.fillRect(fbx - 2, fby - 2, fbw + 4, fbh + 4);
             ctx.fillStyle = '#34495e'; // 흙
             ctx.fillRect(fbx, fby, fbw, fbh);
-            
+
             // 수풀들 배치
-            for(let i=0; i<3; i++) {
-                drawBush(fbx + 10 + i * (fbw/3), fby + fbh/2, 8);
+            for (let i = 0; i < 3; i++) {
+                drawBush(fbx + 10 + i * (fbw / 3), fby + fbh / 2, 8);
             }
         };
 
@@ -893,9 +902,9 @@ export class Base extends Entity {
         const entH = 45;
         const entX = x2 + (centerW - entW) / 2;
         const entY = yBottom - entH;
-        
+
         // 돌출 깊이 설정 (앞으로 튀어나오게 반전)
-        const pDepth = 15; 
+        const pDepth = 15;
         // angle이 -45도(우상단 향함)이므로, 앞으로 나오려면 +135도(좌하단) 방향이어야 함.
         // 즉, dx, dy의 부호를 반대로 적용
         const pdx = -Math.cos(angle) * pDepth;
@@ -904,20 +913,20 @@ export class Base extends Entity {
         // 1. 돌출된 구조물 지붕 (Roof of protruding entrance)
         ctx.fillStyle = '#bdc3c7'; // 건물 측면색과 동일
         ctx.beginPath();
-        ctx.moveTo(entX, entY); 
-        ctx.lineTo(entX + entW, entY); 
-        ctx.lineTo(entX + entW + pdx, entY + pdy); 
-        ctx.lineTo(entX + pdx, entY + pdy); 
+        ctx.moveTo(entX, entY);
+        ctx.lineTo(entX + entW, entY);
+        ctx.lineTo(entX + entW + pdx, entY + pdy);
+        ctx.lineTo(entX + pdx, entY + pdy);
         ctx.closePath();
         ctx.fill();
 
         // 2. 돌출된 구조물 측면 (Right Side Wall)
         ctx.fillStyle = '#95a5a6'; // 건물 짙은 측면색
         ctx.beginPath();
-        ctx.moveTo(entX + entW, entY); 
-        ctx.lineTo(entX + entW + pdx, entY + pdy); 
-        ctx.lineTo(entX + entW + pdx, yBottom + pdy); 
-        ctx.lineTo(entX + entW, yBottom); 
+        ctx.moveTo(entX + entW, entY);
+        ctx.lineTo(entX + entW + pdx, entY + pdy);
+        ctx.lineTo(entX + entW + pdx, yBottom + pdy);
+        ctx.lineTo(entX + entW, yBottom);
         ctx.closePath();
         ctx.fill();
 
@@ -928,25 +937,25 @@ export class Base extends Entity {
         // 4. 유리문 디테일 (Glass Door)
         ctx.fillStyle = '#2c3e50'; // 창문과 동일한 유리색
         ctx.fillRect(entX + pdx + 4, entY + pdy + 4, entW - 8, entH - 4);
-        
+
         // 문 중앙 분할선
         ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(entX + pdx + entW/2 - 1, entY + pdy + 4, 2, entH - 4);
+        ctx.fillRect(entX + pdx + entW / 2 - 1, entY + pdy + 4, 2, entH - 4);
 
         // 5. 캐노피 (Canopy)
         const cDepth = 25;
         const cdx = -Math.cos(angle) * cDepth;
         const cdy = -Math.sin(angle) * cDepth;
-        
+
         ctx.fillStyle = '#7f8c8d'; // 짙은 석재색
         ctx.beginPath();
-        ctx.moveTo(entX - 4 + pdx, entY + pdy); 
+        ctx.moveTo(entX - 4 + pdx, entY + pdy);
         ctx.lineTo(entX + entW + 4 + pdx, entY + pdy);
-        ctx.lineTo(entX + entW + 4 + cdx, entY + cdy); 
+        ctx.lineTo(entX + entW + 4 + cdx, entY + cdy);
         ctx.lineTo(entX - 4 + cdx, entY + cdy);
         ctx.closePath();
         ctx.fill();
-        
+
         // 캐노피 측면 두께
         ctx.fillStyle = '#636e72';
         ctx.beginPath();
@@ -966,83 +975,83 @@ export class Base extends Entity {
         ctx.fill();
 
         // --- 2. 창문 디테일 ---
-        ctx.fillStyle = '#2c3e50'; 
+        ctx.fillStyle = '#2c3e50';
         const winW = 12; const winH = 10;
-        for(let r=0; r<6; r++) {
-            for(let c=0; c<7; c++) {
-                ctx.fillRect(x1 + 15 + c*15, yBase + 15 + r*15, winW, winH);
-                ctx.fillRect(x3 + 10 + c*15, yBase + 15 + r*15, winW, winH);
+        for (let r = 0; r < 6; r++) {
+            for (let c = 0; c < 7; c++) {
+                ctx.fillRect(x1 + 15 + c * 15, yBase + 15 + r * 15, winW, winH);
+                ctx.fillRect(x3 + 10 + c * 15, yBase + 15 + r * 15, winW, winH);
             }
         }
 
         // 중앙 유리창 (Glass - Upper part only)
-        const gCols = 4; 
+        const gCols = 4;
         const gRows = 5; // 정문 공간 확보를 위해 행 수 감소 (8 -> 5)
         const gMargin = 15;
         const gAreaW = centerW - gMargin * 2;
         const gAreaH = (yBottom - yCenter) - 25;
-        const gWinW = (gAreaW - (gCols - 1) * 4) / gCols; 
+        const gWinW = (gAreaW - (gCols - 1) * 4) / gCols;
         const gWinH = (gAreaH - (8 - 1) * 4) / 8; // 높이 비율은 유지
-        
-        for(let r=0; r<gRows; r++) {
-            for(let c=0; c<gCols; c++) {
+
+        for (let r = 0; r < gRows; r++) {
+            for (let c = 0; c < gCols; c++) {
                 const wx = x2 + gMargin + c * (gWinW + 4);
                 const wy = yCenter + 15 + r * (gWinH + 4);
-                ctx.fillStyle = '#34495e'; 
+                ctx.fillStyle = '#34495e';
                 ctx.fillRect(wx, wy, gWinW, gWinH);
             }
         }
 
         // --- 3. 옥상 디테일 (Tactical Flag) ---
-        const flagX = x2 + centerW/2 + dx * 0.5;
+        const flagX = x2 + centerW / 2 + dx * 0.5;
         const flagY = yCenter + dy * 0.5;
-        
+
         ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(flagX, flagY); ctx.lineTo(flagX, flagY - 45); ctx.stroke();
-        
+
         // 깃발 본체 (Tactical Black)
-        ctx.fillStyle = '#1a1a1a'; 
+        ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(flagX, flagY - 45, 32, 22);
-        
+
         // 무채색 엠블럼
-        const ex = flagX + 16; 
+        const ex = flagX + 16;
         const ey = flagY - 34;
         ctx.strokeStyle = '#dfe6e9'; ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(ex - 10, ey - 4); ctx.lineTo(ex, ey - 10); ctx.lineTo(ex + 10, ey - 4);
         ctx.lineTo(ex + 8, ey + 8); ctx.lineTo(ex, ey + 4); ctx.lineTo(ex - 8, ey + 8);
         ctx.closePath(); ctx.stroke();
-        
+
         // 태극 문양 (색상 복구)
         ctx.fillStyle = '#ff3131'; ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, Math.PI, 0); ctx.fill();
         ctx.fillStyle = '#00d2ff'; ctx.beginPath(); ctx.arc(ex, ey - 1, 4.5, 0, Math.PI); ctx.fill();
 
         // --- 4. 옥상 부속 시설 (Rooftop Assets - Drawn LAST) ---
-        
+
         // 1. 좌측 윙 옥상 앞쪽: 위성 통신 안테나
-        const satX = x1 + (wingW / 2); 
-        const satY = yBase - 15; 
-        
+        const satX = x1 + (wingW / 2);
+        const satY = yBase - 15;
+
         // 안테나 지지대
         ctx.fillStyle = '#7f8c8d';
-        ctx.beginPath(); ctx.ellipse(satX, satY, 12, 6, 0, 0, Math.PI*2); ctx.fill(); 
+        ctx.beginPath(); ctx.ellipse(satX, satY, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(satX - 3, satY - 25, 6, 25); 
-        
+        ctx.fillRect(satX - 3, satY - 25, 6, 25);
+
         // 접시 안테나 (회전)
         ctx.save();
         ctx.translate(satX, satY - 25);
-        ctx.rotate(-Math.PI / 5); 
-        
+        ctx.rotate(-Math.PI / 5);
+
         ctx.fillStyle = '#95a5a6';
         ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI, true); ctx.fill();
         ctx.fillStyle = '#ecf0f1';
-        ctx.beginPath(); ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI*2); ctx.fill();
-        
+        ctx.beginPath(); ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
+
         ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -20); ctx.stroke();
-        ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(0, -20, 2, 0, Math.PI*2); ctx.fill();
-        
+        ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(0, -20, 2, 0, Math.PI * 2); ctx.fill();
+
         if (Math.floor(Date.now() / 500) % 2 === 0) {
             ctx.shadowColor = 'red'; ctx.shadowBlur = 5;
             ctx.fill();
@@ -1052,21 +1061,21 @@ export class Base extends Entity {
 
         // 2. 우측 윙 옥상 앞쪽: 전술 냉각/발전 유닛
         const coolX = x3 + (wingW / 2);
-        const coolY = yBase - 30; 
-        
+        const coolY = yBase - 30;
+
         // 유닛 본체
-        ctx.fillStyle = '#34495e'; 
+        ctx.fillStyle = '#34495e';
         ctx.fillRect(coolX, coolY, 25, 20);
-        
-        ctx.fillStyle = '#2c3e50'; 
+
+        ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(coolX, coolY);
         ctx.lineTo(coolX + 10, coolY - 10);
         ctx.lineTo(coolX + 35, coolY - 10);
         ctx.lineTo(coolX + 25, coolY);
         ctx.fill();
-        
-        ctx.fillStyle = '#2c3e50'; 
+
+        ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(coolX + 25, coolY);
         ctx.lineTo(coolX + 35, coolY - 10);
@@ -1076,7 +1085,7 @@ export class Base extends Entity {
 
         // 팬(Fan) 디테일
         ctx.fillStyle = '#1a252f';
-        ctx.beginPath(); ctx.arc(coolX + 12.5, coolY + 10, 7, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(coolX + 12.5, coolY + 10, 7, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(coolX + 5.5, coolY + 10); ctx.lineTo(coolX + 19.5, coolY + 10); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(coolX + 12.5, coolY + 3); ctx.lineTo(coolX + 12.5, coolY + 17); ctx.stroke();
@@ -1091,26 +1100,26 @@ export class Base extends Entity {
 
         // --- UI (Command Center HUD) ---
         const barWidth = 280;
-        const barY = this.y - 160; 
+        const barY = this.y - 160;
         const hpP = this.hp / this.maxHp;
 
         ctx.fillStyle = 'rgba(10, 20, 30, 0.8)';
-        ctx.fillRect(this.x - barWidth/2 - 10, barY - 20, barWidth + 20, 45);
+        ctx.fillRect(this.x - barWidth / 2 - 10, barY - 20, barWidth + 20, 45);
         ctx.strokeStyle = 'rgba(189, 195, 199, 0.5)';
         ctx.lineWidth = 2;
-        ctx.strokeRect(this.x - barWidth/2 - 10, barY - 20, barWidth + 20, 45);
+        ctx.strokeRect(this.x - barWidth / 2 - 10, barY - 20, barWidth + 20, 45);
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.fillRect(this.x - barWidth/2, barY + 10, barWidth, 10);
+        ctx.fillRect(this.x - barWidth / 2, barY + 10, barWidth, 10);
         ctx.fillStyle = hpP > 0.3 ? '#2ecc71' : '#e74c3c';
-        ctx.fillRect(this.x - barWidth/2, barY + 10, hpP * barWidth, 10);
-        
+        ctx.fillRect(this.x - barWidth / 2, barY + 10, hpP * barWidth, 10);
+
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 13px "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`COMMAND CENTER`, this.x - barWidth/2, barY + 2);
+        ctx.fillText(`COMMAND CENTER`, this.x - barWidth / 2, barY + 2);
         ctx.textAlign = 'right';
-        ctx.fillText(`${Math.floor(hpP*100)}%`, this.x + barWidth/2, barY + 2);
+        ctx.fillText(`${Math.floor(hpP * 100)}%`, this.x + barWidth / 2, barY + 2);
     }
 }
 
@@ -1184,8 +1193,8 @@ export class Wall extends Entity {
 
         // 4. 가시 디테일 (작은 점들)
         ctx.fillStyle = '#bdc3c7';
-        for(let i=0; i<5; i++) {
-            const tx = -15 + i*7.5;
+        for (let i = 0; i < 5; i++) {
+            const tx = -15 + i * 7.5;
             ctx.fillRect(tx, -13, 2, 2);
             ctx.fillRect(tx, 7, 2, 2);
         }
@@ -1224,7 +1233,7 @@ export class Refinery extends Entity {
         if (this.fuel > 0) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('oil', amount, this);
-            
+
             if (produced) {
                 this.fuel -= deltaTime / 1000;
                 if (this.fuel < 0) this.fuel = 0;
@@ -1254,7 +1263,7 @@ export class Refinery extends Entity {
             ctx.fillRect(tx + 2, ty, 3, 50); // 하이라이트
             // 가로 링 (Ring details)
             ctx.strokeStyle = '#2c3e50';
-            for(let i=10; i<50; i+=10) {
+            for (let i = 10; i < 50; i += 10) {
                 ctx.beginPath(); ctx.moveTo(tx, ty + i); ctx.lineTo(tx + 15, ty + i); ctx.stroke();
             }
         };
@@ -1287,7 +1296,7 @@ export class Refinery extends Entity {
         ctx.moveTo(-30, 5); ctx.lineTo(30, 5);
         ctx.moveTo(-15, 15); ctx.lineTo(15, 15);
         ctx.stroke();
-        
+
         ctx.restore();
 
         // HP 바 (위치 조정)
@@ -1318,7 +1327,7 @@ export class GoldMine extends Entity {
         if (this.fuel > 0) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('gold', amount, this);
-            
+
             if (produced) {
                 this.fuel -= deltaTime / 1000;
                 if (this.fuel < 0) this.fuel = 0;
@@ -1359,7 +1368,7 @@ export class GoldMine extends Entity {
         ctx.rotate(drillAngle);
         ctx.fillStyle = '#95a5a6';
         ctx.beginPath();
-        for(let i=0; i<3; i++) {
+        for (let i = 0; i < 3; i++) {
             ctx.rotate(Math.PI * 2 / 3);
             ctx.moveTo(0, 0); ctx.lineTo(-8, 15); ctx.lineTo(8, 15);
         }
@@ -1372,8 +1381,8 @@ export class GoldMine extends Entity {
         if (this.fuel > 0) {
             const shift = (Date.now() / 50) % 15;
             ctx.fillStyle = '#FFD700';
-            for(let i=0; i<4; i++) {
-                ctx.beginPath(); ctx.arc(-25 + i*15 + shift, 9, 2, 0, Math.PI*2); ctx.fill();
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath(); ctx.arc(-25 + i * 15 + shift, 9, 2, 0, Math.PI * 2); ctx.fill();
             }
         }
 
@@ -1408,7 +1417,7 @@ export class IronMine extends Entity {
         if (this.fuel > 0) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('iron', amount, this);
-            
+
             if (produced) {
                 this.fuel -= deltaTime / 1000;
                 if (this.fuel < 0) this.fuel = 0;
@@ -1436,7 +1445,7 @@ export class IronMine extends Entity {
         ctx.moveTo(-20, 30); ctx.lineTo(-15, -20);
         ctx.lineTo(15, -20); ctx.lineTo(20, 30);
         ctx.closePath(); ctx.fill();
-        
+
         // 용광로 열기 (Heat Glow)
         if (this.fuel > 0) {
             const flicker = Math.random() * 0.3 + 0.7;
@@ -1455,7 +1464,7 @@ export class IronMine extends Entity {
                 // 연기 (Smoke)
                 const time = Date.now() / 800;
                 ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
-                ctx.beginPath(); ctx.arc(ex + 4 + Math.sin(time)*5, ey - 10, 8, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(ex + 4 + Math.sin(time) * 5, ey - 10, 8, 0, Math.PI * 2); ctx.fill();
             }
         };
         drawExhaust(-30, -35);
@@ -1487,14 +1496,14 @@ export class Storage extends Entity {
         this.hp = 2000;
         this.storedResources = { gold: 0, oil: 0 };
         this.maxCapacity = 2000; // 용량 2배 증가
-        this.isConnectedToBase = false; 
+        this.isConnectedToBase = false;
     }
 
     update(deltaTime, engine) {
         if (this.isUnderConstruction) return;
 
         if (this.isConnectedToBase) {
-            const transferRate = 50; 
+            const transferRate = 50;
             const amount = transferRate * deltaTime / 1000;
             if (this.storedResources.gold > 0) {
                 const transferGold = Math.min(this.storedResources.gold, amount);
@@ -1516,7 +1525,7 @@ export class Storage extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-        
+
         // 1. 기반 (Concrete Foundation)
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-80, -60, 160, 120);
@@ -1534,7 +1543,7 @@ export class Storage extends Entity {
         const drawHangar = (hx, hy) => {
             ctx.save();
             ctx.translate(hx, hy);
-            
+
             // 건물 그림자
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(5, 5, 70, 90);
@@ -1552,11 +1561,11 @@ export class Storage extends Entity {
             grd.addColorStop(1, '#2c3e50');
             ctx.fillStyle = grd;
             ctx.fillRect(0, 0, 70, 80);
-            
+
             // 지붕 골조 라인
             ctx.strokeStyle = '#2c3e50';
             ctx.lineWidth = 1;
-            for(let i=10; i<80; i+=10) {
+            for (let i = 10; i < 80; i += 10) {
                 ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(70, i); ctx.stroke();
             }
 
@@ -1564,14 +1573,14 @@ export class Storage extends Entity {
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(10, 82, 50, 10);
             ctx.strokeStyle = '#f1c40f'; // 안전선
-            ctx.beginPath(); 
-            ctx.moveTo(10, 92); ctx.lineTo(60, 92); 
+            ctx.beginPath();
+            ctx.moveTo(10, 92); ctx.lineTo(60, 92);
             ctx.stroke();
 
             // 환기구 팬 (지붕 위)
             ctx.fillStyle = '#2d3436';
-            ctx.beginPath(); ctx.arc(35, 20, 5, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(35, 60, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(35, 20, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(35, 60, 5, 0, Math.PI * 2); ctx.fill();
 
             ctx.restore();
         };
@@ -1608,17 +1617,17 @@ export class Storage extends Entity {
             ctx.translate(tx, ty);
             // 그림자
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath(); ctx.arc(5, 5, 12, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(5, 5, 12, 0, Math.PI * 2); ctx.fill();
             // 탱크 본체 (원통형 입체)
             const tGrad = ctx.createLinearGradient(-10, 0, 10, 0);
             tGrad.addColorStop(0, '#7f8c8d');
             tGrad.addColorStop(0.5, '#ecf0f1');
             tGrad.addColorStop(1, '#95a5a6');
             ctx.fillStyle = tGrad;
-            ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
             // 파이프 연결부
             ctx.fillStyle = '#34495e';
-            ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         };
         drawTank(20, 20);
@@ -1631,20 +1640,20 @@ export class Storage extends Entity {
         if (totalStored > 0) {
             ctx.save();
             ctx.translate(5, -10); // 중앙 부근
-            
+
             // 패널 배경
             ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(-30, 0, 60, 6);
-            
+
             const goldW = (this.storedResources.gold / this.maxCapacity) * 60;
             const oilW = (this.storedResources.oil / this.maxCapacity) * 60;
-            
+
             // 자원 바
             ctx.fillStyle = '#f1c40f'; // Gold
             ctx.fillRect(-30, 1, goldW, 4);
             ctx.fillStyle = '#8e44ad'; // Oil
             ctx.fillRect(-30 + goldW, 1, oilW, 4);
-            
+
             ctx.restore();
         }
 
@@ -1653,7 +1662,7 @@ export class Storage extends Entity {
             ctx.fillStyle = '#00d2ff';
             ctx.shadowBlur = 10;
             ctx.shadowColor = '#00d2ff';
-            ctx.beginPath(); ctx.arc(-60, -50, 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-60, -50, 3, 0, Math.PI * 2); ctx.fill();
             ctx.shadowBlur = 0;
         }
 
@@ -1719,24 +1728,24 @@ export class AmmoFactory extends Entity {
         // 2. 메인 공장동 (Main Production Hall - 2.5D)
         const drawBlock = (bx, by, bw, bh, elevation, color) => {
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(bx+5, by+5, bw, bh); // 그림자
-            
+            ctx.fillRect(bx + 5, by + 5, bw, bh); // 그림자
+
             // 벽면 (측면 입체)
             ctx.fillStyle = '#1e272e';
             ctx.beginPath();
-            ctx.moveTo(bx+bw, by); ctx.lineTo(bx+bw+elevation, by-elevation);
-            ctx.lineTo(bx+bw+elevation, by+bh-elevation); ctx.lineTo(bx+bw, by+bh);
+            ctx.moveTo(bx + bw, by); ctx.lineTo(bx + bw + elevation, by - elevation);
+            ctx.lineTo(bx + bw + elevation, by + bh - elevation); ctx.lineTo(bx + bw, by + bh);
             ctx.closePath(); ctx.fill();
 
             // 정면 벽
             ctx.fillStyle = color;
             ctx.fillRect(bx, by, bw, bh);
-            
+
             // 옥상
             ctx.fillStyle = '#7f8c8d';
             ctx.beginPath();
-            ctx.moveTo(bx, by); ctx.lineTo(bx+elevation, by-elevation);
-            ctx.lineTo(bx+bw+elevation, by-elevation); ctx.lineTo(bx+bw, by);
+            ctx.moveTo(bx, by); ctx.lineTo(bx + elevation, by - elevation);
+            ctx.lineTo(bx + bw + elevation, by - elevation); ctx.lineTo(bx + bw, by);
             ctx.closePath(); ctx.fill();
         };
 
@@ -1750,10 +1759,10 @@ export class AmmoFactory extends Entity {
         const fanRot = Date.now() / 150;
         const drawFan = (fx, fy) => {
             ctx.save(); ctx.translate(fx, fy);
-            ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(Math.cos(fanRot)*10, Math.sin(fanRot)*10); ctx.lineTo(-Math.cos(fanRot)*10, -Math.sin(fanRot)*10);
+            ctx.moveTo(Math.cos(fanRot) * 10, Math.sin(fanRot) * 10); ctx.lineTo(-Math.cos(fanRot) * 10, -Math.sin(fanRot) * 10);
             ctx.stroke();
             ctx.restore();
         };
@@ -1777,11 +1786,11 @@ export class AmmoFactory extends Entity {
         drawCrate(15, 38, '#3a4118');
 
         // 상태 표시 라이트
-        const blink = Math.floor(Date.now()/500)%2 === 0;
+        const blink = Math.floor(Date.now() / 500) % 2 === 0;
         ctx.fillStyle = blink ? '#ff3131' : '#330000';
-        ctx.beginPath(); ctx.arc(-70, -50, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-70, -50, 3, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#39ff14';
-        ctx.beginPath(); ctx.arc(-60, -50, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-60, -50, 3, 0, Math.PI * 2); ctx.fill();
 
         ctx.restore();
 
@@ -1793,9 +1802,9 @@ export class AmmoFactory extends Entity {
         const barW = 120;
         const barY = this.y - 100;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
 
         if (this.spawnQueue.length > 0) {
             const qBarY = barY - 14;
@@ -1863,7 +1872,7 @@ export class AmmoBox extends PlayerUnit {
             if (dist <= this.attackRange && this.amount > 0) {
                 // 충전량 계산 (상자 잔량, 유닛 필요량, 프레임당 속도 중 최소값)
                 let toRefill = Math.min(frameRefill, unit.maxAmmo - unit.ammo, this.amount);
-                
+
                 // 실제로 충전할 양이 있는 경우에만 유닛 등록 및 차감
                 if (toRefill > 0.0001) {
                     this.chargingUnits.push(unit);
@@ -1897,7 +1906,7 @@ export class AmmoBox extends PlayerUnit {
         ctx.fillRect(-13, -11, 28, 22);
         ctx.fillStyle = woodColor;
         ctx.fillRect(-15, -12, 30, 24);
-        
+
         ctx.strokeStyle = 'rgba(0,0,0,0.2)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -1942,7 +1951,7 @@ export class AmmoBox extends PlayerUnit {
                 // 대상 유닛 주변 입자 효과
                 ctx.fillStyle = 'white';
                 ctx.beginPath();
-                ctx.arc(unit.x + (Math.random()-0.5)*20, unit.y + (Math.random()-0.5)*20, 2, 0, Math.PI*2);
+                ctx.arc(unit.x + (Math.random() - 0.5) * 20, unit.y + (Math.random() - 0.5) * 20, 2, 0, Math.PI * 2);
                 ctx.fill();
             });
             ctx.restore();
@@ -1953,15 +1962,15 @@ export class AmmoBox extends PlayerUnit {
         const barY = this.y - 25;
         // HP Bar
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 3);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
-        
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 3);
+
         // Amount Bar (상자 잔량)
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY + 4, barW, 3);
+        ctx.fillRect(this.x - barW / 2, barY + 4, barW, 3);
         ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(this.x - barW/2, barY + 4, (this.amount / this.maxAmount) * barW, 3);
+        ctx.fillRect(this.x - barW / 2, barY + 4, (this.amount / this.maxAmount) * barW, 3);
     }
 }
 
@@ -1971,10 +1980,10 @@ export class Tank extends PlayerUnit {
         this.type = 'tank';
         this.name = '전차';
         this.speed = 1.8; // 1.2 -> 1.8 (1.5배 상향)
-        this.fireRate = 1800; 
-        this.damage = 200;     
+        this.fireRate = 1800;
+        this.damage = 200;
         this.color = '#39ff14';
-        this.attackRange = 360; 
+        this.attackRange = 360;
         this.visionRange = 6; // 전차 시야: 보병보다 넓음
         this.explosionRadius = 40; // 폭발 반경 추가
         this.cargoSize = 10; // 전차 부피 10
@@ -1983,7 +1992,7 @@ export class Tank extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'explosion';
         this.popCost = 3;
-        
+
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
@@ -2009,7 +2018,7 @@ export class Tank extends PlayerUnit {
         // 1. 하부 및 궤도 (Bottom Layer)
         ctx.fillStyle = '#1a1a1a'; // 어두운 궤도 내부
         ctx.fillRect(-14, -13, 28, 26);
-        
+
         // 궤도 윗면 디테일
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-14, -13, 28, 4); // 좌측 궤도
@@ -2019,11 +2028,11 @@ export class Tank extends PlayerUnit {
         ctx.fillStyle = '#3a4118'; // 어두운 녹색 (측면 장갑)
         ctx.fillRect(-15, -14, 30, 5);
         ctx.fillRect(-15, 9, 30, 5);
-        
+
         // 스커트 분할선 (Panel Lines)
         ctx.strokeStyle = 'rgba(0,0,0,0.4)';
         ctx.lineWidth = 0.5;
-        for(let i=-10; i<=10; i+=6) {
+        for (let i = -10; i <= 10; i += 6) {
             ctx.beginPath(); ctx.moveTo(i, -14); ctx.lineTo(i, -9); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(i, 9); ctx.lineTo(i, 14); ctx.stroke();
         }
@@ -2032,7 +2041,7 @@ export class Tank extends PlayerUnit {
         // 차체 측면 두께 (Depth)
         ctx.fillStyle = '#3a4118';
         ctx.fillRect(-14, -9, 28, 18);
-        
+
         // 차체 상판 (Main Deck) - 밝은 녹색
         ctx.fillStyle = '#4b5320';
         ctx.beginPath();
@@ -2041,7 +2050,7 @@ export class Tank extends PlayerUnit {
         ctx.lineTo(10, 9); ctx.lineTo(-14, 9);   // 측면
         ctx.closePath();
         ctx.fill();
-        
+
         // 차체 전면 하부 경사 (2.5D 입체감)
         ctx.fillStyle = '#3a4118';
         ctx.beginPath();
@@ -2051,14 +2060,14 @@ export class Tank extends PlayerUnit {
         // 엔진 그릴 및 후방 디테일
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-12, -6, 7, 12);
-        for(let i=0; i<3; i++) {
+        for (let i = 0; i < 3; i++) {
             ctx.strokeStyle = '#1a1a1a';
-            ctx.beginPath(); ctx.moveTo(-11+i*2, -5); ctx.lineTo(-11+i*2, 5); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-11 + i * 2, -5); ctx.lineTo(-11 + i * 2, 5); ctx.stroke();
         }
 
         // 4. 포탑 (Turret) - 상하 레이어 구분
         ctx.save();
-        ctx.translate(-3 - recoil * 0.5, 0); 
+        ctx.translate(-3 - recoil * 0.5, 0);
 
         // 포탑 하부 그림자
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -2078,7 +2087,7 @@ export class Tank extends PlayerUnit {
         ctx.lineTo(10, 4); ctx.lineTo(5, 8); ctx.lineTo(-8, 8);
         ctx.closePath();
         ctx.fill();
-        
+
         // 포탑 모서리 하이라이트
         ctx.strokeStyle = '#6ab04c';
         ctx.lineWidth = 0.5;
@@ -2086,39 +2095,39 @@ export class Tank extends PlayerUnit {
 
         // 전차장 조준경 (CITV) - 입체 원통
         ctx.fillStyle = '#2d3436';
-        ctx.beginPath(); ctx.arc(0, -4, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -4, 2.5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#444';
-        ctx.beginPath(); ctx.arc(0, -4, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -4, 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#00d2ff'; // 렌즈 반사
         ctx.fillRect(0.5, -4.5, 1, 1);
 
         // 해치 (Hatches)
         ctx.fillStyle = '#3a4118';
-        ctx.beginPath(); ctx.arc(-4, 3, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-4, 3, 3, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#2d3436';
-        ctx.beginPath(); ctx.arc(-4, 3, 3, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(-4, 3, 3, 0, Math.PI * 2); ctx.stroke();
 
         // 5. 주포 (120mm Smoothbore Gun)
         ctx.save();
         ctx.translate(10, 0);
-        
+
         // 포방패 (Mantlet) - 입체 박스
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(0, -3.5, 5, 7);
         ctx.fillStyle = '#3a4118';
         ctx.fillRect(0, -3.5, 4, 7);
-        
+
         // 포신 (Main Gun)
         const gunX = -recoil;
         ctx.fillStyle = '#1e272e';
         // 메인 포신
         ctx.fillRect(gunX, -1.2, 30, 2.4);
-        
+
         // 서멀 슬리브 디테일 (Thermal Sleeves)
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(gunX + 8, -1.6, 5, 3.2);
         ctx.fillRect(gunX + 18, -1.6, 4, 3.2);
-        
+
         // 포구 동적 보정 장치 (MRS) 및 머즐
         ctx.fillStyle = '#000';
         ctx.fillRect(gunX + 30, -1.5, 2, 3);
@@ -2132,7 +2141,7 @@ export class Tank extends PlayerUnit {
             grad.addColorStop(0.3, 'rgba(255, 215, 0, 0.7)');
             grad.addColorStop(1, 'rgba(255, 69, 0, 0)');
             ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
         ctx.restore();
@@ -2141,7 +2150,7 @@ export class Tank extends PlayerUnit {
         ctx.strokeStyle = '#95a5a6';
         ctx.lineWidth = 0.4;
         ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(-14, -14); ctx.stroke();
-        
+
         // 연막탄 발사기 (Smoke Launchers)
         ctx.fillStyle = '#1e272e';
         ctx.fillRect(2, -8.5, 3, 2);
@@ -2154,9 +2163,9 @@ export class Tank extends PlayerUnit {
         const barW = 30;
         const barY = this.y - 35;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
@@ -2196,9 +2205,9 @@ export class Missile extends Entity {
             } else {
                 this.x += Math.cos(this.angle) * this.speed;
                 this.y += Math.sin(this.angle) * this.speed;
-                
+
                 const altitude = Math.sin(progress * Math.PI) * this.peakHeight;
-                this.trail.push({x: this.x, y: this.y - altitude, alpha: 1.0});
+                this.trail.push({ x: this.x, y: this.y - altitude, alpha: 1.0 });
                 if (this.trail.length > 25) this.trail.shift();
             }
         } else if (this.arrived) {
@@ -2207,7 +2216,7 @@ export class Missile extends Entity {
                 this.arrived = false;
             }
         }
-        
+
         this.trail.forEach(p => p.alpha -= 0.04);
         this.trail = this.trail.filter(p => p.alpha > 0);
     }
@@ -2216,9 +2225,9 @@ export class Missile extends Entity {
         this.active = false;
         this.arrived = true;
         this.explosionTimer = 0;
-        
+
         this.smokeParticles = [];
-        for(let i = 0; i < 15; i++) {
+        for (let i = 0; i < 15; i++) {
             this.smokeParticles.push({
                 angle: Math.random() * Math.PI * 2,
                 dist: Math.random() * this.explosionRadius * 0.8,
@@ -2230,7 +2239,7 @@ export class Missile extends Entity {
         }
 
         const targets = [
-            ...this.engine.entities.enemies, 
+            ...this.engine.entities.enemies,
             ...this.engine.entities.neutral,
             ...this.engine.entities.units,
             ...this.engine.getAllBuildings()
@@ -2245,7 +2254,7 @@ export class Missile extends Entity {
             // 관계 체크 (자신 및 아군 오사 방지)
             const relation = this.engine.getRelation(this.ownerId, target.ownerId);
             const isManualTarget = (this.source && this.source.manualTarget === target);
-            
+
             // 강제 공격 대상이면 관계 무시
             if (!isManualTarget && (relation === 'self' || relation === 'ally')) return;
 
@@ -2279,7 +2288,7 @@ export class Missile extends Entity {
             ctx.save();
             ctx.globalAlpha = 0.2;
             ctx.fillStyle = '#000';
-            const shadowSize = Math.max(5, 10 * (1 - altitude/this.peakHeight));
+            const shadowSize = Math.max(5, 10 * (1 - altitude / this.peakHeight));
             ctx.beginPath();
             ctx.ellipse(this.x, this.y, shadowSize, shadowSize * 0.5, 0, 0, Math.PI * 2);
             ctx.fill();
@@ -2288,32 +2297,32 @@ export class Missile extends Entity {
             // 3. 미사일 본체
             ctx.save();
             ctx.translate(this.x, this.y - altitude);
-            
+
             // --- 정밀 탄도 각도 계산 (접선 벡터) ---
             // 수평 속도 벡터
             const vx = Math.cos(this.angle);
             const vy = Math.sin(this.angle);
-            
+
             // 수직 고도 변화율 (sin 미분 -> cos)
             // altitude = peakHeight * sin(progress * PI)
             // d(altitude)/d(progress) = peakHeight * PI * cos(progress * PI)
             const dAlt = this.peakHeight * Math.PI * Math.cos(progress * Math.PI);
-            
+
             // progress = dist / totalDist 이므로 d(progress)/dt 연쇄법칙 적용
             // 최종적으로 비행 기울기 산출
             const flightAngle = Math.atan2(vy * this.totalDistance - dAlt, vx * this.totalDistance);
-            
+
             ctx.rotate(flightAngle);
-            
+
             ctx.fillStyle = '#f5f6fa';
             ctx.beginPath();
             ctx.moveTo(16, 0); ctx.lineTo(6, -3); ctx.lineTo(-12, -3); ctx.lineTo(-12, 3); ctx.lineTo(6, 3);
             ctx.closePath(); ctx.fill();
-            
+
             ctx.fillStyle = '#2d3436';
             ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-12, -7); ctx.lineTo(-12, -3); ctx.closePath(); ctx.fill();
             ctx.beginPath(); ctx.moveTo(-6, 3); ctx.lineTo(-12, 7); ctx.lineTo(-12, 3); ctx.closePath(); ctx.fill();
-            
+
             const flameSize = 4 + Math.random() * 3;
             ctx.fillStyle = '#f1c40f';
             ctx.beginPath(); ctx.arc(-13, 0, flameSize, 0, Math.PI * 2); ctx.fill();
@@ -2325,17 +2334,17 @@ export class Missile extends Entity {
             const progress = this.explosionTimer / this.maxExplosionTime;
             const fireAlpha = Math.max(0, 1 - progress * 4); // 화염은 아주 짧게 (0.5초 이내)
             const smokeAlpha = Math.max(0, 1 - progress);   // 연기는 2초 동안 서서히
-            
+
             // 1. 잔류 연기 효과 (Lingering Smoke)
             if (this.smokeParticles) {
                 this.smokeParticles.forEach(p => {
                     const shiftX = p.vx * this.explosionTimer;
                     const shiftY = p.vy * this.explosionTimer;
                     const size = p.size * (1 + progress * 2); // 연기가 대폭 확산
-                    
+
                     ctx.save();
                     ctx.globalAlpha = smokeAlpha * 0.95; // 연기 농도 대폭 강화
-                    ctx.fillStyle = p.color; 
+                    ctx.fillStyle = p.color;
                     ctx.beginPath();
                     const px = this.targetX + Math.cos(p.angle) * p.dist + shiftX;
                     const py = this.targetY + Math.sin(p.angle) * p.dist + shiftY;
@@ -2348,8 +2357,8 @@ export class Missile extends Entity {
             // 2. 충격파 고리
             if (progress < 0.2) {
                 ctx.beginPath();
-                ctx.arc(this.targetX, this.targetY, this.explosionRadius * Math.pow(progress/0.2, 0.5), 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress/0.2) * 0.8})`;
+                ctx.arc(this.targetX, this.targetY, this.explosionRadius * Math.pow(progress / 0.2, 0.5), 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - progress / 0.2) * 0.8})`;
                 ctx.lineWidth = 5;
                 ctx.stroke();
             }
@@ -2360,13 +2369,13 @@ export class Missile extends Entity {
                 grad.addColorStop(0, `rgba(255, 255, 255, ${fireAlpha})`);
                 grad.addColorStop(0.3, `rgba(255, 215, 0, ${fireAlpha * 0.9})`);
                 grad.addColorStop(1, `rgba(255, 69, 0, 0)`);
-                
+
                 ctx.beginPath();
                 ctx.arc(this.targetX, this.targetY, this.explosionRadius * (1 + progress), 0, Math.PI * 2);
                 ctx.fillStyle = grad;
                 ctx.fill();
             }
-            
+
             ctx.restore();
         }
     }
@@ -2377,11 +2386,11 @@ export class MissileLauncher extends PlayerUnit {
         super(x, y, engine);
         this.type = 'missile-launcher';
         this.name = '이동식 미사일 발사대';
-        this.speed = 1.4; 
+        this.speed = 1.4;
         this.baseSpeed = 1.4;
         this.fireRate = 2500;
         this.damage = 350;
-        this.attackRange = 1800; 
+        this.attackRange = 1800;
         this.visionRange = 8;
         this.recoil = 0;
         this.canBypassObstacles = false;
@@ -2398,9 +2407,9 @@ export class MissileLauncher extends PlayerUnit {
         this.maxFireDelay = 45;
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackType = 'projectile';
-        this.attackTargets = ['ground', 'sea']; 
+        this.attackTargets = ['ground', 'sea'];
         this.popCost = 3;
-        
+
         this.ammoType = 'missile';
         this.maxAmmo = 6;
         this.ammo = 6;
@@ -2415,11 +2424,11 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     toggleSiege() {
-        if (this.isTransitioning || this.isFiring) return; 
+        if (this.isTransitioning || this.isFiring) return;
         this.isTransitioning = true;
         this.transitionTimer = 0;
-        this.destination = null; 
-        this.speed = 0;         
+        this.destination = null;
+        this.speed = 0;
         this.engine.addEffect?.('system', this.x, this.y, '#fff', this.isSieged ? '시즈 해제 중...' : '시즈 모드 설정 중...');
     }
 
@@ -2439,7 +2448,7 @@ export class MissileLauncher extends PlayerUnit {
                 this.isSieged = !this.isSieged;
                 this.raiseAngle = this.isSieged ? 1 : 0;
                 this.speed = this.isSieged ? 0 : this.baseSpeed;
-                if (this.isSieged) this.destination = null; 
+                if (this.isSieged) this.destination = null;
             }
         }
 
@@ -2467,7 +2476,7 @@ export class MissileLauncher extends PlayerUnit {
 
     fireAt(targetX, targetY) {
         if (!this.isSieged || this.isTransitioning || this.isFiring) return;
-        
+
         // 탄약 체크 추가
         if (this.ammo <= 0) {
             if (this.engine.addEffect) {
@@ -2494,20 +2503,20 @@ export class MissileLauncher extends PlayerUnit {
         const launchDist = 35 * 2;
         const tiltDir = Math.cos(this.angle) >= 0 ? -1 : 1;
         const visualAngle = this.angle + (tiltDir * (Math.PI / 10) * this.raiseAngle);
-        
+
         const spawnX = this.x + Math.cos(visualAngle) * launchDist;
         const spawnY = this.y + Math.sin(visualAngle) * launchDist;
 
         const missile = new Missile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
-        missile.peakHeight = Math.max(missile.peakHeight, 150); 
-        
+        missile.peakHeight = Math.max(missile.peakHeight, 150);
+
         this.engine.entities.projectiles.push(missile);
-        
+
         // 탄약 1발 소모
         this.ammo--;
-        
+
         this.lastFireTime = Date.now();
-        this.recoil = 15; 
+        this.recoil = 15;
     }
 
     draw(ctx) {
@@ -2525,8 +2534,8 @@ export class MissileLauncher extends PlayerUnit {
             if (this.recoil < 0.1) this.recoil = 0;
         }
 
-        ctx.scale(2, 2); 
-        
+        ctx.scale(2, 2);
+
         if (this.raiseAngle > 0) {
             ctx.fillStyle = '#636e72';
             const extend = 8 * this.raiseAngle;
@@ -2538,12 +2547,12 @@ export class MissileLauncher extends PlayerUnit {
 
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-22, -10, 44, 20);
-        
+
         ctx.fillStyle = '#34495e';
         ctx.fillRect(12, -10, 10, 20);
         ctx.fillStyle = '#81ecec';
         ctx.fillRect(16, -8, 4, 16);
-        
+
         ctx.fillStyle = '#1a1a1a';
         const wheelX = [-17, -7, 3, 13];
         wheelX.forEach(x => {
@@ -2557,18 +2566,18 @@ export class MissileLauncher extends PlayerUnit {
         ctx.save();
         ctx.translate(-15, 0);
         const tiltDir = Math.cos(this.angle) >= 0 ? -1 : 1;
-        ctx.rotate(tiltDir * (Math.PI / 10) * this.raiseAngle); 
-        
-        ctx.fillStyle = '#4b5320'; 
+        ctx.rotate(tiltDir * (Math.PI / 10) * this.raiseAngle);
+
+        ctx.fillStyle = '#4b5320';
         const scaleS = 1 + (this.raiseAngle * 0.1);
         const canisterLen = 32 * scaleS;
         ctx.fillRect(0, -7, canisterLen, 14);
-        
+
         ctx.strokeStyle = '#3a4118';
-        for(let i = 4; i <= 28; i += 4) {
+        for (let i = 4; i <= 28; i += 4) {
             ctx.beginPath(); ctx.moveTo(i, -7); ctx.lineTo(i, 7); ctx.stroke();
         }
-        
+
         // 해치 개방 애니메이션
         const hatchProgress = this.isFiring ? (this.fireDelayTimer / this.maxFireDelay) : 0;
         ctx.fillStyle = '#2d3436';
@@ -2600,8 +2609,8 @@ export class MissileLauncher extends PlayerUnit {
             ctx.save();
             ctx.translate(15, 0);
             ctx.fillStyle = '#f1c40f';
-            for(let i=0; i<3; i++) {
-                ctx.fillRect(Math.random()*15, (Math.random()-0.5)*15, 2, 2);
+            for (let i = 0; i < 3; i++) {
+                ctx.fillRect(Math.random() * 15, (Math.random() - 0.5) * 15, 2, 2);
             }
             ctx.restore();
         }
@@ -2613,13 +2622,13 @@ export class MissileLauncher extends PlayerUnit {
         const barW = 30;
         const barY = this.y - 30;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
         if (this.isFiring) {
             ctx.fillStyle = '#e67e22'; // 발사 준비 게이지
-            ctx.fillRect(this.x - barW/2, barY, (this.fireDelayTimer / this.maxFireDelay) * barW, 4);
+            ctx.fillRect(this.x - barW / 2, barY, (this.fireDelayTimer / this.maxFireDelay) * barW, 4);
         } else {
-            ctx.fillStyle = this.isSieged ? '#f1c40f' : '#2ecc71'; 
-            ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+            ctx.fillStyle = this.isSieged ? '#f1c40f' : '#2ecc71';
+            ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
         }
     }
 }
@@ -2632,12 +2641,12 @@ export class Artillery extends PlayerUnit {
         this.speed = 0.9;
         this.fireRate = 4000; // 매우 느린 연사
         this.damage = 100;    // 강력한 한 방
-        this.attackRange = 600; 
-        this.explosionRadius = 60; 
+        this.attackRange = 600;
+        this.explosionRadius = 60;
         this.cargoSize = 5; // 자주포 부피 5
         this.attackType = 'projectile';
         this.popCost = 4;
-        
+
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
@@ -2653,11 +2662,11 @@ export class Artillery extends PlayerUnit {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.scale(2, 2);
-        
+
         // 1. 하부 궤도 및 차체 (Chassis)
         ctx.fillStyle = '#1a1a1a'; // 궤도 색상
         ctx.fillRect(-16, -11, 32, 22);
-        
+
         ctx.fillStyle = '#4b5320'; // 올리브 드랩 (메인 차체)
         ctx.beginPath();
         ctx.moveTo(-15, -10); ctx.lineTo(15, -10);
@@ -2671,7 +2680,7 @@ export class Artillery extends PlayerUnit {
 
         // 보기륜 (Wheels) 디테일
         ctx.fillStyle = '#2d3436';
-        for(let i = -12; i <= 12; i += 6) {
+        for (let i = -12; i <= 12; i += 6) {
             ctx.beginPath(); ctx.arc(i, -10, 2, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(i, 10, 2, 0, Math.PI * 2); ctx.fill();
         }
@@ -2680,28 +2689,28 @@ export class Artillery extends PlayerUnit {
         ctx.save();
         // 포탑은 차체보다 약간 뒤쪽에 위치
         ctx.translate(-2, 0);
-        
+
         ctx.fillStyle = '#556644';
         ctx.fillRect(-10, -9, 22, 18);
         ctx.strokeStyle = '#2d3436';
         ctx.strokeRect(-10, -9, 22, 18);
-        
+
         // 포탑 상부 디테일 (해치 및 장비)
         ctx.fillStyle = '#3a4118';
         ctx.fillRect(-2, -6, 6, 6); // 메인 해치
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(8, -8, 2, 16); // 포탑 후면 바스켓 느낌
-        
+
         // 3. 초장거리 포신 (Main Gun)
         ctx.fillStyle = '#4b5320';
         ctx.fillRect(12, -2, 28, 4); // 매우 긴 포신
-        
+
         // 제퇴기 (Muzzle Brake)
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(38, -3, 4, 6);
         ctx.strokeStyle = '#111';
         ctx.strokeRect(38, -3, 4, 6);
-        
+
         // 포신 뿌리 부분 (Gun Mantlet)
         ctx.fillStyle = '#3a4118';
         ctx.fillRect(10, -4, 4, 8);
@@ -2712,9 +2721,9 @@ export class Artillery extends PlayerUnit {
         ctx.beginPath();
         ctx.moveTo(-8, -7); ctx.lineTo(-15, -15);
         ctx.stroke();
-        
+
         ctx.restore();
-        
+
         // 5. 전면 라이트
         ctx.fillStyle = '#f1c40f';
         ctx.beginPath(); ctx.arc(16, -7, 1.5, 0, Math.PI * 2); ctx.fill();
@@ -2728,9 +2737,9 @@ export class Artillery extends PlayerUnit {
         const barW = 30;
         const barY = this.y - 30;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
@@ -2750,7 +2759,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'flak';
         this.popCost = 3;
-        
+
         this.ammoType = 'bullet';
         this.maxAmmo = 200;
         this.ammo = 200;
@@ -2774,16 +2783,16 @@ export class AntiAirVehicle extends PlayerUnit {
         // 1. 하부 궤도 (Tracks) - 2.5D 측면
         ctx.fillStyle = '#1a1a1a'; // 궤도 측면 그림자
         ctx.fillRect(-14, -14, 30, 28);
-        
+
         ctx.fillStyle = '#2d3436'; // 궤도 윗면
         ctx.fillRect(-14, -14, 30, 5); // 좌측 궤도
         ctx.fillRect(-14, 9, 30, 5);   // 우측 궤도
-        
+
         // 휠 디테일
         ctx.fillStyle = '#000';
-        for(let i=0; i<4; i++) {
-            ctx.fillRect(-10 + i*7, -14, 2, 5);
-            ctx.fillRect(-10 + i*7, 9, 2, 5);
+        for (let i = 0; i < 4; i++) {
+            ctx.fillRect(-10 + i * 7, -14, 2, 5);
+            ctx.fillRect(-10 + i * 7, 9, 2, 5);
         }
 
         // 2. 차체 (Chassis) - 입체형
@@ -2794,7 +2803,7 @@ export class AntiAirVehicle extends PlayerUnit {
         // 차체 측면 (두께)
         ctx.fillStyle = '#3a4118';
         ctx.fillRect(-12, -9, 24, 18);
-        
+
         // 차체 상판 (Main Deck)
         ctx.fillStyle = '#4b5320';
         ctx.beginPath();
@@ -2803,10 +2812,10 @@ export class AntiAirVehicle extends PlayerUnit {
         ctx.lineTo(12, 9); ctx.lineTo(-12, 9);   // 우측면
         ctx.closePath();
         ctx.fill();
-        
+
         // 엔진 그릴 (후방)
         ctx.fillStyle = '#2d3436';
-        for(let i=0; i<3; i++) ctx.fillRect(-10 + i*3, -5, 2, 10);
+        for (let i = 0; i < 3; i++) ctx.fillRect(-10 + i * 3, -5, 2, 10);
 
         // 3. 포탑 (Turret) - 입체 박스
         ctx.save();
@@ -2816,12 +2825,12 @@ export class AntiAirVehicle extends PlayerUnit {
 
         // 포탑 베이스 (링)
         ctx.fillStyle = '#2c3e50';
-        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
 
         // 포탑 본체 측면 (어두운 면)
         ctx.fillStyle = '#3a4118';
         ctx.fillRect(-6, -7, 12, 14);
-        
+
         // 포탑 상판 (밝은 면)
         ctx.fillStyle = '#556644';
         ctx.fillRect(-6, -7, 10, 14);
@@ -2833,16 +2842,16 @@ export class AntiAirVehicle extends PlayerUnit {
         // 4. 레이더 시스템 (2.5D)
         // 전방 추적 레이더 (Tracking Radar)
         ctx.fillStyle = '#2f3542';
-        ctx.beginPath(); ctx.arc(6, 0, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(6, 0, 3, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#a4b0be'; // 렌즈/센서
-        ctx.beginPath(); ctx.arc(7, 0, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(7, 0, 1.5, 0, Math.PI * 2); ctx.fill();
 
         // 후방 탐색 레이더 (Search Radar) - 회전 및 입체감
         ctx.save();
         ctx.translate(-7, 0);
         const radarAngle = this.active ? time / 600 : 0;
         ctx.rotate(radarAngle);
-        
+
         // 레이더 접시 (Dish)
         ctx.fillStyle = '#95a5a6';
         ctx.fillRect(-2, -8, 4, 16); // 메인 바
@@ -2856,45 +2865,45 @@ export class AntiAirVehicle extends PlayerUnit {
         // 5. 쌍열 35mm 기관포 (Oerlikon KDA)
         const drawGunSystem = (side) => { // side: 1 or -1
             ctx.save();
-            ctx.translate(-2, side * 9); 
+            ctx.translate(-2, side * 9);
 
             // 포신 구동부 (Housing) - 입체
             ctx.fillStyle = '#3a4118'; // 측면
             ctx.fillRect(-6, -3, 12, 6);
             ctx.fillStyle = '#4b5320'; // 윗면
             ctx.fillRect(-6, -3, 10, 6);
-            
+
             // 포신 (Barrel)
             ctx.fillStyle = '#1e272e';
             const kick = (side === 1 && recoil > 0) || (side === -1 && recoil > 0) ? recoil : 0;
-            
+
             // 총열 덮개/방열판
             ctx.fillRect(4, -2, 8, 4);
             // 긴 포신
             ctx.fillRect(12 - kick, -1, 20, 2);
-            
+
             // 소염기 (Muzzle Brake)
             ctx.fillStyle = '#000';
             ctx.fillRect(32 - kick, -1.5, 4, 3);
-            
+
             // 탄띠 급탄부 (Ammo Feed)
             ctx.fillStyle = '#2d3436';
             ctx.beginPath();
-            ctx.moveTo(-2, side * -2); 
+            ctx.moveTo(-2, side * -2);
             ctx.lineTo(-2, side * -5); // 포탑 쪽으로 연결
             ctx.stroke();
 
             // 발사 이펙트
             if (kick > 0) {
-                ctx.fillStyle = `rgba(255, 200, 50, ${0.7 + Math.random()*0.3})`;
+                ctx.fillStyle = `rgba(255, 200, 50, ${0.7 + Math.random() * 0.3})`;
                 ctx.beginPath();
                 ctx.moveTo(36, 0);
                 ctx.lineTo(45, -3); ctx.lineTo(48, 0); ctx.lineTo(45, 3);
                 ctx.fill();
-                
+
                 // 연기
                 ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
-                ctx.beginPath(); ctx.arc(38, 0, 3 + Math.random()*2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(38, 0, 3 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
             }
 
             ctx.restore();
@@ -2912,9 +2921,9 @@ export class AntiAirVehicle extends PlayerUnit {
         const barW = 30;
         const barY = this.y - 30;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
@@ -2928,7 +2937,7 @@ export class Rifleman extends PlayerUnit {
         this.damage = 15;    // 분대 통합 공격력 15
         this.attackRange = 200; // 사거리 소폭 상향
         this.size = 60;      // 분대 크기에 맞춰 선택 영역 확장
-        this.visionRange = 5; 
+        this.visionRange = 5;
         this.hp = 210;       // 3인 통합 체력 (70*3)
         this.maxHp = 210;
         this.attackTargets = ['ground', 'sea', 'air'];
@@ -2936,7 +2945,7 @@ export class Rifleman extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'bullet';
         this.popCost = 1;
-        
+
         this.ammoType = 'bullet';
         this.maxAmmo = 150;
         this.ammo = 150;
@@ -2952,7 +2961,7 @@ export class Rifleman extends PlayerUnit {
             this.drawConstruction(ctx);
             return;
         }
-        
+
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -2967,7 +2976,7 @@ export class Rifleman extends PlayerUnit {
         formation.forEach((pos, index) => {
             ctx.save();
             ctx.translate(pos.x, pos.y);
-            
+
             // 분대원마다 미세한 각도 및 애니메이션 차이 부여 (생동감)
             const individualOffset = (index * 1234) % 100;
             const breathing = Math.sin((Date.now() + individualOffset) / 400) * 0.5;
@@ -2978,7 +2987,7 @@ export class Rifleman extends PlayerUnit {
 
             // 0. 하부 그림자 (부드러운 타원)
             ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            ctx.beginPath(); ctx.ellipse(0, 2, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(0, 2, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
 
             // 1. 전술 백팩 (입체감 강화)
             ctx.fillStyle = '#2d3310'; // 측면 어두운 면
@@ -2988,19 +2997,19 @@ export class Rifleman extends PlayerUnit {
             // MOLLE 웨빙 디테일
             ctx.strokeStyle = 'rgba(0,0,0,0.3)';
             ctx.lineWidth = 0.5;
-            for(let i=-3; i<=3; i+=3) {
+            for (let i = -3; i <= 3; i += 3) {
                 ctx.beginPath(); ctx.moveTo(-10, i); ctx.lineTo(-5, i); ctx.stroke();
             }
 
             // 2. 바디 (전투복 & 레이어드 아머)
             // 전투복 (디지털 패턴 느낌의 점 찍기)
-            ctx.fillStyle = '#556644'; 
+            ctx.fillStyle = '#556644';
             ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#3a4118'; // 미세 패턴
             ctx.fillRect(-2, 2, 1, 1); ctx.fillRect(2, -3, 1, 1);
-            
+
             // 플레이트 캐리어 (입체적 돌출)
-            ctx.fillStyle = '#4b5320'; 
+            ctx.fillStyle = '#4b5320';
             ctx.beginPath();
             ctx.roundRect(-2.5, -5, 7, 10, 1);
             ctx.fill();
@@ -3008,7 +3017,7 @@ export class Rifleman extends PlayerUnit {
             ctx.fillStyle = '#3a4118';
             ctx.fillRect(-2, -5, 2, 2);
             ctx.fillRect(-2, 3, 2, 2);
-            
+
             // 탄창 파우치 (돌출된 입체)
             ctx.fillStyle = '#2d3310';
             ctx.fillRect(0.5, -3.5, 2.5, 7); // 파우치 베이스
@@ -3023,23 +3032,23 @@ export class Rifleman extends PlayerUnit {
             hGrd.addColorStop(1, '#4b5320');
             ctx.fillStyle = hGrd;
             ctx.beginPath(); ctx.arc(1, 0, 4.8, 0, Math.PI * 2); ctx.fill();
-            
+
             // NVG 마운트 (이마 부분)
             ctx.fillStyle = '#1e272e';
             ctx.fillRect(4.5, -1.2, 1.5, 2.4);
-            
+
             // 사이드 레일 및 헤드셋
             ctx.fillStyle = '#2d3436';
             ctx.fillRect(1, -4.8, 2.5, 1.2); // 레일
             ctx.fillRect(1, 3.6, 2.5, 1.2);
             ctx.fillStyle = '#1e272e';
-            ctx.beginPath(); ctx.arc(1, -4.2, 1.8, 0, Math.PI*2); ctx.fill(); // 헤드셋 컵
-            ctx.beginPath(); ctx.arc(1, 4.2, 1.8, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(1, -4.2, 1.8, 0, Math.PI * 2); ctx.fill(); // 헤드셋 컵
+            ctx.beginPath(); ctx.arc(1, 4.2, 1.8, 0, Math.PI * 2); ctx.fill();
 
             // 4. 전술 소총 (Custom AR-15 Style)
             ctx.save();
-            ctx.translate(3.5, 2); 
-            if (isShooting) ctx.translate(-1.2, 0); 
+            ctx.translate(3.5, 2);
+            if (isShooting) ctx.translate(-1.2, 0);
 
             // 개머리판 및 스톡 봉
             ctx.fillStyle = '#1e272e';
@@ -3048,11 +3057,11 @@ export class Rifleman extends PlayerUnit {
             ctx.beginPath(); ctx.roundRect(-4, -1.5, 3, 3, 0.5); ctx.fill();
 
             // 총몸 (Receiver & Magazine Well)
-            ctx.fillStyle = '#1e272e'; 
-            ctx.fillRect(1, -1.5, 9, 3.5); 
+            ctx.fillStyle = '#1e272e';
+            ctx.fillRect(1, -1.5, 9, 3.5);
             ctx.fillStyle = '#2d3436'; // 상부 리시버 요철
             ctx.fillRect(2, -1.8, 6, 1);
-            
+
             // 탄창 (Magpul Style)
             ctx.fillStyle = '#3a4118';
             ctx.beginPath(); ctx.roundRect(6.5, 1, 2.2, 4.5, 0.5); ctx.fill();
@@ -3063,8 +3072,8 @@ export class Rifleman extends PlayerUnit {
             ctx.fillStyle = '#1e272e';
             ctx.fillRect(10, -1.2, 11, 2.4);
             ctx.fillStyle = '#2d3436'; // 피카티니 레일 표현
-            for(let i=11; i<20; i+=2) ctx.fillRect(i, -1.5, 1, 3);
-            
+            for (let i = 11; i < 20; i += 2) ctx.fillRect(i, -1.5, 1, 3);
+
             // 조준경 (EOTech Style Holo Sight)
             ctx.fillStyle = '#111';
             ctx.fillRect(4, -3.2, 4, 2);
@@ -3077,59 +3086,59 @@ export class Rifleman extends PlayerUnit {
 
             // 팔 및 손 (전술 장갑)
             ctx.fillStyle = '#556644';
-            ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI*2); ctx.fill(); // 어깨/소매
-            ctx.beginPath(); ctx.arc(10, 2.2, 2.5, 0, Math.PI*2); ctx.fill(); // 앞팔
+            ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill(); // 어깨/소매
+            ctx.beginPath(); ctx.arc(10, 2.2, 2.5, 0, Math.PI * 2); ctx.fill(); // 앞팔
             ctx.fillStyle = '#2d3436'; // 장갑
-            ctx.beginPath(); ctx.arc(2, 0.5, 2.2, 0, Math.PI*2); ctx.fill(); // 오른손
-            ctx.beginPath(); ctx.arc(14, 1.2, 2.2, 0, Math.PI*2); ctx.fill(); // 왼손
+            ctx.beginPath(); ctx.arc(2, 0.5, 2.2, 0, Math.PI * 2); ctx.fill(); // 오른손
+            ctx.beginPath(); ctx.arc(14, 1.2, 2.2, 0, Math.PI * 2); ctx.fill(); // 왼손
 
-                                    // 총구 화염 (부드러운 순간 광원만 표시)
+            // 총구 화염 (부드러운 순간 광원만 표시)
 
-                                    if (isShooting) {
+            if (isShooting) {
 
-                                        ctx.save();
+                ctx.save();
 
-                                        ctx.translate(22, 0); // 총구 위치
+                ctx.translate(22, 0); // 총구 위치
 
-                                        
 
-                                        const flashSize = 15 + Math.random() * 10;
 
-                                        const alpha = 0.4 + Math.random() * 0.2;
+                const flashSize = 15 + Math.random() * 10;
 
-                        
+                const alpha = 0.4 + Math.random() * 0.2;
 
-                                        // 부드러운 구형 광원 (Glow)
 
-                                        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, flashSize);
 
-                                        grad.addColorStop(0, `rgba(255, 215, 0, ${alpha})`);
+                // 부드러운 구형 광원 (Glow)
 
-                                        grad.addColorStop(0.5, `rgba(255, 165, 0, ${alpha * 0.3})`);
+                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, flashSize);
 
-                                        grad.addColorStop(1, 'transparent');
+                grad.addColorStop(0, `rgba(255, 215, 0, ${alpha})`);
 
-                                        
+                grad.addColorStop(0.5, `rgba(255, 165, 0, ${alpha * 0.3})`);
 
-                                        ctx.fillStyle = grad;
+                grad.addColorStop(1, 'transparent');
 
-                                        ctx.beginPath();
 
-                                        ctx.arc(0, 0, flashSize, 0, Math.PI * 2);
 
-                                        ctx.fill();
+                ctx.fillStyle = grad;
 
-                        
+                ctx.beginPath();
 
-                                        ctx.restore();
+                ctx.arc(0, 0, flashSize, 0, Math.PI * 2);
 
-                                    }
+                ctx.fill();
 
-                                    ctx.restore();
 
-                                    ctx.restore();
 
-                                });
+                ctx.restore();
+
+            }
+
+            ctx.restore();
+
+            ctx.restore();
+
+        });
 
         ctx.restore();
 
@@ -3137,9 +3146,9 @@ export class Rifleman extends PlayerUnit {
         const barW = 40;
         const barY = this.y - 35;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 5);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 5);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 5);
     }
 }
 
@@ -3160,7 +3169,7 @@ export class Sniper extends PlayerUnit {
         this.attackType = 'hitscan';
         this.hitEffectType = 'hit';
         this.popCost = 1;
-        
+
         this.ammoType = 'bullet';
         this.maxAmmo = 10;
         this.ammo = 10;
@@ -3178,17 +3187,17 @@ export class Sniper extends PlayerUnit {
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        ctx.scale(2, 2); 
+        ctx.scale(2, 2);
 
         const isShooting = (this.target && (Date.now() - this.lastFireTime < 200));
 
         // 1. 길리 슈트 (Ghillie Suit - 몸체 덮개)
         ctx.fillStyle = '#2d3310'; // 어두운 숲색
-        
+
         // 단순화된 위장 망토 (Hooded Cloak)
         ctx.beginPath();
         // 어깨에서 등으로 떨어지는 망토 형태
-        ctx.moveTo(0, -5); 
+        ctx.moveTo(0, -5);
         ctx.bezierCurveTo(-8, -5, -10, 0, -8, 5); // 왼쪽 라인
         ctx.lineTo(0, 6); // 하단
         ctx.bezierCurveTo(8, 5, 8, -5, 0, -5); // 오른쪽 라인
@@ -3196,10 +3205,10 @@ export class Sniper extends PlayerUnit {
 
         // 텍스처 패턴 (지저분하지 않게 단순 점)
         ctx.fillStyle = '#3a4118';
-        ctx.beginPath(); ctx.arc(-4, -2, 1.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(3, 1, 1.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(-2, 3, 1.5, 0, Math.PI*2); ctx.fill();
-        
+        ctx.beginPath(); ctx.arc(-4, -2, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, 1, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-2, 3, 1.5, 0, Math.PI * 2); ctx.fill();
+
         // 몸통 (엎드린 자세 느낌)
         ctx.fillStyle = '#2d3310';
         ctx.beginPath();
@@ -3222,7 +3231,7 @@ export class Sniper extends PlayerUnit {
         }
 
         // 총몸 (Body)
-        ctx.fillStyle = '#2f3640'; 
+        ctx.fillStyle = '#2f3640';
         ctx.fillRect(0, -1.5, 8, 3);
         // 개머리판 (Stock - 조절형)
         ctx.fillStyle = '#1e272e';
@@ -3231,7 +3240,7 @@ export class Sniper extends PlayerUnit {
 
         // 긴 총열 (Long Barrel)
         ctx.fillStyle = '#2f3640';
-        ctx.fillRect(8, -1, 16, 2); 
+        ctx.fillRect(8, -1, 16, 2);
         // 소염기 (Muzzle Brake)
         ctx.fillStyle = '#111';
         ctx.fillRect(24, -1.5, 4, 3);
@@ -3240,7 +3249,7 @@ export class Sniper extends PlayerUnit {
         ctx.fillStyle = '#111';
         ctx.fillRect(2, -3.5, 8, 2); // 경통
         ctx.fillStyle = '#00d2ff'; // 렌즈 반사
-        ctx.beginPath(); ctx.arc(2, -2.5, 1, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(2, -2.5, 1, 0, Math.PI * 2); ctx.fill();
 
         // 양각대 (Bipod - 펼침)
         ctx.strokeStyle = '#555';
@@ -3252,14 +3261,14 @@ export class Sniper extends PlayerUnit {
 
         // 위장 랩 (Rifle Wrap)
         ctx.fillStyle = '#4b5320';
-        ctx.beginPath(); ctx.ellipse(12, 0, 3, 1.5, 0.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(18, 0, 2, 1, -0.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(12, 0, 3, 1.5, 0.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(18, 0, 2, 1, -0.5, 0, Math.PI * 2); ctx.fill();
 
         // 오른손 (그립)
         ctx.fillStyle = '#3a4118';
-        ctx.beginPath(); ctx.arc(0, 1, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 1, 2, 0, Math.PI * 2); ctx.fill();
         // 왼손 (개머리판 지지 - 정밀 사격 자세)
-        ctx.beginPath(); ctx.arc(-2, 2, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-2, 2, 2, 0, Math.PI * 2); ctx.fill();
 
         // 발사 이펙트 (강력한 충격파)
         if (isShooting) {
@@ -3268,7 +3277,7 @@ export class Sniper extends PlayerUnit {
             ctx.moveTo(28, 0);
             ctx.lineTo(35, -3); ctx.lineTo(38, 0); ctx.lineTo(35, 3);
             ctx.fill();
-            
+
             // 측면 가스 분출
             ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
             ctx.lineWidth = 1;
@@ -3283,9 +3292,9 @@ export class Sniper extends PlayerUnit {
         const barW = 20;
         const barY = this.y - 20;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 3);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 3);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 3);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 3);
     }
 }
 
@@ -3315,7 +3324,7 @@ export class CombatEngineer extends PlayerUnit {
             if (buildInfo) {
                 this.engine.resources.gold += buildInfo.cost;
                 this.engine.clearBuildingTiles(this.buildingTarget);
-                
+
                 // 엔티티 목록에서 제거
                 const list = this.engine.entities[buildInfo.list];
                 if (list) {
@@ -3338,7 +3347,7 @@ export class CombatEngineer extends PlayerUnit {
 
         if (queueToAbandon) {
             // 이 큐를 여전히 참조하고 있는 다른 공병이 있는지 확인
-            const othersUsingIt = this.engine.entities.units.some(u => 
+            const othersUsingIt = this.engine.entities.units.some(u =>
                 u !== this && u.alive && u.type === 'engineer' && u.myGroupQueue === queueToAbandon
             );
 
@@ -3379,24 +3388,24 @@ export class CombatEngineer extends PlayerUnit {
                     this.buildingTarget.buildProgress = 1;
                     this.buildingTarget.isUnderConstruction = false;
                     this.buildingTarget.hp = this.buildingTarget.maxHp;
-                    
+
                     // [버그 수정] 건물 내부 끼임 방지: 실제로 겹쳤을 때만 자연스럽게 바깥으로 탈출
                     const currentGrid = this.engine.tileMap.worldToGrid(this.x, this.y);
                     const currentTile = this.engine.tileMap.grid[currentGrid.y]?.[currentGrid.x];
-                    
+
                     // 현재 서 있는 타일이 점유(occupied)된 상태일 때만 튕겨내기 수행
                     if (currentTile && currentTile.occupied) {
                         const freeTile = this.engine.pathfinding.findNearestWalkable(currentGrid.x, currentGrid.y);
                         if (freeTile) {
                             const worldPos = this.engine.tileMap.gridToWorld(freeTile.x, freeTile.y);
-                            
+
                             // 1. 탈출 방향을 바라보게 함
                             this.angle = Math.atan2(worldPos.y - this.y, worldPos.x - this.x);
-                            
+
                             // 2. 위치를 외곽으로 어느 정도 밀어내고 (튕겨나가는 시작점)
                             this.x = this.x * 0.3 + worldPos.x * 0.7;
                             this.y = this.y * 0.3 + worldPos.y * 0.7;
-                            
+
                             // 3. 남은 거리는 직선 경로를 강제 주입하여 부드럽게 걸어나오게 함
                             this.destination = worldPos;
                             this.path = [worldPos];
@@ -3408,11 +3417,11 @@ export class CombatEngineer extends PlayerUnit {
                         const resIdx = resList.indexOf(this.buildingTarget.targetResource);
                         if (resIdx !== -1) resList.splice(resIdx, 1);
                     }
-                    
+
                     // 건물 건설 완료 시 인구수 갱신 트리거
                     if (this.engine.updatePopulation) {
                         this.engine.updatePopulation();
-                        
+
                         // 시각적 알림 추가
                         const msg = this.buildingTarget.type === 'apartment' ? '보급 한도 증가 (+10)' : '건설 완료';
                         const color = this.buildingTarget.type === 'apartment' ? '#39ff14' : '#fff';
@@ -3442,7 +3451,7 @@ export class CombatEngineer extends PlayerUnit {
                 const task = this.currentSharedTask;
                 const buildInfo = this.engine.buildingRegistry[task.type];
                 const [tw, th] = buildInfo ? buildInfo.size : [1, 1];
-                
+
                 // 건물의 크기에 상관없이 넉넉하게 인식 범위를 잡음 (건물 절반 크기 + 유닛 크기 + 여유 30px)
                 const targetDistX = (tw * 40) / 2 + this.size / 2 + 30;
                 const targetDistY = (th * 40) / 2 + this.size / 2 + 30;
@@ -3453,7 +3462,7 @@ export class CombatEngineer extends PlayerUnit {
                     let existingBuilding = null;
                     const listName = buildInfo.list;
                     if (this.engine.entities[listName]) {
-                        existingBuilding = this.engine.entities[listName].find(b => 
+                        existingBuilding = this.engine.entities[listName].find(b =>
                             b.gridX === task.gridX && b.gridY === task.gridY && b.isUnderConstruction
                         );
                     }
@@ -3485,7 +3494,7 @@ export class CombatEngineer extends PlayerUnit {
                     // 건물의 중심이 아닌 가장 가까운 외곽 지점으로 이동
                     const halfW = (tw * 40) / 2;
                     const halfH = (th * 40) / 2;
-                    
+
                     const minX = task.x - halfW;
                     const maxX = task.x + halfW;
                     const minY = task.y - halfH;
@@ -3524,7 +3533,7 @@ export class CombatEngineer extends PlayerUnit {
 
             const dist = Math.hypot(this.x - this.targetObject.x, this.y - this.targetObject.y);
             const range = (this.size + (this.targetObject.width || this.targetObject.size || 40)) / 2 + 10;
-            
+
             if (dist <= range) {
                 if (this.targetObject.hp < this.targetObject.maxHp) {
                     this.targetObject.hp = Math.min(this.targetObject.maxHp, this.targetObject.hp + (this.repairRate * deltaTime / 1000));
@@ -3563,14 +3572,14 @@ export class CombatEngineer extends PlayerUnit {
         ctx.scale(2, 2); // 2배 확대
 
         const isWorking = (this.command === 'repair' || (this.command === 'build' && this.buildingTarget));
-        
+
         // 작업 애니메이션: 전술 망치질
         let hammerAngle = 0;
         let hammerOffset = 0;
         if (isWorking) {
             // 속도 조절: 100 -> 250 (느리게)
             const cycle = (Date.now() / 250) % Math.PI;
-            hammerAngle = Math.sin(cycle * 4) * 0.9; 
+            hammerAngle = Math.sin(cycle * 4) * 0.9;
             hammerOffset = Math.sin(cycle * 4) * 2;
         }
 
@@ -3583,15 +3592,15 @@ export class CombatEngineer extends PlayerUnit {
         ctx.fillRect(-11, 3, 6, 1);
         // 야전삽 (등에 부착)
         ctx.fillStyle = '#2d3436';
-        ctx.beginPath(); ctx.ellipse(-11, 0, 2, 4, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(-11, 0, 2, 4, 0, 0, Math.PI * 2); ctx.fill();
 
         // 2. 몸체 (전투복 & 방탄 조끼)
         // 전투복 (Olive Drab)
-        ctx.fillStyle = '#556644'; 
+        ctx.fillStyle = '#556644';
         ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-        
+
         // 방탄 조끼 (Plate Carrier - Coyote Brown or Dark Green)
-        ctx.fillStyle = '#4b5320'; 
+        ctx.fillStyle = '#4b5320';
         ctx.fillRect(-3, -5, 7, 10);
         // 탄입대/파우치 디테일
         ctx.fillStyle = '#3a4118';
@@ -3606,7 +3615,7 @@ export class CombatEngineer extends PlayerUnit {
         ctx.fillStyle = '#2d3436';
         ctx.beginPath(); ctx.arc(1.5, -4, 2, 0, Math.PI * 2); ctx.fill(); // 왼쪽 귀
         ctx.beginPath(); ctx.arc(1.5, 4, 2, 0, Math.PI * 2); ctx.fill();  // 오른쪽 귀
-        
+
         // 전술 고글 (헬멧 위에 얹음)
         ctx.fillStyle = '#1e272e';
         ctx.fillRect(2, -3, 2, 6);
@@ -3616,8 +3625,8 @@ export class CombatEngineer extends PlayerUnit {
 
         // 4. 양손 & 전술 브리칭 해머 (Tactical Hammer)
         ctx.save();
-        ctx.translate(3, 2); 
-        
+        ctx.translate(3, 2);
+
         if (isWorking) {
             // 작업 시: 망치질 애니메이션
             ctx.rotate(hammerAngle);
@@ -3630,18 +3639,18 @@ export class CombatEngineer extends PlayerUnit {
 
         // 팔 (전투복 소매 - 걷어올림)
         ctx.fillStyle = '#556644';
-        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
         // 살색 팔뚝
-        ctx.fillStyle = '#eebb99'; 
-        ctx.beginPath(); ctx.arc(1.5, 0, 2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#eebb99';
+        ctx.beginPath(); ctx.arc(1.5, 0, 2, 0, Math.PI * 2); ctx.fill();
 
         // 망치 자루 (조금 더 짧게 잡음)
         ctx.fillStyle = '#1e272e';
         ctx.fillRect(2, -1, 12, 2); // 길이 14 -> 12
-        
+
         // 망치 헤드 (위치 당김: 14 -> 12)
         ctx.fillStyle = '#2d3436';
-        ctx.fillRect(12, -3.5, 5, 7); 
+        ctx.fillRect(12, -3.5, 5, 7);
         // 타격부
         ctx.fillStyle = '#636e72';
         ctx.fillRect(17, -3.5, 1, 7); // 19 -> 17
@@ -3649,15 +3658,15 @@ export class CombatEngineer extends PlayerUnit {
 
         // 전술 장갑
         ctx.fillStyle = '#2d3436';
-        ctx.beginPath(); ctx.arc(7, 0, 2.5, 0, Math.PI*2); ctx.fill(); // 오른손 (8 -> 7)
-        ctx.beginPath(); ctx.arc(3, 0, 2.5, 0, Math.PI*2); ctx.fill(); // 왼손 (4 -> 3)
+        ctx.beginPath(); ctx.arc(7, 0, 2.5, 0, Math.PI * 2); ctx.fill(); // 오른손 (8 -> 7)
+        ctx.beginPath(); ctx.arc(3, 0, 2.5, 0, Math.PI * 2); ctx.fill(); // 왼손 (4 -> 3)
 
         // 작업 효과 (스파크 대신 파편/먼지)
         if (isWorking && Math.abs(hammerAngle) > 0.6) {
             ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
-            for(let i=0; i<3; i++) {
-                ctx.beginPath(); 
-                ctx.arc(20 + Math.random()*4, (Math.random()-0.5)*8, 1.5, 0, Math.PI*2);
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.arc(20 + Math.random() * 4, (Math.random() - 0.5) * 8, 1.5, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
@@ -3670,9 +3679,9 @@ export class CombatEngineer extends PlayerUnit {
         const barW = 24;
         const barY = this.y - 28;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }
 
@@ -3687,7 +3696,7 @@ export class Barracks extends Entity {
         this.maxHp = 1500;
         this.hp = 1500;
         this.spawnQueue = []; // {type, timer}
-        this.spawnTime = 1000; 
+        this.spawnTime = 1000;
         this.units = [];
     }
 
@@ -3696,30 +3705,30 @@ export class Barracks extends Entity {
         return true;
     }
 
-        update(deltaTime, engine) {
-            if (this.isUnderConstruction) return;
-            this.units = this.units.filter(u => u.alive);
-            
-            if (this.spawnQueue.length > 0) {
-                const current = this.spawnQueue[0];
-                current.timer += deltaTime;
-                if (current.timer >= this.spawnTime) {
-                    const spawnY = this.y + 65;
-                    let unit;
-                    if (current.type === 'sniper') {
-                        unit = new Sniper(this.x, spawnY, engine);
-                    } else {
-                        unit = new Rifleman(this.x, spawnY, engine);
-                    }
-                    
-                    unit.isInitialExit = true;
-                    unit.destination = { x: this.x, y: this.y + 100 };
-                    this.units.push(unit);
-                    engine.entities.units.push(unit);
-                    this.spawnQueue.shift();
+    update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
+        this.units = this.units.filter(u => u.alive);
+
+        if (this.spawnQueue.length > 0) {
+            const current = this.spawnQueue[0];
+            current.timer += deltaTime;
+            if (current.timer >= this.spawnTime) {
+                const spawnY = this.y + 65;
+                let unit;
+                if (current.type === 'sniper') {
+                    unit = new Sniper(this.x, spawnY, engine);
+                } else {
+                    unit = new Rifleman(this.x, spawnY, engine);
                 }
+
+                unit.isInitialExit = true;
+                unit.destination = { x: this.x, y: this.y + 100 };
+                this.units.push(unit);
+                engine.entities.units.push(unit);
+                this.spawnQueue.shift();
             }
         }
+    }
     draw(ctx) {
         if (this.isUnderConstruction) {
             this.drawConstruction(ctx);
@@ -3727,7 +3736,7 @@ export class Barracks extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-        
+
         // 1. 부지 기반
         ctx.fillStyle = '#3b4d3c';
         ctx.fillRect(-60, -60, 120, 120);
@@ -3739,7 +3748,7 @@ export class Barracks extends Entity {
             const depth = 12;
             ctx.save();
             ctx.translate(hx, hy);
-            
+
             // 건물 그림자
             ctx.fillStyle = 'rgba(0,0,0,0.2)';
             ctx.fillRect(-48, -10, 96, 35);
@@ -3752,11 +3761,11 @@ export class Barracks extends Entity {
             ctx.moveTo(45, -15); ctx.lineTo(45, 15);
             ctx.lineTo(45 + 3, 15 + depth); ctx.lineTo(45 + 3, -15 + depth);
             ctx.closePath(); ctx.fill();
-            
+
             // 건물 본체 (윗면/옆면)
             ctx.fillStyle = '#4b5320';
             ctx.fillRect(-45, -15, 90, 30);
-            
+
             // 박공 지붕 (Gabled Roof - 입체감 추가)
             // 지붕의 어두운 쪽 (서쪽/북쪽)
             ctx.fillStyle = '#3a4118';
@@ -3771,10 +3780,10 @@ export class Barracks extends Entity {
 
             // 창문 (입체감 있는 배치)
             ctx.fillStyle = '#3498db';
-            for(let i=0; i<3; i++) {
-                ctx.fillRect(-30 + i*25, 5, 10, 6);
+            for (let i = 0; i < 3; i++) {
+                ctx.fillRect(-30 + i * 25, 5, 10, 6);
             }
-            
+
             ctx.restore();
         };
 
@@ -3785,7 +3794,7 @@ export class Barracks extends Entity {
         // 국기 게양대 그림자
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.fillRect(-43, 2, 15, 4);
-        
+
         // 게양대 (입체)
         ctx.fillStyle = '#bdc3c7';
         ctx.fillRect(-46, -25, 3, 25);
@@ -3803,12 +3812,12 @@ export class Barracks extends Entity {
         const draw3DSandbags = (sx, sy) => {
             ctx.save();
             ctx.translate(sx, sy);
-            for(let i=0; i<2; i++) {
+            for (let i = 0; i < 2; i++) {
                 // 하단층
                 ctx.fillStyle = '#a6936a'; // 어두운 면
-                ctx.beginPath(); ctx.ellipse(-5 + i*12, 4, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(-5 + i * 12, 4, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = '#c2b280'; // 윗면
-                ctx.beginPath(); ctx.ellipse(-5 + i*12, 0, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(-5 + i * 12, 0, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.strokeStyle = '#8e7a55'; ctx.lineWidth = 0.5; ctx.stroke();
             }
             ctx.restore();
@@ -3826,9 +3835,9 @@ export class Barracks extends Entity {
         const barW = 80;
         const barY = this.y - 85;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
 
         if (this.spawnQueue.length > 0) {
             const qBarY = barY - 14;
@@ -3855,9 +3864,9 @@ export class Armory extends Entity {
         this.size = 160;
         this.maxHp = 2500;
         this.hp = 2500;
-        this.spawnQueue = []; 
-        this.spawnTime = 1000; 
-        this.units = []; 
+        this.spawnQueue = [];
+        this.spawnTime = 1000;
+        this.units = [];
     }
 
     requestUnit(unitType) {
@@ -3865,22 +3874,22 @@ export class Armory extends Entity {
         return true;
     }
 
-        update(deltaTime, engine) {
-            if (this.isUnderConstruction) return;
-            this.units = this.units.filter(u => u.alive);
-    
-            if (this.spawnQueue.length > 0) {
-                const current = this.spawnQueue[0];
-                current.timer += deltaTime;
-                if (current.timer >= this.spawnTime) {
-                    const spawnY = this.y + 65;
-                    let unit;
-                                    if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);
-                                    else if (current.type === 'missile-launcher') unit = new MissileLauncher(this.x, spawnY, engine);
-                                    else if (current.type === 'artillery') unit = new Artillery(this.x, spawnY, engine);
-                                    else if (current.type === 'anti-air') unit = new AntiAirVehicle(this.x, spawnY, engine);
-                                    else if (current.type === 'military-truck') unit = new MilitaryTruck(this.x, spawnY, engine);
-                
+    update(deltaTime, engine) {
+        if (this.isUnderConstruction) return;
+        this.units = this.units.filter(u => u.alive);
+
+        if (this.spawnQueue.length > 0) {
+            const current = this.spawnQueue[0];
+            current.timer += deltaTime;
+            if (current.timer >= this.spawnTime) {
+                const spawnY = this.y + 65;
+                let unit;
+                if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);
+                else if (current.type === 'missile-launcher') unit = new MissileLauncher(this.x, spawnY, engine);
+                else if (current.type === 'artillery') unit = new Artillery(this.x, spawnY, engine);
+                else if (current.type === 'anti-air') unit = new AntiAirVehicle(this.x, spawnY, engine);
+                else if (current.type === 'military-truck') unit = new MilitaryTruck(this.x, spawnY, engine);
+
                 if (unit) {
                     unit.isInitialExit = true;
                     unit.destination = { x: this.x, y: this.y + 100 };
@@ -3901,20 +3910,20 @@ export class Armory extends Entity {
         ctx.translate(this.x, this.y);
 
         // 2.5D Projection
-        const depth = 15; 
-        const angle = -Math.PI / 4; 
+        const depth = 15;
+        const angle = -Math.PI / 4;
         const dx = Math.cos(angle) * depth;
         const dy = Math.sin(angle) * depth;
 
         // Hitbox: [-80, 80] x [-60, 60]
-        const bw = 130; 
-        const bh = 60;  
-        const wallH = 40; 
+        const bw = 130;
+        const bh = 60;
+        const wallH = 40;
         const bx = -bw / 2;
         const by = -bh / 2 - 5;
 
         // 1. 기초 바닥 (Tactical Concrete Foundation)
-        ctx.fillStyle = '#2c3e50'; 
+        ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(bx - 10, by + bh + wallH + 5);
         ctx.lineTo(bx + bw + 10, by + bh + wallH + 5);
@@ -3929,14 +3938,14 @@ export class Armory extends Entity {
         ctx.moveTo(bx + bw, by); ctx.lineTo(bx + bw + dx, by + dy);
         ctx.lineTo(bx + bw + dx, by + bh + wallH + dy); ctx.lineTo(bx + bw, by + bh + wallH);
         ctx.closePath(); ctx.fill();
-        
+
         // 전면 벽 (국방색)
-        ctx.fillStyle = '#4b5320'; 
+        ctx.fillStyle = '#4b5320';
         ctx.fillRect(bx, by, bw, bh + wallH);
-        
+
         // 장갑판 리벳 디테일
         ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1;
-        for(let i=0; i<bw; i+=30) {
+        for (let i = 0; i < bw; i += 30) {
             ctx.strokeRect(bx + i, by, 30, bh + wallH);
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(bx + i + 2, by + 2, 2, 2);
@@ -3945,14 +3954,14 @@ export class Armory extends Entity {
 
         // 3. 지붕 (Heavy Armored Roof)
         const sw = bw / 4;
-        for(let i=0; i<4; i++) {
+        for (let i = 0; i < 4; i++) {
             const rx = bx + i * sw;
             ctx.fillStyle = '#556644'; // 지붕 상단
             ctx.beginPath();
             ctx.moveTo(rx, by); ctx.lineTo(rx + sw, by);
             ctx.lineTo(rx + sw + dx, by + dy); ctx.lineTo(rx + dx, by + dy);
             ctx.closePath(); ctx.fill();
-            
+
             ctx.fillStyle = '#3d441e'; // 지붕 수직면
             ctx.beginPath();
             ctx.moveTo(rx + sw, by); ctx.lineTo(rx + sw + dx, by + dy);
@@ -3966,22 +3975,22 @@ export class Armory extends Entity {
 
         // 4. 대형 전술 셔터 (Blast Door)
         const dw = 80; const dh = 45;
-        const doorX = -dw/2; const doorY = by + bh + wallH - dh;
-        
+        const doorX = -dw / 2; const doorY = by + bh + wallH - dh;
+
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(doorX, doorY, dw, dh);
-        
+
         // 셔터 보강재
         ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
-        for(let i=0; i<dh; i+=8) {
+        for (let i = 0; i < dh; i += 8) {
             ctx.strokeRect(doorX + 5, doorY + i, dw - 10, 4);
         }
-        
+
         // 가동 시 경고등 (Red Blink)
-        if (Math.floor(Date.now()/500)%2 === 0) {
+        if (Math.floor(Date.now() / 500) % 2 === 0) {
             ctx.fillStyle = '#e74c3c';
-            ctx.beginPath(); ctx.arc(doorX - 8, doorY + 5, 3, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(doorX + dw + 8, doorY + 5, 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(doorX - 8, doorY + 5, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(doorX + dw + 8, doorY + 5, 3, 0, Math.PI * 2); ctx.fill();
         }
 
         // 5. 기계 장치 및 소품
@@ -3998,19 +4007,19 @@ export class Armory extends Entity {
         // 냉각 팬
         const fanRotation = (Date.now() / 150);
         ctx.fillStyle = '#2c3e50';
-        ctx.beginPath(); ctx.arc(bx + 15, by + 15, 8, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + 15, by + 15, 8, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#00d2ff';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(bx + 15 + Math.cos(fanRotation)*6, by + 15 + Math.sin(fanRotation)*6);
-        ctx.lineTo(bx + 15 - Math.cos(fanRotation)*6, by + 15 - Math.sin(fanRotation)*6);
+        ctx.moveTo(bx + 15 + Math.cos(fanRotation) * 6, by + 15 + Math.sin(fanRotation) * 6);
+        ctx.lineTo(bx + 15 - Math.cos(fanRotation) * 6, by + 15 - Math.sin(fanRotation) * 6);
         ctx.stroke();
 
         // 탄약 박스 및 드럼통
         const drawProp = (px, py, color, type) => {
             ctx.fillStyle = color;
-            if(type==='box') ctx.fillRect(px, py, 12, 8);
-            else { ctx.beginPath(); ctx.ellipse(px, py, 6, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillRect(px-6, py-10, 12, 10); }
+            if (type === 'box') ctx.fillRect(px, py, 12, 8);
+            else { ctx.beginPath(); ctx.ellipse(px, py, 6, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(px - 6, py - 10, 12, 10); }
             ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
         };
         drawProp(bx + bw - 20, by + bh + wallH - 10, '#7f8c8d', 'drum');
@@ -4025,9 +4034,9 @@ export class Armory extends Entity {
         const barW = 120;
         const barY = this.y - 100;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
 
         if (this.spawnQueue.length > 0) {
             const qBarY = barY - 14;
@@ -4054,8 +4063,8 @@ export class Airport extends Entity {
         this.size = 280;
         this.maxHp = 2500; // 크기에 맞춰 체력 상향
         this.hp = 2500;
-        this.spawnQueue = []; 
-        this.spawnTime = 1000; 
+        this.spawnQueue = [];
+        this.spawnTime = 1000;
         this.units = [];
     }
 
@@ -4081,19 +4090,19 @@ export class Airport extends Entity {
                 } else {
                     unit = new ScoutPlane(this.x + 55, this.y - 80, engine);
                 }
-                
+
                 unit.isInitialExit = true; // 출격 모드 설정 (활주로 이탈 전까지 충돌 무시)
                 unit.destination = { x: this.x + 55, y: this.y + 140 };
                 this.units.push(unit);
                 engine.entities.units.push(unit);
-                
+
                 // 수송기의 경우 전용 리스트에도 추가 (렌더링 레이어 대응)
                 if (current.type === 'cargo-plane' && engine.entities.cargoPlanes) {
                     engine.entities.cargoPlanes.push(unit);
                 }
-                
+
                 this.spawnQueue.shift();
-                
+
                 // 유닛 생산 후 인구수 갱신
                 if (engine.updatePopulation) engine.updatePopulation();
             }
@@ -4118,10 +4127,10 @@ export class Airport extends Entity {
         // 콘크리트 타일 텍스처
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
-        for(let i=-100; i<=100; i+=25) {
+        for (let i = -100; i <= 100; i += 25) {
             ctx.beginPath(); ctx.moveTo(i, -140); ctx.lineTo(i, 140); ctx.stroke();
         }
-        for(let j=-140; j<=140; j+=25) {
+        for (let j = -140; j <= 140; j += 25) {
             ctx.beginPath(); ctx.moveTo(-100, j); ctx.lineTo(100, j); ctx.stroke();
         }
 
@@ -4132,7 +4141,7 @@ export class Airport extends Entity {
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 2;
         ctx.strokeRect(20, -135, 70, 270);
-        
+
         // 활주로 마킹
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 18px "Courier New"';
@@ -4161,7 +4170,7 @@ export class Airport extends Entity {
         const drawHangar25D = (dx, dy) => {
             ctx.save();
             ctx.translate(dx, dy);
-            
+
             // 1. 벽면 (그림자쪽)
             ctx.fillStyle = '#2c3e50';
             ctx.fillRect(-35, -20, 70, 45); // 전체 높이감
@@ -4170,7 +4179,7 @@ export class Airport extends Entity {
             ctx.fillStyle = '#34495e';
             ctx.fillRect(-30, -5, 60, 20);
             ctx.strokeStyle = '#1a252f';
-            for(let i=-30; i<=30; i+=10) {
+            for (let i = -30; i <= 30; i += 10) {
                 ctx.beginPath(); ctx.moveTo(i, -5); ctx.lineTo(i, 15); ctx.stroke();
             }
 
@@ -4197,7 +4206,7 @@ export class Airport extends Entity {
             ctx.translate(dx, dy);
             // 그림자
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath(); ctx.arc(2, 2, 12, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(2, 2, 12, 0, Math.PI * 2); ctx.fill();
             // 몸체 (옆면)
             const sideGrd = ctx.createLinearGradient(-12, 0, 12, 0);
             sideGrd.addColorStop(0, '#7f8c8d');
@@ -4207,7 +4216,7 @@ export class Airport extends Entity {
             ctx.fillRect(-12, -15, 24, 25);
             // 윗면 (Top)
             ctx.fillStyle = '#bdc3c7';
-            ctx.beginPath(); ctx.ellipse(0, -15, 12, 6, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(0, -15, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#7f8c8d'; ctx.stroke();
             // 파이프 연결부
             ctx.fillStyle = '#c0392b';
@@ -4227,7 +4236,7 @@ export class Airport extends Entity {
         // 2층 중간 데크
         ctx.fillStyle = '#2c3e50'; ctx.fillRect(-18, -5, 36, 6);
         // 3층 관제실 (유리 및 조명)
-        const towerBlink = Math.sin(Date.now()/400) > 0;
+        const towerBlink = Math.sin(Date.now() / 400) > 0;
         const towerColor = towerBlink ? '#4fc3f7' : '#0288d1';
         ctx.fillStyle = '#263238'; // 프레임
         ctx.beginPath();
@@ -4247,31 +4256,31 @@ export class Airport extends Entity {
         ctx.save();
         ctx.translate(-40, -110);
         ctx.fillStyle = '#555'; ctx.fillRect(-3, 0, 6, 15); // 지지대
-        
+
         ctx.rotate(Date.now() / 600);
         const dishGrd = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
         dishGrd.addColorStop(0, '#bdc3c7');
         dishGrd.addColorStop(1, '#7f8c8d');
         ctx.fillStyle = dishGrd;
-        ctx.beginPath(); ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#333'; ctx.stroke();
         // 레이더 빔 효과
         ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 80, -0.2, 0.2); ctx.closePath(); ctx.fill();
-        
+
         ctx.restore();
 
         // 8. 야간 항공 유도등 (입체적인 광원 효과) - 오른쪽 활주로에 맞춰 이동
-        for(let i=0; i<6; i++) {
-            const yPos = -120 + i*48;
-            const blink = (Math.floor(Date.now()/300) + i) % 4 === 0;
-            
+        for (let i = 0; i < 6; i++) {
+            const yPos = -120 + i * 48;
+            const blink = (Math.floor(Date.now() / 300) + i) % 4 === 0;
+
             ctx.save();
             ctx.globalAlpha = blink ? 1.0 : 0.3;
             ctx.shadowBlur = 10; ctx.shadowColor = '#2ecc71';
             ctx.fillStyle = '#2ecc71';
-            ctx.beginPath(); ctx.arc(15, yPos, 4, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(95, yPos, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(15, yPos, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(95, yPos, 4, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
 
@@ -4281,10 +4290,10 @@ export class Airport extends Entity {
         const barW = 140;
         const barY = this.y - 170;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 10);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 10);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 10);
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(this.x - barW/2, barY, barW, 10);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 10);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(this.x - barW / 2, barY, barW, 10);
 
         if (this.spawnQueue.length > 0) {
             const qBarY = barY - 18;
@@ -4358,14 +4367,14 @@ export class Apartment extends Entity {
 
             for (let f = 0; f < floors; f++) {
                 const fy = by + f * floorHeight + 10;
-                
+
                 // 층 구분선
                 ctx.strokeStyle = 'rgba(0,0,0,0.1)';
                 ctx.beginPath(); ctx.moveTo(bx, fy - 5); ctx.lineTo(bx + bw, fy - 5); ctx.stroke();
 
                 for (let w = 0; w < 4; w++) {
-                    const wx = bx + (w + 0.5) * winSpacing - winW/2;
-                    
+                    const wx = bx + (w + 0.5) * winSpacing - winW / 2;
+
                     // 베란다 복구 (직각형 돌출)
                     ctx.fillStyle = '#95a5a6';
                     ctx.fillRect(wx - 4, fy + winH - 2, winW + 8, 4);
@@ -4389,7 +4398,7 @@ export class Apartment extends Entity {
             ctx.strokeStyle = '#7f8c8d';
             ctx.lineWidth = 3;
             ctx.strokeRect(2, 2, bw - 4, 4);
-            
+
             ctx.restore();
         };
 
@@ -4400,11 +4409,11 @@ export class Apartment extends Entity {
         // 3. 1층 입구 조경
         const drawTree = (tx, ty) => {
             ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            ctx.beginPath(); ctx.ellipse(tx+2, ty+2, 8, 4, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(tx + 2, ty + 2, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#27ae60';
-            ctx.beginPath(); ctx.arc(tx, ty, 8, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(tx, ty, 8, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#2ecc71';
-            ctx.beginPath(); ctx.arc(tx-2, ty-2, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(tx - 2, ty - 2, 5, 0, Math.PI * 2); ctx.fill();
         };
         drawTree(-50, 80);
         drawTree(-30, 85);
@@ -4428,9 +4437,9 @@ export class Apartment extends Entity {
         const barW = 120;
         const barY = this.y - 120;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 8);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 8);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 8);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 8);
     }
 }
 
@@ -4439,7 +4448,7 @@ export class ScoutPlane extends PlayerUnit {
         super(x, y, engine);
         this.type = 'scout-plane';
         this.name = '고등 정찰 무인기';
-        this.domain = 'air'; 
+        this.domain = 'air';
         this.speed = 4.5;    // 속도 살짝 상향
         this.visionRange = 18; // 정찰 능력 강화
         this.hp = 250;       // 체력 상향
@@ -4473,7 +4482,7 @@ export class ScoutPlane extends PlayerUnit {
         wingGrd.addColorStop(0, '#7f8c8d');
         wingGrd.addColorStop(0.5, '#bdc3c7');
         wingGrd.addColorStop(1, '#7f8c8d');
-        
+
         ctx.fillStyle = wingGrd;
         ctx.beginPath();
         ctx.moveTo(10, 0);       // 앞쪽 중앙
@@ -4500,7 +4509,7 @@ export class ScoutPlane extends PlayerUnit {
         bodyGrd.addColorStop(0, '#ecf0f1');
         bodyGrd.addColorStop(0.5, '#bdc3c7');
         bodyGrd.addColorStop(1, '#95a5a6');
-        
+
         ctx.fillStyle = bodyGrd;
         ctx.beginPath();
         ctx.moveTo(40, 0);       // 기수
@@ -4513,7 +4522,7 @@ export class ScoutPlane extends PlayerUnit {
         // 4. 엔진 배기구 및 제트 화염
         ctx.fillStyle = '#333';
         ctx.fillRect(-28, -5, 5, 10);
-        
+
         if (this.destination || Math.random() > 0.3) {
             const flicker = Math.random() * 5;
             const engineGrd = ctx.createRadialGradient(-30, 0, 2, -35, 0, 15);
@@ -4560,7 +4569,7 @@ export class ScoutPlane extends PlayerUnit {
             const barW = 60;
             const bx = -barW / 2;
             const by = 60;
-            
+
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(bx, by, barW, 6);
             ctx.fillStyle = '#00d2ff';
@@ -4577,9 +4586,9 @@ export class ScoutPlane extends PlayerUnit {
                 else if (u.type === 'rifleman') dotColor = '#556644';
                 else if (u.type === 'engineer') dotColor = '#f1c40f';
                 else if (u.type.startsWith('ammo-')) dotColor = '#f1c40f';
-                
+
                 ctx.fillStyle = dotColor;
-                ctx.beginPath(); ctx.arc(dotX, dotY, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dotX, dotY, 2, 0, Math.PI * 2); ctx.fill();
             });
         }
 
@@ -4589,12 +4598,12 @@ export class ScoutPlane extends PlayerUnit {
         const barW = 50;
         const barY = this.y - 50;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 5);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 5);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 5);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 5);
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
-        ctx.strokeRect(this.x - barW/2, barY, barW, 5);
+        ctx.strokeRect(this.x - barW / 2, barY, barW, 5);
     }
 }
 
@@ -4610,9 +4619,9 @@ export class FallingBomb {
         this.active = true;
         this.arrived = false; // GameEngine 필터 조건 대응
         this.radius = 120; // 폭발 범위 살짝 확장
-        this.scale = 2.0; 
+        this.scale = 2.0;
         this.type = 'bomb';
-        
+
         // 폭격기로부터 공격 가능 대상 목록 상속 (폭격기는 기본적으로 지상/해상 공격)
         this.attackTargets = source?.attackTargets || ['ground', 'sea'];
     }
@@ -4620,10 +4629,10 @@ export class FallingBomb {
     update(deltaTime) {
         if (!this.active) return;
         this.timer += deltaTime;
-        
+
         // 원근감: 2.0(하늘) -> 1.0(지면)
         this.scale = 2.0 - (this.timer / this.duration);
-        
+
         if (this.timer >= this.duration) {
             this.explode();
             this.active = false;
@@ -4641,7 +4650,7 @@ export class FallingBomb {
 
         potentialTargets.forEach(target => {
             if (!target || target.hp === undefined) return;
-            
+
             // 도메인 체크: 공격 가능한 대상 도메인인지 확인
             const targetDomain = target.domain || 'ground';
             if (!this.attackTargets.includes(targetDomain)) return;
@@ -4672,20 +4681,20 @@ export class FallingBomb {
                 const p = this.timer / this.duration;
                 ctx.save();
                 ctx.globalAlpha = 1 - p;
-                
+
                 // 중심 화염
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, 60 * p, 0, Math.PI * 2);
                 ctx.fillStyle = '#ff4500';
                 ctx.fill();
-                
+
                 // 충격파
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, 100 * p, 0, Math.PI * 2);
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 2;
                 ctx.stroke();
-                
+
                 ctx.restore();
             }
         });
@@ -4693,7 +4702,7 @@ export class FallingBomb {
 
     draw(ctx) {
         if (!this.active) return;
-        
+
         ctx.save();
         // 1. 지면 낙하 예상 지점 가이드
         const progress = this.timer / this.duration;
@@ -4706,7 +4715,7 @@ export class FallingBomb {
         // 2. 떨어지는 포탄 본체
         ctx.translate(this.x, this.y);
         ctx.scale(this.scale, this.scale);
-        
+
         // 포탄 본체 (더 크게 묘사)
         ctx.fillStyle = '#1a1a1a';
         ctx.beginPath();
@@ -4715,12 +4724,12 @@ export class FallingBomb {
         ctx.strokeStyle = '#444';
         ctx.lineWidth = 1;
         ctx.stroke();
-        
+
         // 꼬리 날개
         ctx.fillStyle = '#c0392b';
         ctx.fillRect(-6, -12, 12, 3);
         ctx.fillRect(-2, -15, 4, 6);
-        
+
         ctx.restore();
     }
 }
@@ -4731,35 +4740,35 @@ export class Bomber extends PlayerUnit {
         this.type = 'bomber';
         this.name = '전략 폭격기';
         this.domain = 'ground'; // 지상 시작
-        this.baseSpeed = 2.2; 
+        this.baseSpeed = 2.2;
         this.airSpeed = 5.0;   // 공중 비행 속도 (7.0 -> 5.0 하향)
         this.speed = 0.5;      // 낮은 속도로 시작
         this.visionRange = 12;
-        this.hp = 1200; 
+        this.hp = 1200;
         this.maxHp = 1200;
         this.size = 92;
         this.width = 140;
         this.height = 115;
-        this.damage = 0; 
-        this.attackTargets = ['ground', 'sea']; 
+        this.damage = 0;
+        this.attackTargets = ['ground', 'sea'];
         this.cargoSize = 99; // 수송기 탑승 불가
-        
+
         this.bombTimer = 0;
-        this.bombInterval = 500; 
+        this.bombInterval = 500;
 
         // 이착륙 시스템
         this.altitude = 0.0; // 지상 시작
         this.isLandingZoneSafe = false;
         this.lastX = x;
         this.lastY = y;
-        
+
         this.isTakeoffStarting = false; // 수동 이륙 플래그
         this.isManualLanding = false;   // 수동 착륙 플래그
         this.maneuverFrameCount = 0;    // 활주 시작 프레임 카운터
         this.takeoffDistance = 0;       // 활주 거리 누적
         this.isBombingActive = false;   // 폭격 모드 활성화 여부
         this.popCost = 6;
-        
+
         this.ammoType = 'shell';
         this.maxAmmo = 12;
         this.ammo = 12;
@@ -4786,8 +4795,8 @@ export class Bomber extends PlayerUnit {
             this.maneuverFrameCount = 0;
             this.takeoffDistance = 0;
             this.speed = 0.5; // 이륙 시작 시 속도 초기화
-            this.command = 'move'; 
-            this.destination = null; 
+            this.command = 'move';
+            this.destination = null;
         } else {
             // 공중이면 착륙 프로세스 시작
             this.isManualLanding = true;
@@ -4856,7 +4865,7 @@ export class Bomber extends PlayerUnit {
             const nextY = this.y + Math.sin(this.angle) * this.speed;
             const grid = this.engine.tileMap.worldToGrid(nextX, nextY);
             const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-            
+
             // 고도가 낮을 때만 지상 장애물에 막힘 (충돌 판정)
             const isBlocked = (this.altitude < 0.7) && (tile && (tile.occupied || !tile.buildable));
 
@@ -4870,7 +4879,7 @@ export class Bomber extends PlayerUnit {
 
             if (this.isTakeoffStarting) {
                 if (isMoving) {
-                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5); 
+                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5);
                     // 최소 300px 활주 후 상승 시작
                     if (this.takeoffDistance > 300) {
                         this.altitude = Math.min(1.0, this.altitude + 0.015);
@@ -4939,7 +4948,7 @@ export class Bomber extends PlayerUnit {
         // 시각 효과 계산
         const shadowMaxOffset = 15;
         const shadowOffset = shadowMaxOffset * this.altitude;
-        
+
         // 이륙 시 활주 시작부터 엔진 가동 연출
         const isEnginesRunning = this.altitude > 0 || (this.command === 'move' && this.isLandingZoneSafe);
         const propSpeedFactor = isEnginesRunning ? Math.max(0.2, this.altitude) : 0;
@@ -4964,7 +4973,7 @@ export class Bomber extends PlayerUnit {
         ctx.restore();
 
         // 1. 주익
-        const wingColor = '#2c3e50'; 
+        const wingColor = '#2c3e50';
         ctx.fillStyle = wingColor;
         ctx.beginPath();
         ctx.moveTo(15, 0); ctx.lineTo(-20, -75); ctx.lineTo(-35, -75);
@@ -4974,21 +4983,21 @@ export class Bomber extends PlayerUnit {
         ctx.lineWidth = 1.5; ctx.stroke();
 
         // 2. 엔진 & 프로펠러
-        const engineOffsets = [-28, -52, 28, 52]; 
+        const engineOffsets = [-28, -52, 28, 52];
         engineOffsets.forEach(offset => {
             ctx.save();
-            ctx.translate(-8, offset); 
+            ctx.translate(-8, offset);
             ctx.fillStyle = '#2c3e50';
-            ctx.fillRect(-10, -6, 26, 12); 
+            ctx.fillRect(-10, -6, 26, 12);
             ctx.strokeStyle = '#000'; ctx.strokeRect(-10, -6, 26, 12);
             ctx.fillStyle = '#bdc3c7';
             ctx.beginPath(); ctx.arc(16, 0, 3.5, 0, Math.PI * 2); ctx.fill();
-            
+
             ctx.save();
             ctx.translate(16, 0);
             ctx.rotate(propAngle);
             ctx.fillStyle = '#0a0a0a';
-            for(let i=0; i<4; i++) {
+            for (let i = 0; i < 4; i++) {
                 ctx.rotate(Math.PI / 2);
                 ctx.beginPath(); ctx.ellipse(0, 9, 2.5, 11, 0, 0, Math.PI * 2); ctx.fill();
             }
@@ -5001,7 +5010,7 @@ export class Bomber extends PlayerUnit {
         bodyGrd.addColorStop(0, '#34495e'); bodyGrd.addColorStop(0.5, '#2c3e50'); bodyGrd.addColorStop(1, '#1c2833');
         ctx.fillStyle = bodyGrd;
         ctx.beginPath();
-        ctx.moveTo(60, 0); ctx.bezierCurveTo(60, -14, 50, -16, 40, -16); 
+        ctx.moveTo(60, 0); ctx.bezierCurveTo(60, -14, 50, -16, 40, -16);
         ctx.lineTo(-55, -12); ctx.lineTo(-65, 0); ctx.lineTo(-55, 12);
         ctx.lineTo(40, 16); ctx.bezierCurveTo(50, 16, 60, 14, 60, 0);
         ctx.fill(); ctx.stroke();
@@ -5034,11 +5043,11 @@ export class Bomber extends PlayerUnit {
         const barW = 100;
         const barY = this.y - 70;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
         ctx.strokeStyle = '#fff';
-        ctx.strokeRect(this.x - barW/2, barY, barW, 6);
+        ctx.strokeRect(this.x - barW / 2, barY, barW, 6);
     }
 }
 
@@ -5064,7 +5073,7 @@ export class CargoPlane extends PlayerUnit {
         this.isLandingZoneSafe = false;
         this.lastX = x;
         this.lastY = y;
-        
+
         this.isTakeoffStarting = false;
         this.isManualLanding = false;
         this.maneuverFrameCount = 0;
@@ -5076,7 +5085,7 @@ export class CargoPlane extends PlayerUnit {
         this.cargoSize = 99; // 수송기 탑승 불가
         this.isUnloading = false;
         this.unloadTimer = 0;
-        this.unloadInterval = 300; 
+        this.unloadInterval = 300;
         this.popCost = 4;
     }
 
@@ -5103,7 +5112,7 @@ export class CargoPlane extends PlayerUnit {
         if (this.altitude > 0.1) return false;
 
         // 탑승 상태 설정
-        unit.isBoarded = true; 
+        unit.isBoarded = true;
         unit.command = 'stop';
         unit.destination = null;
         unit.path = [];
@@ -5118,7 +5127,7 @@ export class CargoPlane extends PlayerUnit {
         }
 
         this.cargo.push(unit);
-        
+
         // 선택 해제
         if (this.engine.selectedEntities) {
             this.engine.selectedEntities = this.engine.selectedEntities.filter(e => e !== unit);
@@ -5127,12 +5136,12 @@ export class CargoPlane extends PlayerUnit {
 
         // 시각 효과
         this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', '유닛 탑승');
-        
+
         // UI 즉시 갱신 (하차 버튼 활성화 등)
         if (this.engine.updateBuildMenu) {
             this.engine.updateBuildMenu();
         }
-        
+
         return true;
     }
 
@@ -5154,7 +5163,7 @@ export class CargoPlane extends PlayerUnit {
         if (this.unloadTimer >= this.unloadInterval) {
             this.unloadTimer = 0;
             const unit = this.cargo.shift();
-            
+
             // 수송기 뒤쪽 위치 계산
             const rearDist = 80;
             const rearX = this.x + Math.cos(this.angle + Math.PI) * rearDist;
@@ -5165,12 +5174,12 @@ export class CargoPlane extends PlayerUnit {
             unit.x = rearX;
             unit.y = rearY;
             unit.angle = this.angle + Math.PI; // 반대 방향 바라보기
-            
+
             // 하차 후 약간 전진 시키기
             const exitDestX = rearX + Math.cos(this.angle + Math.PI) * 60;
             const exitDestY = rearY + Math.sin(this.angle + Math.PI) * 60;
             unit.destination = { x: exitDestX, y: exitDestY };
-            
+
             // this.engine.entities.units.push(unit); // 제거: 이미 리스트에 있음
 
             if (this.cargo.length === 0) this.isUnloading = false;
@@ -5206,14 +5215,14 @@ export class CargoPlane extends PlayerUnit {
         this.dropTimer += deltaTime;
         if (this.dropTimer >= 1200) { // 1.2초 간격으로 상향 (더 넓게 투하)
             this.dropTimer = 0;
-            
+
             // 투하 위치 확인
             const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
             const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-            
+
             // 장애물이 있으면 스킵 (다음 이동 위치에서 재시도)
             if (tile && (tile.occupied || !tile.buildable)) {
-                return; 
+                return;
             }
 
             const unit = this.cargo.shift();
@@ -5245,8 +5254,8 @@ export class CargoPlane extends PlayerUnit {
             this.maneuverFrameCount = 0;
             this.takeoffDistance = 0;
             this.speed = 0.5;
-            this.command = 'move'; 
-            this.destination = null; 
+            this.command = 'move';
+            this.destination = null;
         } else {
             this.isManualLanding = true;
             this.isTakeoffStarting = false;
@@ -5298,7 +5307,7 @@ export class CargoPlane extends PlayerUnit {
             const nextY = this.y + Math.sin(this.angle) * this.speed;
             const grid = this.engine.tileMap.worldToGrid(nextX, nextY);
             const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-            
+
             const isBlocked = (this.altitude < 0.7) && (tile && (tile.occupied || !tile.buildable));
 
             if (!isBlocked) {
@@ -5310,7 +5319,7 @@ export class CargoPlane extends PlayerUnit {
 
             if (this.isTakeoffStarting) {
                 if (isMoving) {
-                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5); 
+                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5);
                     if (this.takeoffDistance > 350) {
                         this.altitude = Math.min(1.0, this.altitude + 0.012); // 수송기는 약간 더 천천히 상승
                     }
@@ -5365,7 +5374,7 @@ export class CargoPlane extends PlayerUnit {
 
         const time = Date.now();
         const shadowOffset = 22 * this.altitude;
-        
+
         // 0. 그림자 (더 부드럽게)
         ctx.save();
         ctx.translate(-shadowOffset, shadowOffset);
@@ -5409,31 +5418,31 @@ export class CargoPlane extends PlayerUnit {
         const engineOffsets = [-88, -52, 52, 88];
         engineOffsets.forEach(offset => {
             ctx.save();
-            const wingX = -12 - Math.abs(offset) * 0.22; 
+            const wingX = -12 - Math.abs(offset) * 0.22;
             ctx.translate(wingX, offset);
-            
+
             // 배기구 그을린 금속 (Exhaust Cone)
             ctx.fillStyle = '#1c2833';
             ctx.fillRect(-12, -6, 15, 12);
-            
+
             // 엔진 본체
             const engGrd = ctx.createLinearGradient(0, -9, 0, 9);
             engGrd.addColorStop(0, '#34495e'); engGrd.addColorStop(0.5, '#5d6d7e'); engGrd.addColorStop(1, '#2c3e50');
             ctx.fillStyle = engGrd;
             ctx.fillRect(-6, -9, 28, 18);
             ctx.strokeRect(-6, -9, 28, 18);
-            
+
             // 공기 흡입구 및 내부 팬 블레이드 실루엣
             ctx.fillStyle = '#0a0a0a';
             ctx.beginPath(); ctx.ellipse(22, 0, 5, 8, 0, 0, Math.PI * 2); ctx.fill();
-            
+
             // 엔진 가동 시 팬 블레이드 회전 효과 (이륙/비행 중일 때만)
             const isEnginesRunning = this.altitude > 0 || this.isTakeoffStarting || (this.command === 'move' && this.destination);
             if (isEnginesRunning) {
                 ctx.strokeStyle = '#2c3e50';
-                for(let i=0; i<4; i++) {
-                    ctx.beginPath(); ctx.moveTo(22, 0); 
-                    ctx.lineTo(22 + Math.cos(time/100 + i*Math.PI/2)*3, Math.sin(time/100 + i*Math.PI/2)*5);
+                for (let i = 0; i < 4; i++) {
+                    ctx.beginPath(); ctx.moveTo(22, 0);
+                    ctx.lineTo(22 + Math.cos(time / 100 + i * Math.PI / 2) * 3, Math.sin(time / 100 + i * Math.PI / 2) * 5);
                     ctx.stroke();
                 }
             }
@@ -5448,20 +5457,20 @@ export class CargoPlane extends PlayerUnit {
         bodyGrd.addColorStop(0.8, '#bdc3c7');
         bodyGrd.addColorStop(1, '#7f8c8d');
         ctx.fillStyle = bodyGrd;
-        
+
         ctx.beginPath();
         ctx.moveTo(85, 0); // 더 길어진 기수
-        ctx.bezierCurveTo(85, -24, 65, -26, 45, -26); 
-        ctx.lineTo(-65, -26); 
-        ctx.bezierCurveTo(-100, -26, -100, 26, -65, 26); 
-        ctx.lineTo(45, 26); 
-        ctx.bezierCurveTo(65, 26, 85, 24, 85, 0); 
+        ctx.bezierCurveTo(85, -24, 65, -26, 45, -26);
+        ctx.lineTo(-65, -26);
+        ctx.bezierCurveTo(-100, -26, -100, 26, -65, 26);
+        ctx.lineTo(45, 26);
+        ctx.bezierCurveTo(65, 26, 85, 24, 85, 0);
         ctx.fill();
         ctx.stroke();
 
         // 기수 레이돔 (Radome) 라인
         ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.beginPath(); ctx.arc(65, 0, 24, -Math.PI/2, Math.PI/2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(65, 0, 24, -Math.PI / 2, Math.PI / 2); ctx.stroke();
 
         // 공중 급유 프로브 (Refueling Probe - 기수 오른쪽)
         ctx.fillStyle = '#7f8c8d';
@@ -5470,7 +5479,7 @@ export class CargoPlane extends PlayerUnit {
 
         // 랜딩 기어 벌지 & 패널 디테일
         ctx.fillStyle = '#95a5a6';
-        ctx.fillRect(-25, -29, 60, 5); 
+        ctx.fillRect(-25, -29, 60, 5);
         ctx.fillRect(-25, 24, 60, 5);
         ctx.strokeRect(-25, -29, 60, 5);
         ctx.strokeRect(-25, 24, 60, 5);
@@ -5483,14 +5492,14 @@ export class CargoPlane extends PlayerUnit {
         ctx.fill();
         // 동체 측면 작은 창문들
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        for(let i=0; i<3; i++) ctx.fillRect(10 - i*25, -22, 4, 3);
+        for (let i = 0; i < 3; i++) ctx.fillRect(10 - i * 25, -22, 4, 3);
 
         // 5. T-Tail Complex
         // 수직 미익 기둥 (패널 라인 포함)
         ctx.fillStyle = '#bdc3c7';
         ctx.fillRect(-92, -4, 35, 8);
         ctx.strokeRect(-92, -4, 35, 8);
-        
+
         // 상부 수평 미익 (High Mounted Elevators)
         ctx.save();
         ctx.translate(-92, 0);
@@ -5515,16 +5524,16 @@ export class CargoPlane extends PlayerUnit {
         ctx.shadowBlur = blink ? 5 : 0;
         ctx.shadowColor = '#ff0000';
         ctx.fillStyle = blink ? '#ff3131' : '#440000';
-        ctx.beginPath(); ctx.arc(-45, -115, 4, 0, Math.PI*2); ctx.fill(); // Left Wing
-        ctx.beginPath(); ctx.arc(-45, 115, 4, 0, Math.PI*2); ctx.fill();  // Right Wing
-        ctx.beginPath(); ctx.arc(-118, 0, 4, 0, Math.PI*2); ctx.fill();   // Tail Tip
+        ctx.beginPath(); ctx.arc(-45, -115, 4, 0, Math.PI * 2); ctx.fill(); // Left Wing
+        ctx.beginPath(); ctx.arc(-45, 115, 4, 0, Math.PI * 2); ctx.fill();  // Right Wing
+        ctx.beginPath(); ctx.arc(-118, 0, 4, 0, Math.PI * 2); ctx.fill();   // Tail Tip
         ctx.shadowBlur = 0;
 
         // --- 적재량 상세 표시 (선택 시에만) ---
         if (this.engine.selectedEntities.includes(this) && (this.cargo.length > 0)) {
             ctx.save();
             ctx.rotate(-this.angle); // 텍스트 수평 유지
-            
+
             const counts = {};
             this.cargo.forEach(u => {
                 const name = u.name || u.type;
@@ -5540,7 +5549,7 @@ export class CargoPlane extends PlayerUnit {
 
             const lineHeight = 20;
             const padding = 10;
-            
+
             ctx.font = 'bold 14px "Segoe UI", Arial';
             let maxWidth = 0;
             entries.forEach(text => {
@@ -5554,9 +5563,9 @@ export class CargoPlane extends PlayerUnit {
             // 메인 샴퍼 배경
             ctx.fillStyle = 'rgba(10, 20, 30, 0.85)';
             ctx.beginPath();
-            ctx.roundRect(-boxWidth/2, boxY, boxWidth, boxHeight, 6);
+            ctx.roundRect(-boxWidth / 2, boxY, boxWidth, boxHeight, 6);
             ctx.fill();
-            
+
             // 상단 하이라이트 테두리
             ctx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
             ctx.lineWidth = 1.5;
@@ -5584,12 +5593,12 @@ export class CargoPlane extends PlayerUnit {
         const barW = 110;
         const barY = this.y - 85;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 6);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1;
-        ctx.strokeRect(this.x - barW/2, barY, barW, 6);
+        ctx.strokeRect(this.x - barW / 2, barY, barW, 6);
     }
 }
 
@@ -5645,7 +5654,7 @@ export class Enemy extends Entity {
         if (!engine) return;
         if (this.hitTimer > 0) this.hitTimer -= deltaTime;
         const now = Date.now();
-        
+
         // 1. 타겟 결정 로직 (관계 기반)
         if (!this.currentTarget || !this.currentTarget.active || this.currentTarget.hp <= 0) {
             // 가장 가까운 적(Player 1 등) 찾기
@@ -5658,9 +5667,9 @@ export class Enemy extends Entity {
             let minDist = Infinity;
             let bestTarget = null;
 
-            for(const target of potentialTargets) {
+            for (const target of potentialTargets) {
                 if (!target || !target.active || target.hp <= 0) continue;
-                
+
                 // 관계 확인
                 if (engine.getRelation(this.ownerId, target.ownerId) === 'enemy') {
                     const d = Math.hypot(this.x - target.x, this.y - target.y);
@@ -5684,7 +5693,7 @@ export class Enemy extends Entity {
         }
 
         let moveTarget = this.currentTarget;
-        
+
         // 경로 추종 로직
         while (this.path.length > 0) {
             const waypoint = this.path[0];
@@ -5699,7 +5708,7 @@ export class Enemy extends Entity {
 
         const angleToTarget = Math.atan2(moveTarget.y - this.y, moveTarget.x - this.x);
         this.angle = angleToTarget; // 방향 업데이트
-        
+
         // --- 슬라이딩 충돌 이동 적용 (Enemy도 동일하게) ---
         const dist = this.speed;
         const nextX = this.x + Math.cos(this.angle) * dist;
@@ -5713,7 +5722,7 @@ export class Enemy extends Entity {
 
         for (const b of obstacles) {
             if (b === this || b.passable) continue;
-            
+
             if (b instanceof Resource) {
                 const minCollisionDist = unitRadius + (b.size * 0.5);
                 if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
@@ -5728,7 +5737,7 @@ export class Enemy extends Entity {
 
         if (canMoveX) this.x = nextX;
         if (canMoveY) this.y = nextY;
-        
+
         // --- 유닛 간 밀어내기 및 끼임 탈출 ---
         let pushX = 0;
         let pushY = 0;
@@ -5745,7 +5754,7 @@ export class Enemy extends Entity {
         }
         this.x += pushX;
         this.y += pushY;
-        
+
         // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
         for (const obs of buildings) {
             if ([].includes(obs.type)) continue;
@@ -5766,8 +5775,8 @@ export class Enemy extends Entity {
         // 공격 로직
         if (this.currentTarget && (this.currentTarget.active !== false) && this.currentTarget.hp > 0) {
             const attackDist = Math.hypot(this.x - this.currentTarget.x, this.y - this.currentTarget.y);
-            const rangeThreshold = (this.size/2 + (this.currentTarget.width || this.currentTarget.size || 40)/2 + 5);
-            
+            const rangeThreshold = (this.size / 2 + (this.currentTarget.width || this.currentTarget.size || 40) / 2 + 5);
+
             if (attackDist <= rangeThreshold) {
                 if (now - this.lastAttackTime > this.attackInterval) {
                     this.currentTarget.hp -= this.damage;
@@ -5780,7 +5789,7 @@ export class Enemy extends Entity {
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
-        
+
         // 적군 외형: 육각형 모양의 위협적인 기계 유닛
         ctx.fillStyle = '#441111';
         ctx.strokeStyle = '#ff3131';
@@ -5837,18 +5846,18 @@ export class Projectile extends Entity {
             // 모든 잠재적 타겟 수집
             const targets = [
                 engine.entities.base,
-                ...engine.entities.enemies, 
+                ...engine.entities.enemies,
                 ...engine.entities.units,
                 ...engine.entities.neutral,
                 ...engine.getAllBuildings()
             ];
-            
+
             // 공격 주체의 공격 가능 대상 목록 가져오기
             const attackTargets = this.source?.attackTargets || ['ground', 'sea'];
 
             targets.forEach(target => {
                 if (!target || target.hp === undefined || !target.active || target.hp <= 0) return;
-                
+
                 // 1. 도메인 체크
                 const targetDomain = target.domain || 'ground';
                 if (!attackTargets.includes(targetDomain)) return;
@@ -5856,7 +5865,7 @@ export class Projectile extends Entity {
                 // 2. 관계 체크 (적과 중립 모두 스플래시 데미지 입힘, 자신 및 아군 제외)
                 const isManualTarget = (this.source && this.source.manualTarget === target);
                 const relation = engine.getRelation(this.source.ownerId, target.ownerId);
-                
+
                 // 강제 공격 대상이면 관계 무시하고 데미지 적용
                 if (!isManualTarget && (relation === 'self' || relation === 'ally')) return;
 
@@ -5881,7 +5890,7 @@ export class Projectile extends Entity {
         }
 
         if (!this.active) return;
-        
+
         // 타겟 유효성 체크 (active와 alive 모두 고려)
         const isTargetDead = (this.target.active === false) || (this.target.alive === false) || (this.target.hp <= 0);
         if (!this.target || isTargetDead) {
@@ -5898,18 +5907,18 @@ export class Projectile extends Entity {
         // 충돌 체크 함수 (관계 시스템 적용)
         const checkCollision = (other) => {
             if (!other || other === this.source || other.passable) return false;
-            
+
             // 대상이 이미 죽었는지 확인
             const isDead = (other.active === false) || (other.alive === false) || (other.hp <= 0);
             if (isDead) return false;
 
             // 소스 유닛과 대상의 관계 확인
             const relation = engine.getRelation(this.source.ownerId, other.ownerId);
-            
+
             // 자신, 아군, 중립은 기본적으로 충돌 무시 (단, 강제 공격 대상이면 허용)
             const isManualTarget = (this.source.manualTarget === other);
             if (!isManualTarget && (relation === 'self' || relation === 'ally' || relation === 'neutral')) return false;
-            
+
             // [수정] 곡사 무기는 지상 장애물 통과
             const isIndirectFire = (this.type === 'shell') || (this.source && this.source.type === 'missile-launcher');
             if (isIndirectFire && other.domain === 'ground') return false;
@@ -5922,8 +5931,8 @@ export class Projectile extends Entity {
 
             const bounds = other.getSelectionBounds ? other.getSelectionBounds() : null;
             if (bounds) {
-                return this.x >= bounds.left && this.x <= bounds.right && 
-                       this.y >= bounds.top && this.y <= bounds.bottom;
+                return this.x >= bounds.left && this.x <= bounds.right &&
+                    this.y >= bounds.top && this.y <= bounds.bottom;
             }
             const dist = Math.hypot(this.x - other.x, this.y - other.y);
             const otherSize = other.size || 40;
@@ -5989,7 +5998,7 @@ export class Projectile extends Entity {
             ctx.fillStyle = '#7f8c8d'; // 금속 회색
             ctx.strokeStyle = '#2c3e50';
             ctx.lineWidth = 1;
-            
+
             // 포탄 몸체 (길쭉한 타원/사각형 조합)
             ctx.beginPath();
             ctx.moveTo(8, 0);
@@ -6013,12 +6022,12 @@ export class Projectile extends Entity {
             ctx.fillStyle = this.color;
             ctx.shadowBlur = 10;
             ctx.shadowColor = this.color;
-            
+
             // 길쭉한 사각형 (탄환 진행 방향으로)
             ctx.beginPath();
             ctx.roundRect(-8, -1.5, 12, 3, 1.5);
             ctx.fill();
-            
+
             // 더 밝은 중심선
             ctx.fillStyle = '#fff';
             ctx.fillRect(-4, -0.5, 6, 1);
@@ -6031,7 +6040,7 @@ export class Projectile extends Entity {
             ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2);
             ctx.fill();
         }
-        
+
         ctx.restore();
     }
 }
@@ -6044,7 +6053,7 @@ export class Resource extends Entity {
         this.width = 80;
         this.height = 80;
         this.covered = false;
-        
+
         switch (type) {
             case 'oil': this.color = '#2F4F4F'; this.name = '석유'; break;
             case 'gold': this.color = '#FFD700'; this.name = '금'; break;
@@ -6065,20 +6074,20 @@ export class Resource extends Entity {
             ctx.beginPath();
             ctx.ellipse(0, 0, 35, 25, Math.PI / 10, 0, Math.PI * 2);
             ctx.fill();
-            
+
             // 2. 주변으로 번진 기름 얼룩
             ctx.fillStyle = 'rgba(20, 30, 20, 0.6)';
-            for(let i=0; i<5; i++) {
+            for (let i = 0; i < 5; i++) {
                 const ang = (i * Math.PI * 2) / 5;
                 ctx.beginPath();
-                ctx.ellipse(Math.cos(ang)*20, Math.sin(ang)*15, 15, 10, ang, 0, Math.PI * 2);
+                ctx.ellipse(Math.cos(ang) * 20, Math.sin(ang) * 15, 15, 10, ang, 0, Math.PI * 2);
                 ctx.fill();
             }
 
             // 3. 점성 있는 기포 (Bubbling effect)
             ctx.fillStyle = '#1a1a1a';
             const bubbleTime = Date.now() / 1000;
-            for(let i=0; i<3; i++) {
+            for (let i = 0; i < 3; i++) {
                 const bx = Math.sin(bubbleTime + i) * 15;
                 const by = Math.cos(bubbleTime * 0.7 + i) * 10;
                 const size = (Math.sin(bubbleTime * 2 + i) + 1) * 3;
@@ -6097,20 +6106,20 @@ export class Resource extends Entity {
                 // 어두운 황금색 베이스
                 ctx.fillStyle = '#b8860b';
                 ctx.beginPath();
-                ctx.moveTo(-w/2, 0); ctx.lineTo(0, -h); ctx.lineTo(w/2, 0); ctx.closePath();
+                ctx.moveTo(-w / 2, 0); ctx.lineTo(0, -h); ctx.lineTo(w / 2, 0); ctx.closePath();
                 ctx.fill();
                 // 밝은 금색 면
                 ctx.fillStyle = '#FFD700';
                 ctx.beginPath();
-                ctx.moveTo(0, -h); ctx.lineTo(w/2, 0); ctx.lineTo(0, 0); ctx.closePath();
+                ctx.moveTo(0, -h); ctx.lineTo(w / 2, 0); ctx.lineTo(0, 0); ctx.closePath();
                 ctx.fill();
                 ctx.restore();
             };
 
             // 바닥에 깔린 자갈들
             ctx.fillStyle = '#5d4037';
-            for(let i=0; i<8; i++) {
-                ctx.beginPath(); ctx.arc((Math.random()-0.5)*50, (Math.random()-0.5)*40, 3, 0, Math.PI*2); ctx.fill();
+            for (let i = 0; i < 8; i++) {
+                ctx.beginPath(); ctx.arc((Math.random() - 0.5) * 50, (Math.random() - 0.5) * 40, 3, 0, Math.PI * 2); ctx.fill();
             }
 
             // 솟아오른 금 결정체들
@@ -6118,11 +6127,11 @@ export class Resource extends Entity {
             drawGoldSppike(10, 5, 25, 45, 0.1);
             drawGoldSppike(5, 15, 15, 25, 0.4);
             drawGoldSppike(-5, -5, 12, 20, -0.5);
-            
+
             // 반짝임 입자
-            if (Math.sin(Date.now()/300) > 0.5) {
+            if (Math.sin(Date.now() / 300) > 0.5) {
                 ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(12, -25, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(12, -25, 2, 0, Math.PI * 2); ctx.fill();
             }
 
         } else if (this.type === 'iron') {
@@ -6132,8 +6141,8 @@ export class Resource extends Entity {
                 ctx.translate(rx, ry);
                 ctx.fillStyle = color;
                 ctx.beginPath();
-                ctx.moveTo(-rw/2, rh/2); ctx.lineTo(-rw/2 + 5, -rh/2); 
-                ctx.lineTo(rw/2, -rh/2 + 5); ctx.lineTo(rw/2, rh/2); ctx.closePath();
+                ctx.moveTo(-rw / 2, rh / 2); ctx.lineTo(-rw / 2 + 5, -rh / 2);
+                ctx.lineTo(rw / 2, -rh / 2 + 5); ctx.lineTo(rw / 2, rh / 2); ctx.closePath();
                 ctx.fill();
                 // 금속 질감 하이라이트
                 ctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -6143,13 +6152,13 @@ export class Resource extends Entity {
 
             // 1. 산화된 붉은 흙 (Rust/Oxidation)
             ctx.fillStyle = 'rgba(139, 69, 19, 0.4)';
-            ctx.beginPath(); ctx.ellipse(0, 5, 40, 25, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(0, 5, 40, 25, 0, 0, Math.PI * 2); ctx.fill();
 
             // 2. 무거운 철광석 바위들
             drawIronRock(0, 0, 50, 35, '#333');      // 메인 바위
             drawIronRock(-20, 15, 30, 20, '#444');   // 앞쪽 바위
             drawIronRock(25, 5, 25, 25, '#2c3e50');  // 우측 바위
-            
+
             // 3. 금속 줄기 (Metallic veins)
             ctx.strokeStyle = '#7f8c8d';
             ctx.lineWidth = 2;
@@ -6173,7 +6182,7 @@ export class MilitaryTruck extends PlayerUnit {
         this.width = 80;
         this.height = 45;
         this.cargoSize = 15; // 다른 수송기에 탈 수는 있지만 큰 부피 차지
-        
+
         this.cargo = [];
         this.cargoCapacity = 5; // 수송량 5
         this.isUnloading = false;
@@ -6194,7 +6203,7 @@ export class MilitaryTruck extends PlayerUnit {
     loadUnit(unit) {
         const uSize = unit.cargoSize || 1;
         if (this.isUnloading || (this.getOccupiedSize() + uSize) > this.cargoCapacity) return false;
-        
+
         unit.isBoarded = true;
         unit.command = 'stop';
         unit.destination = null;
@@ -6205,7 +6214,7 @@ export class MilitaryTruck extends PlayerUnit {
             this.engine.selectedEntities = this.engine.selectedEntities.filter(e => e !== unit);
         }
         this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', '유닛 탑승');
-        
+
         if (this.engine.updateBuildMenu) this.engine.updateBuildMenu();
         return true;
     }
@@ -6222,16 +6231,16 @@ export class MilitaryTruck extends PlayerUnit {
             if (this.unloadTimer >= this.unloadInterval) {
                 this.unloadTimer = 0;
                 const unit = this.cargo.shift();
-                
+
                 const rearDist = 45;
                 unit.x = this.x + Math.cos(this.angle + Math.PI) * rearDist;
                 unit.y = this.y + Math.sin(this.angle + Math.PI) * rearDist;
                 unit.isBoarded = false;
                 unit.active = true;
                 unit.angle = this.angle + Math.PI;
-                unit.destination = { 
-                    x: unit.x + Math.cos(this.angle + Math.PI) * 50, 
-                    y: unit.y + Math.sin(this.angle + Math.PI) * 50 
+                unit.destination = {
+                    x: unit.x + Math.cos(this.angle + Math.PI) * 50,
+                    y: unit.y + Math.sin(this.angle + Math.PI) * 50
                 };
 
                 if (this.cargo.length === 0) this.isUnloading = false;
@@ -6248,9 +6257,9 @@ export class MilitaryTruck extends PlayerUnit {
         // 1. 바퀴 (6개 - 대형 트럭)
         ctx.fillStyle = '#111';
         const wheelPositions = [
-            {x: 20, y: -22}, {x: 20, y: 18},   // 전륜
-            {x: -10, y: -22}, {x: -10, y: 18}, // 중륜
-            {x: -25, y: -22}, {x: -25, y: 18}  // 후륜
+            { x: 20, y: -22 }, { x: 20, y: 18 },   // 전륜
+            { x: -10, y: -22 }, { x: -10, y: 18 }, // 중륜
+            { x: -25, y: -22 }, { x: -25, y: 18 }  // 후륜
         ];
         wheelPositions.forEach(p => ctx.fillRect(p.x, p.y, 12, 6));
 
@@ -6277,11 +6286,11 @@ export class MilitaryTruck extends PlayerUnit {
         ctx.beginPath();
         ctx.roundRect(-35, -20, 50, 40, 5);
         ctx.fill();
-        
+
         // 덮개 주름 디테일
         ctx.strokeStyle = 'rgba(0,0,0,0.2)';
         ctx.lineWidth = 1;
-        for(let i=-30; i<10; i+=10) {
+        for (let i = -30; i < 10; i += 10) {
             ctx.beginPath(); ctx.moveTo(i, -20); ctx.lineTo(i, 20); ctx.stroke();
         }
 
@@ -6302,12 +6311,12 @@ export class MilitaryTruck extends PlayerUnit {
             // 배경
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(bx, by, barWidth, barHeight);
-            
+
             // 적재 게이지 (부피 기준)
             const fillWidth = (occupiedSize / this.cargoCapacity) * barWidth;
             ctx.fillStyle = '#00d2ff';
             ctx.fillRect(bx, by, fillWidth, barHeight);
-            
+
             // 테두리
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 1;
@@ -6328,9 +6337,9 @@ export class MilitaryTruck extends PlayerUnit {
                 else if (u.type === 'rifleman') dotColor = '#556644';
                 else if (u.type === 'engineer') dotColor = '#f1c40f';
                 else if (u.type === 'missile-launcher') dotColor = '#ff3131';
-                
+
                 ctx.fillStyle = dotColor;
-                ctx.beginPath(); ctx.arc(dotX, dotY, 2.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2); ctx.fill();
             });
         }
 
@@ -6338,8 +6347,8 @@ export class MilitaryTruck extends PlayerUnit {
         const barW = 40;
         const barY = this.y - 35;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW/2, barY, barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
         ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW/2, barY, (this.hp / this.maxHp) * barW, 4);
+        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }

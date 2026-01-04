@@ -153,17 +153,17 @@ export class EntityManager {
      * @param {number} deltaTime - 프레임 시간
      */
     update(deltaTime) {
-        // 모든 엔티티 업데이트
-        for (const entity of this.allEntities) {
-            if (!entity.active) continue;
-
-            // 엔티티 업데이트 (각 엔티티의 update 메서드 호출)
-            if (entity.update) {
-                entity.update(deltaTime, this.engine);
+        // [수정] GameEngine이 직접 관리하는 entities 리스트들을 순회하여 SpatialGrid 갱신
+        const lists = Object.values(this.entities);
+        for (const list of lists) {
+            if (Array.isArray(list)) {
+                for (const entity of list) {
+                    if (!entity || !entity.active) continue;
+                    this.spatialGrid.update(entity);
+                }
+            } else if (list && list.active) {
+                this.spatialGrid.update(list);
             }
-
-            // 공간 그리드 위치 업데이트
-            this.spatialGrid.update(entity);
         }
 
         // 일정 주기마다 정리 (매 프레임은 과도할 수 있음)

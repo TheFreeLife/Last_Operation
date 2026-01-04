@@ -3,6 +3,7 @@ import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, R
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
+import { RenderSystem } from './systems/RenderSystem.js';
 
 export class GameEngine {
     constructor() {
@@ -21,6 +22,7 @@ export class GameEngine {
 
         // EntityManager 초기화 (새로운 최적화 시스템)
         this.entityManager = new EntityManager(this);
+        this.renderSystem = new RenderSystem(this);
 
         const basePos = this.tileMap.gridToWorld(this.tileMap.centerX, this.tileMap.centerY - 0.5);
 
@@ -1778,6 +1780,11 @@ export class GameEngine {
         this.updateEdgeScroll();
         this.updateVisibility();
 
+        // EntityManager 업데이트 (SpatialGrid 등 갱신)
+        if (this.entityManager) {
+            this.entityManager.update(deltaTime);
+        }
+
         // 2. 엔티티 상태 업데이트 및 파괴 처리
         const processList = (list, updateFn) => {
             const initialLen = list.length;
@@ -1851,6 +1858,34 @@ export class GameEngine {
     }
 
     render() {
+        // [Optimized Rendering]
+        if (this.renderSystem) {
+            this.renderSystem.render();
+
+            // 오버레이 렌더링 (사거리, 경로, 고스트 등)
+            this.ctx.save();
+            this.ctx.translate(this.camera.x, this.camera.y);
+            this.ctx.scale(this.camera.zoom, this.camera.zoom);
+            this.renderOverlays();
+            this.ctx.restore();
+
+            // Post-process UI (not handled by RenderSystem yet)
+            this.renderBuildQueue(this.getAllBuildings());
+            this.renderMinimap();
+            if (this.isSellMode) {
+                this.ctx.save();
+                this.ctx.fillStyle = '#ff3131';
+                this.ctx.font = 'bold 24px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.shadowBlur = 10;
+                this.ctx.shadowColor = '#ff3131';
+                this.ctx.fillText('판매 모드 (우클릭 드래그로 철거)', this.canvas.width / 2, 100);
+                this.ctx.restore();
+            }
+            return;
+        }
+
+        // [Legacy Rendering]
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.save();
         this.ctx.translate(this.camera.x, this.camera.y);
@@ -2781,6 +2816,266 @@ export class GameEngine {
         }
 
         requestAnimationFrame((t) => this.loop(t));
+    }
+
+    renderOverlays() {
+        const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
+        const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
+
+        // 6. Draw Active Previews and Highlights on TOP of everything
+
+        // 6.1 Selected Object Highlight
+        if (this.selectedEntities.length > 0) {
+
+            this.ctx.save();
+            this.ctx.lineWidth = 1;
+            this.selectedEntities.forEach(ent => {
+                // 관계에 따른 하이라이트 색상 결정
+                const relation = this.getRelation(1, ent.ownerId);
+
+                if (relation === 'self') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 자신: 초록
+                else if (relation === 'enemy') this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // 적군: 빨강
+                else if (relation === 'neutral') this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노랑
+                else if (relation === 'ally') this.ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // 아군: 파랑
+                else this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 기타: 흰색
+
+                const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                    left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
+                };
+                const w = bounds.right - bounds.left;
+                const h = bounds.bottom - bounds.top;
+                this.ctx.strokeRect(bounds.left, bounds.top, w, h);
+
+                // 공격 사거리 표시 (내 유닛 또는 아군 유닛인 경우)
+                if ((relation === 'self' || relation === 'ally') && ent.attackRange) {
+                    this.ctx.save();
+
+                    let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색
+
+                    // 수동 조준 모드일 때 사거리 피드백 추가
+                    if (this.unitCommandMode === 'manual_fire' && ent.type === 'missile-launcher') {
+                        const dist = Math.hypot(mouseWorldX - ent.x, mouseWorldY - ent.y);
+                        if (dist > ent.attackRange) {
+                            rangeColor = 'rgba(255, 0, 0, 0.6)'; // 사거리 밖: 빨간색
+                        } else {
+                            rangeColor = 'rgba(0, 255, 0, 0.4)'; // 사거리 안: 초록색
+                        }
+
+                        // 조준 가이드 라인 (유닛에서 마우스까지)
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(ent.x, ent.y);
+                        this.ctx.lineTo(mouseWorldX, mouseWorldY);
+                        this.ctx.strokeStyle = rangeColor;
+                        this.ctx.setLineDash([2, 2]);
+                        this.ctx.stroke();
+                    }
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(ent.x, ent.y, ent.attackRange, 0, Math.PI * 2);
+                    this.ctx.strokeStyle = rangeColor;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+
+                // Draw movement line if destination exists
+                if (ent.destination) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(ent.x, ent.y);
+
+                    // A* 경로가 있으면 경로를 따라 그리기
+                    if (ent.path && ent.path.length > 0) {
+                        for (const p of ent.path) {
+                            this.ctx.lineTo(p.x, p.y);
+                        }
+                    } else {
+                        // 경로가 없거나(계산 전) 공중 유닛인 경우 직선
+                        this.ctx.lineTo(ent.destination.x, ent.destination.y);
+                    }
+
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                    this.ctx.lineWidth = 1.5;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+
+                    // Draw destination X marker
+                    this.ctx.beginPath();
+                    const dest = ent.destination;
+                    const markerSize = 5;
+                    this.ctx.moveTo(dest.x - markerSize, dest.y - markerSize);
+                    this.ctx.lineTo(dest.x + markerSize, dest.y + markerSize);
+                    this.ctx.moveTo(dest.x + markerSize, dest.y - markerSize);
+                    this.ctx.lineTo(dest.x - markerSize, dest.y + markerSize);
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                }
+            });
+            this.ctx.restore();
+
+            // --- [독립 블록] 공격 대상 하이라이트 (Target Highlight) ---
+            const targetsToHighlight = new Set();
+            this.selectedEntities.forEach(selUnit => {
+                // [수정] 오직 플레이어가 직접 지정한 수동 타겟(manualTarget)만 표시
+                const mTarget = selUnit.manualTarget;
+                if (mTarget && (mTarget.active !== false) && (mTarget.alive !== false) && (mTarget.hp > 0)) {
+                    targetsToHighlight.add(mTarget);
+                }
+
+                // 미사일 발사대 수동 조준/발사 준비 지점 (플레이어 조작이므로 포함)
+                if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
+                    const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent =>
+                        (ent.active !== false && ent.alive !== false) && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
+                    );
+                    if (fireTarget) targetsToHighlight.add(fireTarget);
+                }
+            });
+
+            // 4. 수동 조준 모드 시 마우스 아래의 적 또는 중립 (조준 보조)
+            if (this.unitCommandMode === 'manual_fire') {
+                const hoverTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent => {
+                    if (ent.active === false || ent.alive === false) return false;
+                    const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
+                        left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
+                    };
+                    return mouseWorldX >= b.left && mouseWorldX <= b.right && mouseWorldY >= b.top && mouseWorldY <= b.bottom;
+                });
+                if (hoverTarget) targetsToHighlight.add(hoverTarget);
+            }
+
+            targetsToHighlight.forEach(target => {
+                const bounds = target.getSelectionBounds ? target.getSelectionBounds() : {
+                    left: target.x - 20, right: target.x + 20, top: target.y - 20, bottom: target.y + 20
+                };
+                const padding = 8; // 패딩을 조금 더 늘려 잘 보이게 함
+                const tW = (bounds.right - bounds.left) + padding * 2;
+                const tH = (bounds.bottom - bounds.top) + padding * 2;
+                const tX = bounds.left - padding;
+                const tY = bounds.top - padding;
+
+                this.ctx.save();
+                this.ctx.strokeStyle = '#ff3131';
+                this.ctx.lineWidth = 3;
+                const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
+                this.ctx.globalAlpha = 0.5 + pulse * 0.5; // 불투명도 상향
+
+                this.ctx.strokeRect(tX, tY, tW, tH);
+
+                const len = 12;
+                this.ctx.beginPath();
+                this.ctx.moveTo(tX, tY + len); this.ctx.lineTo(tX, tY); this.ctx.lineTo(tX + len, tY);
+                this.ctx.moveTo(tX + tW - len, tY); this.ctx.lineTo(tX + tW, tY); this.ctx.lineTo(tX + tW, tY + len);
+                this.ctx.moveTo(tX, tY + tH - len); this.ctx.lineTo(tX, tY + tH); this.ctx.lineTo(tX + len, tY + tH);
+                this.ctx.moveTo(tX + tW - len, tY + tH); this.ctx.lineTo(tX + tW, tY + tH); this.ctx.lineTo(tX + tW, tY + tH - len);
+                this.ctx.stroke();
+
+                this.ctx.fillStyle = '#ff3131';
+                this.ctx.font = 'bold 12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('TARGET', tX + tW / 2, tY - 10);
+                this.ctx.restore();
+            });
+        }
+
+        if (this.selectedEntity && !this.selectedEntities.includes(this.selectedEntity)) {
+            this.ctx.save();
+            this.ctx.strokeStyle = 'rgba(0, 255, 204, 0.8)';
+            this.ctx.lineWidth = 2;
+            this.ctx.shadowBlur = 5;
+            this.ctx.shadowColor = 'rgba(0, 255, 204, 0.5)';
+
+            const bounds = this.selectedEntity.getSelectionBounds();
+            const w = bounds.right - bounds.left;
+            const h = bounds.bottom - bounds.top;
+
+            this.ctx.strokeRect(bounds.left, bounds.top, w, h);
+
+            // 유닛(전차, 미사일) 선택 시 공격 사거리(Attack Range) 표시
+            if (this.selectedEntity.attackRange) {
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.arc(this.selectedEntity.x, this.selectedEntity.y, this.selectedEntity.attackRange, 0, Math.PI * 2);
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            if (this.selectedEntity.type && this.selectedEntity.type.startsWith('turret')) {
+                // 포탑은 사거리 원을 아주 연하게 추가 표시
+                this.ctx.setLineDash([5, 10]);
+                this.ctx.globalAlpha = 0.3;
+                this.selectedEntity.draw(this.ctx, true);
+            }
+            this.ctx.restore();
+        }
+
+        // 4.2 Ghost Preview for Building
+        if (this.isBuildMode && this.selectedBuildType) {
+            let tileInfo = this.tileMap.getTileAt(mouseWorldX, mouseWorldY);
+            const buildInfo = this.buildingRegistry[this.selectedBuildType];
+
+            if (tileInfo && buildInfo) {
+                let gx = tileInfo.x;
+                let gy = tileInfo.y;
+
+                // [추가] 고스트 미리보기 스냅 로직
+                if (buildInfo.onResource) {
+                    const nearest = this.entities.resources.find(r =>
+                        Math.abs(r.x - mouseWorldX) < 60 && Math.abs(r.y - mouseWorldY) < 60 && r.type === buildInfo.onResource
+                    );
+                    if (nearest) {
+                        gx = Math.round(nearest.x / this.tileMap.tileSize) - 1;
+                        gy = Math.round(nearest.y / this.tileMap.tileSize) - 1;
+                    }
+                }
+
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.5;
+
+                const [tw, th] = buildInfo.size;
+                let worldPos;
+
+                if (tw > 1 || th > 1) {
+                    worldPos = {
+                        x: (gx + tw / 2) * this.tileMap.tileSize,
+                        y: (gy + th / 2) * this.tileMap.tileSize
+                    };
+                } else {
+                    worldPos = this.tileMap.gridToWorld(gx, gy);
+                }
+
+                const ClassRef = this.entityClasses[buildInfo.className];
+                if (ClassRef) {
+                    let ghost;
+                    if (buildInfo.className === 'Turret') {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, this.selectedBuildType);
+                    } else {
+                        ghost = new ClassRef(worldPos.x, worldPos.y, this);
+                    }
+
+                    if (ghost.draw) {
+                        ghost.draw(this.ctx);
+                    }
+                }
+                this.ctx.restore();
+            }
+        }
+
+        // 4.4 Selection Box (StarCraft Style)
+        if (this.camera.selectionBox) {
+            this.ctx.save();
+            this.ctx.strokeStyle = '#00ff00';
+            this.ctx.lineWidth = 2;
+            this.ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+            const { startX, startY, currentX, currentY } = this.camera.selectionBox;
+            const w = currentX - startX;
+            const h = currentY - startY;
+            this.ctx.strokeRect(startX, startY, w, h);
+            this.ctx.fillRect(startX, startY, w, h);
+            this.ctx.restore();
+        }
     }
 
     start() {
