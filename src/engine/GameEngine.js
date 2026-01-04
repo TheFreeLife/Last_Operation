@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -14,7 +14,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
+        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -76,11 +76,12 @@ export class GameEngine {
         const startInfantry = new Rifleman(startX, groundY + spY, this);
         const startArtillery = new Artillery(startX + spX, groundY + spY, this);
 
-        // 3열: 공병대
+        // 3열: 공병대 및 수송 트럭
         const startEngineers = [
             new CombatEngineer(startX - spX, groundY + spY * 2, this),
             new CombatEngineer(startX, groundY + spY * 2, this),
-            new CombatEngineer(startX + spX, groundY + spY * 2, this)
+            new CombatEngineer(startX + spX, groundY + spY * 2, this),
+            new MilitaryTruck(startX + spX * 2, groundY + spY * 2, this)
         ];
 
         // 4열: 탄약 보급품 (상자 유닛)
@@ -134,6 +135,7 @@ export class GameEngine {
             'iron-mine': { cost: 400, size: [2, 2], className: 'IronMine', list: 'ironMines', onResource: 'iron', buildTime: 1 },
             'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
             'ammo-factory': { cost: 1000, size: [4, 3], className: 'AmmoFactory', list: 'ammoFactories', buildTime: 1 },
+            'armory': { cost: 600, size: [4, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
             'base': { cost: 0, size: [9, 6], className: 'Base', list: 'base' }
         };
@@ -464,9 +466,9 @@ export class GameEngine {
                     } else if (unitType === 'missile-launcher') {
                         items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege', skillType: 'state' };
                         items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' };
-                    } else if (unitType === 'bomber' || unitType === 'cargo-plane') {
+                    } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'military-truck') {
                         const isFlying = firstEnt.altitude > 0.8;
-                        const isLanded = firstEnt.altitude < 0.1;
+                        const isLanded = firstEnt.altitude < 0.1 || unitType === 'military-truck';
                         const isManeuvering = firstEnt.isTakeoffStarting || firstEnt.isManualLanding;
 
                         if (unitType === 'bomber') {
@@ -478,7 +480,7 @@ export class GameEngine {
                                 locked: !isFlying,
                                 active: firstEnt.isBombingActive
                             };
-                        } else if (unitType === 'cargo-plane') {
+                        } else if (unitType === 'cargo-plane' || unitType === 'military-truck') {
                             items[6] = { 
                                 id: 'unload_all', 
                                 name: isLanded ? '전체 하차 (U)' : '하차 (지상 시 가능)', 
@@ -486,35 +488,40 @@ export class GameEngine {
                                 skillType: 'instant',
                                 locked: !isLanded || firstEnt.cargo.length === 0
                             };
-                            items[7] = { 
-                                id: 'combat_drop', 
-                                name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)', 
-                                action: 'unit:combat_drop',
-                                skillType: 'instant',
-                                locked: !isFlying || firstEnt.cargo.length === 0,
-                                cost: 100
+                            
+                            if (unitType === 'cargo-plane') {
+                                items[7] = { 
+                                    id: 'combat_drop', 
+                                    name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)', 
+                                    action: 'unit:combat_drop',
+                                    skillType: 'instant',
+                                    locked: !isFlying || firstEnt.cargo.length === 0,
+                                    cost: 100
+                                };
+                            }
+                        }
+
+                        // 이착륙 버튼 동적 구성 (항공기 전용)
+                        if (unitType !== 'military-truck') {
+                            let actionName = '이륙 (T)';
+                            let actionIcon = 'unit:takeoff';
+                            if (isFlying || firstEnt.isManualLanding) {
+                                actionName = '착륙 (T)';
+                                actionIcon = 'unit:landing';
+                            }
+                            if (isManeuvering) {
+                                actionName = firstEnt.isTakeoffStarting ? '이륙 중...' : '착륙 중...';
+                            }
+
+                            items[8] = { 
+                                id: 'takeoff_landing', 
+                                name: actionName, 
+                                action: 'unit:takeoff_landing',
+                                skillType: 'state',
+                                iconKey: actionIcon, 
+                                active: isManeuvering 
                             };
                         }
-
-                        // 이착륙 버튼 동적 구성
-                        let actionName = '이륙 (T)';
-                        let actionIcon = 'unit:takeoff';
-                        if (isFlying || firstEnt.isManualLanding) {
-                            actionName = '착륙 (T)';
-                            actionIcon = 'unit:landing';
-                        }
-                        if (isManeuvering) {
-                            actionName = firstEnt.isTakeoffStarting ? '이륙 중...' : '착륙 중...';
-                        }
-
-                        items[8] = { 
-                            id: 'takeoff_landing', 
-                            name: actionName, 
-                            action: 'unit:takeoff_landing',
-                            skillType: 'state',
-                            iconKey: actionIcon, 
-                            active: isManeuvering 
-                        };
                     }
                 }
             } else if (isEnemy) {
@@ -534,7 +541,8 @@ export class GameEngine {
                         { type: 'skill-missile', name: '미사일 생산', cost: 500, action: 'skill:missile' },
                         { type: 'skill-artillery', name: '자주포 생산', cost: 800, action: 'skill:artillery' },
                         { type: 'skill-anti-air', name: '대공차량 생산', cost: 400, action: 'skill:anti-air' },
-                        null, null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
+                        { type: 'skill-truck', name: '군용 트럭 생산', cost: 400, action: 'skill:military-truck' },
+                        null, { type: 'menu:main', name: '취소', action: 'menu:main' }, null, null
                     ];
                 } else if (type === 'barracks') {
                     items = [
@@ -584,13 +592,14 @@ export class GameEngine {
                 items = [
                     { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
                     { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '보급고', cost: 200 }, 
-                    { type: 'ammo-factory', name: '탄약 공장', cost: 1000 }, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'military') {
                 header.textContent = '군사 시설';
                 items = [
                     { type: 'armory', name: '병기창', cost: 600 }, { type: 'airport', name: '공항', cost: 500 },
-                    { type: 'barracks', name: '병영', cost: 400 }, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'barracks', name: '병영', cost: 400 }, { type: 'ammo-factory', name: '탄약 공장', cost: 1000 }, 
+                    null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'city') {
                 header.textContent = '도시 시설';
@@ -733,7 +742,7 @@ export class GameEngine {
                 if (target && target.isUnderConstruction) return;
     
                 // 생산형 스킬 처리
-                const productionSkills = ['tank', 'missile', 'shell', 'bullet', 'cargo', 'cargo-plane', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
+                const productionSkills = ['tank', 'missile', 'shell', 'bullet', 'cargo', 'cargo-plane', 'military-truck', 'rifleman', 'sniper', 'engineer', 'scout-plane', 'bomber', 'artillery', 'anti-air'];
                 if (productionSkills.includes(skill)) {
                     if (target && target.requestUnit) {
                         const cost = item.cost || 0;
@@ -830,6 +839,7 @@ export class GameEngine {
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
                 else if (key === 't') this.executeUnitCommand('takeoff_landing');
                 else if (key === 'd') this.executeUnitCommand('combat_drop');
+                else if (key === 'u') this.executeUnitCommand('unload_all');
                 else if (key === 'b') {
                     const hasEngineer = this.selectedEntities.some(ent => ent.type === 'engineer');
                     const hasBomber = this.selectedEntities.some(ent => ent.type === 'bomber');
@@ -969,15 +979,20 @@ export class GameEngine {
                         return;
                     }
 
-                    // [수송기 탑승 로직] 아군 수송기 클릭 여부 확인 (지상 유닛만 가능)
-                    if (clickedTarget && clickedTarget.type === 'cargo-plane' && clickedTarget.ownerId === 1 && clickedTarget.altitude < 0.1) {
-                        this.selectedEntities.forEach(u => {
-                            if (u.domain === 'ground' && u !== clickedTarget) {
-                                u.transportTarget = clickedTarget;
-                                u.command = 'move';
-                            }
-                        });
-                        return;
+                    // [수송기/트럭 탑승 로직] 아군 수송 유닛 클릭 여부 확인
+                    if (clickedTarget && (clickedTarget.type === 'cargo-plane' || clickedTarget.type === 'military-truck') && clickedTarget.ownerId === 1) {
+                        // 공중 수송기는 착륙 상태여야 함
+                        const canBoard = clickedTarget.type === 'military-truck' || (clickedTarget.altitude < 0.1);
+                        
+                        if (canBoard) {
+                            this.selectedEntities.forEach(u => {
+                                if (u.domain === 'ground' && u !== clickedTarget) {
+                                    u.transportTarget = clickedTarget;
+                                    u.command = 'move';
+                                }
+                            });
+                            return;
+                        }
                     }
 
                     // 2. 공병 수리 로직 (아군 건물인 경우만)
@@ -1664,6 +1679,15 @@ export class GameEngine {
             // 탄약 상자 전용 수량 표시
             if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
                 desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
+            }
+            // 수송 유닛 전용 정보 (수송기 및 트럭)
+            if (hovered.cargo !== undefined) {
+                const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
+                desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
+                if (hovered.cargo.length > 0) {
+                    const cargoNames = hovered.cargo.map(u => u.name).join(', ');
+                    desc += `<div class="item-stats-box text-blue">탑승 중: ${cargoNames}</div>`;
+                }
             }
             if (hovered.maxAmmo > 0) {
                 const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
