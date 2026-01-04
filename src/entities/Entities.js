@@ -553,113 +553,7 @@ export class Base extends Entity {
 
 
 
-export class PipeLine extends Entity {
-    constructor(x, y) {
-        super(x, y);
-        this.type = 'pipe-line';
-        this.passable = true;
-        this.maxHp = 80;
-        this.hp = 80;
-        this.size = 30;
-        this.isConnected = false; // Whether connected to Base
-    }
 
-    update() {}
-
-    draw(ctx, allEntities, engine) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
-        const neighbors = { n: null, s: null, e: null, w: null };
-        if (allEntities && engine) {
-            allEntities.forEach(other => {
-                if (other === this) return;
-                
-                // 건물의 절반 크기 계산 (기본값 20)
-                const otherHW = (other.width || 40) / 2;
-                const otherHH = (other.height || 40) / 2;
-                const myHW = 20;
-                const myHH = 20;
-
-                // 중심점 간의 거리
-                const dx = Math.abs(other.x - this.x);
-                const dy = Math.abs(other.y - this.y);
-
-                // 범용 인접 체크 (상하좌우로 딱 붙어 있는지 확인)
-                const margin = 2;
-                const isAdjacentX = dx <= (otherHW + myHW) + margin && dy < Math.max(otherHH, myHH);
-                const isAdjacentY = dy <= (otherHH + myHH) + margin && dx < Math.max(otherHW, myHW);
-
-                                        if (isAdjacentX || isAdjacentY) {
-                                            const pipeTransmitters = ['pipe-line', 'refinery', 'gold-mine', 'iron-mine', 'storage', 'base'];
-                                            const isTransmitter = pipeTransmitters.includes(other.type) || (other.maxHp === 99999999);                    
-                    if (isTransmitter) {
-                        if (isAdjacentX) {
-                            if (other.x > this.x) neighbors.e = other;
-                            else neighbors.w = other;
-                        } else {
-                            if (other.y > this.y) neighbors.s = other;
-                            else neighbors.n = other;
-                        }
-                    }
-                }
-            });
-        }
-
-        const finalNeighbors = {
-            n: !!neighbors.n,
-            s: !!neighbors.s,
-            e: !!neighbors.e,
-            w: !!neighbors.w
-        };
-
-        ctx.save();
-        // Pipe Style: Thicker and industrial look
-        ctx.lineWidth = 8;
-        ctx.lineCap = 'butt';
-        ctx.strokeStyle = this.isConnected ? '#9370DB' : '#555'; // 공급 중일 때 전체가 보라색
-        const halfSize = 20;
-        
-        const drawSegment = (dirX, dirY) => {
-            ctx.beginPath();
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x + dirX * halfSize, this.y + dirY * halfSize);
-            ctx.stroke();
-            
-            // Inner liquid flow line
-            if (this.isConnected) {
-                ctx.save();
-                ctx.lineWidth = 4;
-                ctx.strokeStyle = '#DDA0DD'; // 더 밝은 보라색으로 흐름 강조
-                ctx.beginPath();
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x + dirX * halfSize, this.y + dirY * halfSize);
-                ctx.stroke();
-                ctx.restore();
-            }
-        };
-
-        if (finalNeighbors.n) drawSegment(0, -1);
-        if (finalNeighbors.s) drawSegment(0, 1);
-        if (finalNeighbors.w) drawSegment(-1, 0);
-        if (finalNeighbors.e) drawSegment(1, 0);
-
-        if (!finalNeighbors.n && !finalNeighbors.s && !finalNeighbors.w && !finalNeighbors.e) {
-            ctx.fillStyle = '#555';
-            ctx.beginPath(); ctx.arc(this.x, this.y, 6, 0, Math.PI * 2); ctx.fill();
-        }
-
-        // Joint/Valve
-        ctx.fillStyle = '#444';
-        ctx.beginPath(); ctx.arc(this.x, this.y, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.restore();
-    }
-}
 
 export class Wall extends Entity {
     constructor(x, y) {
@@ -1367,7 +1261,7 @@ export class PlayerUnit extends Entity {
 
                 
 
-                const bLists = ['turrets', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks', 'pipeLines'];
+                const bLists = ['turrets', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks'];
 
                 for (const listName of bLists) {
 
@@ -5492,7 +5386,7 @@ export class Enemy extends Entity {
         
         // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
         for (const obs of buildings) {
-            if (['pipe-line'].includes(obs.type)) continue;
+            if ([].includes(obs.type)) continue;
             if (obs === this) continue;
             const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
             const minDist = (this.size / 2) + (obs.size / 2) + 2;

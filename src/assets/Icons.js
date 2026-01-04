@@ -48,10 +48,7 @@ export const ICONS = {
         <circle cx="15" cy="15" r="1" fill="#fff"/>
         <circle cx="22" cy="26" r="1" fill="#fff"/>
     </svg></div>`,
-    'category-network': `<div class="btn-icon purple"><svg viewBox="0 0 40 40"><circle cx="15" cy="15" r="5" fill="#ffff00"/><circle cx="25" cy="25" r="5" fill="#9370DB"/><path d="M15 15 L25 25" stroke="#fff" stroke-width="2"/></svg></div>`,
     'category-military': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#333" stroke="#ff3131" stroke-width="2"/><path d="M5 15 L10 10 M35 15 L30 10 M20 5 V10" stroke="#ff3131" stroke-width="2"/><path d="M15 20 L25 20 M20 15 V25" stroke="#ff3131" stroke-width="2"/></svg></div>`,
-    'pipe-line': `<div class="btn-icon purple"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" rx="4" fill="#333" stroke="#9370DB" stroke-width="4"/><path d="M15 20 H25" stroke="#9370DB" stroke-width="2"/></svg></div>`,
-    'menu:network': `<div class="btn-icon purple"><svg viewBox="0 0 40 40"><circle cx="15" cy="15" r="5" fill="#ffff00"/><circle cx="25" cy="25" r="5" fill="#9370DB"/><path d="M15 15 L25 25" stroke="#fff" stroke-width="2"/></svg></div>`,
     'menu:industry': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M20 10 L20 30" stroke="#ffff00" stroke-width="3"/><circle cx="20" cy="20" r="15" fill="none" stroke="#ffff00" stroke-width="2"/></svg></div>`,
     'menu:military': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#333" stroke="#ff3131" stroke-width="2"/><path d="M5 15 L10 10 M35 15 L30 10 M20 5 V10" stroke="#ff3131" stroke-width="2"/><path d="M15 20 L25 20 M20 15 V25" stroke="#ff3131" stroke-width="2"/></svg></div>`,
     'menu:city': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><rect x="5" y="20" width="10" height="15" fill="#333" stroke="#00d2ff" stroke-width="2"/><rect x="15" y="10" width="10" height="25" fill="#333" stroke="#00d2ff" stroke-width="2"/><rect x="25" y="15" width="10" height="20" fill="#333" stroke="#00d2ff" stroke-width="2"/></svg></div>`,

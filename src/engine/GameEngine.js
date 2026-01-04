@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -14,7 +14,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
+        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -33,7 +33,6 @@ export class GameEngine {
             armories: [],
             barracks: [],
             units: [],
-            pipeLines: [],
             cargoPlanes: [],
             resources: [],
             base: (() => {
@@ -118,7 +117,6 @@ export class GameEngine {
         this.updateVisibility();
 
         this.buildingRegistry = {
-            'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
             'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
             'airport': { cost: 500, size: [5, 7], className: 'Airport', list: 'airports', buildTime: 1 },
             'apartment': { cost: 800, size: [4, 5], className: 'Apartment', list: 'apartments', buildTime: 1 },
@@ -565,13 +563,7 @@ export class GameEngine {
             // 공병 건설 메뉴 (공병이 선택된 상태에서 '건설'을 눌렀을 때만 진입)
             header.textContent = '공병 건설';
             
-            if (this.currentMenuName === 'network') {
-                header.textContent = '네트워크';
-                items = [
-                    { type: 'pipe-line', name: '파이프', cost: 10 },
-                    null, null, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
-                ];
-            } else if (this.currentMenuName === 'industry') {
+            if (this.currentMenuName === 'industry') {
                 header.textContent = '산업 시설';
                 items = [
                     { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
@@ -591,7 +583,7 @@ export class GameEngine {
                 ];
             } else {
                 items = [
-                    { type: 'menu:city', name: '도시', action: 'menu:city' }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
+                    { type: 'menu:city', name: '도시', action: 'menu:city' }, 
                     { type: 'menu:power', name: '산업', action: 'menu:industry' }, { type: 'menu:military', name: '군사', action: 'menu:military' },
                     { type: 'wall', name: '철조망', cost: 15 }, null,
                     null,
@@ -1613,7 +1605,8 @@ export class GameEngine {
                     // 리스트에서 제거
                     this.entities[listName].splice(foundIdx, 1);
                     
-                    // 판매 후 인구수 갱신 트리거 (필요 시)
+                    // 판매 후 인구수 즉시 갱신
+                    this.updatePopulation();
                 }
             }
         }
@@ -1766,6 +1759,11 @@ export class GameEngine {
                 }
                 return true;
             });
+            
+            // 리스트의 길이가 변했다면(건물이 파괴되었다면) 인구수 즉시 갱신
+            if (filtered.length !== initialLen) {
+                this.updatePopulation();
+            }
             return filtered;
         };
 
@@ -1780,7 +1778,6 @@ export class GameEngine {
         this.entities.barracks = processList(this.entities.barracks, (b) => b.update(deltaTime, this));
         this.entities.apartments = processList(this.entities.apartments, (a) => a.update(deltaTime, this));
         this.entities.walls = processList(this.entities.walls);
-        this.entities.pipeLines = processList(this.entities.pipeLines);
 
         if (this.entities.base) {
             this.entities.base.update(deltaTime, this);
@@ -1832,13 +1829,10 @@ export class GameEngine {
         if (this.entities.base) this.entities.base.draw(this.ctx);
         this.entities.resources.forEach(r => r.draw(this.ctx));
         
-        // 전선과 파이프는 건물들 간의 연결 관계가 필요함
-        this.entities.pipeLines.forEach(pl => pl.draw(this.ctx, allBuildings, this));
-        
         // --- 2.2 건물 (Building Layer) ---
         // 기지 및 유틸리티 라인을 제외한 모든 건물 일괄 렌더링
         allBuildings.forEach(b => {
-            if (b === this.entities.base || b.type === 'pipe-line') return;
+            if (b === this.entities.base) return;
             b.draw(this.ctx);
         });
         
@@ -2224,11 +2218,7 @@ export class GameEngine {
                     }
 
                     if (ghost.draw) {
-                        if (buildInfo.className === 'PipeLine') {
-                            ghost.draw(this.ctx, [...allBuildings], this);
-                        } else {
-                            ghost.draw(this.ctx);
-                        }
+                        ghost.draw(this.ctx);
                     }
                 }
                 this.ctx.restore();
@@ -2321,11 +2311,7 @@ export class GameEngine {
                         }
                         
                         if (ghost.draw) {
-                            if (buildInfo.className === 'PipeLine') {
-                                ghost.draw(this.ctx, allBuildings, this);
-                            } else {
-                                ghost.draw(this.ctx);
-                            }
+                            ghost.draw(this.ctx);
                         }
                     }
                     this.ctx.restore();
@@ -2441,17 +2427,7 @@ export class GameEngine {
         if (hoveredRefinery) {
             title = '정제소';
             desc = `<div class="stat-row"><span>⛽ 남은 자원:</span> <span class="highlight">${Math.ceil(hoveredRefinery.fuel)}</span></div>
-                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredRefinery.hp)}/${hoveredRefinery.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 연결 상태:</span> <span class="${hoveredRefinery.isConnectedToBase || hoveredRefinery.connectedTarget ? 'text-green' : 'text-red'}">${hoveredRefinery.isConnectedToBase || hoveredRefinery.connectedTarget ? '허브 연결됨' : '연결 안됨'}</span></div>`;
-        }
-
-        // 13. Check PipeLine
-        const hoveredPipe = this.entities.pipeLines.find(p => Math.hypot(p.x - worldX, p.y - worldY) < 10);
-        if (hoveredPipe) {
-            title = '파이프라인';
-            desc = `<div class="stat-row"><span>🛢️ 기능:</span> <span>자원(석유/골드) 수송</span></div>
-                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredPipe.hp)}/${hoveredPipe.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 연결 상태:</span> <span class="${hoveredPipe.isConnected ? 'text-green' : 'text-red'}">${hoveredPipe.isConnected ? '활성화됨' : '단절됨'}</span></div>`;
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredRefinery.hp)}/${hoveredRefinery.maxHp}</span></div>`;
         }
 
         // 14. Check Base
@@ -2546,8 +2522,7 @@ export class GameEngine {
 
             // 타입별 미니맵 색상 결정
             let color = '#aaa'; // 기본색
-            if (b.type === 'pipe-line') color = '#9370DB';
-            else if (b.type === 'wall') color = '#666';
+            if (b.type === 'wall') color = '#666';
             else if (b.type === 'refinery') color = '#32cd32';
             else if (b.type === 'gold-mine') color = '#FFD700';
             else if (b.type === 'iron-mine') color = '#a5a5a5';
@@ -2558,7 +2533,7 @@ export class GameEngine {
             else if (b.type === 'airport') color = '#7f8c8d';
 
             mCtx.fillStyle = color;
-            const size = (b.type === 'pipe-line') ? 20 : 40;
+            const size = 40;
             mCtx.fillRect(b.x - size/2, b.y - size/2, size, size);
         });
 
