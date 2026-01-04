@@ -198,6 +198,16 @@ export class GameEngine {
             selectionBox: null
         };
 
+        // Visibility Optimization
+        this.visibilityTimer = 0;
+        this.visibilityInterval = 100; // 100ms
+
+        // [최적화] 미니맵 배경 캐시 캔버스 (1px = 1타일)
+        this.minimapCacheCanvas = document.createElement('canvas');
+        this.minimapCacheCanvas.width = this.tileMap.cols;
+        this.minimapCacheCanvas.height = this.tileMap.rows;
+        this.minimapCacheCtx = this.minimapCacheCanvas.getContext('2d');
+
         // 초기 인구수 계산
         this.updatePopulation();
 
@@ -1828,7 +1838,13 @@ export class GameEngine {
             if (fx.timer >= fx.duration) this.effects.splice(i, 1);
         }
         this.updateEdgeScroll();
-        this.updateVisibility();
+
+        // [최적화] 시야 업데이트 주기 조절 (Throttling)
+        this.visibilityTimer += deltaTime;
+        if (this.visibilityTimer >= this.visibilityInterval) {
+            this.updateVisibility();
+            this.visibilityTimer = 0;
+        }
 
         // EntityManager 업데이트 (SpatialGrid 등 갱신)
         if (this.entityManager) {
@@ -2587,24 +2603,13 @@ export class GameEngine {
         mCtx.translate(offsetX, offsetY);
         mCtx.scale(scale, scale);
 
-        // 1. 전체 배경을 아주 어두운 색(안개)으로 채움
+        // 1. 전체 배경 및 캐싱된 지형 렌더링
         mCtx.fillStyle = '#0a0a0a';
         mCtx.fillRect(0, 0, mapWorldWidth, mapWorldHeight);
 
-        // 2. 밝혀진 타일의 바닥면을 먼저 그림
-        for (let y = 0; y < this.tileMap.rows; y++) {
-            for (let x = 0; x < this.tileMap.cols; x++) {
-                const tile = this.tileMap.grid[y][x];
-                if (tile.visible) {
-                    if (tile.terrain === 'fertile-soil') {
-                        mCtx.fillStyle = '#5d4037'; // 비옥한 토지 (갈색)
-                    } else {
-                        mCtx.fillStyle = '#1a1a1a'; // 기본 땅 (다크 그레이)
-                    }
-                    mCtx.fillRect(x * 40, y * 40, 40, 40);
-                }
-            }
-        }
+        // [최적화] 매 프레임 수만 개의 타일을 그리는 대신, 캐시된 캔버스를 한 번에 출력
+        mCtx.imageSmoothingEnabled = false;
+        mCtx.drawImage(this.minimapCacheCanvas, 0, 0, mapWorldWidth, mapWorldHeight);
 
         // Helper to check if a world position is visible
         const isVisible = (worldX, worldY) => {
@@ -2731,6 +2736,44 @@ export class GameEngine {
                 reveal(b.x, b.y, 3);
             }
         });
+
+        // [최적화] 시야 데이터 변경 후 오프스크린 포그 캔버스 갱신
+        if (this.tileMap && this.tileMap.updateFogCanvas) {
+            this.tileMap.updateFogCanvas();
+        }
+
+        // [최적화] 시야 변경 시 미니맵 배경 캐시도 함께 갱신
+        this.updateMinimapCache();
+    }
+
+    updateMinimapCache() {
+        if (!this.minimapCacheCtx) return;
+
+        const mCtx = this.minimapCacheCtx;
+        const cols = this.tileMap.cols;
+        const rows = this.tileMap.rows;
+
+        // ImageData 직접 조작으로 성능 극대화 (미니맵 배경색)
+        const imageData = mCtx.createImageData(cols, rows);
+        const buffer = new Uint32Array(imageData.data.buffer);
+
+        // 색상 상수 (Abgr 순서 - Little Endian)
+        const SOIL = 0xFF37405D; // #5d4037
+        const DIRT = 0xFF1A1A1A; // #1a1a1a
+        const HIDDEN = 0x00000000; // 아직 안 밝혀진 곳은 투명 (배경색이 보임)
+
+        for (let y = 0; y < rows; y++) {
+            const rowOffset = y * cols;
+            for (let x = 0; x < cols; x++) {
+                const tile = this.tileMap.grid[y][x];
+                if (tile.visible) {
+                    buffer[rowOffset + x] = (tile.terrain === 'fertile-soil' ? SOIL : DIRT);
+                } else {
+                    buffer[rowOffset + x] = HIDDEN;
+                }
+            }
+        }
+        mCtx.putImageData(imageData, 0, 0);
     }
 
     updatePopulation() {

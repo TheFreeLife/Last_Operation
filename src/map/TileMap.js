@@ -6,13 +6,35 @@ export class TileMap {
         this.cols = 240;
         this.rows = 240;
 
+        // [청크 설정] 20x20 타일 단위로 분할
+        this.chunkSize = 20;
+        this.chunksX = Math.ceil(this.cols / this.chunkSize);
+        this.chunksY = Math.ceil(this.rows / this.chunkSize);
+        this.chunks = [];
+
         // 중앙 좌표 계산
         this.centerX = Math.floor(this.cols / 2);
         this.centerY = Math.floor(this.rows / 2);
 
         this.grid = [];
         this.initGrid();
-        this.generateTerrain(); // 지형 생성 추가
+        this.generateTerrain();
+        this.initChunks();      // 청크 시스템 초기화 (기존 offscreenCanvas 대체)
+        this.initFogCanvas();
+    }
+
+    initFogCanvas() {
+        this.fogCanvas = document.createElement('canvas');
+        this.fogCanvas.width = this.cols;
+        this.fogCanvas.height = this.rows;
+        this.fogCtx = this.fogCanvas.getContext('2d');
+
+        this.fogCtx.fillStyle = '#050505';
+        this.fogCtx.fillRect(0, 0, this.cols, this.rows);
+
+        // [최적화] ImageData 버퍼 미리 생성
+        this.fogImageData = this.fogCtx.createImageData(this.cols, this.rows);
+        this.fogBuffer = new Uint32Array(this.fogImageData.data.buffer);
     }
 
     initGrid() {
@@ -26,12 +48,12 @@ export class TileMap {
                     buildable: true,
                     visible: false,
                     inSight: false,
-                    cachedColor: null // 렌더링 최적화를 위한 색상 캐시
+                    cachedColor: null
                 };
             }
         }
 
-        // 중앙 총사령부 (9x6) 타일 설정
+        // 중앙 총사령부 (9x6) 설정
         for (let dy = -3; dy <= 2; dy++) {
             for (let dx = -4; dx <= 4; dx++) {
                 const nx = this.centerX + dx;
@@ -48,7 +70,6 @@ export class TileMap {
     }
 
     generateTerrain() {
-        // 1. 잔디 초원 및 흙 지형 생성 (큼지막한 덩어리)
         const numGrassPatches = 40;
         const minRadius = 8;
         const maxRadius = 20;
@@ -76,7 +97,6 @@ export class TileMap {
             }
         }
 
-        // 2. 모든 타일의 색상을 미리 계산 (최적화)
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const tile = this.grid[y][x];
@@ -92,23 +112,45 @@ export class TileMap {
                 tile.cachedColor = `rgb(${baseR + brightness}, ${baseG + brightness}, ${baseB + brightness})`;
             }
         }
+    }
 
-        // 3. 오프스크린 캔버스에 지형 미리 그리기 (NEW)
-        this.offscreenCanvas = document.createElement('canvas');
-        this.offscreenCanvas.width = this.cols * this.tileSize;
-        this.offscreenCanvas.height = this.rows * this.tileSize;
-        const octx = this.offscreenCanvas.getContext('2d');
+    initChunks() {
+        const chunkPixelSize = this.chunkSize * this.tileSize;
 
-        for (let y = 0; y < this.rows; y++) {
-            for (let x = 0; x < this.cols; x++) {
-                const tile = this.grid[y][x];
-                octx.fillStyle = tile.cachedColor;
-                octx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+        for (let cy = 0; cy < this.chunksY; cy++) {
+            this.chunks[cy] = [];
+            for (let cx = 0; cx < this.chunksX; cx++) {
+                const canvas = document.createElement('canvas');
+                canvas.width = chunkPixelSize;
+                canvas.height = chunkPixelSize;
+                const ctx = canvas.getContext('2d');
 
-                if (tile.type === 'base') {
-                    octx.fillStyle = '#7f8c8d';
-                    octx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                // 해당 청크 범위의 타일들 그리기
+                const startX = cx * this.chunkSize;
+                const startY = cy * this.chunkSize;
+
+                for (let y = 0; y < this.chunkSize; y++) {
+                    for (let x = 0; x < this.chunkSize; x++) {
+                        const worldX = startX + x;
+                        const worldY = startY + y;
+                        if (worldX >= this.cols || worldY >= this.rows) continue;
+
+                        const tile = this.grid[worldY][worldX];
+                        ctx.fillStyle = tile.cachedColor;
+                        ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+
+                        if (tile.type === 'base') {
+                            ctx.fillStyle = '#7f8c8d';
+                            ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                        }
+                    }
                 }
+
+                this.chunks[cy][cx] = {
+                    canvas: canvas,
+                    x: startX * this.tileSize,
+                    y: startY * this.tileSize
+                };
             }
         }
     }
@@ -116,62 +158,67 @@ export class TileMap {
     drawGrid(camera) {
         if (!camera) return;
 
-        // 현재 시야에 보이는 타일 범위 계산 (Culling)
-        const startX = Math.max(0, Math.floor(-camera.x / (this.tileSize * camera.zoom)));
-        const startY = Math.max(0, Math.floor(-camera.y / (this.tileSize * camera.zoom)));
-        const endX = Math.min(this.cols, Math.ceil((this.canvas.width - camera.x) / (this.tileSize * camera.zoom)));
-        const endY = Math.min(this.rows, Math.ceil((this.canvas.height - camera.y) / (this.tileSize * camera.zoom)));
+        const chunkPixelSize = this.chunkSize * this.tileSize;
 
-        // [최적화] 안개가 없는 경우 오프스크린 전체를 한 번에 그림
-        // 하지만 Fog of War가 있으므로, visible 영역만 그려야 함.
-        // 여기서는 하단 지형을 한 번에 다 그리고, drawFog에서 가리는 방식이 더 효율적입니다.
-        const sourceX = startX * this.tileSize;
-        const sourceY = startY * this.tileSize;
-        const sourceW = (endX - startX) * this.tileSize;
-        const sourceH = (endY - startY) * this.tileSize;
+        // 뷰포트 컬링을 위한 가시 청크 범위 계산
+        const viewportLeft = -camera.x / camera.zoom;
+        const viewportTop = -camera.y / camera.zoom;
+        const viewportRight = viewportLeft + this.canvas.width / camera.zoom;
+        const viewportBottom = viewportTop + this.canvas.height / camera.zoom;
 
-        this.ctx.drawImage(
-            this.offscreenCanvas,
-            sourceX, sourceY, sourceW, sourceH, // Source
-            sourceX, sourceY, sourceW, sourceH  // Destination (카메라 변환이 되어있으므로 월드 좌표 그대로)
-        );
+        const startCX = Math.max(0, Math.floor(viewportLeft / chunkPixelSize));
+        const endCX = Math.min(this.chunksX - 1, Math.floor(viewportRight / chunkPixelSize));
+        const startCY = Math.max(0, Math.floor(viewportTop / chunkPixelSize));
+        const endCY = Math.min(this.chunksY - 1, Math.floor(viewportBottom / chunkPixelSize));
+
+        for (let cy = startCY; cy <= endCY; cy++) {
+            for (let cx = startCX; cx <= endCX; cx++) {
+                const chunk = this.chunks[cy][cx];
+                this.ctx.drawImage(chunk.canvas, chunk.x, chunk.y);
+            }
+        }
+    }
+
+    updateFogCanvas() {
+        if (!this.fogCtx || !this.fogBuffer) return;
+
+        // [최적화] Uint32Array를 사용하여 픽셀 데이터를 한 번에 조작 (RGBA 채널 개별 접근보다 빠름)
+        // Little Endian 환경: ABGR 순서 (0xAABBGGRR)
+        const BLACK = 0xFF050505; // 미탐사: #050505 (완전 불투명)
+        const GREY = 0x99000000;  // 탐사: #000000 (60% 불투명)
+        const CLEAR = 0x00000000; // 시야: 투명
+
+        for (let y = 0; y < this.rows; y++) {
+            const rowOffset = y * this.cols;
+            for (let x = 0; x < this.cols; x++) {
+                const tile = this.grid[y][x];
+                if (!tile.visible) {
+                    this.fogBuffer[rowOffset + x] = BLACK;
+                } else if (!tile.inSight) {
+                    this.fogBuffer[rowOffset + x] = GREY;
+                } else {
+                    this.fogBuffer[rowOffset + x] = CLEAR;
+                }
+            }
+        }
+        this.fogCtx.putImageData(this.fogImageData, 0, 0);
     }
 
     drawFog(camera) {
-        if (!camera) return;
+        if (!camera || !this.fogCanvas) return;
 
-        const startX = Math.max(0, Math.floor(-camera.x / (this.tileSize * camera.zoom)));
-        const startY = Math.max(0, Math.floor(-camera.y / (this.tileSize * camera.zoom)));
-        const endX = Math.min(this.cols, Math.ceil((this.canvas.width - camera.x) / (this.tileSize * camera.zoom)));
-        const endY = Math.min(this.rows, Math.ceil((this.canvas.height - camera.y) / (this.tileSize * camera.zoom)));
-
-        // 1. 시야 밖(반투명 안개) 그리기
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        this.ctx.beginPath();
-        for (let y = startY; y < endY; y++) {
-            for (let x = startX; x < endX; x++) {
-                // 탐사되었지만 현재 시야에 없는 타일들만 경로에 추가
-                if (this.grid[y][x].visible && !this.grid[y][x].inSight) {
-                    this.ctx.rect(x * this.tileSize, y * this.tileSize, this.tileSize + 0.5, this.tileSize + 0.5);
-                }
-            }
-        }
-        this.ctx.fill(); // 한 번에 채우기 (겹침으로 인한 격자 방지)
-        this.ctx.restore();
+        this.ctx.imageSmoothingEnabled = false;
 
-        // 2. 미탐사 지역(완전 검정 안개) 그리기
-        this.ctx.save();
-        this.ctx.fillStyle = '#050505';
-        this.ctx.beginPath();
-        for (let y = startY; y < endY; y++) {
-            for (let x = startX; x < endX; x++) {
-                if (!this.grid[y][x].visible) {
-                    this.ctx.rect(x * this.tileSize, y * this.tileSize, this.tileSize + 0.5, this.tileSize + 0.5);
-                }
-            }
-        }
-        this.ctx.fill();
+        const worldWidth = this.cols * this.tileSize;
+        const worldHeight = this.rows * this.tileSize;
+
+        this.ctx.drawImage(
+            this.fogCanvas,
+            0, 0, this.cols, this.rows,
+            0, 0, worldWidth, worldHeight
+        );
+
         this.ctx.restore();
     }
 
