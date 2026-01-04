@@ -2110,92 +2110,69 @@ export class GameEngine {
 
         // 6.1 Selected Object Highlight
         if (this.selectedEntities.length > 0) {
-
             this.ctx.save();
-            this.ctx.lineWidth = 1;
+
+            const showPathLimit = 15; // 경로 표시는 최대 15개로 제한
+            let pathCount = 0;
+
+            // 1단계: 선택 박스 및 사거리 그리기
             this.selectedEntities.forEach(ent => {
-                // 관계에 따른 하이라이트 색상 결정
                 const relation = this.getRelation(1, ent.ownerId);
 
-                if (relation === 'self') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // 자신: 초록
-                else if (relation === 'enemy') this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // 적군: 빨강
-                else if (relation === 'neutral') this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // 중립: 노랑
-                else if (relation === 'ally') this.ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // 아군: 파랑
-                else this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 기타: 흰색
+                if (relation === 'self') this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                else if (relation === 'enemy') this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+                else if (relation === 'neutral') this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+                else if (relation === 'ally') this.ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)';
+                else this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
 
                 const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                     left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                 };
-                const w = bounds.right - bounds.left;
-                const h = bounds.bottom - bounds.top;
-                this.ctx.strokeRect(bounds.left, bounds.top, w, h);
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
 
-                // 공격 사거리 표시 (내 유닛 또는 아군 유닛인 경우)
+                // 사거리 표시 (사용자 요청에 따라 모든 유닛 유지)
                 if ((relation === 'self' || relation === 'ally') && ent.attackRange) {
-                    this.ctx.save();
-
-                    let rangeColor = 'rgba(255, 255, 255, 0.15)'; // 기본 연한 흰색
-
-                    // 수동 조준 모드일 때 사거리 피드백 추가
-                    if (this.unitCommandMode === 'manual_fire' && ent.type === 'missile-launcher') {
-                        const dist = Math.hypot(mouseWorldX - ent.x, mouseWorldY - ent.y);
-                        if (dist > ent.attackRange) {
-                            rangeColor = 'rgba(255, 0, 0, 0.6)'; // 사거리 밖: 빨간색
-                        } else {
-                            rangeColor = 'rgba(0, 255, 0, 0.4)'; // 사거리 안: 초록색
-                        }
-
-                        // 조준 가이드 라인 (유닛에서 마우스까지)
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(ent.x, ent.y);
-                        this.ctx.lineTo(mouseWorldX, mouseWorldY);
-                        this.ctx.strokeStyle = rangeColor;
-                        this.ctx.setLineDash([2, 2]);
-                        this.ctx.stroke();
-                    }
-
                     this.ctx.beginPath();
                     this.ctx.arc(ent.x, ent.y, ent.attackRange, 0, Math.PI * 2);
-                    this.ctx.strokeStyle = rangeColor;
-                    this.ctx.setLineDash([5, 5]);
-                    this.ctx.stroke();
-                    this.ctx.restore();
-                }
-
-                // Draw movement line if destination exists
-                if (ent.destination) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(ent.x, ent.y);
-
-                    // A* 경로가 있으면 경로를 따라 그리기
-                    if (ent.path && ent.path.length > 0) {
-                        for (const p of ent.path) {
-                            this.ctx.lineTo(p.x, p.y);
-                        }
-                    } else {
-                        // 경로가 없거나(계산 전) 공중 유닛인 경우 직선
-                        this.ctx.lineTo(ent.destination.x, ent.destination.y);
-                    }
-
-                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-                    this.ctx.lineWidth = 1.5;
+                    this.ctx.globalAlpha = 0.15;
                     this.ctx.setLineDash([5, 5]);
                     this.ctx.stroke();
                     this.ctx.setLineDash([]);
-
-                    // Draw destination X marker
-                    this.ctx.beginPath();
-                    const dest = ent.destination;
-                    const markerSize = 5;
-                    this.ctx.moveTo(dest.x - markerSize, dest.y - markerSize);
-                    this.ctx.lineTo(dest.x + markerSize, dest.y + markerSize);
-                    this.ctx.moveTo(dest.x + markerSize, dest.y - markerSize);
-                    this.ctx.lineTo(dest.x - markerSize, dest.y + markerSize);
-                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
-                    this.ctx.lineWidth = 2;
-                    this.ctx.stroke();
+                    this.ctx.globalAlpha = 1.0;
                 }
             });
+
+            // 2단계: 이동 경로 그리기 (갯수 상한 적용)
+            this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            this.ctx.lineWidth = 1.5;
+            this.ctx.setLineDash([5, 5]);
+
+            for (let i = 0; i < this.selectedEntities.length; i++) {
+                const ent = this.selectedEntities[i];
+                if (!ent.destination) continue;
+
+                pathCount++;
+                if (pathCount > showPathLimit) break;
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(ent.x, ent.y);
+                if (ent.path && ent.path.length > 0) {
+                    for (const p of ent.path) this.ctx.lineTo(p.x, p.y);
+                } else {
+                    this.ctx.lineTo(ent.destination.x, ent.destination.y);
+                }
+                this.ctx.stroke();
+
+                // 목적지 마커
+                const dest = ent.destination;
+                const m = 5;
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(dest.x - m, dest.y - m); this.ctx.lineTo(dest.x + m, dest.y + m);
+                this.ctx.moveTo(dest.x + m, dest.y - m); this.ctx.lineTo(dest.x - m, dest.y + m);
+                this.ctx.stroke();
+            }
             this.ctx.restore();
 
             // --- [독립 블록] 공격 대상 하이라이트 (Target Highlight) ---
