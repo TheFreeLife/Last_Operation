@@ -1093,9 +1093,13 @@ export class GameEngine {
                         return;
                     }
 
-                // [탑승 명령] 수송기 또는 아파트(벙커) 클릭 시
-                const transport = [...this.entities.cargoPlanes, ...this.entities.apartments].find(t => {
-                    if (!t || !t.active || t.hp <= 0) return false;
+                // [탑승 명령] 수송기, 트럭 또는 아파트(벙커) 클릭 시
+                const transport = [
+                    ...this.entities.cargoPlanes, 
+                    ...this.entities.apartments,
+                    ...this.entities.units.filter(u => u.type === 'military-truck' || u.type === 'cargo-plane')
+                ].find(t => {
+                    if (!t || !t.active || t.hp <= 0 || t.ownerId !== 1) return false;
                     const b = t.getSelectionBounds ? t.getSelectionBounds() : {
                         left: t.x - 50, right: t.x + 50, top: t.y - 50, bottom: t.y + 50
                     };

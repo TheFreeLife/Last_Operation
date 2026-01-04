@@ -246,21 +246,22 @@ export class BaseUnit extends Entity {
                 // 수송 유닛 종류별 입구 위치 차별화
                 let entranceX, entranceY;
                 
-                if (target.isBunker || (target.width && target.height)) {
+                // [수정] BaseUnit 인스턴스가 아니면서(건물) isBunker이거나 크기가 있는 경우 건물형으로 판정
+                if (!(target instanceof BaseUnit) && (target.isBunker || (target.width && target.height))) {
                     // 건물형(아파트 등): 건물 아래쪽 중앙을 입구로 설정
                     entranceX = target.x;
                     entranceY = target.y + (target.height / 2 || 100) + 10;
                 } else {
                     // 유닛형(수송기 등): 유닛 뒤쪽을 입구로 설정
-                    const entranceDist = target.type === 'cargo-plane' ? 90 : 40;
+                    const entranceDist = target.type === 'cargo-plane' ? 110 : 40;
                     entranceX = target.x + Math.cos(target.angle + Math.PI) * entranceDist;
                     entranceY = target.y + Math.sin(target.angle + Math.PI) * entranceDist;
                 }
 
                 const d = Math.hypot(this.x - entranceX, this.y - entranceY);
 
-                // 입구에 충분히 가까워지면 탑승 (건물은 판정 거리 완화: 15 -> 30)
-                const boardingDist = (target.isBunker) ? 35 : 15;
+                // 입구에 충분히 가까워지면 탑승 (유닛/건물 판정 거리 완화: 15/35 -> 40)
+                const boardingDist = 40;
                 if (d < boardingDist) {
                     if (target.loadUnit && target.loadUnit(this)) {
                         this.transportTarget = null;

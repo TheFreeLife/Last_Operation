@@ -73,6 +73,13 @@ export class DebugSystem {
         const entity = this.engine.entityManager?.create(this.spawnUnitType, worldX, worldY, finalOptions);
 
         if (entity) {
+            // [추가] 수송기의 경우 전용 리스트에도 등록 (생산 건물 로직과 동기화)
+            if (this.spawnUnitType === 'cargo-plane' && this.engine.entities.cargoPlanes) {
+                if (!this.engine.entities.cargoPlanes.includes(entity)) {
+                    this.engine.entities.cargoPlanes.push(entity);
+                }
+            }
+
             let label = entity.name || this.spawnUnitType;
             if (this.spawnUnitOptions?.ammoType) label += ` (${this.spawnUnitOptions.ammoType})`;
             this.engine.addEffect?.('system', worldX, worldY - 40, '#39ff14', `${label} 생성`);
