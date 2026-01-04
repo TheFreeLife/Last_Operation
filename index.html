@@ -13,6 +13,40 @@
         <canvas id="gameCanvas"></canvas>
 
         <div id="ui-layer">
+            <!-- Debug Control Panel (Practice Tool) -->
+            <div id="debug-panel">
+                <div class="debug-group">
+                    <button class="debug-btn" id="db-god-mode">🛡️</button>
+                    <div class="debug-tooltip">무적 모드 토글 (God Mode)</div>
+                </div>
+                <div class="debug-group">
+                    <button class="debug-btn" id="db-add-gold">💰</button>
+                    <div class="debug-tooltip">금 +10,000</div>
+                </div>
+                <div class="debug-group">
+                    <button class="debug-btn" id="db-add-oil">🛢️</button>
+                    <div class="debug-tooltip">석유 +10,000</div>
+                </div>
+                                    <div class="debug-group">
+                                        <button class="debug-btn" id="db-spawn-sandbag">🎯</button>
+                                        <div class="debug-tooltip">샌드백 적 생성 (마우스 위치)</div>
+                                    </div>
+                                    <div class="debug-group">
+                                        <button class="debug-btn" id="db-spawn-air-sandbag">🚁</button>
+                                        <div class="debug-tooltip">공중 샌드백 적 생성 (마우스 위치)</div>
+                                    </div>
+                                    <div class="debug-group">                            <button class="debug-btn" id="db-eraser">🧹</button>
+                            <div class="debug-tooltip">엔티티 삭제 (지우개)</div>
+                        </div>
+                        <div class="debug-group">                    <button class="debug-btn" id="db-heal-all">💖</button>
+                    <div class="debug-tooltip">아군 전원 회복</div>
+                </div>
+                <div class="debug-group">
+                    <button class="debug-btn" id="db-clear-fog">👁️</button>
+                    <div class="debug-tooltip">시야 전체 공개 (토글)</div>
+                </div>
+            </div>
+
             <div id="top-bar" class="glass-panel">
                 <div class="stat-item hp">
                     <span class="stat-icon">❤️</span>

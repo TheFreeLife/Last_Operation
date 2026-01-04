@@ -4,6 +4,7 @@ import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
 import { RenderSystem } from './systems/RenderSystem.js';
+import { DebugSystem } from './systems/DebugSystem.js';
 
 export class GameEngine {
     constructor() {
@@ -217,6 +218,8 @@ export class GameEngine {
 
         // 초기 인구수 계산
         this.updatePopulation();
+
+        this.debugSystem = new DebugSystem(this);
 
         window.addEventListener('resize', () => this.resize());
         this.initInput();
@@ -863,8 +866,9 @@ export class GameEngine {
     initInput() {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                // 1. 활성화된 특수 모드(건설, 판매, 스킬, 명령 타겟팅) 취소
-                if (this.isBuildMode || this.isSellMode || this.isSkillMode || this.unitCommandMode) {
+                // 1. 활성화된 특수 모드(건설, 판매, 스킬, 명령 타겟팅, 디버그 모드) 취소
+                const isDebugMode = this.debugSystem && (this.debugSystem.isSpawnSandbagMode || this.debugSystem.isSpawnAirSandbagMode || this.debugSystem.isEraserMode);
+                if (this.isBuildMode || this.isSellMode || this.isSkillMode || this.unitCommandMode || isDebugMode) {
                     this.cancelModes();
                     this.unitCommandMode = null;
                     this.updateCursor();
@@ -1037,6 +1041,12 @@ export class GameEngine {
                     }
                 } else if (this.isSkillMode) {
                     this.handleInput(worldX, worldY);
+                } else if (this.debugSystem && this.debugSystem.isSpawnSandbagMode) {
+                    this.debugSystem.executeSpawnSandbag(worldX, worldY);
+                } else if (this.debugSystem && this.debugSystem.isSpawnAirSandbagMode) {
+                    this.debugSystem.executeSpawnAirSandbag(worldX, worldY);
+                } else if (this.debugSystem && this.debugSystem.isEraserMode) {
+                    this.debugSystem.executeEraser(worldX, worldY);
                 } else {
                     // Start left-click drag selection
                     this.camera.selectionBox = {
@@ -1304,6 +1314,22 @@ export class GameEngine {
         this.cancelSellMode();
         this.cancelSkillMode(false);
         this.isEngineerBuilding = false;
+        
+        // 디버그 모드 해제
+        if (this.debugSystem) {
+            this.debugSystem.isSpawnSandbagMode = false;
+            this.debugSystem.isSpawnAirSandbagMode = false;
+            this.debugSystem.isEraserMode = false;
+            
+            const btnSandbag = document.getElementById('db-spawn-sandbag');
+            if (btnSandbag) btnSandbag.classList.remove('active');
+
+            const btnAirSandbag = document.getElementById('db-spawn-air-sandbag');
+            if (btnAirSandbag) btnAirSandbag.classList.remove('active');
+            
+            const btnEraser = document.getElementById('db-eraser');
+            if (btnEraser) btnEraser.classList.remove('active');
+        }
     }
 
     handleSingleSelection(worldX, worldY, isShiftKey) {
@@ -2773,7 +2799,12 @@ export class GameEngine {
     }
 
     updateVisibility() {
-        // 모든 타일의 현재 시야(inSight) 초기화
+        if (!this.tileMap) return;
+        
+        // [추가] 디버그 시스템의 전체 시야 모드 활성화 시 업데이트 스킵
+        if (this.debugSystem && this.debugSystem.isFullVision) return;
+
+        // 1. 모든 타일의 현재 시야(inSight) 초기화
         for (let y = 0; y < this.tileMap.rows; y++) {
             for (let x = 0; x < this.tileMap.cols; x++) {
                 this.tileMap.grid[y][x].inSight = false;
