@@ -104,6 +104,10 @@ export class TileMap {
         const endX = Math.min(this.cols, Math.ceil((this.canvas.width - camera.x) / (this.tileSize * camera.zoom)));
         const endY = Math.min(this.rows, Math.ceil((this.canvas.height - camera.y) / (this.tileSize * camera.zoom)));
 
+        // 1. 전체 영역을 기본 지형 색상으로 먼저 채움 (틈새 방지용 베이스)
+        this.ctx.fillStyle = '#3d5a2d';
+        this.ctx.fillRect(startX * this.tileSize, startY * this.tileSize, (endX - startX) * this.tileSize, (endY - startY) * this.tileSize);
+
         for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
                 const tile = this.grid[y][x];
@@ -113,17 +117,12 @@ export class TileMap {
 
                     // 미리 캐싱된 색상 사용 (연산량 0)
                     this.ctx.fillStyle = tile.cachedColor;
-                    this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
+                    this.ctx.fillRect(px, py, this.tileSize + 1.0, this.tileSize + 1.0);
 
                     // 베이스 타일 석조 바닥 효과 (불투명)
                     if (tile.type === 'base') {
                         this.ctx.fillStyle = '#7f8c8d'; // 불투명한 석재 회색
-                        this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
-                        
-                        // 격자 무늬 디테일
-                        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-                        this.ctx.lineWidth = 1;
-                        this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
+                        this.ctx.fillRect(px, py, this.tileSize + 1.0, this.tileSize + 1.0);
                     }
                 }
             }
@@ -138,21 +137,34 @@ export class TileMap {
         const endX = Math.min(this.cols, Math.ceil((this.canvas.width - camera.x) / (this.tileSize * camera.zoom)));
         const endY = Math.min(this.rows, Math.ceil((this.canvas.height - camera.y) / (this.tileSize * camera.zoom)));
 
+        // 1. 시야 밖(반투명 안개) 그리기
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        this.ctx.beginPath();
         for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
-                const tile = this.grid[y][x];
-                const px = x * this.tileSize;
-                const py = y * this.tileSize;
-
-                if (!tile.visible) {
-                    this.ctx.fillStyle = '#050505';
-                    this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
-                } else if (!tile.inSight) {
-                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
+                // 탐사되었지만 현재 시야에 없는 타일들만 경로에 추가
+                if (this.grid[y][x].visible && !this.grid[y][x].inSight) {
+                    this.ctx.rect(x * this.tileSize, y * this.tileSize, this.tileSize + 0.5, this.tileSize + 0.5);
                 }
             }
         }
+        this.ctx.fill(); // 한 번에 채우기 (겹침으로 인한 격자 방지)
+        this.ctx.restore();
+
+        // 2. 미탐사 지역(완전 검정 안개) 그리기
+        this.ctx.save();
+        this.ctx.fillStyle = '#050505';
+        this.ctx.beginPath();
+        for (let y = startY; y < endY; y++) {
+            for (let x = startX; x < endX; x++) {
+                if (!this.grid[y][x].visible) {
+                    this.ctx.rect(x * this.tileSize, y * this.tileSize, this.tileSize + 0.5, this.tileSize + 0.5);
+                }
+            }
+        }
+        this.ctx.fill();
+        this.ctx.restore();
     }
 
     draw() {

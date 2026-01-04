@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Base, Enemy, Projectile, Generator, Resource, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Base, Enemy, Projectile, Resource, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 
@@ -7,13 +7,14 @@ export class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
+        // imageSmoothingEnabled를 기본값(true)으로 유지하여 격자 현상 완화
 
         this.minimapCanvas = document.getElementById('minimapCanvas');
         this.minimapCtx = this.minimapCanvas.getContext('2d');
 
         this.resize();
 
-        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Generator, CoalGenerator, PowerLine, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
+        this.entityClasses = { PlayerUnit, Base, Enemy, Projectile, Wall, Airport, Refinery, PipeLine, GoldMine, IronMine, Storage, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Armory, Tank, MissileLauncher, Rifleman, Sniper, Barracks, CombatEngineer, Apartment };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -22,8 +23,6 @@ export class GameEngine {
             enemies: [],
             neutral: [], // 중립 유닛 리스트 신설
             projectiles: [],
-            generators: [],
-            powerLines: [],
             walls: [],
             airports: [],
             apartments: [],
@@ -119,7 +118,6 @@ export class GameEngine {
         this.updateVisibility();
 
         this.buildingRegistry = {
-            'power-line': { cost: 10, size: [1, 1], className: 'PowerLine', list: 'powerLines', buildTime: 1 },
             'pipe-line': { cost: 10, size: [1, 1], className: 'PipeLine', list: 'pipeLines', buildTime: 1 },
             'wall': { cost: 15, size: [1, 1], className: 'Wall', list: 'walls', buildTime: 1 },
             'airport': { cost: 500, size: [5, 7], className: 'Airport', list: 'airports', buildTime: 1 },
@@ -130,8 +128,7 @@ export class GameEngine {
             'storage': { cost: 200, size: [4, 3], className: 'Storage', list: 'storage', buildTime: 1 },
             'armory': { cost: 600, size: [4, 3], className: 'Armory', list: 'armories', buildTime: 1 },
             'barracks': { cost: 400, size: [3, 3], className: 'Barracks', list: 'barracks', buildTime: 1 },
-            'base': { cost: 0, size: [9, 6], className: 'Base', list: 'base' }, 
-            'coal-generator': { cost: 200, size: [1, 1], className: 'CoalGenerator', list: 'generators', onResource: 'coal', buildTime: 1 }
+            'base': { cost: 0, size: [9, 6], className: 'Base', list: 'base' }
         };
 
         this.resources = { gold: 999999, oil: 0, iron: 0, population: 0, maxPopulation: 20 };
@@ -172,7 +169,6 @@ export class GameEngine {
         this.lastPlacedGrid = { x: -1, y: -1 }; 
         this.isEngineerBuilding = false; 
         this.currentBuildSessionQueue = null; 
-        this.needsPowerUpdate = true; // 전력망 재계산 필요 여부
 
         // Camera State
         const baseWorldPos = this.entities.base;
@@ -557,16 +553,15 @@ export class GameEngine {
             if (this.currentMenuName === 'network') {
                 header.textContent = '네트워크';
                 items = [
-                    { type: 'power-line', name: '전선', cost: 10 }, { type: 'pipe-line', name: '파이프', cost: 10 },
-                    null, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'pipe-line', name: '파이프', cost: 10 },
+                    null, null, null, null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
-            } else if (this.currentMenuName === 'power') {
-                header.textContent = '발전소';
+            } else if (this.currentMenuName === 'industry') {
+                header.textContent = '산업 시설';
                 items = [
-                    { type: 'coal-generator', name: '석탄 발전', cost: 200 },
                     { type: 'refinery', name: '정제소', cost: 300 }, { type: 'gold-mine', name: '금 채굴장', cost: 400 },
-                    { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '창고', cost: 200 }, 
-                    null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
+                    { type: 'iron-mine', name: '제철소', cost: 400 }, { type: 'storage', name: '보급고', cost: 200 }, 
+                    null, null, { type: 'menu:main', name: '뒤로', action: 'menu:main' }, null, { type: 'toggle:sell', name: '판매', action: 'toggle:sell' }
                 ];
             } else if (this.currentMenuName === 'military') {
                 header.textContent = '군사 시설';
@@ -582,7 +577,7 @@ export class GameEngine {
             } else {
                 items = [
                     { type: 'menu:city', name: '도시', action: 'menu:city' }, { type: 'menu:network', name: '네트워크', action: 'menu:network' },
-                    { type: 'menu:power', name: '에너지', action: 'menu:power' }, { type: 'menu:military', name: '군사', action: 'menu:military' },
+                    { type: 'menu:power', name: '산업', action: 'menu:industry' }, { type: 'menu:military', name: '군사', action: 'menu:military' },
                     { type: 'wall', name: '철조망', cost: 15 }, null,
                     null,
                     null, 
@@ -1496,7 +1491,6 @@ export class GameEngine {
                 }
 
                 this.lastPlacedGrid = { x: gridX, y: gridY };
-                this.needsPowerUpdate = true; // 전력망 갱신 트리거
                 return true;
             }
         }
@@ -1589,8 +1583,7 @@ export class GameEngine {
                     // 리스트에서 제거
                     this.entities[listName].splice(foundIdx, 1);
                     
-                    // 판매 후 전력망 및 인구수 갱신 트리거
-                    this.needsPowerUpdate = true;
+                    // 판매 후 인구수 갱신 트리거 (필요 시)
                 }
             }
         }
@@ -1614,8 +1607,8 @@ export class GameEngine {
             desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
             
             // 채굴 건물의 경우 남은 광물 표시
-            if (['refinery', 'gold-mine', 'iron-mine', 'coal-generator'].includes(hovered.type) && hovered.fuel !== undefined) {
-                const fuelName = hovered.type === 'coal-generator' ? '남은 연료' : '남은 광물';
+            if (['refinery', 'gold-mine', 'iron-mine'].includes(hovered.type) && hovered.fuel !== undefined) {
+                const fuelName = '남은 광물';
                 desc += `<div class="stat-row"><span>⛏️ ${fuelName}:</span> <span class="highlight">${Math.ceil(hovered.fuel)} / ${hovered.maxFuel || '?'}</span></div>`;
             }
 
@@ -1672,30 +1665,8 @@ export class GameEngine {
     }
 
     produceResource(type, amount, producer) {
-        // 이 생산업체(광산/정제소)가 기지에 직접 연결되어 있는지 확인
-        if (producer.isConnectedToBase) {
-            this.resources[type] += amount;
-            return true;
-        }
-
-        // 기지에 직접 연결되지 않았다면, 연결된 창고가 있는지 확인
-        if (producer.connectedTarget && producer.connectedTarget.type === 'storage') {
-            const storage = producer.connectedTarget;
-            const totalStored = storage.storedResources.gold + storage.storedResources.oil;
-            
-            if (totalStored < storage.maxCapacity) {
-                storage.storedResources[type] += amount;
-                
-                // 보관량 초과 시 초과분 제거
-                const newTotal = storage.storedResources.gold + storage.storedResources.oil;
-                if (newTotal > storage.maxCapacity) {
-                    const overflow = newTotal - storage.maxCapacity;
-                    storage.storedResources[type] -= overflow;
-                }
-                return true;
-            }
-        }
-        return false;
+        this.resources[type] += amount;
+        return true;
     }
 
     clearBuildingTiles(obj) {
@@ -1755,10 +1726,6 @@ export class GameEngine {
                 // 탑승 중인 유닛은 업데이트 함수 호출 스킵 (하지만 리스트에는 유지)
                 if (updateFn && !obj.isBoarded) updateFn(obj);
                 
-                // 발전소 연료 상태 변화 감지
-                if (oldFuel > 0 && obj.fuel <= 0) this.needsPowerUpdate = true;
-                if (oldFuel <= 0 && obj.fuel > 0) this.needsPowerUpdate = true;
-
                 // HP가 0 이하이거나 완전히 비활성화된 경우 리스트에서 제거
                 // isBoarded인 상태는 리스트에서 제거하지 않음 (인구수 계산용)
                 if (obj.hp <= 0 || (obj.active === false && !obj.isBoarded)) {
@@ -1767,13 +1734,11 @@ export class GameEngine {
                 }
                 return true;
             });
-            if (filtered.length !== initialLen) this.needsPowerUpdate = true;
             return filtered;
         };
 
         // 모든 건물 및 유닛 업데이트
         const buildings = this.getAllBuildings();
-        this.entities.generators = processList(this.entities.generators, (g) => g.update(deltaTime));
         this.entities.refineries = processList(this.entities.refineries, (r) => r.update(deltaTime, this));
         this.entities.goldMines = processList(this.entities.goldMines, (gm) => gm.update(deltaTime, this));
         this.entities.ironMines = processList(this.entities.ironMines, (im) => im.update(deltaTime, this));
@@ -1782,14 +1747,12 @@ export class GameEngine {
         this.entities.armories = processList(this.entities.armories, (a) => a.update(deltaTime, this));
         this.entities.barracks = processList(this.entities.barracks, (b) => b.update(deltaTime, this));
         this.entities.apartments = processList(this.entities.apartments, (a) => a.update(deltaTime, this));
-        this.entities.powerLines = processList(this.entities.powerLines);
         this.entities.walls = processList(this.entities.walls);
         this.entities.pipeLines = processList(this.entities.pipeLines);
 
         if (this.entities.base) {
             this.entities.base.update(deltaTime, this);
             if (this.entities.base.hp <= 0) {
-                this.needsPowerUpdate = true;
                 this.gameState = 'gameOver';
                 document.getElementById('game-over-modal').classList.remove('hidden');
             }
@@ -1815,11 +1778,6 @@ export class GameEngine {
         });
 
         // 3. 조건부 논리 업데이트 (프레임 내 모든 변화를 수집한 후 마지막에 실행)
-        if (this.needsPowerUpdate) {
-            this.updatePower();
-            this.updateOilNetwork();
-            this.needsPowerUpdate = false;
-        }
 
         // 4. UI 및 데이터 동기화
         this.refreshFlyerUI();
@@ -1843,13 +1801,12 @@ export class GameEngine {
         this.entities.resources.forEach(r => r.draw(this.ctx));
         
         // 전선과 파이프는 건물들 간의 연결 관계가 필요함
-        this.entities.powerLines.forEach(pl => pl.draw(this.ctx, allBuildings, this));
         this.entities.pipeLines.forEach(pl => pl.draw(this.ctx, allBuildings, this));
         
         // --- 2.2 건물 (Building Layer) ---
         // 기지 및 유틸리티 라인을 제외한 모든 건물 일괄 렌더링
         allBuildings.forEach(b => {
-            if (b === this.entities.base || b.type === 'power-line' || b.type === 'pipe-line') return;
+            if (b === this.entities.base || b.type === 'pipe-line') return;
             b.draw(this.ctx);
         });
         
@@ -2222,7 +2179,7 @@ export class GameEngine {
                     }
 
                     if (ghost.draw) {
-                        if (['PowerLine', 'PipeLine'].includes(buildInfo.className)) {
+                        if (buildInfo.className === 'PipeLine') {
                             ghost.draw(this.ctx, [...allBuildings], this);
                         } else {
                             ghost.draw(this.ctx);
@@ -2319,7 +2276,7 @@ export class GameEngine {
                         }
                         
                         if (ghost.draw) {
-                            if (['PowerLine', 'PipeLine'].includes(buildInfo.className)) {
+                            if (buildInfo.className === 'PipeLine') {
                                 ghost.draw(this.ctx, allBuildings, this);
                             } else {
                                 ghost.draw(this.ctx);
@@ -2351,40 +2308,24 @@ export class GameEngine {
         const hoveredResource = this.entities.resources.find(r => Math.hypot(r.x - worldX, r.y - worldY) < 15);
         if (hoveredResource) {
             title = hoveredResource.name;
-            desc = '발전소를 건설하여 전력을 생산하세요.';
-        }
-
-        // 2. Check Generators
-        const hoveredGenerator = this.entities.generators.find(g => Math.hypot(g.x - worldX, g.y - worldY) < 15);
-        if (hoveredGenerator) {
-            title = hoveredGenerator.type === 'coal-generator' ? '석탄 발전소' : '석유 발전소';
-            desc = `<div class="stat-row"><span>⛽ 남은 자원:</span> <span class="highlight">${Math.ceil(hoveredGenerator.fuel)}</span></div>
-                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredGenerator.hp)}/${hoveredGenerator.maxHp}</span></div>`;
+            desc = '자원 채굴 건물을 건설하여 자원을 수집하세요.';
         }
 
         // 5. Check Walls
         const hoveredWall = this.entities.walls.find(w => Math.hypot(w.x - worldX, w.y - worldY) < 15);
         if (hoveredWall) {
-            title = '벽';
+            title = '철조망';
             desc = `<div class="stat-row"><span>🧱 기능:</span> <span>적의 진로 방해</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredWall.hp)}/${hoveredWall.maxHp}</span></div>`;
-        }
-
-        // 6. Check Power Lines
-        const hoveredLine = this.entities.powerLines.find(p => Math.hypot(p.x - worldX, p.y - worldY) < 10);
-        if (hoveredLine) {
-            title = '전선';
-            desc = `<div class="stat-row"><span>🔌 기능:</span> <span>에너지 전달 (직선 제한)</span></div>
-                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredLine.hp)}/${hoveredLine.maxHp}</span></div>`;
         }
 
         // 7. Check Airport
         const hoveredAirport = this.entities.airports.find(a => Math.abs(a.x - worldX) < 100 && Math.abs(a.y - worldY) < 140);
         if (hoveredAirport) {
             title = '공항';
-            desc = `<div class="stat-row"><span>✈️ 기능:</span> <span>특수 스킬 사용</span></div>
+            desc = `<div class="stat-row"><span>✈️ 기능:</span> <span>항공 유닛 생산 및 특수 스킬</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredAirport.hp)}/${hoveredAirport.maxHp}</span></div>
-                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 스킬 메뉴</span></div>`;
+                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 유닛 생산</span></div>`;
         }
 
         // 8. Check Gold Mine
@@ -2393,27 +2334,18 @@ export class GameEngine {
             title = '금 채굴장';
             desc = `<div class="stat-row"><span>⛽ 남은 자원:</span> <span class="highlight">${Math.ceil(hoveredGoldMine.fuel)}</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredGoldMine.hp)}/${hoveredGoldMine.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 연결 상태:</span> <span class="${hoveredGoldMine.isConnected ? 'text-green' : 'text-red'}">${hoveredGoldMine.isConnected ? '기지 연결됨' : '연결 안됨'}</span></div>`;
+                    <div class="stat-row"><span>🔌 연결 상태:</span> <span class="${hoveredGoldMine.isConnectedToBase || hoveredGoldMine.connectedTarget ? 'text-green' : 'text-red'}">${hoveredGoldMine.isConnectedToBase || hoveredGoldMine.connectedTarget ? '연결됨' : '연결 안됨'}</span></div>`;
         }
 
         // 9. Check Storage
         const hoveredStorage = this.entities.storage.find(s => Math.abs(s.x - worldX) < 80 && Math.abs(s.y - worldY) < 60);
         if (hoveredStorage) {
-            title = '창고';
-            const totalStored = Math.floor(hoveredStorage.storedResources.gold + hoveredStorage.storedResources.oil);
-            let productionInfo = '';
-            if (hoveredStorage.spawnQueue > 0) {
-                const progress = Math.floor((hoveredStorage.spawnTimer / hoveredStorage.spawnTimeRequired) * 100);
-                productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">${progress}% (${hoveredStorage.spawnQueue}대 대기)</span></div>`;
-            }
-
-            desc = `<div class="stat-row"><span>📦 보관량:</span> <span class="highlight">${totalStored}/${hoveredStorage.maxCapacity}</span></div>
+            title = '보급고';
+            desc = `<div class="stat-row"><span>📦 보관량:</span> <span class="highlight">${Math.floor(hoveredStorage.storedResources.gold + hoveredStorage.storedResources.oil)}/${hoveredStorage.maxCapacity}</span></div>
                     <div class="stat-row"><span>💰 금:</span> <span class="highlight">${Math.floor(hoveredStorage.storedResources.gold)}</span></div>
                     <div class="stat-row"><span>🛢️ 석유:</span> <span class="highlight">${Math.floor(hoveredStorage.storedResources.oil)}</span></div>
-                    <div class="stat-row"><span>🔌 기지 연결:</span> <span class="${hoveredStorage.isConnectedToBase ? 'text-green' : 'text-red'}">${hoveredStorage.isConnectedToBase ? '전송 중' : '연결 안됨'}</span></div>
-                    <div class="stat-row"><span>✈️ 수송기:</span> <span class="highlight">${hoveredStorage.cargoPlanes.length}대 운용 중</span></div>
-                    ${productionInfo}
-                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 스킬 메뉴</span></div>`;
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredStorage.hp)}/${hoveredStorage.maxHp}</span></div>
+                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 정보 확인</span></div>`;
         }
 
         // 10. Check Armory
@@ -2424,15 +2356,14 @@ export class GameEngine {
             if (hoveredArmory.spawnQueue.length > 0) {
                 const current = hoveredArmory.spawnQueue[0];
                 const progress = Math.floor((current.timer / hoveredArmory.spawnTime) * 100);
-                const typeName = current.type === 'tank' ? '전차' : '미사일';
+                const typeName = current.type === 'tank' ? '전차' : '장비';
                 productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">${typeName} ${progress}% (대기 ${hoveredArmory.spawnQueue.length})</span></div>`;
             }
 
-            desc = `<div class="stat-row"><span>🛡️ 수비 유닛:</span> <span class="highlight">${hoveredArmory.units.length}/${hoveredArmory.maxUnits || 10}대</span></div>
+            desc = `<div class="stat-row"><span>🛡️ 수비 유닛:</span> <span class="highlight">${hoveredArmory.units.length}대 운용 중</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredArmory.hp)}/${hoveredArmory.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredArmory.isPowered ? 'text-green' : 'text-red'}">${hoveredArmory.isPowered ? '공급 중' : '중단됨'}</span></div>
                     ${productionInfo}
-                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 스킬 메뉴</span></div>`;
+                    <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 유닛 생산</span></div>`;
         }
 
         // 11. Check Barracks
@@ -2443,12 +2374,11 @@ export class GameEngine {
             if (hoveredBarracks.spawnQueue.length > 0) {
                 const current = hoveredBarracks.spawnQueue[0];
                 const progress = Math.floor((current.timer / hoveredBarracks.spawnTime) * 100);
-                productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">소총병 ${progress}% (대기 ${hoveredBarracks.spawnQueue.length})</span></div>`;
+                productionInfo = `<div class="stat-row"><span>🏗️ 생산 중:</span> <span class="highlight">보병 ${progress}% (대기 ${hoveredBarracks.spawnQueue.length})</span></div>`;
             }
 
             desc = `<div class="stat-row"><span>🛡️ 기능:</span> <span>보병 유닛 생산</span></div>
                     <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredBarracks.hp)}/${hoveredBarracks.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredBarracks.isPowered ? 'text-green' : 'text-red'}">${hoveredBarracks.isPowered ? '공급 중' : '중단됨'}</span></div>
                     ${productionInfo}
                     <div class="stat-row"><span>💡 선택:</span> <span>좌클릭 시 유닛 생산</span></div>`;
         }
@@ -2458,8 +2388,7 @@ export class GameEngine {
         if (hoveredApartment) {
             title = '아파트';
             desc = `<div class="stat-row"><span>🏠 기능:</span> <span>인구수 제공 (+${hoveredApartment.popProvide})</span></div>
-                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredApartment.hp)}/${hoveredApartment.maxHp}</span></div>
-                    <div class="stat-row"><span>🔌 전력 상태:</span> <span class="${hoveredApartment.isPowered ? 'text-green' : 'text-red'}">${hoveredApartment.isPowered ? '전력 공급됨' : '전력 끊김'}</span></div>`;
+                    <div class="stat-row"><span>❤️ 내구도:</span> <span class="highlight">${Math.ceil(hoveredApartment.hp)}/${hoveredApartment.maxHp}</span></div>`;
         }
 
         // 12. Check Refinery
@@ -2572,8 +2501,7 @@ export class GameEngine {
 
             // 타입별 미니맵 색상 결정
             let color = '#aaa'; // 기본색
-            if (b.type === 'power-line') color = '#ffff00';
-            else if (b.type === 'pipe-line') color = '#9370DB';
+            if (b.type === 'pipe-line') color = '#9370DB';
             else if (b.type === 'wall') color = '#666';
             else if (b.type === 'refinery') color = '#32cd32';
             else if (b.type === 'gold-mine') color = '#FFD700';
@@ -2585,7 +2513,7 @@ export class GameEngine {
             else if (b.type === 'airport') color = '#7f8c8d';
 
             mCtx.fillStyle = color;
-            const size = (b.type === 'power-line' || b.type === 'pipe-line') ? 20 : 40;
+            const size = (b.type === 'pipe-line') ? 20 : 40;
             mCtx.fillRect(b.x - size/2, b.y - size/2, size, size);
         });
 
@@ -2622,17 +2550,6 @@ export class GameEngine {
             }
         });
 
-        // 4. 격자선 (밝혀진 곳만 희미하게)
-        mCtx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-        mCtx.lineWidth = 1;
-        for (let y = 0; y < this.tileMap.rows; y+=5) {
-            for (let x = 0; x < this.tileMap.cols; x+=5) {
-                if (this.tileMap.grid[y][x].visible) {
-                    mCtx.strokeRect(x * 40, y * 40, 200, 200);
-                }
-            }
-        }
-
         // 5. 뷰포트 사각형 (카메라 영역)
         const viewX = -this.camera.x / this.camera.zoom;
         const viewY = -this.camera.y / this.camera.zoom;
@@ -2644,217 +2561,6 @@ export class GameEngine {
         mCtx.strokeRect(viewX, viewY, viewW, viewH);
 
         mCtx.restore();
-    }
-
-        updateOilNetwork() {
-            // 1. 초기화
-            this.entities.pipeLines.forEach(p => {
-                p.isConnected = false;
-                p.canReachHub = false;
-            });
-            this.entities.refineries.forEach(r => {
-                r.isConnectedToBase = false;
-                r.connectedTarget = null;
-            });
-            this.entities.goldMines.forEach(gm => {
-                gm.isConnectedToBase = false;
-                gm.connectedTarget = null;
-            });
-            this.entities.ironMines.forEach(im => {
-                im.isConnectedToBase = false;
-                im.connectedTarget = null;
-            });
-            this.entities.storage.forEach(s => s.isConnectedToBase = false);
-        // 2. 그리드 매핑 (오직 파이프만 등록)
-        const pipeGrid = {};
-        this.entities.pipeLines.forEach(p => {
-            const gp = this.tileMap.worldToGrid(p.x, p.y);
-            pipeGrid[`${gp.x},${gp.y}`] = p;
-        });
-
-        // 헬퍼: 특정 건물이 점유하는 모든 타일 좌표 가져오기
-        const getOccupiedTiles = (obj) => {
-            const tiles = [];
-            const info = this.buildingRegistry[obj.type] || { size: [1, 1] };
-            const [tw, th] = info.size;
-            if (obj.gridX !== undefined && obj.gridY !== undefined) {
-                for (let dy = 0; dy < th; dy++) {
-                    for (let dx = 0; dx < tw; dx++) {
-                        tiles.push({ x: obj.gridX + dx, y: obj.gridY + dy });
-                    }
-                }
-            } else {
-                tiles.push(this.tileMap.worldToGrid(obj.x, obj.y));
-            }
-            return tiles;
-        };
-
-        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-
-        // BFS 탐색 함수
-        const findReachablePipes = (startTiles, hubObj) => {
-            const queue = [...startTiles];
-            const visited = new Set(startTiles.map(t => `${t.x},${t.y}`));
-            const isBase = hubObj.maxHp === 99999999;
-
-            while (queue.length > 0) {
-                const curr = queue.shift();
-                for (const dir of dirs) {
-                    const nx = curr.x + dir[0], ny = curr.y + dir[1], key = `${nx},${ny}`;
-                    if (visited.has(key)) continue;
-
-                    // 1. 파이프 체크
-                    const pipe = pipeGrid[key];
-                    if (pipe) {
-                        pipe.canReachHub = true;
-                        pipe.isConnected = true;
-                        visited.add(key);
-                        queue.push({x: nx, y: ny});
-                        continue;
-                    }
-                    
-                                                    // 2. 생산업체(정제소, 금 채굴장, 제철소 등) 체크
-                    
-                                                    const producers = this.getAllBuildings().filter(b => 
-                    
-                                                        ['refinery', 'gold-mine', 'iron-mine'].includes(b.type)
-                    
-                                                    );                    const producer = producers.find(p => {
-                        return getOccupiedTiles(p).some(t => t.x === nx && t.y === ny);
-                    });
-
-                    if (producer) {
-                        if (isBase) producer.isConnectedToBase = true;
-                        else producer.connectedTarget = hubObj;
-                        visited.add(key);
-                        // 건물은 자원을 받기만 하고 전달하지 않으므로 큐에 추가하지 않음
-                        continue;
-                    }
-
-                    // 3. 창고 체크 (기지로부터 탐색 중일 때만)
-                    if (isBase) {
-                        const storage = this.entities.storage.find(s => {
-                            return getOccupiedTiles(s).some(t => t.x === nx && t.y === ny);
-                        });
-                        if (storage) {
-                            storage.isConnectedToBase = true;
-                            visited.add(key);
-                            // 창고 역시 자원을 받기만 하고 전달하지 않음
-                        }
-                    }
-                }
-            }
-        };
-
-        // 기지 탐색 시작
-        findReachablePipes(getOccupiedTiles(this.entities.base), this.entities.base);
-
-        // 창고 탐색 시작
-        this.entities.storage.forEach(s => {
-            findReachablePipes(getOccupiedTiles(s), s);
-        });
-    }
-
-    updatePower() {
-        // 1. 초기화
-        const allBuildings = this.getAllBuildings();
-        
-        // 전력 소비자: isPowered 속성을 가진 모든 건물 (전선 자체는 별도 관리)
-        const consumers = allBuildings.filter(b => b.hasOwnProperty('isPowered') && b.type !== 'power-line');
-        
-        consumers.forEach(c => c.isPowered = false);
-        this.entities.powerLines.forEach(pl => pl.isPowered = false);
-
-        // 헬퍼: 건물 점유 타일 가져오기
-        const getOccupiedTiles = (obj) => {
-            const tiles = [];
-            const info = this.buildingRegistry[obj.type] || { size: [1, 1] };
-            const [tw, th] = info.size;
-            if (obj.gridX !== undefined && obj.gridY !== undefined) {
-                for (let dy = 0; dy < th; dy++) {
-                    for (let dx = 0; dx < tw; dx++) {
-                        tiles.push({ x: obj.gridX + dx, y: obj.gridY + dy });
-                    }
-                }
-            } else {
-                tiles.push(this.tileMap.worldToGrid(obj.x, obj.y));
-            }
-            return tiles;
-        };
-
-                // 2. 전력망 매핑
-                const powerGrid = {};
-                
-                // 모든 건물 등록 (모든 점유 타일에 등록)
-                allBuildings.forEach(b => {
-                    const tiles = getOccupiedTiles(b);
-                    tiles.forEach(t => {
-                        powerGrid[`${t.x},${t.y}`] = b;
-                    });
-                });
-        // 3. BFS 탐색
-        const queue = [];
-        const visited = new Set();
-
-        const addToQueue = (tiles) => {
-            tiles.forEach(t => {
-                const key = `${t.x},${t.y}`;
-                if (!visited.has(key)) {
-                    visited.add(key);
-                    queue.push(t);
-                    // 타일에 있는 건물이 있으면 전력 공급 상태로 (전선 제외, 건설 중인 건물 제외)
-                    const ent = powerGrid[key];
-                    if (ent && ent.type !== 'power-line' && !ent.isUnderConstruction) {
-                        ent.isPowered = true;
-                    }
-                }
-            });
-        };
-
-        // 시작점: 가동 중인 발전소 및 기지 (기지는 주변 1칸까지 전력 전파 시작점으로 인정)
-        this.entities.generators.forEach(g => {
-            if (g.fuel > 0 || g.type === 'generator') {
-                addToQueue(getOccupiedTiles(g));
-            }
-        });
-        
-        // 기지 주변 타일들을 시작점에 추가
-        const baseTiles = getOccupiedTiles(this.entities.base);
-        const baseSourceTiles = [];
-        baseTiles.forEach(t => {
-            for(let dy=-1; dy<=1; dy++) {
-                for(let dx=-1; dx<=1; dx++) {
-                    baseSourceTiles.push({x: t.x + dx, y: t.y + dy});
-                }
-            }
-        });
-        addToQueue(baseSourceTiles);
-
-        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-        while (queue.length > 0) {
-            const curr = queue.shift();
-            for (const dir of dirs) {
-                const nx = curr.x + dir[0], ny = curr.y + dir[1], key = `${nx},${ny}`;
-                const ent = powerGrid[key];
-                
-                if (ent && !visited.has(key)) {
-                    visited.add(key);
-                    
-                    // 건설 완료된 건물만 전력을 받음
-                    if (!ent.isUnderConstruction) {
-                        ent.isPowered = true;
-                    }
-                    
-                    // 오직 '건설 완료된 전선'을 통해서만 전력이 전파됨
-                    if (ent.type === 'power-line' && !ent.isUnderConstruction) {
-                        queue.push({x: nx, y: ny});
-                    }
-                }
-            }
-        }
-
-        // 전력망 갱신 후 즉시 인구수 동기화
-        this.updatePopulation();
     }
 
     updateVisibility() {
@@ -2908,10 +2614,7 @@ export class GameEngine {
         let maxPop = 0;
         allBuildings.forEach(b => {
             if (b.active && !b.isUnderConstruction) {
-                // 사령부는 자체 전력이 있으므로 항상 포함, 그 외 건물은 isPowered 상태 확인
-                if (b.type === 'base' || b.isPowered) {
-                    maxPop += b.popProvide || 0;
-                }
+                maxPop += b.popProvide || 0;
             }
         });
         this.resources.maxPopulation = maxPop;

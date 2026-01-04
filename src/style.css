@@ -97,7 +97,7 @@ button,
 
 
 canvas {
-    background-color: #1e392a; /* 짙은 숲색 계열 배경 */
+    background-color: #3d5a2d; /* 지형(dirt) 평균 색상으로 변경 */
     display: block;
     cursor: inherit;
 }

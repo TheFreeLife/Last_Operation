@@ -117,8 +117,6 @@ export class Base extends Entity {
         this.passable = false; // 통과 불가 명시
         this.spawnQueue = []; // {type, timer}
         this.spawnTime = 1000;
-        this.isGenerator = true; // 전력 생산 가능
-        this.powerOutput = 500;  // 기본 제공 전력량
         this.popProvide = 40; // 사령부 기본 인구수 제공
     }
 
@@ -553,16 +551,7 @@ export class Base extends Entity {
     }
 }
 
-export class Generator extends Entity {
-    constructor(x, y) {
-        super(x, y);
-        this.type = 'generator';
-        this.size = 30;
-        this.color = '#ffff00';
-        this.maxHp = 80;
-        this.hp = 80;
-    }
-}
+
 
 export class PipeLine extends Entity {
     constructor(x, y) {
@@ -754,146 +743,9 @@ export class Wall extends Entity {
     }
 }
 
-export class CoalGenerator extends Generator {
-    constructor(x, y) {
-        super(x, y);
-        this.type = 'coal-generator';
-        this.color = '#ff6600';
-        this.width = 40;
-        this.height = 40;
-        this.maxHp = 150;
-        this.hp = 150;
-        this.maxFuel = 500;
-        this.fuel = 500;
-    }
 
-    update(deltaTime) {
-        if (this.isUnderConstruction) return;
-        if (this.fuel > 0) {
-            this.fuel -= deltaTime / 1000;
-            if (this.fuel < 0) this.fuel = 0;
-        }
-    }
 
-    draw(ctx) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.fillStyle = '#444';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -15, 30, 30);
-        ctx.fillStyle = '#222';
-        ctx.beginPath(); ctx.arc(0, -5, 10, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#666'; ctx.stroke();
-        const flicker = (this.fuel > 0) ? ((Math.random() * 0.2) + 0.8) : 0;
-        ctx.fillStyle = `rgba(255, 100, 0, ${flicker})`;
-        ctx.beginPath(); ctx.arc(0, -5, 6, 0, Math.PI * 2); ctx.fill();
-        if (this.fuel > 0) {
-            ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
-            const time = Date.now() / 1000;
-            const smokeY = -20 - (time % 1) * 15;
-            const smokeSize = 5 + (time % 1) * 5;
-            ctx.beginPath(); ctx.arc(Math.sin(time * 2) * 3, smokeY, smokeSize, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.restore();
 
-        // HP 바 상시 표시
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 35, 30, 3);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - 15, this.y - 35, (this.hp / this.maxHp) * 30, 3);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, this.y - 25, 30, 4);
-        ctx.fillStyle = '#ffd700';
-        ctx.fillRect(this.x - 15, this.y - 25, (this.fuel / this.maxFuel) * 30, 4);
-    }
-}
-
-export class PowerLine extends Entity {
-    constructor(x, y) {
-        super(x, y);
-        this.type = 'power-line';
-        this.passable = true;
-        this.maxHp = 50;
-        this.hp = 50;
-        this.size = 30;
-        this.isPowered = false;
-    }
-
-    update() {}
-
-    draw(ctx, allEntities, engine) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
-        const neighbors = { n: null, s: null, e: null, w: null };
-                if (allEntities && engine) {
-                    allEntities.forEach(other => {
-                        if (other === this) return;
-        
-                        const otherHW = (other.width || 40) / 2;
-                        const otherHH = (other.height || 40) / 2;
-                        const myHW = 20;
-                        const myHH = 20;
-        
-                        const dx = Math.abs(other.x - this.x);
-                        const dy = Math.abs(other.y - this.y);
-        
-                        const margin = 2;
-                        const isAdjacentX = dx <= (otherHW + myHW) + margin && dy < Math.max(otherHH, myHH);
-                        const isAdjacentY = dy <= (otherHH + myHH) + margin && dx < Math.max(otherHW, myHW);
-        
-                        if (isAdjacentX || isAdjacentY) {
-                            const transmitterTypes = ['power-line', 'generator', 'coal-generator', 'base', 'airport', 'refinery', 'gold-mine', 'iron-mine', 'storage', 'armory', 'barracks'];
-                            // 포탑 타입들도 전선 연결 대상으로 추가
-                            const isTransmitter = transmitterTypes.includes(other.type) ||
-                                (other.type && other.type.startsWith('turret')) ||
-                                (other.maxHp === 99999999);                    
-                    if (isTransmitter) {
-                        if (isAdjacentX) {
-                            if (other.x > this.x) neighbors.e = other;
-                            else neighbors.w = other;
-                        } else {
-                            if (other.y > this.y) neighbors.s = other;
-                            else neighbors.n = other;
-                        }
-                    }
-                }
-            });
-        }
-
-        const finalNeighbors = {
-            n: !!neighbors.n,
-            s: !!neighbors.s,
-            e: !!neighbors.e,
-            w: !!neighbors.w
-        };
-
-        ctx.save();
-        ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = this.isPowered ? '#ffff00' : '#444';
-        const halfSize = 20;
-        if (finalNeighbors.n) { ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x, this.y - halfSize); ctx.stroke(); }
-        if (finalNeighbors.s) { ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x, this.y + halfSize); ctx.stroke(); }
-        if (finalNeighbors.w) { ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - halfSize, this.y); ctx.stroke(); }
-        if (finalNeighbors.e) { ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + halfSize, this.y); ctx.stroke(); }
-
-        if (!finalNeighbors.n && !finalNeighbors.s && !finalNeighbors.w && !finalNeighbors.e) {
-            ctx.fillStyle = this.isPowered ? '#ffff00' : '#444';
-            ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI * 2); ctx.fill();
-        }
-
-        ctx.restore();
-    }
-}
 
 export class Refinery extends Entity {
     constructor(x, y) {
@@ -914,7 +766,7 @@ export class Refinery extends Entity {
 
     update(deltaTime, engine) {
         if (this.isUnderConstruction) return;
-        if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
+        if (this.fuel > 0) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('oil', amount, this);
             
@@ -981,7 +833,7 @@ export class GoldMine extends Entity {
 
     update(deltaTime, engine) {
         if (this.isUnderConstruction) return;
-        if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
+        if (this.fuel > 0) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('gold', amount, this);
             
@@ -1008,7 +860,7 @@ export class GoldMine extends Entity {
         // 채굴 기계 표현
         ctx.fillStyle = '#666';
         ctx.fillRect(-12, -8, 24, 16);
-        const drillAngle = (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) ? (Date.now() / 100) : 0;
+        const drillAngle = (this.fuel > 0) ? (Date.now() / 100) : 0;
         ctx.save();
         ctx.rotate(drillAngle);
         ctx.fillStyle = '#aaa';
@@ -1052,7 +904,7 @@ export class IronMine extends Entity {
 
     update(deltaTime, engine) {
         if (this.isUnderConstruction) return;
-        if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
+        if (this.fuel > 0) {
             const amount = this.productionRate * deltaTime / 1000;
             const produced = engine.produceResource('iron', amount, this);
             
@@ -1080,7 +932,7 @@ export class IronMine extends Entity {
         ctx.fillStyle = '#444';
         ctx.fillRect(-12, -10, 24, 20);
         
-        if (this.fuel > 0 && (this.isConnectedToBase || this.connectedTarget)) {
+        if (this.fuel > 0) {
             // 용광로 열기 표현
             const flicker = Math.random() * 0.3 + 0.7;
             ctx.fillStyle = `rgba(255, 69, 0, ${flicker})`;
@@ -1453,7 +1305,7 @@ export class PlayerUnit extends Entity {
 
                 
 
-                const bLists = ['turrets', 'generators', 'powerLines', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks', 'pipeLines'];
+                const bLists = ['turrets', 'walls', 'airports', 'refineries', 'goldMines', 'ironMines', 'storage', 'armories', 'barracks', 'pipeLines'];
 
                 for (const listName of bLists) {
 
@@ -3269,9 +3121,8 @@ export class CombatEngineer extends PlayerUnit {
                         if (resIdx !== -1) resList.splice(resIdx, 1);
                     }
                     
-                    // 건물 건설 완료 시 인구수 및 전력망 갱신 트리거
+                    // 건물 건설 완료 시 인구수 갱신 트리거
                     if (this.engine.updatePopulation) {
-                        this.engine.needsPowerUpdate = true; // 전력망 갱신 트리거 추가
                         this.engine.updatePopulation();
                         
                         // 시각적 알림 추가
@@ -3534,7 +3385,6 @@ export class Barracks extends Entity {
         this.size = 120;
         this.maxHp = 1500;
         this.hp = 1500;
-        this.isPowered = false;
         this.spawnQueue = []; // {type, timer}
         this.spawnTime = 1000; 
         this.units = [];
@@ -3549,7 +3399,7 @@ export class Barracks extends Entity {
             if (this.isUnderConstruction) return;
             this.units = this.units.filter(u => u.alive);
             
-            if (this.isPowered && this.spawnQueue.length > 0) {
+            if (this.spawnQueue.length > 0) {
                 const current = this.spawnQueue[0];
                 current.timer += deltaTime;
                 if (current.timer >= this.spawnTime) {
@@ -3619,7 +3469,7 @@ export class Barracks extends Entity {
             ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
 
             // 창문 (입체감 있는 배치)
-            ctx.fillStyle = this.isPowered ? '#3498db' : '#111';
+            ctx.fillStyle = '#3498db';
             for(let i=0; i<3; i++) {
                 ctx.fillRect(-30 + i*25, 5, 10, 6);
             }
@@ -3704,7 +3554,6 @@ export class Armory extends Entity {
         this.size = 160;
         this.maxHp = 2500;
         this.hp = 2500;
-        this.isPowered = false;
         this.spawnQueue = []; 
         this.spawnTime = 1000; 
         this.units = []; 
@@ -3715,18 +3564,17 @@ export class Armory extends Entity {
         return true;
     }
 
-    update(deltaTime, engine) {
-        if (this.isUnderConstruction) return;
-        this.units = this.units.filter(u => u.alive);
-
-        if (this.isPowered && this.spawnQueue.length > 0) {
-            const current = this.spawnQueue[0];
-            current.timer += deltaTime;
-            if (current.timer >= this.spawnTime) {
-                const spawnY = this.y + 65; 
-                let unit;
-                if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);
-                else if (current.type === 'missile-launcher') unit = new MissileLauncher(this.x, spawnY, engine);
+        update(deltaTime, engine) {
+            if (this.isUnderConstruction) return;
+            this.units = this.units.filter(u => u.alive);
+    
+            if (this.spawnQueue.length > 0) {
+                const current = this.spawnQueue[0];
+                current.timer += deltaTime;
+                if (current.timer >= this.spawnTime) {
+                    const spawnY = this.y + 65;
+                    let unit;
+                    if (current.type === 'tank') unit = new Tank(this.x, spawnY, engine);                else if (current.type === 'missile-launcher') unit = new MissileLauncher(this.x, spawnY, engine);
                 else if (current.type === 'artillery') unit = new Artillery(this.x, spawnY, engine);
                 else if (current.type === 'anti-air') unit = new AntiAirVehicle(this.x, spawnY, engine);
                 
@@ -3809,7 +3657,7 @@ export class Armory extends Entity {
             ctx.closePath(); ctx.fill();
 
             // 전술 조명
-            ctx.fillStyle = this.isPowered ? '#f39c12' : '#2c3e50';
+            ctx.fillStyle = '#f39c12';
             ctx.fillRect(rx + sw + 2, by - 8, sw - 4, 4);
         }
 
@@ -3827,7 +3675,7 @@ export class Armory extends Entity {
         }
         
         // 가동 시 경고등 (Red Blink)
-        if (this.isPowered && Math.floor(Date.now()/500)%2 === 0) {
+        if (Math.floor(Date.now()/500)%2 === 0) {
             ctx.fillStyle = '#e74c3c';
             ctx.beginPath(); ctx.arc(doorX - 8, doorY + 5, 3, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(doorX + dw + 8, doorY + 5, 3, 0, Math.PI*2); ctx.fill();
@@ -3838,17 +3686,17 @@ export class Armory extends Entity {
         const radarX = bx + 20; const radarY = by;
         ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(radarX, radarY); ctx.lineTo(radarX, radarY - 15); ctx.stroke();
-        const radarRot = this.isPowered ? (Date.now() / 400) : 0;
-        ctx.fillStyle = this.isPowered ? '#3498db' : '#2c3e50';
+        const radarRot = (Date.now() / 400);
+        ctx.fillStyle = '#3498db';
         ctx.beginPath();
         ctx.ellipse(radarX, radarY - 15, Math.abs(12 * Math.cos(radarRot)), 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // 냉각 팬
-        const fanRotation = this.isPowered ? (Date.now() / 150) : 0;
+        const fanRotation = (Date.now() / 150);
         ctx.fillStyle = '#2c3e50';
         ctx.beginPath(); ctx.arc(bx + 15, by + 15, 8, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = this.isPowered ? '#00d2ff' : '#7f8c8d';
+        ctx.strokeStyle = '#00d2ff';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(bx + 15 + Math.cos(fanRotation)*6, by + 15 + Math.sin(fanRotation)*6);
@@ -3903,7 +3751,6 @@ export class Airport extends Entity {
         this.size = 280;
         this.maxHp = 2500; // 크기에 맞춰 체력 상향
         this.hp = 2500;
-        this.isPowered = false;
         this.spawnQueue = []; 
         this.spawnTime = 1000; 
         this.units = [];
@@ -3918,7 +3765,7 @@ export class Airport extends Entity {
         if (this.isUnderConstruction) return;
         this.units = this.units.filter(u => u.alive);
 
-        if (this.isPowered && this.spawnQueue.length > 0) {
+        if (this.spawnQueue.length > 0) {
             const current = this.spawnQueue[0];
             current.timer += deltaTime;
             if (current.timer >= this.spawnTime) {
@@ -3957,17 +3804,6 @@ export class Airport extends Entity {
         }
         ctx.save();
         ctx.translate(this.x, this.y);
-
-        // [추가] 전력 부족 경고 표시
-        if (!this.isPowered) {
-            ctx.save();
-            ctx.fillStyle = '#ff0';
-            ctx.font = 'bold 40px Arial';
-            ctx.textAlign = 'center';
-            ctx.shadowBlur = 10; ctx.shadowColor = '#000';
-            ctx.fillText('⚡!', 0, 20);
-            ctx.restore();
-        }
 
         // 1. 거대 베이스 플랫폼 (두께감 있는 콘크리트 슬래브)
         // 하부 그림자 및 측면 두께
@@ -4089,7 +3925,7 @@ export class Airport extends Entity {
         ctx.fillStyle = '#2c3e50'; ctx.fillRect(-18, -5, 36, 6);
         // 3층 관제실 (유리 및 조명)
         const towerBlink = Math.sin(Date.now()/400) > 0;
-        const towerColor = this.isPowered ? (towerBlink ? '#4fc3f7' : '#0288d1') : '#1c313a';
+        const towerColor = towerBlink ? '#4fc3f7' : '#0288d1';
         ctx.fillStyle = '#263238'; // 프레임
         ctx.beginPath();
         ctx.moveTo(-22, -25); ctx.lineTo(22, -25); ctx.lineTo(18, -5); ctx.lineTo(-18, -5);
@@ -4108,33 +3944,32 @@ export class Airport extends Entity {
         ctx.save();
         ctx.translate(-40, -110);
         ctx.fillStyle = '#555'; ctx.fillRect(-3, 0, 6, 15); // 지지대
-        if (this.isPowered) {
-            ctx.rotate(Date.now() / 600);
-            const dishGrd = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
-            dishGrd.addColorStop(0, '#bdc3c7');
-            dishGrd.addColorStop(1, '#7f8c8d');
-            ctx.fillStyle = dishGrd;
-            ctx.beginPath(); ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#333'; ctx.stroke();
-            // 레이더 빔 효과
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 80, -0.2, 0.2); ctx.closePath(); ctx.fill();
-        }
+        
+        ctx.rotate(Date.now() / 600);
+        const dishGrd = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+        dishGrd.addColorStop(0, '#bdc3c7');
+        dishGrd.addColorStop(1, '#7f8c8d');
+        ctx.fillStyle = dishGrd;
+        ctx.beginPath(); ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#333'; ctx.stroke();
+        // 레이더 빔 효과
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 80, -0.2, 0.2); ctx.closePath(); ctx.fill();
+        
         ctx.restore();
 
         // 8. 야간 항공 유도등 (입체적인 광원 효과) - 오른쪽 활주로에 맞춰 이동
         for(let i=0; i<6; i++) {
             const yPos = -120 + i*48;
             const blink = (Math.floor(Date.now()/300) + i) % 4 === 0;
-            if (this.isPowered) {
-                ctx.save();
-                ctx.globalAlpha = blink ? 1.0 : 0.3;
-                ctx.shadowBlur = 10; ctx.shadowColor = '#2ecc71';
-                ctx.fillStyle = '#2ecc71';
-                ctx.beginPath(); ctx.arc(15, yPos, 4, 0, Math.PI*2); ctx.fill();
-                ctx.beginPath(); ctx.arc(95, yPos, 4, 0, Math.PI*2); ctx.fill();
-                ctx.restore();
-            }
+            
+            ctx.save();
+            ctx.globalAlpha = blink ? 1.0 : 0.3;
+            ctx.shadowBlur = 10; ctx.shadowColor = '#2ecc71';
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath(); ctx.arc(15, yPos, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(95, yPos, 4, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
         }
 
         ctx.restore();
@@ -4173,7 +4008,6 @@ export class Apartment extends Entity {
         this.size = 200;
         this.maxHp = 3000;
         this.hp = 3000;
-        this.isPowered = false;
         this.popProvide = 10;
     }
 
@@ -4238,7 +4072,7 @@ export class Apartment extends Entity {
                     // 창문 (단순 직각형)
                     // 전기가 들어올 때만 위치 기반으로 창문을 더 넓게 펼쳐서 켬 (밀집도 하향)
                     const lightSeed = Math.sin(f * 2.1 + w * 3.7 + this.x * 0.5 + this.y * 0.5);
-                    let isLit = this.isPowered && (lightSeed > 0.5); // 임계값을 0.5로 높여 더 듬성듬성하게 배치
+                    let isLit = (lightSeed > 0.5); // 임계값을 0.5로 높여 더 듬성듬성하게 배치
 
                     ctx.fillStyle = isLit ? '#f1c40f' : '#2c3e50';
                     ctx.fillRect(wx, fy, winW, winH);
@@ -5580,7 +5414,7 @@ export class Enemy extends Entity {
         
         // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
         for (const obs of buildings) {
-            if (['power-line', 'pipe-line'].includes(obs.type)) continue;
+            if (['pipe-line'].includes(obs.type)) continue;
             if (obs === this) continue;
             const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
             const minDist = (this.size / 2) + (obs.size / 2) + 2;
