@@ -1920,10 +1920,13 @@ export class GameEngine {
                 this.ctx.restore();
             }
         });
-        this.entities.cargoPlanes.forEach(p => p.draw(this.ctx));
+        this.entities.cargoPlanes.forEach(p => {
+            if (!p.isBoarded) p.draw(this.ctx);
+        });
         
         // 공중 적 유닛 (시야 내)
         airEnemies.forEach(e => {
+            if (e.isBoarded) return;
             const grid = this.tileMap.worldToGrid(e.x, e.y);
             if (this.tileMap.grid[grid.y] && this.tileMap.grid[grid.y][grid.x] && this.tileMap.grid[grid.y][grid.x].inSight) {
                 e.draw(this.ctx);
@@ -1932,7 +1935,7 @@ export class GameEngine {
 
         // 공중 중립 유닛
         airNeutral.forEach(n => {
-            n.draw(this.ctx);
+            if (!n.isBoarded) n.draw(this.ctx);
         });
 
         // 5. 투사체 및 효과 (최상단)
@@ -2590,6 +2593,7 @@ export class GameEngine {
         });
 
         this.entities.units.forEach(u => {
+            if (u.isBoarded) return;
             if (isVisible(u.x, u.y)) {
                 // 아군 유닛은 초록색 계열, 적군은 빨간색
                 const relation = this.getRelation(1, u.ownerId);
@@ -2599,6 +2603,7 @@ export class GameEngine {
         });
 
         this.entities.enemies.forEach(e => {
+            if (e.isBoarded) return;
             if (isVisible(e.x, e.y)) {
                 mCtx.fillStyle = '#ff3131';
                 mCtx.fillRect(e.x - 10, e.y - 10, 20, 20);
@@ -2606,6 +2611,7 @@ export class GameEngine {
         });
 
         this.entities.neutral.forEach(n => {
+            if (n.isBoarded) return;
             if (isVisible(n.x, n.y)) {
                 mCtx.fillStyle = '#ffff00';
                 mCtx.fillRect(n.x - 10, n.y - 10, 20, 20);

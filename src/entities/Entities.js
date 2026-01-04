@@ -1712,7 +1712,7 @@ export class PlayerUnit extends Entity {
         // 1. 유닛 간 충돌
         const allUnits = [...this.engine.entities.units, ...this.engine.entities.enemies, ...this.engine.entities.neutral];
         for (const other of allUnits) {
-            if (other === this || !other.active || other.hp <= 0) continue;
+            if (other === this || !other.active || other.hp <= 0 || other.isBoarded) continue;
             if (other.isFalling || this.isFalling) continue;
             if (this.domain !== other.domain) continue;
 
@@ -4939,6 +4939,16 @@ export class CargoPlane extends PlayerUnit {
         unit.command = 'stop';
         unit.destination = null;
         unit.path = [];
+
+        // --- 유닛별 특수 상태 초기화 (미사일 발사대 등) ---
+        if (unit.type === 'missile-launcher') {
+            unit.isSieged = false;
+            unit.isTransitioning = false;
+            unit.isFiring = false;
+            unit.speed = unit.baseSpeed || 1.4;
+            unit.raiseAngle = 0;
+        }
+
         this.cargo.push(unit);
         
         // 선택 해제
@@ -4949,6 +4959,11 @@ export class CargoPlane extends PlayerUnit {
 
         // 시각 효과
         this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', '유닛 탑승');
+        
+        // UI 즉시 갱신 (하차 버튼 활성화 등)
+        if (this.engine.updateBuildMenu) {
+            this.engine.updateBuildMenu();
+        }
         
         return true;
     }
