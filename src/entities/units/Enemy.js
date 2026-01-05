@@ -158,7 +158,6 @@ export class Enemy extends Entity {
 
     draw(ctx) {
         ctx.save();
-        ctx.translate(this.x, this.y);
 
         // 적군 외형: 육각형 모양의 위협적인 기계 유닛
         ctx.fillStyle = '#441111';
@@ -175,22 +174,12 @@ export class Enemy extends Entity {
         ctx.fill();
         ctx.stroke();
 
-        // 중앙 '코어' (빛남)
+        // 중앙 '코어'
         ctx.fillStyle = '#ff3131';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#ff3131';
         ctx.beginPath();
         ctx.arc(0, 0, 5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
 
         ctx.restore();
-
-        // HP 바 (적군은 빨간색)
-        const barY = this.y + this.size / 2 + 5;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - 15, barY, 30, 4);
-        ctx.fillStyle = '#ff3131';
-        ctx.fillRect(this.x - 15, barY, (this.hp / this.maxHp) * 30, 4);
     }
 }

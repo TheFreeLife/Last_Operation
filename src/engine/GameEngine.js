@@ -2473,7 +2473,10 @@ export class GameEngine {
                     }
 
                     if (ghost.draw) {
+                        this.ctx.save();
+                        this.ctx.translate(worldPos.x, worldPos.y); // 위치 보정 추가
                         ghost.draw(this.ctx);
+                        this.ctx.restore();
                     }
                 }
                 this.ctx.restore();
@@ -3277,7 +3280,10 @@ export class GameEngine {
                     }
 
                     if (ghost.draw) {
+                        this.ctx.save();
+                        this.ctx.translate(worldPos.x, worldPos.y); // 위치 보정 추가
                         ghost.draw(this.ctx);
+                        this.ctx.restore();
                     }
                 }
                 this.ctx.restore();

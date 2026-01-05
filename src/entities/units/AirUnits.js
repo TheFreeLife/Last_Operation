@@ -22,118 +22,27 @@ export class ScoutPlane extends PlayerUnit {
             return;
         }
         ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
 
-        // 1. 그림자 (공중에 떠 있는 느낌)
-        ctx.save();
-        ctx.translate(-5, 5);
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = '#000';
+        // 1. 주익 (Wings)
+        ctx.fillStyle = '#bdc3c7';
         ctx.beginPath();
-        ctx.moveTo(35, 0); ctx.lineTo(-15, -45); ctx.lineTo(-25, 0); ctx.lineTo(-15, 45);
-        ctx.closePath(); ctx.fill();
-        ctx.restore();
-
-        // 2. 주익 (Wings - 델타익 스타일의 세련된 날개)
-        const wingGrd = ctx.createLinearGradient(-20, -45, -20, 45);
-        wingGrd.addColorStop(0, '#7f8c8d');
-        wingGrd.addColorStop(0.5, '#bdc3c7');
-        wingGrd.addColorStop(1, '#7f8c8d');
-
-        ctx.fillStyle = wingGrd;
-        ctx.beginPath();
-        ctx.moveTo(10, 0);       // 앞쪽 중앙
-        ctx.lineTo(-18, -48);    // 왼쪽 날개 끝
-        ctx.lineTo(-28, -48);    // 왼쪽 날개 뒷단
-        ctx.lineTo(-15, 0);      // 뒤쪽 중앙
-        ctx.lineTo(-28, 48);     // 오른쪽 날개 뒷단
-        ctx.lineTo(-18, 48);     // 오른쪽 날개 끝
+        ctx.moveTo(10, 0); 
+        ctx.lineTo(-18, -48); ctx.lineTo(-28, -48);
+        ctx.lineTo(-15, 0);
+        ctx.lineTo(-28, 48); ctx.lineTo(-18, 48);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = '#2c3e50';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
 
-        // 날개 디테일 (플랩 및 라인)
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        // 2. 동체 (Main Body)
+        ctx.fillStyle = '#ecf0f1';
         ctx.beginPath();
-        ctx.moveTo(-10, -25); ctx.lineTo(-22, -25);
-        ctx.moveTo(-10, 25); ctx.lineTo(-22, 25);
-        ctx.stroke();
-
-        // 3. 동체 (Main Body - 유선형 무인기 스타일)
-        const bodyGrd = ctx.createLinearGradient(0, -10, 0, 10);
-        bodyGrd.addColorStop(0, '#ecf0f1');
-        bodyGrd.addColorStop(0.5, '#bdc3c7');
-        bodyGrd.addColorStop(1, '#95a5a6');
-
-        ctx.fillStyle = bodyGrd;
-        ctx.beginPath();
-        ctx.moveTo(40, 0);       // 기수
-        ctx.bezierCurveTo(30, -12, 10, -10, -25, -6); // 상단 라인
-        ctx.lineTo(-25, 6);      // 하단 끝
-        ctx.bezierCurveTo(10, 10, 30, 12, 40, 0);   // 하단 라인
+        ctx.moveTo(40, 0);
+        ctx.bezierCurveTo(30, -12, 10, -10, -25, -6);
+        ctx.lineTo(-25, 6);
+        ctx.bezierCurveTo(10, 10, 30, 12, 40, 0);
         ctx.fill();
-        ctx.stroke();
-
-        // 4. 엔진 배기구 및 제트 화염
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-28, -5, 5, 10);
-
-        if (this.destination || Math.random() > 0.3) {
-            const flicker = Math.random() * 5;
-            const engineGrd = ctx.createRadialGradient(-30, 0, 2, -35, 0, 15);
-            engineGrd.addColorStop(0, '#fff');
-            engineGrd.addColorStop(0.4, '#00d2ff');
-            engineGrd.addColorStop(1, 'transparent');
-            ctx.fillStyle = engineGrd;
-            ctx.beginPath();
-            ctx.moveTo(-28, -4);
-            ctx.lineTo(-45 - flicker, 0);
-            ctx.lineTo(-28, 4);
-            ctx.fill();
-        }
-
-        // 5. 정찰용 센서 터렛 (기수 하단)
-        ctx.fillStyle = '#2c3e50';
-        ctx.beginPath();
-        ctx.arc(25, 0, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#e74c3c'; // 렌즈 안광
-        ctx.beginPath();
-        ctx.arc(27, 0, 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 6. 콕핏/위성 안테나 페어링 (무인기 특유의 불룩한 기수)
-        ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(15, 0, 12, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.stroke();
-
-        // 7. 항법등 (깜빡이는 라이트)
-        const blink = Math.sin(Date.now() / 200) > 0;
-        if (blink) {
-            ctx.fillStyle = '#ff3131'; // 좌익단 적색등
-            ctx.beginPath(); ctx.arc(-22, -48, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#2ecc71'; // 우익단 녹색등
-            ctx.beginPath(); ctx.arc(-22, 48, 3, 0, Math.PI * 2); ctx.fill();
-        }
 
         ctx.restore();
-
-        // HP 바 (기체 크기에 맞춰 위치 조정)
-        const barW = 50;
-        const barY = this.y - 50;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW / 2, barY, barW, 5);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 5);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(this.x - barW / 2, barY, barW, 5);
     }
 }
 
@@ -345,112 +254,37 @@ export class Bomber extends PlayerUnit {
 
     draw(ctx) {
         ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
 
-        // 시각 효과 계산
-        const shadowMaxOffset = 15;
-        const shadowOffset = shadowMaxOffset * this.altitude;
-
-        // 이륙 시 활주 시작부터 엔진 가동 연출
-        const isEnginesRunning = this.altitude > 0 || (this.command === 'move' && this.isLandingZoneSafe);
-        const propSpeedFactor = isEnginesRunning ? Math.max(0.2, this.altitude) : 0;
-        const propAngle = propSpeedFactor > 0 ? (Date.now() / (60 / propSpeedFactor)) % (Math.PI * 2) : 0;
-
-        // 0. 그림자
-        ctx.save();
-        ctx.translate(-shadowOffset, shadowOffset);
-        ctx.globalAlpha = 0.1 + (1.0 - this.altitude) * 0.2;
-        ctx.fillStyle = '#000';
-        // 날개 그림자
+        // 1. 주익
+        ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(15, 0); ctx.lineTo(-20, -75); ctx.lineTo(-35, -75);
         ctx.lineTo(-10, 0); ctx.lineTo(-35, 75); ctx.lineTo(-20, 75);
         ctx.closePath(); ctx.fill();
-        // 동체 그림자
+
+        // 2. 엔진
+        const engineOffsets = [-28, -52, 28, 52];
+        engineOffsets.forEach(offset => {
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(-18, offset - 6, 26, 12);
+        });
+
+        // 3. 동체
+        ctx.fillStyle = '#34495e';
         ctx.beginPath();
         ctx.moveTo(60, 0); ctx.bezierCurveTo(60, -14, 50, -16, 40, -16);
         ctx.lineTo(-55, -12); ctx.lineTo(-65, 0); ctx.lineTo(-55, 12);
         ctx.lineTo(40, 16); ctx.bezierCurveTo(50, 16, 60, 14, 60, 0);
         ctx.fill();
-        ctx.restore();
 
-        // 1. 주익
-        const wingColor = '#2c3e50';
-        ctx.fillStyle = wingColor;
-        ctx.beginPath();
-        ctx.moveTo(15, 0); ctx.lineTo(-20, -75); ctx.lineTo(-35, -75);
-        ctx.lineTo(-10, 0); ctx.lineTo(-35, 75); ctx.lineTo(-20, 75);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = '#1a1a1a';
-        ctx.lineWidth = 1.5; ctx.stroke();
-
-        // 2. 엔진 & 프로펠러
-        const engineOffsets = [-28, -52, 28, 52];
-        engineOffsets.forEach(offset => {
-            ctx.save();
-            ctx.translate(-8, offset);
-            ctx.fillStyle = '#2c3e50';
-            ctx.fillRect(-10, -6, 26, 12);
-            ctx.strokeStyle = '#000'; ctx.strokeRect(-10, -6, 26, 12);
-            ctx.fillStyle = '#bdc3c7';
-            ctx.beginPath(); ctx.arc(16, 0, 3.5, 0, Math.PI * 2); ctx.fill();
-
-            ctx.save();
-            ctx.translate(16, 0);
-            ctx.rotate(propAngle);
-            ctx.fillStyle = '#0a0a0a';
-            for (let i = 0; i < 4; i++) {
-                ctx.rotate(Math.PI / 2);
-                ctx.beginPath(); ctx.ellipse(0, 9, 2.5, 11, 0, 0, Math.PI * 2); ctx.fill();
-            }
-            ctx.restore();
-            ctx.restore();
-        });
-
-        // 3. 동체
-        const bodyGrd = ctx.createLinearGradient(0, -15, 0, 15);
-        bodyGrd.addColorStop(0, '#34495e'); bodyGrd.addColorStop(0.5, '#2c3e50'); bodyGrd.addColorStop(1, '#1c2833');
-        ctx.fillStyle = bodyGrd;
-        ctx.beginPath();
-        ctx.moveTo(60, 0); ctx.bezierCurveTo(60, -14, 50, -16, 40, -16);
-        ctx.lineTo(-55, -12); ctx.lineTo(-65, 0); ctx.lineTo(-55, 12);
-        ctx.lineTo(40, 16); ctx.bezierCurveTo(50, 16, 60, 14, 60, 0);
-        ctx.fill(); ctx.stroke();
-
-        // 4. 조종석
-        ctx.fillStyle = 'rgba(0, 150, 255, 0.4)';
-        ctx.beginPath();
-        ctx.moveTo(48, -6); ctx.bezierCurveTo(52, -5, 52, 5, 48, 6);
-        ctx.lineTo(42, 5); ctx.lineTo(42, -6);
-        ctx.closePath(); ctx.fill();
-
-        // 5. 꼬리 날개
+        // 4. 꼬리 날개
         ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(-45, 0); ctx.lineTo(-65, -30); ctx.lineTo(-75, -30);
         ctx.lineTo(-60, 0); ctx.lineTo(-75, 30); ctx.lineTo(-65, 30);
-        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.closePath(); ctx.fill();
 
-        if (this.command === 'bombing') {
-            const blink = Math.sin(Date.now() / 150) > 0;
-            if (blink) {
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
-                ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#000'; ctx.fillRect(-20, -6, 40, 12);
-            }
-        }
         ctx.restore();
-
-        // HP 바
-        const barW = 100;
-        const barY = this.y - 70;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
-        ctx.strokeStyle = '#fff';
-        ctx.strokeRect(this.x - barW / 2, barY, barW, 6);
     }
 }
 
@@ -774,235 +608,44 @@ export class CargoPlane extends PlayerUnit {
             return;
         }
         ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
 
-        const time = Date.now();
-        const shadowOffset = 22 * this.altitude;
-
-        // 0. 그림자 (더 부드럽게)
-        ctx.save();
-        ctx.translate(-shadowOffset, shadowOffset);
-        ctx.globalAlpha = 0.15;
-        ctx.fillStyle = '#000';
+        // 1. 고익기 주익
+        ctx.fillStyle = '#bdc3c7';
         ctx.beginPath();
-        ctx.moveTo(10, 0); ctx.lineTo(-45, -115); ctx.lineTo(-75, -115);
-        ctx.lineTo(-35, 0); ctx.lineTo(-75, 115); ctx.lineTo(-45, 115);
+        ctx.moveTo(12, 0);
+        ctx.lineTo(-38, -115); ctx.lineTo(-72, -115);
+        ctx.lineTo(-28, 0);
+        ctx.lineTo(-72, 115); ctx.lineTo(-38, 115);
         ctx.closePath(); ctx.fill();
-        ctx.fillRect(-90, -22, 170, 44);
-        ctx.restore();
 
-        // 1. 고익기 주익 (Wing Structure with Control Surfaces)
-        const drawWing = () => {
-            const wingGrd = ctx.createLinearGradient(0, -115, 0, 115);
-            wingGrd.addColorStop(0, '#7f8c8d');
-            wingGrd.addColorStop(0.5, '#bdc3c7');
-            wingGrd.addColorStop(1, '#7f8c8d');
-            ctx.fillStyle = wingGrd;
-            ctx.beginPath();
-            ctx.moveTo(12, 0);
-            ctx.lineTo(-38, -115); ctx.lineTo(-72, -115); // 좌측 날개
-            ctx.lineTo(-28, 0);
-            ctx.lineTo(-72, 115); ctx.lineTo(-38, 115);  // 우측 날개
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = '#2c3e50';
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-
-            // 플랩 & 에일러론 라인 (날개 가동면)
-            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-            ctx.beginPath();
-            ctx.moveTo(-25, -50); ctx.lineTo(-55, -50);
-            ctx.moveTo(-25, 50); ctx.lineTo(-55, 50);
-            ctx.stroke();
-        };
-        drawWing();
-
-        // 2. 4발 정밀 제트 엔진 (Engine Nacelles with Exhaust)
+        // 2. 엔진
         const engineOffsets = [-88, -52, 52, 88];
         engineOffsets.forEach(offset => {
-            ctx.save();
-            const wingX = -12 - Math.abs(offset) * 0.22;
-            ctx.translate(wingX, offset);
-
-            // 배기구 그을린 금속 (Exhaust Cone)
-            ctx.fillStyle = '#1c2833';
-            ctx.fillRect(-12, -6, 15, 12);
-
-            // 엔진 본체
-            const engGrd = ctx.createLinearGradient(0, -9, 0, 9);
-            engGrd.addColorStop(0, '#34495e'); engGrd.addColorStop(0.5, '#5d6d7e'); engGrd.addColorStop(1, '#2c3e50');
-            ctx.fillStyle = engGrd;
-            ctx.fillRect(-6, -9, 28, 18);
-            ctx.strokeRect(-6, -9, 28, 18);
-
-            // 공기 흡입구 및 내부 팬 블레이드 실루엣
-            ctx.fillStyle = '#0a0a0a';
-            ctx.beginPath(); ctx.ellipse(22, 0, 5, 8, 0, 0, Math.PI * 2); ctx.fill();
-
-            // 엔진 가동 시 팬 블레이드 회전 효과 (이륙/비행 중일 때만)
-            const isEnginesRunning = this.altitude > 0 || this.isTakeoffStarting || (this.command === 'move' && this.destination);
-            if (isEnginesRunning) {
-                ctx.strokeStyle = '#2c3e50';
-                for (let i = 0; i < 4; i++) {
-                    ctx.beginPath(); ctx.moveTo(22, 0);
-                    ctx.lineTo(22 + Math.cos(time / 100 + i * Math.PI / 2) * 3, Math.sin(time / 100 + i * Math.PI / 2) * 5);
-                    ctx.stroke();
-                }
-            }
-            ctx.restore();
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-18, offset - 9, 28, 18);
         });
 
-        // 3. 거대 중량 동체 (Heavy-Lift Fuselage)
-        const bodyGrd = ctx.createLinearGradient(0, -25, 0, 25);
-        bodyGrd.addColorStop(0, '#7f8c8d');
-        bodyGrd.addColorStop(0.2, '#bdc3c7');
-        bodyGrd.addColorStop(0.5, '#ecf0f1');
-        bodyGrd.addColorStop(0.8, '#bdc3c7');
-        bodyGrd.addColorStop(1, '#7f8c8d');
-        ctx.fillStyle = bodyGrd;
-
+        // 3. 동체
+        ctx.fillStyle = '#bdc3c7';
         ctx.beginPath();
-        ctx.moveTo(85, 0); // 더 길어진 기수
+        ctx.moveTo(85, 0);
         ctx.bezierCurveTo(85, -24, 65, -26, 45, -26);
         ctx.lineTo(-65, -26);
         ctx.bezierCurveTo(-100, -26, -100, 26, -65, 26);
         ctx.lineTo(45, 26);
         ctx.bezierCurveTo(65, 26, 85, 24, 85, 0);
         ctx.fill();
-        ctx.stroke();
 
-        // 기수 레이돔 (Radome) 라인
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.beginPath(); ctx.arc(65, 0, 24, -Math.PI / 2, Math.PI / 2); ctx.stroke();
-
-        // 공중 급유 프로브 (Refueling Probe - 기수 오른쪽)
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(60, -18, 20, 3);
-        ctx.strokeRect(60, -18, 20, 3);
-
-        // 랜딩 기어 벌지 & 패널 디테일
+        // 4. 꼬리 날개
         ctx.fillStyle = '#95a5a6';
-        ctx.fillRect(-25, -29, 60, 5);
-        ctx.fillRect(-25, 24, 60, 5);
-        ctx.strokeRect(-25, -29, 60, 5);
-        ctx.strokeRect(-25, 24, 60, 5);
-
-        // 4. 조종석 및 관측창
-        ctx.fillStyle = '#0a192f';
-        ctx.beginPath();
-        ctx.moveTo(68, -11); ctx.bezierCurveTo(74, -9, 74, 9, 68, 11);
-        ctx.lineTo(55, 10); ctx.lineTo(55, -10); ctx.closePath();
-        ctx.fill();
-        // 동체 측면 작은 창문들
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        for (let i = 0; i < 3; i++) ctx.fillRect(10 - i * 25, -22, 4, 3);
-
-        // 5. T-Tail Complex
-        // 수직 미익 기둥 (패널 라인 포함)
-        ctx.fillStyle = '#bdc3c7';
-        ctx.fillRect(-92, -4, 35, 8);
-        ctx.strokeRect(-92, -4, 35, 8);
-
-        // 상부 수평 미익 (High Mounted Elevators)
         ctx.save();
         ctx.translate(-92, 0);
-        ctx.fillStyle = '#95a5a6';
         ctx.beginPath();
         ctx.moveTo(0, 0); ctx.lineTo(-18, -48); ctx.lineTo(-32, -48);
         ctx.lineTo(-22, 0); ctx.lineTo(-32, 48); ctx.lineTo(-18, 48);
-        ctx.closePath(); ctx.fill(); ctx.stroke();
-        // 꼬리 끝단 정비창 디테일
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(-15, -2, 10, 4);
+        ctx.closePath(); ctx.fill();
         ctx.restore();
 
-        // 6. 후면 카고 램프 (Cargo Ramp) 라인
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.moveTo(-60, -26); ctx.lineTo(-95, 0); ctx.lineTo(-60, 26);
-        ctx.stroke();
-
-        // 항공 등화 (강화됨)
-        const blink = Math.sin(time / 450) > 0;
-        ctx.shadowBlur = blink ? 5 : 0;
-        ctx.shadowColor = '#ff0000';
-        ctx.fillStyle = blink ? '#ff3131' : '#440000';
-        ctx.beginPath(); ctx.arc(-45, -115, 4, 0, Math.PI * 2); ctx.fill(); // Left Wing
-        ctx.beginPath(); ctx.arc(-45, 115, 4, 0, Math.PI * 2); ctx.fill();  // Right Wing
-        ctx.beginPath(); ctx.arc(-118, 0, 4, 0, Math.PI * 2); ctx.fill();   // Tail Tip
-        ctx.shadowBlur = 0;
-
-        // --- 적재량 상세 표시 (선택 시에만) ---
-        if (this.engine.selectedEntities.includes(this) && (this.cargo.length > 0)) {
-            ctx.save();
-            ctx.rotate(-this.angle); // 텍스트 수평 유지
-
-            const counts = {};
-            this.cargo.forEach(u => {
-                const name = u.name || u.type;
-                counts[name] = (counts[name] || 0) + 1;
-            });
-
-            // 목록 생성 및 상단에 총 용량 추가
-            const occupied = this.getOccupiedSize ? this.getOccupiedSize() : this.cargo.length;
-            const entries = [
-                `적재 용량: ${occupied} / ${this.cargoCapacity}`,
-                ...Object.entries(counts).map(([name, count]) => `${name} x ${count}`)
-            ];
-
-            const lineHeight = 20;
-            const padding = 10;
-
-            ctx.font = 'bold 14px "Segoe UI", Arial';
-            let maxWidth = 0;
-            entries.forEach(text => {
-                maxWidth = Math.max(maxWidth, ctx.measureText(text).width);
-            });
-
-            const boxWidth = maxWidth + padding * 2;
-            const boxHeight = entries.length * lineHeight + padding;
-            const boxY = -80 - boxHeight; // 위치를 조금 더 위로
-
-            // 메인 샴퍼 배경
-            ctx.fillStyle = 'rgba(10, 20, 30, 0.85)';
-            ctx.beginPath();
-            ctx.roundRect(-boxWidth / 2, boxY, boxWidth, boxHeight, 6);
-            ctx.fill();
-
-            // 상단 하이라이트 테두리
-            ctx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            // 텍스트 출력
-            ctx.textAlign = 'center';
-            entries.forEach((text, i) => {
-                // 첫 번째 줄(용량)은 노란색 강조, 나머지는 밝은 흰색/시안
-                if (i === 0) {
-                    ctx.fillStyle = '#f1c40f';
-                    ctx.font = 'bold 14px "Segoe UI", Arial';
-                } else {
-                    ctx.fillStyle = '#ecf0f1';
-                    ctx.font = '13px "Segoe UI", Arial';
-                }
-                ctx.fillText(text, 0, boxY + padding + 14 + i * lineHeight);
-            });
-            ctx.restore();
-        }
-
         ctx.restore();
-
-        // HP 바 상시 표시 (수송기 크기에 맞춰 확장)
-        const barW = 110;
-        const barY = this.y - 85;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW / 2, barY, barW, 6);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 6);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(this.x - barW / 2, barY, barW, 6);
     }
 }
