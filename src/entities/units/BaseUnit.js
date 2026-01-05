@@ -397,18 +397,26 @@ export class BaseUnit extends Entity {
         let pushX = 0;
         let pushY = 0;
 
-        // 1. 유닛 간 충돌
-        const allUnits = [...this.engine.entities.units, ...this.engine.entities.enemies, ...this.engine.entities.neutral];
-        for (const other of allUnits) {
+        // 1. 유닛 간 충돌 (SpatialGrid를 사용하여 주변 유닛만 검사 - O(N) 최적화)
+        // 검색 반경: 내 크기 + 상대 최대 크기(대략 60) 정도면 충분
+        const neighborRadius = this.size + 40;
+        const neighbors = this.engine.entityManager.getNearby(this.x, this.y, neighborRadius);
+
+        for (const other of neighbors) {
+            // 자신 제외, 비활성 제외, 탑승 중 제외, 다른 도메인(공중 vs 지상) 제외
             if (other === this || !other.active || other.hp <= 0 || other.isBoarded) continue;
+            // 유닛이 아닌 것(건물 등)은 제외 (건물 충돌은 moveWithCollision에서 처리됨)
+            if (!other.speed && other.type !== 'wall') continue; 
+            
             if (other.isFalling || this.isFalling) continue;
             if (this.domain !== other.domain) continue;
 
             const d = Math.hypot(this.x - other.x, this.y - other.y);
-            const minDist = (this.size + other.size) * 0.4;
-            if (d < minDist) {
+            const minDist = (this.size + other.size) * 0.4; // 겹침 허용 반경
+            
+            if (d < minDist && d > 0.1) { // 0 나누기 방지
                 const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
-                const force = (minDist - d) / minDist;
+                const force = (minDist - d) / minDist; // 가까울수록 강하게 밈
                 pushX += Math.cos(pushAngle) * force * 1.5;
                 pushY += Math.sin(pushAngle) * force * 1.5;
             }

@@ -1,10 +1,9 @@
+import { ICONS } from '../../assets/Icons.js';
+
 /**
- * RenderSystem - 렌더링 최적화 시스템
- * 
- * 주요 기능:
- * 1. 뷰포트 컬링 (Viewport Culling) - 화면 밖 엔티티 렌더링 생략
- * 2. 레이어별 렌더링 - 지형 → 건물 → 유닛 → 이펙트 → UI
- * 3. EntityManager 활용 - 공간 분할 기반 효율적 검색
+ * RenderSystem (Canvas 2D Optimized)
+ * SVG를 매 프레임 그리는 대신, 게임 시작 시 비트맵 이미지로 캐싱하여 그립니다.
+ * WebGL 없이도 높은 성능을 보장합니다.
  */
 export class RenderSystem {
     constructor(engine) {
@@ -12,7 +11,7 @@ export class RenderSystem {
         this.ctx = engine.ctx;
         this.canvas = engine.canvas;
 
-        // 렌더링 레이어 정의
+        // 레이어 정의 (렌더링 순서용)
         this.layers = {
             TERRAIN: 0,
             RESOURCES: 1,
@@ -23,99 +22,91 @@ export class RenderSystem {
             UI: 6
         };
 
-        // 디버그 모드
-        this.debugMode = false;
+        // SVG -> Image 캐싱 저장소
+        this.iconCache = {};
+        this.isCacheLoaded = false;
+        
+        // 아이콘 초기화 시작
+        this.initIconCache().then(() => {
+            console.log('[RenderSystem] SVG Icons cached successfully.');
+            this.isCacheLoaded = true;
+        });
+
+        // 메모리 재사용을 위한 레이어 버킷 (GC 최적화)
+        this.layerBuckets = {
+            [this.layers.RESOURCES]: [],
+            [this.layers.BUILDINGS]: [],
+            [this.layers.UNITS]: [],
+            [this.layers.PROJECTILES]: []
+        };
+
+        // 통계 및 디버그용
         this.stats = {
-            totalEntities: 0,
             renderedEntities: 0,
-            culledEntities: 0,
+            totalEntities: 0,
             lastFrameTime: 0
         };
     }
 
     /**
-     * 뷰포트 경계 계산
-     * 카메라 위치와 줌을 고려한 화면 영역
+     * SVG 문자열을 Blob -> Image -> Offscreen Canvas(Bitmap)로 변환하여 캐싱
+     * 벡터 연산을 로딩 시점에 끝내고, 런타임에는 순수 비트맵만 사용합니다.
      */
-    getViewportBounds() {
-        const camera = this.engine.camera;
-        const margin = 100; // 여유 공간 (화면 밖에서 진입하는 엔티티 고려)
+    async initIconCache() {
+        const promises = [];
 
-        return {
-            left: -camera.x / camera.zoom - margin,
-            right: (-camera.x + this.canvas.width) / camera.zoom + margin,
-            top: -camera.y / camera.zoom - margin,
-            bottom: (-camera.y + this.canvas.height) / camera.zoom + margin
-        };
-    }
+        for (const [key, html] of Object.entries(ICONS)) {
+            // SVG 태그 추출
+            const svgMatch = html.match(/<svg[\s\S]*?<\/svg>/i);
+            if (svgMatch) {
+                let svgContent = svgMatch[0];
 
-    /**
-     * 엔티티가 뷰포트 내에 있는지 확인
-     */
-    isInViewport(entity, bounds) {
-        if (!entity || (!entity.active && !entity.arrived)) return false;
+                // 네임스페이스 및 사이즈 보정
+                if (!svgContent.includes('xmlns')) {
+                    svgContent = svgContent.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+                }
+                
+                // width/height가 없으면 강제 주입 (기본 해상도 64x64로 약간 여유있게 래스터화)
+                const rasterSize = 64; 
+                if (!svgContent.includes('width=')) {
+                    svgContent = svgContent.replace('<svg', `<svg width="${rasterSize}" height="${rasterSize}"`);
+                }
 
-        const w = entity.width || entity.size || 40;
-        const h = entity.height || entity.size || 40;
-        const hw = w / 2;
-        const hh = h / 2;
+                // Blob 생성
+                const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
 
-        return !(entity.x + hw < bounds.left ||
-            entity.x - hw > bounds.right ||
-            entity.y + hh < bounds.top ||
-            entity.y - hh > bounds.bottom);
-    }
+                // 이미지 로딩 및 비트맵 변환 Promise
+                const p = new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // 1. 오프스크린 캔버스 생성 (메모리상에만 존재)
+                        const offCanvas = document.createElement('canvas');
+                        offCanvas.width = rasterSize;
+                        offCanvas.height = rasterSize;
+                        const offCtx = offCanvas.getContext('2d');
 
-    /**
-     * 레이어별로 엔티티 분류
-     */
-    sortEntitiesByLayer() {
-        const sorted = {
-            [this.layers.TERRAIN]: [],
-            [this.layers.RESOURCES]: [],
-            [this.layers.BUILDINGS]: [],
-            [this.layers.UNITS]: [],
-            [this.layers.PROJECTILES]: [],
-            [this.layers.EFFECTS]: []
-        };
+                        // 2. SVG 이미지를 캔버스에 그림 (이 시점에 벡터 -> 비트맵 변환 발생)
+                        offCtx.drawImage(img, 0, 0, rasterSize, rasterSize);
 
-        const entities = this.engine.entities;
-
-        // 자원
-        if (entities.resources) {
-            sorted[this.layers.RESOURCES] = entities.resources.filter(e => e.active);
+                        // 3. 변환된 비트맵(캔버스 자체)을 캐시에 저장
+                        this.iconCache[key] = offCanvas;
+                        
+                        // 메모리 해제
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        console.warn(`[RenderSystem] Failed to load icon: ${key}`);
+                        resolve();
+                    };
+                    img.src = url;
+                });
+                promises.push(p);
+            }
         }
 
-        // 건물
-        const buildings = [
-            ...(entities.walls || []),
-            ...(entities.airports || []),
-            ...(entities.apartments || []),
-            ...(entities.refineries || []),
-            ...(entities.goldMines || []),
-            ...(entities.ironMines || []),
-            ...(entities.storage || []),
-            ...(entities.ammoFactories || []),
-            ...(entities.armories || []),
-            ...(entities.barracks || [])
-        ];
-        if (entities.base) buildings.push(entities.base);
-        sorted[this.layers.BUILDINGS] = buildings.filter(e => e && e.active);
-
-        // 유닛
-        sorted[this.layers.UNITS] = [
-            ...(entities.units || []),
-            ...(entities.enemies || []),
-            ...(entities.neutral || [])
-        ].filter(e => e && e.active);
-
-        // 발사체 (폭발 중인 객체 포함)
-        sorted[this.layers.PROJECTILES] = (entities.projectiles || []).filter(e => e && (e.active || e.arrived));
-
-        // 이펙트
-        sorted[this.layers.EFFECTS] = (this.engine.effects || []).filter(e => e && e.active);
-
-        return sorted;
+        await Promise.all(promises);
     }
 
     /**
@@ -124,113 +115,160 @@ export class RenderSystem {
     render() {
         const startTime = performance.now();
 
-        // 화면 초기화
-        this.ctx.save();
+        // [성능] 이미지 보간(부드럽게 처리) 끄기 -> 픽셀 그대로 표현 (빠르고 선명함)
+        this.ctx.imageSmoothingEnabled = false;
+
+        // 1. 화면 초기화
         this.ctx.fillStyle = '#1a1a1a';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // 카메라 변환 적용
+        // 2. 카메라 변환 적용
+        this.ctx.save();
         const camera = this.engine.camera;
         this.ctx.translate(camera.x, camera.y);
         this.ctx.scale(camera.zoom, camera.zoom);
 
-        // 뷰포트 경계 계산
-        const viewportBounds = this.getViewportBounds();
+        // 3. 뷰포트 컬링 범위 계산
+        const viewport = this.getViewportBounds();
 
-        // EntityManager 사용: 뷰포트 내 엔티티만 가져오기
-        const visibleEntities = this.engine.entityManager?.getInRect(
-            viewportBounds.left,
-            viewportBounds.top,
-            viewportBounds.right,
-            viewportBounds.bottom
-        ) || [];
+        // 4. 지형 (TileMap) 렌더링
+        if (this.engine.tileMap) {
+            this.engine.tileMap.drawGrid(camera); // TileMap 내부 최적화(청크) 사용
+        }
 
-        // 통계 초기화
-        this.stats.totalEntities = this.engine.entityManager?.allEntities.length || 0;
-        this.stats.renderedEntities = 0;
-        this.stats.culledEntities = this.stats.totalEntities - visibleEntities.length;
+        // 5. 엔티티 분류 및 렌더링
+        // (캐시가 로드되지 않았어도 기본 도형으로라도 그릴 수 있도록 함)
+        const visibleEntities = this.getVisibleEntities(viewport);
+        
+        // 레이어별 정렬 (재사용 버킷 활용)
+        this.sortEntitiesByLayer(visibleEntities);
 
-        // 레이어별로 정렬
-        const sorted = this.sortEntitiesByLayer();
+        // 순서대로 렌더링
+        this.renderEntities(this.layerBuckets[this.layers.RESOURCES]);
+        this.renderEntities(this.layerBuckets[this.layers.BUILDINGS]);
+        this.renderEntities(this.layerBuckets[this.layers.UNITS]);
+        this.renderEntities(this.layerBuckets[this.layers.PROJECTILES]); // 투사체는 별도 처리
+        
+        // 6. 이펙트
+        this.renderEffects();
 
-        // 레이어 순서대로 렌더링
-        this.renderLayer(sorted[this.layers.TERRAIN], viewportBounds);
-        this.renderTileMap(); // 타일맵 바닥(Grid) 렌더링
-        this.renderLayer(sorted[this.layers.RESOURCES], viewportBounds);
-        this.renderLayer(sorted[this.layers.BUILDINGS], viewportBounds);
-        this.renderLayer(sorted[this.layers.UNITS], viewportBounds);
-        this.renderLayer(sorted[this.layers.PROJECTILES], viewportBounds);
-        this.renderEffects(sorted[this.layers.EFFECTS]);
+        // 7. 안개 (Fog) - 유닛 위에 덮어씀
+        if (this.engine.tileMap) {
+            this.engine.tileMap.drawFog(camera);
+        }
 
-        // [수정] 안개(Fog of War)는 모든 유닛/건물 위에 덮어씌워야 함
-        this.renderFog();
-
-        // 선택 박스 렌더링
+        // 8. 선택 박스 및 오버레이
         this.renderSelectionBox();
+        this.renderOverlays(visibleEntities);
 
-        // 카메라 변환 해제
         this.ctx.restore();
 
-        // UI 레이어 (카메라 독립적)
-        this.renderUI();
-
-        // 디버그 정보
-        if (this.debugMode) {
-            this.renderDebugInfo();
-        }
+        // 9. UI (독립 좌표계) - 미니맵 등은 별도 Canvas 사용 중
 
         this.stats.lastFrameTime = performance.now() - startTime;
     }
 
-    /**
-     * 레이어 렌더링
-     */
-    renderLayer(entities, viewportBounds) {
+    getViewportBounds() {
+        const camera = this.engine.camera;
+        const margin = 100;
+        return {
+            left: -camera.x / camera.zoom - margin,
+            right: (-camera.x + this.canvas.width) / camera.zoom + margin,
+            top: -camera.y / camera.zoom - margin,
+            bottom: (-camera.y + this.canvas.height) / camera.zoom + margin
+        };
+    }
+
+    getVisibleEntities(viewport) {
+        if (this.engine.entityManager) {
+            return this.engine.entityManager.getInRect(
+                viewport.left, viewport.top, viewport.right, viewport.bottom
+            );
+        }
+        // Fallback
+        return [
+            ...this.engine.entities.resources,
+            ...this.engine.getAllBuildings(),
+            ...this.engine.entities.units,
+            ...this.engine.entities.enemies,
+            ...this.engine.entities.neutral,
+            ...this.engine.entities.projectiles
+        ];
+    }
+
+    sortEntitiesByLayer(entities) {
+        // 기존 버킷 비우기 (새 배열 할당 없이 길이만 0으로)
+        this.layerBuckets[this.layers.RESOURCES].length = 0;
+        this.layerBuckets[this.layers.BUILDINGS].length = 0;
+        this.layerBuckets[this.layers.UNITS].length = 0;
+        this.layerBuckets[this.layers.PROJECTILES].length = 0;
+
+        for (const ent of entities) {
+            if (!ent.active && !ent.arrived) continue; // 비활성 제외
+            if (ent.visible === false || ent.isBoarded) continue; // 숨겨진 것 제외
+
+            if (ent.type === 'projectile' || ent.type === 'bullet' || ent.type === 'shell' || ent.type === 'missile') {
+                this.layerBuckets[this.layers.PROJECTILES].push(ent);
+            } else if (ent.type === 'resource' || ent.isResource) {
+                this.layerBuckets[this.layers.RESOURCES].push(ent);
+            } else if (ent.speed === undefined || ent.type === 'wall') { 
+                // speed가 없으면 건물로 간주 (단순 분류)
+                this.layerBuckets[this.layers.BUILDINGS].push(ent);
+            } else {
+                this.layerBuckets[this.layers.UNITS].push(ent);
+            }
+        }
+        // 반환할 필요 없이 멤버 변수 직접 접근
+    }
+
+    renderEntities(entities) {
         if (!entities) return;
 
         for (const entity of entities) {
-            // [수정] Fog of War에 의해 가려진 유닛 또는 탑승 중인 유닛은 렌더링하지 않음
-            // 발사체는 arrived 상태일 때도 렌더링을 허용해야 함
-            if (!entity || (!entity.active && !entity.arrived)) continue;
-            if (entity.visible === false || entity.isBoarded) continue;
-
-            // 뷰포트 컬링
-            if (!this.isInViewport(entity, viewportBounds)) continue;
-
-            // 엔티티 렌더링
-            if (entity.draw) {
-                entity.draw(this.ctx);
-                this.stats.renderedEntities++;
+            // 건설 중인 경우 투명도 적용
+            if (entity.isUnderConstruction) {
+                this.ctx.globalAlpha = 0.6;
             }
 
-            // 선택 표시 (GameEngine의 renderOverlays에서 처리하므로 여기서는 생략)
-            // if (this.engine.selectedEntities?.includes(entity)) {
-            //     this.drawSelectionIndicator(entity);
-            // }
+            // 1. 캐시된 이미지 그리기 (우선)
+            const img = this.iconCache[entity.type];
+            if (this.isCacheLoaded && img) {
+                const w = entity.width || entity.size || 40;
+                const h = entity.height || entity.size || 40;
+                
+                this.ctx.save();
+                this.ctx.translate(entity.x, entity.y);
+                if (entity.angle) this.ctx.rotate(entity.angle);
+                
+                // 선택 시 틴트 효과 (Canvas filter는 성능이 무거우므로 외곽선으로 대체하거나 globalCompositeOperation 사용)
+                // 여기서는 간단히 선택 시 밝기 조절 (성능 고려)
+                // 하지만 filter는 무거우니 생략하고, 선택 박스로 구분합니다.
+
+                this.ctx.drawImage(img, -w/2, -h/2, w, h);
+                this.ctx.restore();
+            } 
+            // 2. 이미지가 없으면 기존 draw 메서드 호출 (Fallback)
+            else if (entity.draw) {
+                entity.draw(this.ctx);
+            } 
+            // 3. 그것도 없으면 기본 사각형 (최후의 수단)
+            else {
+                this.ctx.fillStyle = '#ff00ff';
+                this.ctx.fillRect(entity.x - 20, entity.y - 20, 40, 40);
+            }
+
+            // 건설 진행바 (별도 메서드)
+            if (entity.isUnderConstruction) {
+                this.ctx.globalAlpha = 1.0;
+                if (entity.drawConstruction) entity.drawConstruction(this.ctx);
+            } else {
+                this.ctx.globalAlpha = 1.0;
+            }
         }
     }
 
-    /**
-     * 타일맵 렌더링 (기존 로직 유지)
-     */
-    renderTileMap() {
-        // 바닥 타일만 렌더링 (안개 제외)
-        if (this.engine.tileMap && this.engine.tileMap.drawGrid) {
-            this.engine.tileMap.drawGrid(this.engine.camera);
-        }
-    }
-
-    renderFog() {
-        // 안개는 모든 객체 위에 렌더링됨
-        if (this.engine.tileMap && this.engine.tileMap.drawFog) {
-            this.engine.tileMap.drawFog(this.engine.camera);
-        }
-    }
-
-    /**
-     * 이펙트 렌더링
-     */
-    renderEffects(effects) {
+    renderEffects() {
+        const effects = this.engine.effects;
         if (!effects) return;
 
         const now = Date.now();
@@ -243,151 +281,70 @@ export class RenderSystem {
             this.ctx.save();
             this.ctx.globalAlpha = alpha;
 
-            if (effect.type === 'bullet') {
-                this.ctx.fillStyle = effect.color;
-                for (const p of effect.particles || []) {
-                    const x = effect.x + p.vx * effect.timer * 0.1;
-                    const y = effect.y + p.vy * effect.timer * 0.1;
-                    this.ctx.fillRect(x, y, p.size, p.size);
-                }
-            } else if (effect.type === 'explosion') {
-                const radius = effect.radius * (1 + progress);
-                this.ctx.strokeStyle = effect.color;
-                this.ctx.lineWidth = 3 * (1 - progress);
+            if (effect.type === 'explosion') {
+                const radius = (effect.radius || 20) * (1 + progress);
+                this.ctx.strokeStyle = effect.color || '#fff';
+                this.ctx.lineWidth = 3;
                 this.ctx.beginPath();
                 this.ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
                 this.ctx.stroke();
             } else if (effect.type === 'hit') {
-                // 피격 스파크 효과
-                const size = (1 - progress) * 8;
                 this.ctx.fillStyle = effect.color || '#fff';
                 this.ctx.beginPath();
-                this.ctx.arc(effect.x, effect.y, size, 0, Math.PI * 2);
+                this.ctx.arc(effect.x, effect.y, 5 * alpha, 0, Math.PI * 2);
                 this.ctx.fill();
-
-                // 사방으로 튀는 짧은 선 (스파크)
-                this.ctx.strokeStyle = effect.color || '#fff';
-                this.ctx.lineWidth = 2 * (1 - progress);
-                for (let i = 0; i < 4; i++) {
-                    const angle = (i * Math.PI / 2) + (progress * 2);
-                    const len = 12 * progress;
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(effect.x + Math.cos(angle) * 3, effect.y + Math.sin(angle) * 3);
-                    this.ctx.lineTo(effect.x + Math.cos(angle) * (3 + len), effect.y + Math.sin(angle) * (3 + len));
-                    this.ctx.stroke();
-                }
-            } else if (effect.type === 'flak') {
-                // 대공포 피격 효과 (공중 폭발 느낌)
-                const radius = 5 + progress * 15;
-                const alpha = 1 - progress;
-                
-                this.ctx.fillStyle = `rgba(255, 200, 50, ${alpha})`;
-                this.ctx.beginPath();
-                this.ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
-                this.ctx.fill();
-
-                this.ctx.fillStyle = `rgba(200, 200, 200, ${alpha * 0.5})`;
-                this.ctx.beginPath();
-                this.ctx.arc(effect.x, effect.y, radius * 1.5, 0, Math.PI * 2);
-                this.ctx.fill();
+            } else if (effect.type === 'bullet') {
+                // 트레일
+                this.ctx.fillStyle = effect.color || '#ffff00';
+                this.ctx.fillRect(effect.x - 1, effect.y - 1, 3, 3);
             } else if (effect.type === 'system') {
                 this.ctx.fillStyle = effect.color;
                 this.ctx.font = '14px Arial';
                 this.ctx.textAlign = 'center';
-                const yOffset = progress * 30;
-                this.ctx.fillText(effect.text, effect.x, effect.y - yOffset);
+                this.ctx.fillText(effect.text, effect.x, effect.y - (progress * 20));
             }
 
             this.ctx.restore();
         }
     }
 
-    /**
-     * 선택 표시 렌더링
-     */
-    drawSelectionIndicator(entity) {
-        const bounds = entity.getSelectionBounds();
-        const w = bounds.right - bounds.left;
-        const h = bounds.bottom - bounds.top;
-
-        this.ctx.save();
-        this.ctx.strokeStyle = '#00ff00';
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(bounds.left, bounds.top, w, h);
-
-        // HP 바
-        if (entity.hp !== undefined && entity.maxHp !== undefined && entity.hp < entity.maxHp) {
-            const barW = Math.min(w, 60);
-            const barH = 4;
-            const barX = entity.x - barW / 2;
-            const barY = bounds.top - 8;
-
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            this.ctx.fillRect(barX, barY, barW, barH);
-            this.ctx.fillStyle = '#00ff00';
-            this.ctx.fillRect(barX, barY, barW * (entity.hp / entity.maxHp), barH);
-        }
-
-        this.ctx.restore();
-    }
-
-    /**
-     * 선택 박스 렌더링
-     */
     renderSelectionBox() {
         const box = this.engine.camera.selectionBox;
         if (!box) return;
 
         this.ctx.save();
         this.ctx.strokeStyle = '#00ff00';
-        this.ctx.setLineDash([5, 5]);
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(box.startX, box.startY, box.endX - box.startX, box.endY - box.startY);
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([5, 5]); // 점선
+        this.ctx.strokeRect(box.startX, box.startY, box.currentX - box.startX, box.currentY - box.startY);
         this.ctx.restore();
     }
 
-    /**
-     * UI 렌더링 (카메라 독립적)
-     */
-    renderUI() {
-        // 기존 UI는 HTML/CSS로 처리되므로 필요시만 캔버스 UI 추가
-    }
+    renderOverlays(visibleEntities) {
+        // 선택된 유닛 체력바 표시
+        const selected = this.engine.selectedEntities;
+        
+        for (const entity of selected) {
+            if (!entity.active || entity.hp === undefined) continue;
+            // 화면 밖이면 패스 (visibleEntities에 포함되어 있는지 확인하거나, 좌표 계산)
+            // 여기서는 단순 좌표 계산
+            
+            const w = entity.width || entity.size || 40;
+            const h = 4;
+            const x = entity.x - w / 2;
+            const y = entity.y - (entity.height || entity.size || 40) / 2 - 10;
 
-    /**
-     * 디버그 정보 렌더링
-     */
-    renderDebugInfo() {
-        this.ctx.save();
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        this.ctx.fillRect(10, 10, 250, 120);
-
-        this.ctx.fillStyle = '#00ff00';
-        this.ctx.font = '12px monospace';
-        this.ctx.textAlign = 'left';
-
-        let y = 30;
-        const lineHeight = 18;
-
-        this.ctx.fillText(`FPS: ${(1000 / this.stats.lastFrameTime).toFixed(1)}`, 20, y);
-        y += lineHeight;
-        this.ctx.fillText(`Frame Time: ${this.stats.lastFrameTime.toFixed(2)}ms`, 20, y);
-        y += lineHeight;
-        this.ctx.fillText(`Total Entities: ${this.stats.totalEntities}`, 20, y);
-        y += lineHeight;
-        this.ctx.fillText(`Rendered: ${this.stats.renderedEntities}`, 20, y);
-        y += lineHeight;
-        this.ctx.fillText(`Culled: ${this.stats.culledEntities}`, 20, y);
-        y += lineHeight;
-        this.ctx.fillText(`Cull Rate: ${(this.stats.culledEntities / this.stats.totalEntities * 100).toFixed(1)}%`, 20, y);
-
-        this.ctx.restore();
-    }
-
-    /**
-     * 디버그 모드 토글
-     */
-    toggleDebug() {
-        this.debugMode = !this.debugMode;
-        console.log(`[RenderSystem] Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillRect(x, y, w, h);
+            
+            const hpRatio = Math.max(0, entity.hp / entity.maxHp);
+            this.ctx.fillStyle = hpRatio > 0.5 ? '#00ff00' : (hpRatio > 0.2 ? '#ffff00' : '#ff0000');
+            this.ctx.fillRect(x, y, w * hpRatio, h);
+            
+            // 선택 테두리
+            this.ctx.strokeStyle = '#00ff00';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(entity.x - w/2, entity.y - (entity.height||40)/2, w, entity.height||40);
+        }
     }
 }

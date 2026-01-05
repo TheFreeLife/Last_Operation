@@ -1951,34 +1951,51 @@ export class GameEngine {
             this.entityManager.update(deltaTime);
         }
 
-        // 2. 엔티티 상태 업데이트 및 파괴 처리
+        // [최적화] 배열을 새로 할당하지 않고 제자리에서(in-place) 필터링하여 GC 부하 감소
+        // 투 포인터 알고리즘 사용
         const processList = (list, updateFn) => {
-            const initialLen = list.length;
-            const filtered = list.filter(obj => {
-                const oldFuel = obj.fuel;
+            if (!list) return list;
+            
+            let writeIdx = 0;
+            let countChanged = false;
 
+            for (let readIdx = 0; readIdx < list.length; readIdx++) {
+                const obj = list[readIdx];
+                
                 // 탑승 중인 유닛은 업데이트 함수 호출 스킵 (하지만 리스트에는 유지)
                 if (updateFn && !obj.isBoarded) updateFn(obj);
 
-                // [중요] 탑승 중(isBoarded)인 엔티티는 active 여부와 상관없이 무조건 유지
-                if (obj.isBoarded) return true;
-
-                // HP가 0 이하이거나 완전히 비활성화된 경우 리스트에서 제거
-                if (obj.hp <= 0 || obj.active === false) {
-                    if (obj.hp <= 0) {
-                        if (obj.onDestruction) obj.onDestruction(this); // [추가] 벙커 유닛 방출 등 처리
-                        this.clearBuildingTiles(obj);
+                // 유지 조건 확인
+                let keep = true;
+                if (!obj.isBoarded) { // 탑승 중이 아닐 때만 삭제 검사
+                    if (obj.hp <= 0 || obj.active === false) {
+                        keep = false;
+                        if (obj.hp <= 0) {
+                            if (obj.onDestruction) obj.onDestruction(this);
+                            this.clearBuildingTiles(obj);
+                        }
                     }
-                    return false;
                 }
-                return true;
-            });
 
-            // 리스트의 길이가 변했다면(건물이 파괴되었다면) 인구수 즉시 갱신
-            if (filtered.length !== initialLen) {
+                if (keep) {
+                    if (writeIdx !== readIdx) {
+                        list[writeIdx] = obj;
+                    }
+                    writeIdx++;
+                } else {
+                    countChanged = true;
+                    // EntityManager 등에서도 제거 (중복 제거 방지용 체크는 내부에서 함)
+                    if (this.entityManager) this.entityManager.remove(obj);
+                }
+            }
+
+            // 배열 길이 단축
+            if (countChanged) {
+                list.length = writeIdx;
                 this.updatePopulation();
             }
-            return filtered;
+            
+            return list;
         };
 
         // 모든 건물 및 유닛 업데이트
