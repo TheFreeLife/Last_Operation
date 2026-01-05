@@ -117,7 +117,15 @@ export class Pathfinding {
         gScores.set(gridKey(start.x, start.y), 0);
 
         let iterations = 0;
-        const maxIterations = 5000;
+        const maxIterations = 2500; // 반복 제한 축소 (5000 -> 2500) 성능 보호
+
+        // 인접 노드 오프셋 미리 정의 (메모리 재사용)
+        const neighborOffsets = [
+            { x: 0, y: -1, cost: 1 }, { x: 0, y: 1, cost: 1 },
+            { x: -1, y: 0, cost: 1 }, { x: 1, y: 0, cost: 1 },
+            { x: -1, y: -1, cost: 1.414 }, { x: 1, y: -1, cost: 1.414 },
+            { x: -1, y: 1, cost: 1.414 }, { x: 1, y: 1, cost: 1.414 }
+        ];
 
         while (openSet.size() > 0) {
             iterations++;
@@ -133,14 +141,7 @@ export class Pathfinding {
             if (closedSet.has(currentKey)) continue;
             closedSet.set(currentKey, true);
 
-            const neighbors = [
-                { x: 0, y: -1, cost: 1 }, { x: 0, y: 1, cost: 1 },
-                { x: -1, y: 0, cost: 1 }, { x: 1, y: 0, cost: 1 },
-                { x: -1, y: -1, cost: 1.414 }, { x: 1, y: -1, cost: 1.414 },
-                { x: -1, y: 1, cost: 1.414 }, { x: 1, y: 1, cost: 1.414 }
-            ];
-
-            for (const neighbor of neighbors) {
+            for (const neighbor of neighborOffsets) {
                 const nx = current.x + neighbor.x;
                 const ny = current.y + neighbor.y;
 

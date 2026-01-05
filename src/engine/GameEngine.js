@@ -263,8 +263,12 @@ export class GameEngine {
         em.register('projectile', Projectile, 'projectiles');
     }
 
-    // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 동적으로 수집
+    // [자동화] 엔진이 관리하는 모든 건물 인스턴스를 동적으로 수집 (캐싱 적용)
     getAllBuildings() {
+        if (this.cachedBuildings && this.lastCacheFrame === this.frameCount) {
+            return this.cachedBuildings;
+        }
+
         const all = [];
         const seenLists = new Set();
 
@@ -287,6 +291,8 @@ export class GameEngine {
             all.push(this.entities.base);
         }
 
+        this.cachedBuildings = all;
+        this.lastCacheFrame = this.frameCount;
         return all;
     }
 
@@ -1931,6 +1937,8 @@ export class GameEngine {
     update(deltaTime) {
         if (this.gameState !== 'playing') return;
 
+        this.frameCount = (this.frameCount || 0) + 1;
+
         // 1. 효과 및 카메라 업데이트 (매 프레임)
         for (let i = this.effects.length - 1; i >= 0; i--) {
             const fx = this.effects[i];
@@ -2059,7 +2067,17 @@ export class GameEngine {
 
             // Post-process UI (not handled by RenderSystem yet)
             this.renderBuildQueue(this.getAllBuildings());
-            this.renderMinimap();
+            
+            // [최적화] 미니맵은 시야 업데이트 주기(100ms)와 맞춰서 갱신하거나 별도 타이머 사용
+            // 매 프레임 그리기엔 비용이 큼
+            if (this.visibilityTimer === 0) { // updateVisibility 직후에만 갱신
+                this.renderMinimap();
+            } else if (!this._lastMinimapRendered) {
+                // 첫 프레임 보장
+                this.renderMinimap();
+                this._lastMinimapRendered = true;
+            }
+
             if (this.isSellMode) {
                 this.ctx.save();
                 this.ctx.fillStyle = '#ff3131';

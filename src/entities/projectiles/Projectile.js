@@ -114,16 +114,12 @@ export class Projectile extends Entity {
             return dist < (this.size / 2 + otherSize / 2);
         };
 
-        // 모든 잠재적 타겟에 대해 충돌 체크 (단일 루프로 통합)
-        const allPotentialTargets = [
-            engine.entities.base,
-            ...engine.entities.units,
-            ...engine.entities.enemies,
-            ...engine.entities.neutral,
-            ...engine.getAllBuildings()
-        ];
+        // [최적화] SpatialGrid를 사용하여 주변 엔티티만 검색
+        // 투사체 속도가 빠르므로 검색 반경을 넉넉하게 잡음 (자신 크기 + 최대 타겟 크기 + 이동 속도)
+        const searchRadius = 60; 
+        const nearbyTargets = engine.entityManager.getNearby(this.x, this.y, searchRadius);
 
-        for (const target of allPotentialTargets) {
+        for (const target of nearbyTargets) {
             if (checkCollision(target)) {
                 if (this.explosionRadius > 0) {
                     this.explode(engine);
