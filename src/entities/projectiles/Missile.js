@@ -58,17 +58,11 @@ export class Missile extends Entity {
         this.arrived = true;
         this.explosionTimer = 0;
 
-        this.smokeParticles = [];
-        // 반경 상향에 맞춰 파티클 개수 증가 (15 -> 25)
-        for (let i = 0; i < 25; i++) {
-            this.smokeParticles.push({
-                angle: Math.random() * Math.PI * 2,
-                dist: Math.random() * this.explosionRadius * 0.9, // 더 넓게 퍼짐
-                size: 40 + Math.random() * 40, // 파티클 크기도 상향
-                vx: (Math.random() - 0.5) * 0.6,
-                vy: (Math.random() - 0.5) * 0.6 - 0.8,
-                color: Math.random() > 0.5 ? '#7f8c8d' : '#95a5a6'
-            });
+        // 중앙 집중형 폭발 효과 호출
+        if (this.engine.addEffect) {
+            this.engine.addEffect('explosion', this.targetX, this.targetY);
+            // 미사일 특유의 거대 연기 구름을 위해 추가 호출
+            for(let i=0; i<3; i++) this.engine.addEffect('explosion', this.targetX + (Math.random()-0.5)*40, this.targetY + (Math.random()-0.5)*40);
         }
 
         const targets = [
@@ -183,11 +177,18 @@ export class Missile extends Entity {
             ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-12, -7); ctx.lineTo(-12, -3); ctx.closePath(); ctx.fill();
             ctx.beginPath(); ctx.moveTo(-6, 3); ctx.lineTo(-12, 7); ctx.lineTo(-12, 3); ctx.closePath(); ctx.fill();
 
-            const flameSize = 4 + Math.random() * 3;
-            ctx.fillStyle = '#f1c40f';
+            const flameSize = 6 + Math.random() * 4;
+            // 1단계: 외곽 광원 (Glow)
+            ctx.fillStyle = 'rgba(255, 165, 0, 0.6)';
+            ctx.beginPath(); ctx.arc(-14, 0, flameSize * 1.5, 0, Math.PI * 2); ctx.fill();
+            
+            // 2단계: 메인 화염 (Inner)
+            ctx.fillStyle = '#ff8c00';
             ctx.beginPath(); ctx.arc(-13, 0, flameSize, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#e67e22';
-            ctx.beginPath(); ctx.arc(-13, 0, flameSize * 0.6, 0, Math.PI * 2); ctx.fill();
+            
+            // 3단계: 화이트 코어 (Core)
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(-12, 0, flameSize * 0.4, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
     }

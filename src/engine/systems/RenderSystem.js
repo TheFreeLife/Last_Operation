@@ -41,6 +41,7 @@ export class RenderSystem {
         };
 
         this.stats = { renderedEntities: 0, totalEntities: 0, lastFrameTime: 0 };
+        this.particles = [];
     }
 
     /**
@@ -80,33 +81,18 @@ export class RenderSystem {
         await Promise.all(promises);
     }
 
-    /**
-     * 실시간 draw() 메서드를 실행하여 비트맵으로 굽습니다.
-     */
-    generateEntityBitmap(entity) {
-        const type = entity.type;
-        if (this.entityCache[type]) return this.entityCache[type];
+    addParticle(x, y, vx, vy, size, color, life, type = 'spark') {
+        this.particles.push({ x, y, vx, vy, size, color, life, maxLife: life, type });
+    }
 
-        const size = (entity.size || 60) * 2; 
-        const offCanvas = document.createElement('canvas');
-        offCanvas.width = size;
-        offCanvas.height = size;
-        const offCtx = offCanvas.getContext('2d');
-
-        offCtx.translate(size / 2, size / 2);
-        
-        const oldX = entity.x, oldY = entity.y, oldAngle = entity.angle;
-        entity.x = 0; entity.y = 0; entity.angle = 0;
-        
-        try {
-            entity.draw(offCtx);
-        } catch (e) {
-            console.warn(`Failed to cache entity ${type}:`, e);
+    updateParticles(deltaTime) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= deltaTime;
+            if (p.life <= 0) this.particles.splice(i, 1);
         }
-
-        entity.x = oldX; entity.y = oldY; entity.angle = oldAngle;
-        this.entityCache[type] = offCanvas;
-        return offCanvas;
     }
 
     render() {
@@ -137,8 +123,11 @@ export class RenderSystem {
         this.renderEntities(this.layerBuckets[this.layers.UNITS]);
         this.renderEntities(this.layerBuckets[this.layers.PROJECTILES]);
         
-        // 5. 이펙트 및 안개
+        // 5. 파티클 및 이펙트 (최상단)
+        this.updateParticles(16);
+        this.renderParticles();
         this.renderEffects();
+
         if (this.engine.tileMap) this.engine.tileMap.drawFog(camera);
 
         // 6. 선택 도구
@@ -149,20 +138,49 @@ export class RenderSystem {
         this.stats.lastFrameTime = performance.now() - startTime;
     }
 
+    renderParticles() {
+        for (const p of this.particles) {
+            const alpha = p.life / p.maxLife;
+            this.ctx.globalAlpha = alpha;
+            
+            if (p.type === 'fire') {
+                // 화염: 밝은 노랑 -> 주황 -> 짙은 회색으로 변함
+                const r = 255;
+                const g = Math.floor(200 * alpha);
+                const b = Math.floor(100 * alpha * alpha);
+                this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                
+                this.ctx.beginPath();
+                // 화염은 팽창하다가 사라짐
+                const size = p.size * (1 + (1 - alpha) * 2);
+                this.ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else if (p.type === 'smoke') {
+                // 연기: 뭉게뭉게 피어오름
+                this.ctx.fillStyle = p.color || '#555';
+                this.ctx.beginPath();
+                const size = p.size * (1 + (1 - alpha) * 3);
+                this.ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else if (p.type === 'spark') {
+                // 파편/스파크
+                this.ctx.fillStyle = p.color;
+                this.ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+            }
+        }
+        this.ctx.globalAlpha = 1.0;
+    }
+
     renderEntities(entities) {
         if (!entities) return;
         for (const entity of entities) {
-            // 건설 중인 경우 반투명
             if (entity.isUnderConstruction) this.ctx.globalAlpha = 0.6;
 
             this.ctx.save();
-            this.ctx.translate(entity.x, entity.y); // 공통 위치 이동
+            this.ctx.translate(entity.x, entity.y);
             if (entity.angle) this.ctx.rotate(entity.angle);
 
-            // 1. 비트맵 캐시 우선 확인
             let img = this.entityCache[entity.type];
-            
-            // 2. 캐시가 없고 건설 중이 아니면 즉석 생성 (건설 완료된 첫 프레임에 캡처)
             if (!img && entity.draw && entity.type && !entity.isUnderConstruction) {
                 img = this.generateEntityBitmap(entity);
             }
@@ -171,20 +189,44 @@ export class RenderSystem {
                 const w = img.width, h = img.height;
                 this.ctx.drawImage(img, -w/2, -h/2, w, h);
             } else if (entity.draw) {
-                // 건설 중이거나 아직 캐시되지 않은 경우 직접 드로잉
                 entity.draw(this.ctx);
             }
 
             this.ctx.restore();
             this.ctx.globalAlpha = 1.0;
 
-            // 3. 동적 오버레이
             if (entity.isUnderConstruction) {
                 if (entity.drawConstruction) entity.drawConstruction(this.ctx);
             } else if (entity.hp !== undefined && entity.hp < entity.maxHp) {
                 this.drawMiniHealthBar(entity);
             }
         }
+    }
+
+    generateEntityBitmap(entity) {
+        const type = entity.type;
+        if (this.entityCache[type]) return this.entityCache[type];
+
+        const size = (entity.size || 60) * 2; 
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = size;
+        offCanvas.height = size;
+        const offCtx = offCanvas.getContext('2d');
+
+        offCtx.translate(size / 2, size / 2);
+        
+        const oldX = entity.x, oldY = entity.y, oldAngle = entity.angle;
+        entity.x = 0; entity.y = 0; entity.angle = 0;
+        
+        try {
+            entity.draw(offCtx);
+        } catch (e) {
+            console.warn(`Failed to cache entity ${type}:`, e);
+        }
+
+        entity.x = oldX; entity.y = oldY; entity.angle = oldAngle;
+        this.entityCache[type] = offCanvas;
+        return offCanvas;
     }
 
     drawMiniHealthBar(entity) {

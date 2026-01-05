@@ -84,17 +84,34 @@ export class BaseUnit extends Entity {
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
 
         // --- 탄약 체크 로직 ---
-        if (this.maxAmmo > 0) { // 탄약 시스템을 사용하는 유닛인 경우
+        if (this.maxAmmo > 0) {
             if (this.ammo < this.ammoConsumption) {
-                // 탄약 부족 알림
                 if (now - (this._lastAmmoMsgTime || 0) > 2000) {
                     this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
                     this._lastAmmoMsgTime = now;
                 }
                 return;
             }
-            // 탄약 소모 (설정된 소모량만큼 차감)
             this.ammo -= this.ammoConsumption;
+        }
+
+        // --- 총구 화염 (Muzzle Flash) 생성 ---
+        if (this.engine.addEffect) {
+            // 유닛 타입별 총구 오프셋 (단순화된 계산)
+            let barrelLen = this.size * 0.6;
+            if (this.type === 'tank') barrelLen = 60;
+            else if (this.type === 'artillery') barrelLen = 80;
+            else if (this.type === 'sniper') barrelLen = 40;
+
+            const mx = this.x + Math.cos(this.angle) * barrelLen;
+            const my = this.y + Math.sin(this.angle) * barrelLen;
+            
+            // 전차나 자주포는 대형 포구 화염 (전용 효과)
+            if (this.type === 'tank' || this.type === 'artillery' || this.type === 'missile-launcher') {
+                this.engine.addEffect('muzzle_large', mx, my, '#ff8c00');
+            } else {
+                this.engine.addEffect('muzzle', mx, my, '#fff');
+            }
         }
 
         if (this.attackType === 'hitscan') {
@@ -120,7 +137,6 @@ export class BaseUnit extends Entity {
                 if (!this.attackTargets.includes(ent.domain || 'ground')) return;
 
                 const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
-                // 자신 및 아군 오사 방지 (수동 타겟 제외)
                 if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
 
                 const dx = ent.x - tx;
@@ -140,15 +156,25 @@ export class BaseUnit extends Entity {
                 const list = entities[listName];
                 if (list) list.forEach(applyAoE);
             }
+            
+            // 피격 파티클 (폭발)
+            if (this.engine.addEffect) {
+                this.engine.addEffect('explosion', tx, ty, '#ff4500');
+            }
         } else {
-            // 단일 대상 공격 (보병, 대공포 등)
-            this.target.takeDamage(this.damage);
-        }
-
-        if (this.engine.addEffect) {
-            // 유닛 타입별 커스텀 효과 타입 전달 (기본값 hit)
-            const effect = this.hitEffectType || (this.explosionRadius > 0 ? 'explosion' : 'hit');
-            this.engine.addEffect(effect, tx, ty, this.color || '#fff');
+            // 단일 대상 공격 (보병 등)
+            if (this.target && typeof this.target.takeDamage === 'function') {
+                this.target.takeDamage(this.damage);
+                
+                // 피격 파티클 (스파크)
+                if (this.engine.addEffect) {
+                    this.engine.addEffect('hit', tx, ty, this.color || '#fff');
+                }
+            } else {
+                // 타겟이 부적절하면 타겟 해제
+                this.target = null;
+                this.manualTarget = null;
+            }
         }
     }
 

@@ -323,39 +323,40 @@ export class GameEngine {
         return 'enemy'; // 기본값은 적군
     }
 
-    // 시각 효과 추가 메서드
+    // 시각 효과 추가 메서드 (포구 화염 최적화 및 명중 효과 강화)
     addEffect(type, x, y, color = '#fff', text = '') {
-        const effect = {
-            type, x, y, color, text,
-            timer: 0,
-            duration: 500, // 기본 지속 시간 0.5초
-            active: true
-        };
+        if (!this.renderSystem) return;
 
-        // 타입별 세부 설정
-        if (type === 'bullet') {
-            effect.duration = 200;
-            effect.particles = Array.from({ length: 3 }, () => ({
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4,
-                size: 1 + Math.random() * 2
-            }));
-        } else if (type === 'explosion') {
-            effect.duration = 400;
-            effect.radius = 5;
-        } else if (type === 'flak') {
-            effect.duration = 300;
-            effect.radius = 15;
-            effect.particles = Array.from({ length: 5 }, () => ({
-                angle: Math.random() * Math.PI * 2,
-                dist: Math.random() * 10,
-                size: 2 + Math.random() * 3
-            }));
+        if (type === 'explosion') {
+            // 명중 시 대형 폭발 ( cinematic )
+            this.renderSystem.addParticle(x, y, 0, 0, 50, '#fff', 150, 'smoke'); 
+            for (let i = 0; i < 15; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1.0 + Math.random() * 4.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 10 + Math.random() * 12, '#ff4500', 700 + Math.random() * 500, 'fire');
+            }
+            for (let i = 0; i < 25; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 5 + Math.random() * 10;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 1 + Math.random() * 2, '#ffd700', 500, 'spark');
+            }
+        } else if (type === 'muzzle_large') {
+            // 전차/자주포용 포구 화염 (강하지만 짧게)
+            for (let i = 0; i < 5; i++) {
+                const angle = (Math.random() - 0.5) * 0.5; // 전방으로 집중
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * 2, Math.sin(angle) * 2, 15 + Math.random() * 10, '#ffd700', 100, 'fire');
+            }
+        } else if (type === 'muzzle') {
+            // 일반 보병용 총구 화염 (간결하게)
+            this.renderSystem.addParticle(x, y, 0, 0, 6 + Math.random() * 6, '#fff', 80, 'fire');
+        } else if (type === 'hit' || type === 'flak') {
+            // 일반 피격 스파크
+            for (let i = 0; i < 6; i++) {
+                this.renderSystem.addParticle(x, y, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, 1 + Math.random() * 2, color, 400, 'spark');
+            }
         } else if (type === 'system') {
-            effect.duration = 1500; // 시스템 텍스트는 좀 더 길게
+            this.effects.push({ type, x, y, color, text, timer: 0, duration: 1500, active: true });
         }
-
-        this.effects.push(effect);
     }
 
     // 엔티티의 소유권 유형을 특정 플레이어 관점에서 반환
@@ -1772,7 +1773,13 @@ export class GameEngine {
                 const foundIdx = this.entities[listName].indexOf(foundEntity);
                 if (foundIdx !== -1) {
                     const cost = buildInfo ? buildInfo.cost : 0;
-                    this.resources.gold += Math.floor(cost * 0.1);
+                    
+                    // [수정] 건설 중인 건물을 취소하면 100% 환불, 완공된 건물을 팔면 10% 환불
+                    const refundRate = foundEntity.isUnderConstruction ? 1.0 : 0.1;
+                    this.resources.gold += Math.floor(cost * refundRate);
+
+                    // 판매/취소 효과
+                    this.addEffect('system', foundEntity.x, foundEntity.y - 20, '#fff', foundEntity.isUnderConstruction ? '건설 취소' : '철거 완료');
 
                     // 판매 시에도 내부 유닛 방출 처리
                     if (foundEntity.onDestruction) foundEntity.onDestruction(this);
@@ -1783,14 +1790,12 @@ export class GameEngine {
                     // 리스트에서 제거
                     this.entities[listName].splice(foundIdx, 1);
 
-                    // [추가] EntityManager 및 SpatialGrid에서도 제거하여 렌더링 잔상 방지
+                    // EntityManager 및 SpatialGrid에서도 제거 (즉시 삭제 보장)
                     if (this.entityManager) {
-                        const allIdx = this.entityManager.allEntities.indexOf(foundEntity);
-                        if (allIdx !== -1) this.entityManager.allEntities.splice(allIdx, 1);
-                        this.entityManager.spatialGrid.remove(foundEntity);
+                        this.entityManager.remove(foundEntity);
                     }
 
-                    // 판매 후 인구수 즉시 갱신
+                    // 인구수 즉시 갱신
                     this.updatePopulation();
                 }
             }

@@ -14,6 +14,7 @@ export class Projectile extends Entity {
         this.explosionRadius = 0; // 0이면 단일 타겟, >0 이면 범위 공격
         this.exploding = false; // 폭발 연출 중인지 여부
         this.explosionTimer = 0;
+        this.trail = []; // 궤적 저장을 위한 배열
     }
 
     explode(engine) {
@@ -50,9 +51,17 @@ export class Projectile extends Entity {
                 }
             });
             this.exploding = true;
-            this.explosionTimer = 150; // 150ms 동안 폭발 연출
+            this.explosionTimer = 150; // 150ms 동안 연출
+
+            // 시네마틱 폭발 효과 발생 (명중 지점)
+            if (engine.addEffect) {
+                engine.addEffect('explosion', this.x, this.y);
+            }
         } else {
-            // 단일 타겟 처리 (이미 hit 체크에서 처리됨)
+            // 단일 타겟 처리
+            if (engine.addEffect) {
+                engine.addEffect('hit', this.x, this.y, this.color);
+            }
             this.active = false;
         }
     }
@@ -65,6 +74,11 @@ export class Projectile extends Entity {
         }
 
         if (!this.active) return;
+
+        // 궤적 업데이트 (속도감 향상)
+        this.trail.push({ x: this.x, y: this.y, alpha: 1.0 });
+        if (this.trail.length > 6) this.trail.shift();
+        this.trail.forEach(t => t.alpha -= 0.15);
 
         // 타겟 유효성 체크 (active와 alive 모두 고려)
         const isTargetDead = (this.target.active === false) || (this.target.alive === false) || (this.target.hp <= 0);
@@ -154,59 +168,54 @@ export class Projectile extends Entity {
             ctx.arc(this.x, this.y, this.explosionRadius, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(255, 165, 0, ${this.explosionTimer / 150})`;
             ctx.fill();
-            ctx.strokeStyle = `rgba(255, 69, 0, ${this.explosionTimer / 150})`;
-            ctx.stroke();
             ctx.restore();
             return;
         }
+
+        // 궤적(Trail) 렌더링
+        this.trail.forEach(t => {
+            ctx.save();
+            ctx.globalAlpha = t.alpha * 0.4;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, this.size / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
 
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
 
         if (this.type === 'shell') {
-            // 전차 포탄 외형
-            ctx.fillStyle = '#7f8c8d'; // 금속 회색
-            ctx.strokeStyle = '#2c3e50';
-            ctx.lineWidth = 1;
-
-            // 포탄 몸체 (길쭉한 타원/사각형 조합)
+            // 뾰족한 포탄 몸체
+            ctx.fillStyle = '#7f8c8d';
             ctx.beginPath();
-            ctx.moveTo(8, 0);
-            ctx.lineTo(-4, -3);
-            ctx.lineTo(-8, -3);
-            ctx.lineTo(-8, 3);
-            ctx.lineTo(-4, 3);
+            ctx.moveTo(10, 0);
+            ctx.lineTo(-2, -4);
+            ctx.lineTo(-8, -4);
+            ctx.lineTo(-8, 4);
+            ctx.lineTo(-2, 4);
             ctx.closePath();
             ctx.fill();
-            ctx.stroke();
 
-            // 추진체 불꽃/빛 (뒤쪽)
-            ctx.fillStyle = '#e67e22';
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = '#f39c12';
+            // 뒤쪽 추진 불꽃
+            ctx.fillStyle = '#ff8c00';
             ctx.beginPath();
-            ctx.arc(-8, 0, 3, 0, Math.PI * 2);
+            ctx.arc(-8, 0, 3 + Math.random() * 2, 0, Math.PI * 2);
             ctx.fill();
         } else if (this.type === 'tracer') {
-            // 예광탄 (길쭉한 빨간색 광원)
+            // 레이저 같은 예광탄
             ctx.fillStyle = this.color;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = this.color;
-
-            // 길쭉한 사각형 (탄환 진행 방향으로)
             ctx.beginPath();
-            ctx.roundRect(-8, -1.5, 12, 3, 1.5);
+            ctx.roundRect(-12, -1.5, 16, 3, 1.5);
             ctx.fill();
-
-            // 더 밝은 중심선
+            // 중심 하이라이트
             ctx.fillStyle = '#fff';
-            ctx.fillRect(-4, -0.5, 6, 1);
+            ctx.fillRect(-6, -0.5, 10, 1);
         } else {
-            // 일반 발사체 (빛나는 구체)
+            // 일반 탄환
             ctx.fillStyle = this.color;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = this.color;
             ctx.beginPath();
             ctx.arc(0, 0, this.size / 2, 0, Math.PI * 2);
             ctx.fill();

@@ -42,53 +42,20 @@ export class FallingBomb {
         potentialTargets.forEach(target => {
             if (!target || target.hp === undefined) return;
 
-            // 도메인 체크: 공격 가능한 대상 도메인인지 확인
             const targetDomain = target.domain || 'ground';
             if (!this.attackTargets.includes(targetDomain)) return;
 
             const dist = Math.hypot(this.x - target.x, this.y - target.y);
             const targetSize = target.size || 40;
             if (dist <= this.radius + targetSize / 2) {
-                target.hp -= this.damage;
-                if (target.hp <= 0 && target.active !== undefined) {
-                    target.active = false;
-                }
+                target.takeDamage(this.damage);
             }
         });
 
-        // 폭발 이펙트 추가
-        this.engine.entities.projectiles.push({
-            x: this.x,
-            y: this.y,
-            active: true,
-            arrived: false,
-            timer: 0,
-            duration: 600,
-            update(dt) {
-                this.timer += dt;
-                if (this.timer >= this.duration) this.active = false;
-            },
-            draw(ctx) {
-                const p = this.timer / this.duration;
-                ctx.save();
-                ctx.globalAlpha = 1 - p;
-
-                // 중심 화염
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 60 * p, 0, Math.PI * 2);
-                ctx.fillStyle = '#ff4500';
-                ctx.fill();
-
-                // 충격파
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 100 * p, 0, Math.PI * 2);
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                ctx.restore();
-            }
-        });
+        // 단일 대형 폭발 효과 발생
+        if (this.engine.addEffect) {
+            this.engine.addEffect('explosion', this.x, this.y);
+        }
     }
 
     draw(ctx) {
@@ -107,19 +74,22 @@ export class FallingBomb {
         ctx.translate(this.x, this.y);
         ctx.scale(this.scale, this.scale);
 
-        // 포탄 본체 (더 크게 묘사)
-        ctx.fillStyle = '#1a1a1a';
+        // 포탄 본체
+        ctx.fillStyle = '#2d3436';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 6, 12, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 8, 16, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#444';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        
+        // 금속 광택 하이라이트
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.ellipse(-3, -4, 2, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
 
-        // 꼬리 날개
+        // 꼬리 날개 (X자 형태 표현)
         ctx.fillStyle = '#c0392b';
-        ctx.fillRect(-6, -12, 12, 3);
-        ctx.fillRect(-2, -15, 4, 6);
+        ctx.fillRect(-8, -14, 16, 2); // 가로 핀
+        ctx.fillRect(-2, -18, 4, 10); // 세로 핀
 
         ctx.restore();
     }

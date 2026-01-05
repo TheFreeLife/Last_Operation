@@ -182,11 +182,14 @@ export class CombatEngineer extends PlayerUnit {
     }
 
     clearBuildQueue() {
-        // 1. 현재 짓고 있는 실체화된 건물 취소
+        // 1. 현재 짓고 있는 실체화된 건물 취소 및 제거
         if (this.buildingTarget && this.buildingTarget.isUnderConstruction) {
             const buildInfo = this.engine.buildingRegistry[this.buildingTarget.type];
             if (buildInfo) {
+                // 자원 환불 (남은 진행도에 상관없이 전액 환불 또는 비례 환불 가능 - 여기선 전액)
                 this.engine.resources.gold += buildInfo.cost;
+                
+                // 타일 점유 해제
                 this.engine.clearBuildingTiles(this.buildingTarget);
 
                 // 엔티티 목록에서 제거
@@ -194,6 +197,11 @@ export class CombatEngineer extends PlayerUnit {
                 if (list) {
                     const idx = list.indexOf(this.buildingTarget);
                     if (idx !== -1) list.splice(idx, 1);
+                }
+
+                // [중요] EntityManager 및 공간 그리드에서 제거 (렌더링 잔상 방지)
+                if (this.engine.entityManager) {
+                    this.engine.entityManager.remove(this.buildingTarget);
                 }
             }
             this.buildingTarget = null;
