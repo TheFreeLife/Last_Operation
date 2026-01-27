@@ -8,8 +8,6 @@ export class Entity {
         this.size = 40;   // Default for circles
         this.domain = 'ground'; // 'ground', 'air', 'sea' (기본값 지상)
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상 (기본값 지상/해상)
-        this.popCost = 0; // 인구수 비용 (유닛용)
-        this.popProvide = 0; // 인구수 제공 (건물용)
         this.passable = false; // 통과 가능 여부 (기본값: 불가능)
         this.isBoarded = false; // 수송기 탑승 여부
 

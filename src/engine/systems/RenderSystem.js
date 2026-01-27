@@ -190,7 +190,11 @@ export class RenderSystem {
             this.ctx.restore();
 
             if (entity.hp !== undefined && entity.hp < entity.maxHp) {
-                this.drawMiniHealthBar(entity);
+                // 선택되지 않은 유닛만 미니 체력바 표시 (중복 방지)
+                const isSelected = this.engine.selectedEntities.includes(entity);
+                if (!isSelected) {
+                    this.drawMiniHealthBar(entity);
+                }
             }
         }
     }

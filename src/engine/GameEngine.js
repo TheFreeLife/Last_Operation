@@ -1109,39 +1109,47 @@ export class GameEngine {
         mCtx.restore();
     }
 
+    _revealArea(worldX, worldY, radius) {
+        const grid = this.tileMap.worldToGrid(worldX, worldY);
+        const radiusSq = radius * radius;
+        
+        for (let dy = -radius; dy <= radius; dy++) {
+            const ny = grid.y + dy;
+            if (ny < 0 || ny >= this.tileMap.rows) continue;
+            
+            for (let dx = -radius; dx <= radius; dx++) {
+                const nx = grid.x + dx;
+                if (nx < 0 || nx >= this.tileMap.cols) continue;
+                
+                if (dx * dx + dy * dy <= radiusSq) {
+                    this.tileMap.grid[ny][nx].visible = true;
+                    this.tileMap.grid[ny][nx].inSight = true;
+                }
+            }
+        }
+    }
+
     updateVisibility() {
         if (!this.tileMap) return;
         if (this.debugSystem && this.debugSystem.isFullVision) return;
 
-        for (let y = 0; y < this.tileMap.rows; y++) {
-            for (let x = 0; x < this.tileMap.cols; x++) {
-                this.tileMap.grid[y][x].inSight = false;
+        const grid = this.tileMap.grid;
+        const rows = this.tileMap.rows;
+        const cols = this.tileMap.cols;
+
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                grid[y][x].inSight = false;
             }
         }
 
-        const reveal = (worldX, worldY, radius) => {
-            const grid = this.tileMap.worldToGrid(worldX, worldY);
-            for (let dy = -radius; dy <= radius; dy++) {
-                for (let dx = -radius; dx <= radius; dx++) {
-                    const nx = grid.x + dx;
-                    const ny = grid.y + dy;
-                    if (nx >= 0 && nx < this.tileMap.cols && ny >= 0 && ny < this.tileMap.rows) {
-                        if (dx * dx + dy * dy <= radius * radius) {
-                            this.tileMap.grid[ny][nx].visible = true;
-                            this.tileMap.grid[ny][nx].inSight = true;
-                        }
-                    }
-                }
-            }
-        };
-
         this.entities.units.forEach(unit => {
             if (unit.alive) {
-                reveal(unit.x, unit.y, unit.visionRange || 5);
+                this._revealArea(unit.x, unit.y, unit.visionRange || 5);
             }
         });
 
-        if (this.tileMap && this.tileMap.updateFogCanvas) {
+        if (this.tileMap.updateFogCanvas) {
             this.tileMap.updateFogCanvas();
         }
         this.updateMinimapCache();
@@ -1242,6 +1250,7 @@ export class GameEngine {
     renderOverlays() {
         const mouseWorldX = (this.camera.mouseX - this.camera.x) / this.camera.zoom;
         const mouseWorldY = (this.camera.mouseY - this.camera.y) / this.camera.zoom;
+        
         if (this.selectedEntities.length > 0) {
             this.ctx.save();
             const showPathLimit = 15;
@@ -1293,17 +1302,19 @@ export class GameEngine {
                 this.ctx.stroke();
             }
             this.ctx.restore();
-            const targetsToHighlight = new Set();
+
+            // 타겟 하이라이트 (재사용 Set 활용 권장되나 현재는 지역 변수로 유지하되 로직 간소화)
+            const targetsToHighlight = [];
             this.selectedEntities.forEach(selUnit => {
                 const mTarget = selUnit.manualTarget;
-                if (mTarget && (mTarget.active !== false) && (mTarget.alive !== false) && (mTarget.hp > 0)) {
-                    targetsToHighlight.add(mTarget);
+                if (mTarget && mTarget.active && mTarget.hp > 0) {
+                    if (!targetsToHighlight.includes(mTarget)) targetsToHighlight.push(mTarget);
                 }
                 if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
                     const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent =>
-                        (ent.active !== false && ent.alive !== false) && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
+                        ent.active && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
                     );
-                    if (fireTarget) targetsToHighlight.add(fireTarget);
+                    if (fireTarget && !targetsToHighlight.includes(fireTarget)) targetsToHighlight.push(fireTarget);
                 }
             });
             if (this.unitCommandMode === 'manual_fire') {

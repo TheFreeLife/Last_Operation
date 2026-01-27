@@ -204,11 +204,7 @@ export class EntityManager {
         this.allEntities = [];
 
         for (const key in this.entities) {
-            if (Array.isArray(this.entities[key])) {
-                this.entities[key] = [];
-            } else {
-                this.entities[key] = null;
-            }
+            this.entities[key] = [];
         }
     }
 

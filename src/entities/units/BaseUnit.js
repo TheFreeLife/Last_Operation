@@ -27,9 +27,8 @@ export class BaseUnit extends Entity {
         this.patrolEnd = null;
         this.domain = 'ground'; // 'ground', 'air', 'sea'
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
-        this.canBypassObstacles = false; // 장애물(건물 등) 통과 가능 여부
-        this.isInitialExit = false; // 생산 후 건물 밖으로 나가는 중인지 여부
-        this.popCost = 0; // 초기화 로직 보강 시 필요
+        this.canBypassObstacles = false; // 장애물 통과 가능 여부
+        this.popCost = 0; // 인구수 비용
 
         // --- 탄약 시스템 속성 ---
         this.ammoType = null; // 'bullet', 'shell', 'missile'
@@ -208,7 +207,7 @@ export class BaseUnit extends Entity {
         }
 
         // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
-        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit && !this.isBoarded) {
+        if (this.domain === 'ground' && !this.isFalling && !this.isBoarded) {
             // 자원 및 건물 끼임 방지 로직 제거됨
         }
 
