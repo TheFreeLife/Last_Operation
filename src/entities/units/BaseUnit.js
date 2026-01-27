@@ -186,6 +186,13 @@ export class BaseUnit extends Entity {
         this.engine.entities.projectiles.push(p);
     }
 
+    // [최적화] 상태 기반 비트맵 캐시 키 반환
+    getCacheKey() {
+        // 변신 중이거나 특수 상태일 때는 실시간 렌더링을 위해 null 반환 가능
+        if (this.isTransitioning) return null;
+        return this.type;
+    }
+
     update(deltaTime) {
         if (!this.alive || this.isBoarded) return;
         if (this.targetingTimer > 0) this.targetingTimer -= deltaTime;

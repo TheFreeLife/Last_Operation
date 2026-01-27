@@ -172,38 +172,51 @@ export class RenderSystem {
             this.ctx.translate(entity.x, entity.y);
             if (entity.angle) this.ctx.rotate(entity.angle);
 
-            let img = this.entityCache[entity.type];
-            // 탄약 상자(ammo-) 계열은 동적 이펙트(빔)가 있으므로 캐싱 제외
-            const isDynamic = entity.type?.startsWith('ammo-');
-            
-            if (!img && entity.draw && entity.type && !isDynamic) {
-                img = this.generateEntityBitmap(entity);
+            // 1. 캐시 키 확인 (인터페이스 우선)
+            let cacheKey = null;
+            if (entity.getCacheKey) {
+                cacheKey = entity.getCacheKey();
+            } else {
+                // 발사체 등 인터페이스가 없는 경우 기본 타입 캐싱 (null이면 실시간)
+                cacheKey = (['missile', 'projectile'].includes(entity.type)) ? null : entity.type;
             }
 
-            if (img) {
-                const w = img.width, h = img.height;
-                this.ctx.drawImage(img, -w/2, -h/2, w, h);
+            let img = cacheKey ? this.entityCache[cacheKey] : null;
+            
+            // 2. 비트맵 렌더링 혹은 실시간 벡터 렌더링
+            if (cacheKey) {
+                if (!img && entity.draw) {
+                    img = this.generateEntityBitmap(entity, cacheKey);
+                }
+                if (img) {
+                    const w = img.width, h = img.height;
+                    this.ctx.drawImage(img, -w/2, -h/2, w, h);
+                } else if (entity.draw) {
+                    entity.draw(this.ctx);
+                }
             } else if (entity.draw) {
+                // cacheKey가 null인 경우 (애니메이션 진행 중 등) 실시간 렌더링
                 entity.draw(this.ctx);
             }
 
             this.ctx.restore();
 
+            // 3. 부가 정보 (체력바 등)
             if (entity.hp !== undefined && entity.hp < entity.maxHp) {
-                // 선택되지 않은 유닛만 미니 체력바 표시 (중복 방지)
                 const isSelected = this.engine.selectedEntities.includes(entity);
-                if (!isSelected) {
-                    this.drawMiniHealthBar(entity);
-                }
+                if (!isSelected) this.drawMiniHealthBar(entity);
             }
         }
     }
 
-    generateEntityBitmap(entity) {
-        const type = entity.type;
-        if (this.entityCache[type]) return this.entityCache[type];
+    generateEntityBitmap(entity, customKey) {
+        const key = customKey || entity.type;
+        if (this.entityCache[key]) return this.entityCache[key];
 
-        const size = (entity.size || 60) * 2; 
+        // 상태값 임시 저장 (캐시용 이미지를 위해 각도를 0으로 설정)
+        const oldX = entity.x, oldY = entity.y, oldAngle = entity.angle;
+        
+        const size = (entity.size || 60) * 2.5; 
         const offCanvas = document.createElement('canvas');
         offCanvas.width = size;
         offCanvas.height = size;
@@ -211,17 +224,16 @@ export class RenderSystem {
 
         offCtx.translate(size / 2, size / 2);
         
-        const oldX = entity.x, oldY = entity.y, oldAngle = entity.angle;
         entity.x = 0; entity.y = 0; entity.angle = 0;
         
         try {
             entity.draw(offCtx);
         } catch (e) {
-            console.warn(`Failed to cache entity ${type}:`, e);
+            console.warn(`Failed to cache entity ${key}:`, e);
         }
 
         entity.x = oldX; entity.y = oldY; entity.angle = oldAngle;
-        this.entityCache[type] = offCanvas;
+        this.entityCache[key] = offCanvas;
         return offCanvas;
     }
 

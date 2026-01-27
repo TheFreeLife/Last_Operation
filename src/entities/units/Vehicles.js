@@ -114,6 +114,13 @@ export class MissileLauncher extends PlayerUnit {
         return skills[cmd];
     }
 
+    getCacheKey() {
+        // 변신 중에는 키를 null로 반환하여 실시간 렌더링 유도
+        if (this.isTransitioning) return null;
+        // 시즈 여부에 따라 다른 이미지 키 반환
+        return `${this.type}-${this.isSieged ? 'sieged' : 'idle'}`;
+    }
+
     toggleSiege() {
         if (this.isTransitioning || this.isFiring) return;
         this.isTransitioning = true;
@@ -218,20 +225,78 @@ export class MissileLauncher extends PlayerUnit {
         ctx.save();
         ctx.scale(2, 2);
 
-        // 차체 베이스
+        // --- 1. 아웃리거 (변환 시에만 하단에서 추출됨) ---
+        if (this.raiseAngle > 0) {
+            const outDist = this.raiseAngle * 8;
+            ctx.fillStyle = '#2d3436';
+            const outriggers = [
+                { x: -15, y: -9, dx: -1, dy: -1 }, 
+                { x: 15, y: -9, dx: 1, dy: -1 },  
+                { x: -15, y: 9, dx: -1, dy: 1 },  
+                { x: 15, y: 9, dx: 1, dy: 1 }    
+            ];
+            outriggers.forEach(o => {
+                ctx.save();
+                ctx.translate(o.x + o.dx * outDist, o.y + o.dy * outDist);
+                ctx.fillRect(-2, -2, 4, 4);
+                // 연결부 (실린더)
+                ctx.strokeStyle = '#7f8c8d';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-o.dx * outDist, -o.dy * outDist);
+                ctx.lineTo(0, 0);
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+
+        // --- 2. 기본 차체 (원본 유지) ---
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-22, -10, 44, 20);
 
-        // 운전석
+        // --- 3. 운전석 (원본 유지) ---
         ctx.fillStyle = '#34495e';
         ctx.fillRect(12, -10, 10, 20);
 
-        // 발사관 (캐니스터)
+        // --- 4. 발사관 (기립 애니메이션 적용) ---
         ctx.save();
+        // 원본 위치인 -15에서 시작
         ctx.translate(-15, 0);
+        
+        // 기립 시 시각적 길이 축소 연출 (길이 32 -> 20)
+        const canisterLen = 32 - (this.raiseAngle * 12);
+        const canisterWidth = 14 + (this.raiseAngle * 2);
+
+        // 유압 실린더 (들릴 때만 보임)
+        if (this.raiseAngle > 0.1) {
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fillRect(5, -2, 8 * this.raiseAngle, 4);
+        }
+
+        // 메인 캐니스터 (색상 유지)
         ctx.fillStyle = '#4b5320';
-        ctx.fillRect(0, -7, 32, 14);
+        ctx.fillRect(0, -7, canisterLen, 14);
+        
+        // 발사구 디테일 (기립 완료 시 상단 노출)
+        if (this.raiseAngle > 0.8) {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.arc(canisterLen/2, 0, 5, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(canisterLen - 2, -5, 2, 10);
+        }
         ctx.restore();
+
+        // --- 5. 상태등 (시즈 완료 시에만) ---
+        if (this.isSieged && !this.isTransitioning) {
+            const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
+            ctx.beginPath();
+            ctx.arc(-18, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.restore();
     }

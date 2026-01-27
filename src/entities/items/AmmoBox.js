@@ -23,6 +23,12 @@ export class AmmoBox extends PlayerUnit {
 
     attack() { /* 탄약 상자는 공격하지 않음 */ }
 
+    getCacheKey() {
+        // 충전 중일 때는 에너지 빔 애니메이션을 위해 실시간 렌더링
+        if (this.chargingUnits && this.chargingUnits.length > 0) return null;
+        return this.type;
+    }
+
     update(deltaTime) {
         super.update(deltaTime);
         if (!this.active || this.hp <= 0) return;
@@ -183,25 +189,5 @@ export class AmmoBox extends PlayerUnit {
             });
             ctx.restore();
         }
-
-        // 4. 탄약 바 (상자 잔량)
-        ctx.save();
-        if (this.angle) ctx.rotate(-this.angle); // 바데는 회전시키지 않음
-        
-        const barW = 30;
-        const barY = -25;
-
-        // 배경
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(-barW / 2, barY, barW, 4);
-        
-        const amountRatio = this.amount / this.maxAmount;
-        ctx.fillStyle = amountRatio > 0.5 ? '#2ecc71' : (amountRatio > 0.2 ? '#f1c40f' : '#e74c3c');
-        ctx.fillRect(-barW / 2, barY, barW * amountRatio, 4);
-        
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-barW / 2, barY, barW, 4);
-        ctx.restore();
     }
 }

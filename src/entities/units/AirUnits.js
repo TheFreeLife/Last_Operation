@@ -95,6 +95,14 @@ export class Bomber extends PlayerUnit {
         return skills[cmd];
     }
 
+    getCacheKey() {
+        // 이착륙 조작 중이거나 폭격 중일 때는 실시간 렌더링
+        if (this.isTakeoffStarting || this.isManualLanding || this.isBombingActive) return null;
+        // 고도에 따라 다른 캐시 이미지 사용 (지상 vs 공중)
+        const state = (this.altitude > 0.8) ? 'air' : 'ground';
+        return `${this.type}-${state}`;
+    }
+
     toggleBombing() {
         this.isBombingActive = !this.isBombingActive;
     }
@@ -337,6 +345,15 @@ export class CargoPlane extends PlayerUnit {
             'combat_drop': { type: 'instant', handler: this.startCombatDrop }
         };
         return skills[cmd];
+    }
+
+    getCacheKey() {
+        // 애니메이션이 필요한 상황들
+        if (this.isTakeoffStarting || this.isManualLanding || 
+            this.isUnloading || this.isCombatDropping) return null;
+        
+        const state = (this.altitude > 0.8) ? 'air' : 'ground';
+        return `${this.type}-${state}`;
     }
 
     // 유닛 탑승 처리
