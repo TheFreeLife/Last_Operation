@@ -27,6 +27,10 @@ export class Missile extends Entity {
         this.arrived = false;
         this.progress = 0; 
         
+        // 물리 충돌 제거
+        this.passable = true;
+        this.size = 0; 
+        
         this.trail = [];
         this.explosionRadius = 160;
         this.lifeTime = 0;
