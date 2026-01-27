@@ -222,23 +222,11 @@ export class Pathfinding {
         if (!this.isValid(x, y)) return true;
         const tile = this.engine.tileMap.grid[y][x];
         
-        // 1. 타일 데이터 기반 체크 (자원 및 건물 점유 타일)
+        // 1. 타일 데이터 기반 체크 (자원 점유 타일)
         if (tile.occupied) return true;
-        if (!tile.buildable && tile.type !== 'base') return true;
+        if (!tile.buildable) return true;
 
-        // 2. 실시간 엔티티 기반 정밀 체크
-        const worldPos = this.engine.tileMap.gridToWorld(x, y);
-        const allBuildings = this.engine.getAllBuildings();
-        
-        const blockingEntity = allBuildings.find(ent => {
-            if (!ent || !ent.active || ent.passable) return false;
-            const bounds = ent.getSelectionBounds();
-            const margin = 1;
-            return worldPos.x >= bounds.left + margin && worldPos.x <= bounds.right - margin &&
-                   worldPos.y >= bounds.top + margin && worldPos.y <= bounds.bottom - margin;
-        });
-
-        return !!blockingEntity;
+        return false;
     }
 
     findNearestWalkable(tx, ty, unitTileSize = 1) {

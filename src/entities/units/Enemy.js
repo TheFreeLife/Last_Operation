@@ -18,7 +18,7 @@ export class Enemy extends Entity {
         this.pathTimer = Math.random() * 2000; // 초기 경로 계산 분산
     }
 
-    update(deltaTime, base, buildings, engine) {
+    update(deltaTime, engine) {
         if (!engine) return;
         if (this.hitTimer > 0) this.hitTimer -= deltaTime;
         const now = Date.now();
@@ -27,9 +27,7 @@ export class Enemy extends Entity {
         if (!this.currentTarget || !this.currentTarget.active || this.currentTarget.hp <= 0) {
             // 가장 가까운 적(Player 1 등) 찾기
             const potentialTargets = [
-                engine.entities.base,
-                ...engine.entities.units,
-                ...engine.getAllBuildings()
+                ...engine.entities.units
             ];
 
             let minDist = Infinity;
@@ -77,7 +75,7 @@ export class Enemy extends Entity {
         const angleToTarget = Math.atan2(moveTarget.y - this.y, moveTarget.x - this.x);
         this.angle = angleToTarget; // 방향 업데이트
 
-        // --- 슬라이딩 충돌 이동 적용 (Enemy도 동일하게) ---
+        // --- 슬라이딩 충돌 이동 적용 ---
         const dist = this.speed;
         const nextX = this.x + Math.cos(this.angle) * dist;
         const nextY = this.y + Math.sin(this.angle) * dist;
@@ -85,22 +83,15 @@ export class Enemy extends Entity {
         let canMoveX = true;
         let canMoveY = true;
 
-        const obstacles = [...engine.getAllBuildings(), ...engine.entities.resources.filter(r => !r.covered)];
-        const unitRadius = this.collisionRadius;
+        const obstacles = [...engine.entities.resources.filter(r => !r.covered)];
+        const unitRadius = this.collisionRadius || (this.size / 2);
 
         for (const b of obstacles) {
             if (b === this || b.passable) continue;
 
-            if (b.isResource) {
-                const minCollisionDist = unitRadius + (b.size * 0.5);
-                if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
-                if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
-            } else {
-                const bounds = b.getSelectionBounds();
-                const margin = unitRadius;
-                if (nextX + margin > bounds.left && nextX - margin < bounds.right && (this.y + margin > bounds.top && this.y - margin < bounds.bottom)) canMoveX = false;
-                if (this.x + margin > bounds.left && this.x - margin < bounds.right && (nextY + margin > bounds.top && nextY - margin < bounds.bottom)) canMoveY = false;
-            }
+            const minCollisionDist = unitRadius + (b.size * 0.5);
+            if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
+            if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
         }
 
         if (canMoveX) this.x = nextX;
@@ -122,25 +113,6 @@ export class Enemy extends Entity {
         }
         this.x += pushX;
         this.y += pushY;
-
-        // 이동 방해 체크 (자체 소속 제외한 건물/유닛 등)
-        let blockedBy = null;
-        for (const obs of buildings) {
-            if ([].includes(obs.type)) continue;
-            if (obs === this) continue;
-            const dNext = Math.hypot(nextX - obs.x, nextY - obs.y);
-            const minDist = (this.size / 2) + (obs.size / 2) + 2;
-            if (dNext < minDist) {
-                blockedBy = obs;
-                break;
-            }
-        }
-
-        if (!blockedBy) {
-            // 위에서 이미 update 했으므로 중복 적용 안 함 (canMoveX, canMoveY로 직접 수정함)
-            // this.x = nextX; // (X)
-            // this.y = nextY; // (X)
-        }
 
         // 공격 로직
         if (this.currentTarget && (this.currentTarget.active !== false) && this.currentTarget.hp > 0) {

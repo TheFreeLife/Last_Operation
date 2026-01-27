@@ -34,30 +34,18 @@ import { Entity } from './BaseEntity.js';
  */
 
 // Base는 원본 그대로 유지 (복잡한 render 로직 포함)
-export { Base } from './buildings/Base.js';
+// export { Base } from './buildings/Base.js'; // 건물 제거됨
 
 // 나머지 클래스들은 기존 Entities.js에서 그대로 가져옵니다
 // 이 파일은 과도기적 구조로, 점진적으로 마이그레이션합니다
 
 // 임시: 기존 클래스 이름 placeholder (실제 구현 필요)
-class Wall extends Entity { constructor(x, y) { super(x, y); this.type = 'wall'; } }
-class Airport extends Entity { constructor(x, y) { super(x, y); this.type = 'airport'; } }
-class Refinery extends Entity { constructor(x, y) { super(x, y); this.type = 'refinery'; } }
-class GoldMine extends Entity { constructor(x, y) { super(x, y); this.type = 'gold-mine'; } }
-class IronMine extends Entity { constructor(x, y) { super(x, y); this.type = 'iron-mine'; } }
-class Storage extends Entity { constructor(x, y) { super(x, y); this.type = 'storage'; } }
-class AmmoFactory extends Entity { constructor(x, y) { super(x, y); this.type = 'ammo-factory'; } }
-class Armory extends Entity { constructor(x, y) { super(x, y); this.type = 'armory'; } }
-class Barracks extends Entity { constructor(x, y) { super(x, y); this.type = 'barracks'; } }
-class Apartment extends Entity { constructor(x, y) { super(x, y); this.type = 'apartment'; } }
-
 class Tank extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'tank'; this.engine = engine; } }
 class Artillery extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'artillery'; this.engine = engine; } }
 class AntiAirVehicle extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'anti-air'; this.engine = engine; } }
 class MissileLauncher extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'missile-launcher'; this.engine = engine; } }
 class Rifleman extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'rifleman'; this.engine = engine; } }
 class Sniper extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'sniper'; this.engine = engine; } }
-class CombatEngineer extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'engineer'; this.engine = engine; } }
 
 class CargoPlane extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'cargo-plane'; this.engine = engine; } }
 class ScoutPlane extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'scout-plane'; this.engine = engine; } }
@@ -67,8 +55,7 @@ class MilitaryTruck extends Entity { constructor(x, y, engine) { super(x, y); th
 class AmmoBox extends Entity { constructor(x, y, engine) { super(x, y); this.type = 'ammo-box'; this.engine = engine; } }
 
 export {
-    Wall, Airport, Refinery, GoldMine, IronMine, Storage, AmmoFactory, Armory, Barracks, Apartment,
-    Tank, Artillery, AntiAirVehicle, MissileLauncher, Rifleman, Sniper, CombatEngineer,
+    Tank, Artillery, AntiAirVehicle, MissileLauncher, Rifleman, Sniper,
     CargoPlane, ScoutPlane, Bomber, MilitaryTruck, AmmoBox
 };
 

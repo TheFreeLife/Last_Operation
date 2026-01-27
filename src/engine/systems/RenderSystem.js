@@ -14,11 +14,10 @@ export class RenderSystem {
         this.layers = {
             TERRAIN: 0,
             RESOURCES: 1,
-            BUILDINGS: 2,
-            UNITS: 3,
-            PROJECTILES: 4,
-            EFFECTS: 5,
-            UI: 6
+            UNITS: 2,
+            PROJECTILES: 3,
+            EFFECTS: 4,
+            UI: 5
         };
 
         // 비트맵 캐싱 저장소
@@ -35,7 +34,6 @@ export class RenderSystem {
         // 메모리 재사용용 버킷
         this.layerBuckets = {
             [this.layers.RESOURCES]: [],
-            [this.layers.BUILDINGS]: [],
             [this.layers.UNITS]: [],
             [this.layers.PROJECTILES]: []
         };
@@ -119,7 +117,6 @@ export class RenderSystem {
         this.sortEntitiesByLayer(visibleEntities);
 
         this.renderEntities(this.layerBuckets[this.layers.RESOURCES]);
-        this.renderEntities(this.layerBuckets[this.layers.BUILDINGS]);
         this.renderEntities(this.layerBuckets[this.layers.UNITS]);
         this.renderEntities(this.layerBuckets[this.layers.PROJECTILES]);
         
@@ -174,14 +171,12 @@ export class RenderSystem {
     renderEntities(entities) {
         if (!entities) return;
         for (const entity of entities) {
-            if (entity.isUnderConstruction) this.ctx.globalAlpha = 0.6;
-
             this.ctx.save();
             this.ctx.translate(entity.x, entity.y);
             if (entity.angle) this.ctx.rotate(entity.angle);
 
             let img = this.entityCache[entity.type];
-            if (!img && entity.draw && entity.type && !entity.isUnderConstruction) {
+            if (!img && entity.draw && entity.type) {
                 img = this.generateEntityBitmap(entity);
             }
 
@@ -193,11 +188,8 @@ export class RenderSystem {
             }
 
             this.ctx.restore();
-            this.ctx.globalAlpha = 1.0;
 
-            if (entity.isUnderConstruction) {
-                if (entity.drawConstruction) entity.drawConstruction(this.ctx);
-            } else if (entity.hp !== undefined && entity.hp < entity.maxHp) {
+            if (entity.hp !== undefined && entity.hp < entity.maxHp) {
                 this.drawMiniHealthBar(entity);
             }
         }
@@ -260,7 +252,6 @@ export class RenderSystem {
 
     sortEntitiesByLayer(entities) {
         this.layerBuckets[this.layers.RESOURCES].length = 0;
-        this.layerBuckets[this.layers.BUILDINGS].length = 0;
         this.layerBuckets[this.layers.UNITS].length = 0;
         this.layerBuckets[this.layers.PROJECTILES].length = 0;
 
@@ -272,8 +263,6 @@ export class RenderSystem {
                 this.layerBuckets[this.layers.PROJECTILES].push(ent);
             } else if (ent.type === 'resource' || ent.isResource) {
                 this.layerBuckets[this.layers.RESOURCES].push(ent);
-            } else if (ent.speed === undefined || ent.type === 'wall') {
-                this.layerBuckets[this.layers.BUILDINGS].push(ent);
             } else {
                 this.layerBuckets[this.layers.UNITS].push(ent);
             }

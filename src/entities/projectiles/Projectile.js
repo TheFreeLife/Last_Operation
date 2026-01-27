@@ -21,11 +21,9 @@ export class Projectile extends Entity {
         if (this.explosionRadius > 0) {
             // 모든 잠재적 타겟 수집
             const targets = [
-                engine.entities.base,
                 ...engine.entities.enemies,
                 ...engine.entities.units,
-                ...engine.entities.neutral,
-                ...engine.getAllBuildings()
+                ...engine.entities.neutral
             ];
 
             // 공격 주체의 공격 가능 대상 목록 가져오기

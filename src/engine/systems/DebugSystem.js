@@ -29,7 +29,6 @@ export class DebugSystem {
             'db-spawn-missile': { type: 'missile-launcher' },
             'db-spawn-rifleman': { type: 'rifleman' },
             'db-spawn-sniper': { type: 'sniper' },
-            'db-spawn-engineer': { type: 'engineer' },
             'db-spawn-truck': { type: 'military-truck' },
             'db-spawn-bomber': { type: 'bomber' },
             'db-spawn-cargo-plane': { type: 'cargo-plane' },
@@ -136,17 +135,12 @@ export class DebugSystem {
 
     healAll() {
         const units = this.engine.entities.units || [];
-        const buildings = this.engine.getAllBuildings?.() || [];
         
-        [...units, ...buildings].forEach(ent => {
+        units.forEach(ent => {
             if (ent.ownerId === 1) {
                 ent.hp = ent.maxHp;
             }
         });
-        
-        if (this.engine.entities.base) {
-            this.engine.entities.base.hp = this.engine.entities.base.maxHp;
-        }
 
         this.engine.addEffect?.('system', this.engine.canvas.width / 2, 200, '#2ecc71', '아군 전원 회복 완료');
     }
@@ -200,8 +194,7 @@ export class DebugSystem {
         const targets = [
             ...this.engine.entities.units,
             ...this.engine.entities.enemies,
-            ...this.engine.entities.neutral,
-            ...this.engine.getAllBuildings()
+            ...this.engine.entities.neutral
         ];
 
         const found = targets.find(ent => {
@@ -212,15 +205,10 @@ export class DebugSystem {
             return worldX >= b.left && worldX <= b.right && worldY >= b.top && worldY <= b.bottom;
         });
 
-        if (found && found.type !== 'base') { // 사령부는 보호
+        if (found) {
             found.hp = 0;
             found.active = false;
             if (found.alive !== undefined) found.alive = false;
-            
-            // 건물인 경우 타일 해제 필요
-            if (this.engine.buildingRegistry[found.type]) {
-                this.engine.clearBuildingTiles?.(found);
-            }
 
             this.engine.addEffect?.('system', worldX, worldY, '#ff3131', '삭제됨');
         }

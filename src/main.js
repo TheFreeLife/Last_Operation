@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     engine.start();
 
     // 초기 상태 업데이트
-    document.getElementById('base-hp').textContent = '1000';
     document.getElementById('resource-gold').textContent = '100';
 
     // 개발 도구용: EntityManager 통계 출력

@@ -35,8 +35,7 @@ export class FallingBomb {
         const potentialTargets = [
             ...this.engine.entities.enemies,
             ...this.engine.entities.neutral,
-            ...this.engine.entities.units,
-            ...this.engine.getAllBuildings()
+            ...this.engine.entities.units
         ];
 
         potentialTargets.forEach(target => {

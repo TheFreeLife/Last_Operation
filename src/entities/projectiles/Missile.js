@@ -68,8 +68,7 @@ export class Missile extends Entity {
         const targets = [
             ...this.engine.entities.enemies,
             ...this.engine.entities.neutral,
-            ...this.engine.entities.units,
-            ...this.engine.getAllBuildings()
+            ...this.engine.entities.units
         ];
 
         targets.forEach(target => {

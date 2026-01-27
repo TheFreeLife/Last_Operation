@@ -52,21 +52,6 @@ export class TileMap {
                 };
             }
         }
-
-        // 중앙 총사령부 (9x6) 설정
-        for (let dy = -3; dy <= 2; dy++) {
-            for (let dx = -4; dx <= 4; dx++) {
-                const nx = this.centerX + dx;
-                const ny = this.centerY + dy;
-                if (ny >= 0 && ny < this.rows && nx >= 0 && nx < this.cols) {
-                    this.grid[ny][nx].type = 'base';
-                    this.grid[ny][nx].occupied = true;
-                    this.grid[ny][nx].buildable = false;
-                    this.grid[ny][nx].visible = true;
-                    this.grid[ny][nx].inSight = true;
-                }
-            }
-        }
     }
 
     generateTerrain() {
@@ -138,11 +123,6 @@ export class TileMap {
                         const tile = this.grid[worldY][worldX];
                         ctx.fillStyle = tile.cachedColor;
                         ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
-
-                        if (tile.type === 'base') {
-                            ctx.fillStyle = '#7f8c8d';
-                            ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
-                        }
                     }
                 }
 

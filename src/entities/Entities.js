@@ -7,12 +7,6 @@ export * from './units/AirUnits.js';
 export * from './units/Logistics.js';
 export * from './units/Enemy.js';
 
-export * from './buildings/Base.js';
-export * from './buildings/ProductionBuildings.js';
-export * from './buildings/ResourceBuildings.js';
-export * from './buildings/DefenseBuildings.js';
-export * from './buildings/CivilianBuildings.js';
-
 export * from './items/AmmoBox.js';
 
 export * from './projectiles/Projectile.js';

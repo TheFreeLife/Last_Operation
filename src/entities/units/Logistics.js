@@ -169,7 +169,6 @@ export class MilitaryTruck extends PlayerUnit {
                 let dotColor = '#fff';
                 if (u.type === 'tank') dotColor = '#39ff14';
                 else if (u.type === 'rifleman') dotColor = '#556644';
-                else if (u.type === 'engineer') dotColor = '#f1c40f';
                 else if (u.type === 'missile-launcher') dotColor = '#ff3131';
 
                 ctx.fillStyle = dotColor;

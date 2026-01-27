@@ -25,19 +25,8 @@ export class EntityManager {
             enemies: [],
             neutral: [],
             projectiles: [],
-            walls: [],
-            airports: [],
-            apartments: [],
-            refineries: [],
-            goldMines: [],
-            ironMines: [],
-            storage: [],
-            ammoFactories: [],
-            armories: [],
-            barracks: [],
             cargoPlanes: [],
-            resources: [],
-            base: null
+            resources: []
         };
 
         // 모든 활성 엔티티 (빠른 전체 순회용)
@@ -92,13 +81,9 @@ export class EntityManager {
         Object.assign(entity, options);
 
         // 타입별 리스트에 추가
-        if (listName === 'base') {
-            this.entities.base = entity;
-        } else {
-            const list = this.entities[listName];
-            if (Array.isArray(list)) {
-                if (!list.includes(entity)) list.push(entity);
-            }
+        const list = this.entities[listName];
+        if (Array.isArray(list)) {
+            if (!list.includes(entity)) list.push(entity);
         }
 
         // 전체 엔티티 리스트에 추가
@@ -185,8 +170,6 @@ export class EntityManager {
                     if (!entity || !entity.active || entity.isBoarded) continue;
                     this.spatialGrid.update(entity);
                 }
-            } else if (list && list.active) {
-                this.spatialGrid.update(list);
             }
         }
 
