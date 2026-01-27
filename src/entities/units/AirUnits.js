@@ -430,12 +430,7 @@ export class CargoPlane extends PlayerUnit {
             this.engine.addEffect?.('system', this.x, this.y, '#ff3131', '탑승한 유닛이 없습니다.');
             return;
         }
-        if (this.engine.resources.gold < 100) {
-            this.engine.addEffect?.('system', this.x, this.y, '#ff3131', '골드가 부족합니다 (100G)');
-            return;
-        }
 
-        this.engine.resources.gold -= 100;
         this.isCombatDropping = true;
         this.dropTimer = 0;
         this.engine.addEffect?.('system', this.x, this.y, '#fff', '전투 강하 개시!');

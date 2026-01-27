@@ -175,13 +175,5 @@ export class MilitaryTruck extends PlayerUnit {
                 ctx.beginPath(); ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2); ctx.fill();
             });
         }
-
-        // HP 바
-        const barW = 40;
-        const barY = this.y - 35;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW / 2, barY, barW, 4);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 4);
     }
 }

@@ -222,8 +222,7 @@ export class Pathfinding {
         if (!this.isValid(x, y)) return true;
         const tile = this.engine.tileMap.grid[y][x];
         
-        // 1. 타일 데이터 기반 체크 (자원 점유 타일)
-        if (tile.occupied) return true;
+        // 건설 가능 여부 체크 (기본 타일 속성)
         if (!tile.buildable) return true;
 
         return false;

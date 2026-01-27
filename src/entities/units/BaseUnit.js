@@ -209,39 +209,7 @@ export class BaseUnit extends Entity {
 
         // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
         if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit && !this.isBoarded) {
-            const unitRadius = this.size / 2;
-            const nearbyObstacles = this.engine.entityManager.getNearby(this.x, this.y, 400, (e) => {
-                return e.type && e.type.includes('resource');
-            });
-
-            for (const b of nearbyObstacles) {
-                if (b === this) continue;
-
-                const bounds = b.getSelectionBounds ? b.getSelectionBounds() : null;
-                if (!bounds) continue;
-
-                const margin = unitRadius + 15;
-                if (this.x > bounds.left - 5 && this.x < bounds.right + 5 &&
-                    this.y > bounds.top - 5 && this.y < bounds.bottom + 5) {
-                    
-                    const dL = Math.abs(this.x - (bounds.left - margin));
-                    const dR = Math.abs(this.x - (bounds.right + margin));
-                    const dT = Math.abs(this.y - (bounds.top - margin));
-                    const dB = Math.abs(this.y - (bounds.bottom + margin));
-                    const min = Math.min(dL, dR, dT, dB);
-
-                    if (min === dL) this.x = bounds.left - margin;
-                    else if (min === dR) this.x = bounds.right - margin;
-                    else if (min === dT) this.y = bounds.top - margin;
-                    else this.y = bounds.bottom + margin;
-
-                    this.path = [];
-                    if (this.destination) {
-                        const dDist = Math.hypot(this.destination.x - this.x, this.destination.y - this.y);
-                        if (dDist < 20) this.destination = null;
-                    }
-                }
-            }
+            // 자원 및 건물 끼임 방지 로직 제거됨
         }
 
         // --- 수송기 탑승 로직 추가 ---
@@ -463,25 +431,8 @@ export class BaseUnit extends Entity {
         const nextX = this.x + Math.cos(this.angle) * dist;
         const nextY = this.y + Math.sin(this.angle) * dist;
 
-        let canMoveX = true;
-        let canMoveY = true;
-
-        if (this.domain === 'ground' && !this.isFalling && !this.isInitialExit) {
-            const obstacles = [...this.engine.entities.resources.filter(r => !r.covered)];
-            const unitRadius = this.collisionRadius || (this.size / 2);
-
-            for (const b of obstacles) {
-                if (b === this || b.passable) continue;
-
-                // 자원 크기 80px에 따른 충돌 반경 확장
-                const minCollisionDist = unitRadius + (b.size * 0.5);
-                if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
-                if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
-            }
-        }
-
-        if (canMoveX) this.x = nextX;
-        if (canMoveY) this.y = nextY;
+        this.x = nextX;
+        this.y = nextY;
     }
 
     attack() { }

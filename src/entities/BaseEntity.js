@@ -16,12 +16,6 @@ export class Entity {
         // 소유권 속성 추가
         this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
 
-        // 건설 관련 속성
-        this.isUnderConstruction = false;
-        this.buildProgress = 0; // 0 to 1
-        this.totalBuildTime = 0;
-        this.targetResource = null; // 건설 중인 자원 객체 보관용
-
         // 피격 효과 관련
         this.hitTimer = 0;
     }
@@ -61,28 +55,6 @@ export class Entity {
         }
 
         return true;
-    }
-
-    drawConstruction(ctx) {
-        if (!this.isUnderConstruction) return;
-
-        const w = this.width || this.size || 40;
-        const h = this.height || this.size || 40;
-
-        // 1. 건설 부지 가이드 (점선)
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.setLineDash([5, 5]);
-        ctx.strokeRect(this.x - w / 2, this.y - h / 2, w, h);
-
-        // 2. 진행 바
-        const barW = w * 0.8;
-        const barH = 6;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(this.x - barW / 2, this.y + h / 2 + 5, barW, barH);
-        ctx.fillStyle = '#f1c40f'; // 건설은 노란색
-        ctx.fillRect(this.x - barW / 2, this.y + h / 2 + 5, barW * this.buildProgress, barH);
-        ctx.restore();
     }
 
     getSelectionBounds() {

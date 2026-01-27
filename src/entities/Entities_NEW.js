@@ -14,7 +14,7 @@
 // 기본 클래스
 export { Entity } from './BaseEntity.js';
 export { BaseUnit as PlayerUnit } from './units/BaseUnit.js';
-export { Resource, Projectile, Enemy } from './OtherEntities.js';
+export { Projectile, Enemy } from './OtherEntities.js';
 
 // 아래 클래스들은 기존 방식 그대로 유지 (추후 단계적으로 마이그레이션)
 // 임시로 간단한 더미 export를 제공하고, 실제 구현은 기존 파일 끝부분에서 가져옴

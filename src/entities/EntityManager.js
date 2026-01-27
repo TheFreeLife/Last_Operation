@@ -25,8 +25,7 @@ export class EntityManager {
             enemies: [],
             neutral: [],
             projectiles: [],
-            cargoPlanes: [],
-            resources: []
+            cargoPlanes: []
         };
 
         // 모든 활성 엔티티 (빠른 전체 순회용)

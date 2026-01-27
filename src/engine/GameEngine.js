@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Enemy, Projectile, Resource, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Enemy, Projectile, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -17,7 +17,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, Enemy, Projectile, Resource, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
+        this.entityClasses = { Entity, PlayerUnit, Enemy, Projectile, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
         this.tileMap = new TileMap(this.canvas);
         this.pathfinding = new Pathfinding(this);
 
@@ -34,8 +34,6 @@ export class GameEngine {
         // 기존 entities 구조 유지 (하위 호환성)
         // EntityManager의 entities 객체를 직접 참조하여 기존 코드와 호환
         this.entities = this.entityManager.entities;
-
-        this.initResources();
 
         // --- 초기 유닛 배치 ---
         const startX = centerX;
@@ -111,7 +109,7 @@ export class GameEngine {
 
         this.updateVisibility();
 
-        this.resources = { gold: 999999, oil: 0, iron: 0, population: 0, maxPopulation: 200 };
+        this.resources = { population: 0, maxPopulation: 200 };
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
 
 
@@ -200,7 +198,6 @@ export class GameEngine {
         em.register('enemy', Enemy, 'enemies');
 
         // 자원 및 아이템
-        em.register('resource', Resource, 'resources');
         em.register('ammo-box', AmmoBox, 'units');
 
         // 투사체
@@ -275,116 +272,6 @@ export class GameEngine {
         if (!entity) return 'none';
         const ownerId = entity.ownerId || 0;
         return this.getRelation(viewerId, ownerId);
-    }
-
-    initResources() {
-        const resourceTypes = ['oil', 'gold', 'iron'];
-        const numberOfClusters = 18; // 덩어리(허브) 개수 감소
-
-        for (let i = 0; i < numberOfClusters; i++) {
-            let startX, startY;
-            let validStart = false;
-            let attempts = 0;
-
-            // 1. 군집 중심점 찾기
-            while (!validStart && attempts < 100) {
-                startX = Math.floor(Math.random() * (this.tileMap.cols - 15)) + 7;
-                startY = Math.floor(Math.random() * (this.tileMap.rows - 15)) + 7;
-
-                const distToBase = Math.hypot(startX - this.tileMap.centerX, startY - this.tileMap.centerY);
-                if (distToBase > 20) { // 기지에서 더 멀리 배치
-                    validStart = true;
-                }
-                attempts++;
-            }
-
-            if (!validStart) continue;
-
-            const currentType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
-
-            // 2. 해당 지점을 중심으로 적은 수의 소형 클러스터 생성
-            const subClusters = 2 + Math.floor(Math.random() * 3); // 한 군집당 2~4개로 감소
-            for (let j = 0; j < subClusters; j++) {
-                const offsetX = Math.floor((Math.random() - 0.5) * 10);
-                const offsetY = Math.floor((Math.random() - 0.5) * 10);
-                const clusterType = Math.random();
-
-                if (clusterType < 0.7) {
-                    this.generateBlob(startX + offsetX, startY + offsetY, currentType);
-                } else {
-                    this.generateSnake(startX + offsetX, startY + offsetY, currentType);
-                }
-            }
-        }
-    }
-
-    generateBlob(cx, cy, type) {
-        const radius = 1.5 + Math.random() * 1.5; // 크기 축소
-        for (let y = -Math.floor(radius); y <= radius; y++) {
-            for (let x = -Math.floor(radius); x <= radius; x++) {
-                if (x * x + y * y <= radius * radius) {
-                    if (x % 2 === 0 && y % 2 === 0) {
-                        this.tryPlaceResource(cx + x, cy + y, type);
-                    }
-                }
-            }
-        }
-    }
-
-    generateSnake(startX, startY, type) {
-        let x = startX;
-        let y = startY;
-        const length = 4 + Math.floor(Math.random() * 4); // 길이 축소
-
-        for (let i = 0; i < length; i++) {
-            if (i % 2 === 0) {
-                this.tryPlaceResource(x, y, type);
-            }
-            const dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]];
-            const dir = dirs[Math.floor(Math.random() * dirs.length)];
-            x += dir[0];
-            y += dir[1];
-        }
-    }
-
-    tryPlaceResource(x, y, type) {
-        if (x >= 0 && x + 1 < this.tileMap.cols && y >= 0 && y + 1 < this.tileMap.rows) {
-            // 2x2 영역이 모두 건설 가능하고 비어있는지 확인
-            let canPlace = true;
-            for (let dy = 0; dy < 2; dy++) {
-                for (let dx = 0; dx < 2; dx++) {
-                    const tile = this.tileMap.grid[y + dy][x + dx];
-                    if (!tile.buildable || tile.occupied) {
-                        canPlace = false; break;
-                    }
-                }
-                if (!canPlace) break;
-            }
-
-            const distToBase = Math.hypot(x - this.tileMap.centerX, y - this.tileMap.centerY);
-            if (canPlace && distToBase > 8) { // 기지에서 조금 더 멀리 배치
-                this.placeResource(x, y, type);
-            }
-        }
-    }
-
-    placeResource(x, y, type) {
-        // 2x2 중심 월드 좌표 계산
-        const pos = {
-            x: (x + 1) * this.tileMap.tileSize,
-            y: (y + 1) * this.tileMap.tileSize
-        };
-
-        // EntityManager를 통해 리소스 생성
-        const res = this.entityManager.create('resource', pos.x, pos.y, { type: type });
-
-        // 2x2 타일 점유 처리
-        for (let dy = 0; dy < 2; dy++) {
-            for (let dx = 0; dx < 2; dx++) {
-                this.tileMap.grid[y + dy][x + dx].occupied = true;
-                this.tileMap.grid[y + dy][x + dx].type = 'resource';
-            }
-        }
     }
 
     initUI() {
@@ -753,12 +640,11 @@ export class GameEngine {
 
             if (!this.isHoveringUI) {
                 const potentialEntities = [
-                    ...this.entities.units, ...this.entities.enemies,
-                    ...this.entities.resources
+                    ...this.entities.units, ...this.entities.enemies
                 ];
 
                 const hovered = potentialEntities.find(ent => {
-                    if (!ent || (ent.active === false && ent.hp !== 99999999 && !ent.type?.includes('resource') && ent.covered !== true)) return false;
+                    if (!ent || (ent.active === false && ent.hp !== 99999999)) return false;
                     const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                         left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                     };
@@ -1008,44 +894,39 @@ export class GameEngine {
         if (isEnemy) title = `[적] ${title}`;
 
         let desc = '<div class="item-stats-box">';
+        desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
 
-        if (hovered instanceof Resource || (hovered.type === 'oil' || hovered.type === 'gold' || hovered.type === 'iron')) {
-            desc += `<div class="stat-row"><span>💎 종류:</span> <span class="highlight">${hovered.name}</span></div>
-                     <div class="stat-row"><span>💡 도움말:</span> <span>자원은 맵 곳곳에 흩어져 있습니다.</span></div>`;
-        } else {
-            desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
-
-            if (hovered.damage > 0) {
-                desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
+        if (hovered.damage > 0) {
+            desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
+        }
+        
+        const displayRange = hovered.attackRange || hovered.range;
+        if (displayRange > 0) {
+            desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${displayRange}</span></div>`;
+        }
+        if (hovered.speed > 0) {
+            desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
+        }
+        if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
+            desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
+        }
+        if (hovered.cargo !== undefined) {
+            const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
+            desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
+            if (hovered.cargo.length > 0) {
+                const cargoNames = hovered.cargo.map(u => u.name).join(', ');
+                desc += `<div class="item-stats-box text-blue">탑승 중: ${cargoNames}</div>`;
             }
-            const displayRange = hovered.attackRange || hovered.range;
-            if (displayRange > 0) {
-                desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${displayRange}</span></div>`;
-            }
-            if (hovered.speed > 0) {
-                desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
-            }
-            if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
-                desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
-            }
-            if (hovered.cargo !== undefined) {
-                const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
-                desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
-                if (hovered.cargo.length > 0) {
-                    const cargoNames = hovered.cargo.map(u => u.name).join(', ');
-                    desc += `<div class="item-stats-box text-blue">탑승 중: ${cargoNames}</div>`;
-                }
-            }
-            if (hovered.maxAmmo > 0) {
-                const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
-                const name = ammoNames[hovered.ammoType] || '탄약';
-                const colorClass = (hovered.ammo <= 0) ? 'text-red' : 'highlight';
-                desc += `<div class="stat-row"><span>🔋 ${name}:</span> <span class="${colorClass}">${Math.floor(hovered.ammo)} / ${hovered.maxAmmo}</span></div>`;
-            }
-            if (hovered.domain) {
-                const domainMap = { ground: '지상', air: '공중', sea: '해상' };
-                desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
-            }
+        }
+        if (hovered.maxAmmo > 0) {
+            const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
+            const name = ammoNames[hovered.ammoType] || '탄약';
+            const colorClass = (hovered.ammo <= 0) ? 'text-red' : 'highlight';
+            desc += `<div class="stat-row"><span>🔋 ${name}:</span> <span class="${colorClass}">${Math.floor(hovered.ammo)} / ${hovered.maxAmmo}</span></div>`;
+        }
+        if (hovered.domain) {
+            const domainMap = { ground: '지상', air: '공중', sea: '해상' };
+            desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
         }
 
         desc += `</div>`;
@@ -1076,11 +957,6 @@ export class GameEngine {
     hideUITooltip() {
         const tooltip = document.getElementById('ui-tooltip');
         if (tooltip) tooltip.classList.add('hidden');
-    }
-
-    produceResource(type, amount, producer) {
-        this.resources[type] += amount;
-        return true;
     }
 
     update(deltaTime) {
@@ -1146,7 +1022,6 @@ export class GameEngine {
         this.entities.enemies = this.entities.enemies.filter(enemy => {
             enemy.update(deltaTime, null, [], this);
             if (!enemy.active || enemy.hp <= 0) {
-                if (enemy.active) this.resources.gold += 10;
                 return false;
             }
             return true;
@@ -1220,13 +1095,6 @@ export class GameEngine {
             if (isVisible(n.x, n.y)) {
                 mCtx.fillStyle = '#ffff00';
                 mCtx.fillRect(n.x - 10, n.y - 10, 20, 20);
-            }
-        });
-
-        this.entities.resources.forEach(r => {
-            if (isVisible(r.x, r.y)) {
-                mCtx.fillStyle = r.color;
-                mCtx.fillRect(r.x - 15, r.y - 15, 30, 30);
             }
         });
 
@@ -1315,12 +1183,6 @@ export class GameEngine {
     }
 
     updateResourceUI() {
-        const goldEl = document.getElementById('resource-gold');
-        const oilEl = document.getElementById('resource-oil');
-        const ironEl = document.getElementById('resource-iron');
-        if (goldEl) goldEl.textContent = Math.floor(this.resources.gold);
-        if (oilEl) oilEl.textContent = Math.floor(this.resources.oil);
-        if (ironEl) ironEl.textContent = Math.floor(this.resources.iron);
         const popValue = document.getElementById('resource-population');
         if (popValue) {
             popValue.textContent = `${this.resources.population} / ${this.resources.maxPopulation}`;

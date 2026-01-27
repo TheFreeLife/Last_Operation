@@ -13,11 +13,10 @@ export class RenderSystem {
         // 레이어 정의
         this.layers = {
             TERRAIN: 0,
-            RESOURCES: 1,
-            UNITS: 2,
-            PROJECTILES: 3,
-            EFFECTS: 4,
-            UI: 5
+            UNITS: 1,
+            PROJECTILES: 2,
+            EFFECTS: 3,
+            UI: 4
         };
 
         // 비트맵 캐싱 저장소
@@ -33,7 +32,6 @@ export class RenderSystem {
 
         // 메모리 재사용용 버킷
         this.layerBuckets = {
-            [this.layers.RESOURCES]: [],
             [this.layers.UNITS]: [],
             [this.layers.PROJECTILES]: []
         };
@@ -116,7 +114,6 @@ export class RenderSystem {
         const visibleEntities = this.getVisibleEntities(viewport);
         this.sortEntitiesByLayer(visibleEntities);
 
-        this.renderEntities(this.layerBuckets[this.layers.RESOURCES]);
         this.renderEntities(this.layerBuckets[this.layers.UNITS]);
         this.renderEntities(this.layerBuckets[this.layers.PROJECTILES]);
         
@@ -176,7 +173,10 @@ export class RenderSystem {
             if (entity.angle) this.ctx.rotate(entity.angle);
 
             let img = this.entityCache[entity.type];
-            if (!img && entity.draw && entity.type) {
+            // 탄약 상자(ammo-) 계열은 동적 이펙트(빔)가 있으므로 캐싱 제외
+            const isDynamic = entity.type?.startsWith('ammo-');
+            
+            if (!img && entity.draw && entity.type && !isDynamic) {
                 img = this.generateEntityBitmap(entity);
             }
 
@@ -251,7 +251,6 @@ export class RenderSystem {
     }
 
     sortEntitiesByLayer(entities) {
-        this.layerBuckets[this.layers.RESOURCES].length = 0;
         this.layerBuckets[this.layers.UNITS].length = 0;
         this.layerBuckets[this.layers.PROJECTILES].length = 0;
 
@@ -261,8 +260,6 @@ export class RenderSystem {
 
             if (['projectile', 'bullet', 'shell', 'missile'].includes(ent.type)) {
                 this.layerBuckets[this.layers.PROJECTILES].push(ent);
-            } else if (ent.type === 'resource' || ent.isResource) {
-                this.layerBuckets[this.layers.RESOURCES].push(ent);
             } else {
                 this.layerBuckets[this.layers.UNITS].push(ent);
             }

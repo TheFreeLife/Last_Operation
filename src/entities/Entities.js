@@ -13,5 +13,4 @@ export * from './projectiles/Projectile.js';
 export * from './projectiles/Missile.js';
 export * from './projectiles/Bomb.js';
 
-export * from './resources/Resource.js';
 export * from './effects/DamageText.js';

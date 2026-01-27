@@ -68,18 +68,36 @@ export class AmmoBox extends PlayerUnit {
     }
 
     draw(ctx) {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
+        // RenderSystem이 이미 (this.x, this.y)로 translate하고 rotate(this.angle)한 상태임
 
-        // 1. 바퀴 (4개)
+        // --- 1. 충전 중일 때 상자 주변 글로우 효과 ---
+        if (this.chargingUnits.length > 0) {
+            ctx.save();
+            // 상자의 회전과 상관없이 항상 정방향으로 글로우를 그리기 위해 역회전
+            if (this.angle) ctx.rotate(-this.angle);
+            
+            const pulse = Math.sin(Date.now() / 100) * 0.5 + 0.5;
+            const glowColor = this.ammoType === 'bullet' ? 'rgba(241, 196, 15, 0.3)' : (this.ammoType === 'shell' ? 'rgba(230, 126, 34, 0.3)' : 'rgba(231, 76, 60, 0.3)');
+            
+            ctx.shadowBlur = 15 + pulse * 10;
+            ctx.shadowColor = glowColor;
+            ctx.fillStyle = glowColor;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 2. 상자 본체 (회전된 상태로 그림)
+        ctx.save();
+        // 2.1 바퀴 (4개)
         ctx.fillStyle = '#111';
         ctx.fillRect(-12, -14, 6, 4); // 전좌
         ctx.fillRect(6, -14, 6, 4);  // 전우
         ctx.fillRect(-12, 10, 6, 4); // 후좌
         ctx.fillRect(6, 10, 6, 4);  // 후우
 
-        // 2. 나무 상자 (2.5D 느낌)
+        // 2.2 나무 상자
         const woodColor = this.ammoType === 'bullet' ? '#8d6e63' : (this.ammoType === 'shell' ? '#795548' : '#5d4037');
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.fillRect(-13, -11, 28, 22);
@@ -106,49 +124,84 @@ export class AmmoBox extends PlayerUnit {
         ctx.strokeStyle = '#3e2723';
         ctx.lineWidth = 2;
         ctx.strokeRect(-15, -12, 30, 24);
-
         ctx.restore();
 
-        // 3. 충전 빔 효과 (Shield Battery Style)
+        // 3. 강화된 충전 빔 효과 (역회전하여 월드 좌표계 정렬 후 계산)
         if (this.chargingUnits.length > 0) {
             ctx.save();
-            this.chargingUnits.forEach(unit => {
-                const grad = ctx.createLinearGradient(this.x, this.y, unit.x, unit.y);
-                const beamColor = this.ammoType === 'bullet' ? '#f1c40f' : (this.ammoType === 'shell' ? '#e67e22' : '#ff3131');
-                grad.addColorStop(0, beamColor);
-                grad.addColorStop(1, 'white');
+            if (this.angle) ctx.rotate(-this.angle); // 상자의 회전 무시
 
-                ctx.shadowBlur = 10;
+            this.chargingUnits.forEach(unit => {
+                const beamColor = this.ammoType === 'bullet' ? '#f1c40f' : (this.ammoType === 'shell' ? '#e67e22' : '#ff3131');
+                
+                // 유닛의 상대 위치 계산
+                const relX = unit.x - this.x;
+                const relY = unit.y - this.y;
+
+                // 메인 코어 빔
+                ctx.shadowBlur = 15;
                 ctx.shadowColor = beamColor;
-                ctx.strokeStyle = grad;
-                ctx.lineWidth = 2 + Math.sin(Date.now() / 50) * 1;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1 + Math.random() * 2;
                 ctx.beginPath();
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(unit.x, unit.y);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(relX, relY);
                 ctx.stroke();
 
-                // 대상 유닛 주변 입자 효과
-                ctx.fillStyle = 'white';
+                // 외곽 에너지 흐름 (애니메이션)
+                ctx.strokeStyle = beamColor;
+                ctx.lineWidth = 3;
+                ctx.globalAlpha = 0.4;
+                ctx.setLineDash([10, 5]);
+                ctx.lineDashOffset = -Date.now() / 20; 
                 ctx.beginPath();
-                ctx.arc(unit.x + (Math.random() - 0.5) * 20, unit.y + (Math.random() - 0.5) * 20, 2, 0, Math.PI * 2);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(relX, relY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 전송 중인 에너지 입자들
+                for(let i=0; i<2; i++) {
+                    const progress = (Math.random() + (Date.now() / 1000)) % 1.0;
+                    const px = relX * progress;
+                    const py = relY * progress;
+                    const jitter = Math.sin(Date.now() / 50 + progress * 10) * 5;
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.globalAlpha = 0.8;
+                    ctx.beginPath();
+                    ctx.arc(px + jitter, py + jitter, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 대상 유닛 주변 충전 불꽃
+                ctx.fillStyle = beamColor;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.arc(relX + (Math.random() - 0.5) * 30, relY + (Math.random() - 0.5) * 30, 3, 0, Math.PI * 2);
                 ctx.fill();
             });
             ctx.restore();
         }
 
-        // 체력 및 탄약 바
+        // 4. 탄약 바 (상자 잔량)
+        ctx.save();
+        if (this.angle) ctx.rotate(-this.angle); // 바데는 회전시키지 않음
+        
         const barW = 30;
-        const barY = this.y - 25;
-        // HP Bar
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW / 2, barY, barW, 3);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(this.x - barW / 2, barY, (this.hp / this.maxHp) * barW, 3);
+        const barY = -25;
 
-        // Amount Bar (상자 잔량)
+        // 배경
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(this.x - barW / 2, barY + 4, barW, 3);
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(this.x - barW / 2, barY + 4, (this.amount / this.maxAmount) * barW, 3);
+        ctx.fillRect(-barW / 2, barY, barW, 4);
+        
+        const amountRatio = this.amount / this.maxAmount;
+        ctx.fillStyle = amountRatio > 0.5 ? '#2ecc71' : (amountRatio > 0.2 ? '#f1c40f' : '#e74c3c');
+        ctx.fillRect(-barW / 2, barY, barW * amountRatio, 4);
+        
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-barW / 2, barY, barW, 4);
+        ctx.restore();
     }
 }

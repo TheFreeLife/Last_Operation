@@ -75,27 +75,10 @@ export class Enemy extends Entity {
         const angleToTarget = Math.atan2(moveTarget.y - this.y, moveTarget.x - this.x);
         this.angle = angleToTarget; // 방향 업데이트
 
-        // --- 슬라이딩 충돌 이동 적용 ---
+        // 이동 적용
         const dist = this.speed;
-        const nextX = this.x + Math.cos(this.angle) * dist;
-        const nextY = this.y + Math.sin(this.angle) * dist;
-
-        let canMoveX = true;
-        let canMoveY = true;
-
-        const obstacles = [...engine.entities.resources.filter(r => !r.covered)];
-        const unitRadius = this.collisionRadius || (this.size / 2);
-
-        for (const b of obstacles) {
-            if (b === this || b.passable) continue;
-
-            const minCollisionDist = unitRadius + (b.size * 0.5);
-            if (Math.hypot(nextX - b.x, this.y - b.y) < minCollisionDist) canMoveX = false;
-            if (Math.hypot(this.x - b.x, nextY - b.y) < minCollisionDist) canMoveY = false;
-        }
-
-        if (canMoveX) this.x = nextX;
-        if (canMoveY) this.y = nextY;
+        this.x += Math.cos(this.angle) * dist;
+        this.y += Math.sin(this.angle) * dist;
 
         // --- 유닛 간 밀어내기 및 끼임 탈출 ---
         let pushX = 0;

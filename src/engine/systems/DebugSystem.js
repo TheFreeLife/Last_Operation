@@ -13,8 +13,6 @@ export class DebugSystem {
     init() {
         // UI 버튼 이벤트 바인딩
         document.getElementById('db-god-mode')?.addEventListener('click', () => this.toggleGodMode());
-        document.getElementById('db-add-gold')?.addEventListener('click', () => this.addResources('gold', 10000));
-        document.getElementById('db-add-oil')?.addEventListener('click', () => this.addResources('oil', 10000));
         document.getElementById('db-spawn-sandbag')?.addEventListener('click', () => this.toggleSpawnSandbagMode());
         document.getElementById('db-spawn-air-sandbag')?.addEventListener('click', () => this.toggleSpawnAirSandbagMode());
         document.getElementById('db-eraser')?.addEventListener('click', () => this.toggleEraserMode());
@@ -122,14 +120,6 @@ export class DebugSystem {
             this.isEraserMode = true;
             const btn = document.getElementById('db-eraser');
             if (btn) btn.classList.add('active');
-        }
-    }
-
-    addResources(type, amount) {
-        if (this.engine.resources[type] !== undefined) {
-            this.engine.resources[type] += amount;
-            this.engine.updateResourceUI?.();
-            this.engine.addEffect?.('system', this.engine.canvas.width / 2, 150, '#ffd700', `${type} +${amount}`);
         }
     }
 
