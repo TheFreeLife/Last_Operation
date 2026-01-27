@@ -12,7 +12,6 @@ export class ScoutPlane extends PlayerUnit {
         this.hp = 250;       // 체력 상향
         this.maxHp = 250;
         this.size = 70;      // 크기 대폭 확장
-        this.popCost = 1;
         this.cargoSize = 99; // 수송기 탑승 불가
     }
 
@@ -79,7 +78,6 @@ export class Bomber extends PlayerUnit {
         this.maneuverFrameCount = 0;    // 활주 시작 프레임 카운터
         this.takeoffDistance = 0;       // 활주 거리 누적
         this.isBombingActive = false;   // 폭격 모드 활성화 여부
-        this.popCost = 6;
 
         this.ammoType = 'shell';
         this.maxAmmo = 12;
@@ -329,7 +327,6 @@ export class CargoPlane extends PlayerUnit {
         this.isUnloading = false;
         this.unloadTimer = 0;
         this.unloadInterval = 300;
-        this.popCost = 4;
     }
 
     // 현재 적재된 총 부피 계산

@@ -18,7 +18,6 @@ export class MilitaryTruck extends PlayerUnit {
         this.isUnloading = false;
         this.unloadTimer = 0;
         this.unloadInterval = 400;
-        this.popCost = 2;
     }
 
     getOccupiedSize() {

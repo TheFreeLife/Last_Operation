@@ -11,7 +11,6 @@ export class AmmoBox extends PlayerUnit {
         this.maxHp = 150;
         this.size = 30;
         this.attackRange = 150; // 사거리 150으로 축소
-        this.popCost = 1;
         this.damage = 0; // 공격 능력 없음
 
         // 탄약 총계 수치 추가

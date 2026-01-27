@@ -17,7 +17,6 @@ export class Rifleman extends PlayerUnit {
         this.cargoSize = 3;  // 분대이므로 적재 용량 증가
         this.attackType = 'hitscan';
         this.hitEffectType = 'bullet';
-        this.popCost = 1;
 
         this.ammoType = 'bullet';
         this.maxAmmo = 150;
@@ -114,7 +113,6 @@ export class Sniper extends PlayerUnit {
         this.attackTargets = ['ground', 'sea', 'air'];
         this.attackType = 'hitscan';
         this.hitEffectType = 'hit'; // 피격 이펙트 타입 설정
-        this.popCost = 1;
 
         this.ammoType = 'bullet';
         this.maxAmmo = 10;

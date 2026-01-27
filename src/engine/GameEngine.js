@@ -109,7 +109,7 @@ export class GameEngine {
 
         this.updateVisibility();
 
-        this.resources = { population: 0, maxPopulation: 200 };
+        this.resources = {};
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
 
 
@@ -171,9 +171,6 @@ export class GameEngine {
         this.minimapCacheCanvas.width = this.tileMap.cols;
         this.minimapCacheCanvas.height = this.tileMap.rows;
         this.minimapCacheCtx = this.minimapCacheCanvas.getContext('2d');
-
-        // 초기 인구수 계산
-        this.updatePopulation();
 
         this.debugSystem = new DebugSystem(this);
 
@@ -1005,14 +1002,11 @@ export class GameEngine {
             }
             if (countChanged) {
                 list.length = writeIdx;
-                this.updatePopulation();
             }
             return list;
         };
 
-        const oldUnitsLen = this.entities.units.length;
         this.entities.units = processList(this.entities.units, (u) => u.update(deltaTime));
-        if (this.entities.units.length !== oldUnitsLen) this.updatePopulation();
 
         this.entities.cargoPlanes = processList(this.entities.cargoPlanes, (p) => p.update(deltaTime));
         this.entities.neutral = processList(this.entities.neutral, (n) => n.update(deltaTime));
@@ -1028,7 +1022,6 @@ export class GameEngine {
         });
 
         this.refreshFlyerUI();
-        this.updateResourceUI();
     }
 
     render() {
@@ -1177,25 +1170,6 @@ export class GameEngine {
             }
         }
         mCtx.putImageData(imageData, 0, 0);
-    }
-
-    updatePopulation() {
-        this.resources.maxPopulation = 200;
-        let currentPop = 0;
-        this.entities.units.forEach(unit => {
-            if (unit.ownerId === 1 && (unit.active || unit.isBoarded) && unit.hp > 0) {
-                currentPop += unit.popCost || 0;
-            }
-        });
-        this.resources.population = currentPop;
-    }
-
-    updateResourceUI() {
-        const popValue = document.getElementById('resource-population');
-        if (popValue) {
-            popValue.textContent = `${this.resources.population} / ${this.resources.maxPopulation}`;
-            popValue.style.color = (this.resources.population > this.resources.maxPopulation) ? '#ff3131' : '#fff';
-        }
     }
 
     refreshFlyerUI() {

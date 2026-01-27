@@ -18,7 +18,6 @@ export class Tank extends PlayerUnit {
         this.maxHp = 1000;
         this.attackType = 'hitscan';
         this.hitEffectType = 'explosion';
-        this.popCost = 3;
 
         this.ammoType = 'shell';
         this.maxAmmo = 20;
@@ -95,7 +94,6 @@ export class MissileLauncher extends PlayerUnit {
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackType = 'projectile';
         this.attackTargets = ['ground', 'sea'];
-        this.popCost = 3;
 
         this.ammoType = 'missile';
         this.maxAmmo = 6;
@@ -313,7 +311,6 @@ export class Artillery extends PlayerUnit {
         this.explosionRadius = 60;
         this.cargoSize = 5;
         this.attackType = 'projectile';
-        this.popCost = 4;
 
         this.ammoType = 'shell';
         this.maxAmmo = 20;
@@ -358,7 +355,6 @@ export class AntiAirVehicle extends PlayerUnit {
         this.cargoSize = 5;
         this.attackType = 'hitscan';
         this.hitEffectType = 'flak';
-        this.popCost = 3;
 
         this.ammoType = 'bullet';
         this.maxAmmo = 200;
