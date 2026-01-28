@@ -344,6 +344,45 @@ button,
     padding-right: 5px;
 }
 
+.data-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#sidebar-data-area {
+    width: 100%;
+    height: 150px;
+    background: #000;
+    border: 1px solid #222;
+    border-radius: 8px;
+    color: var(--neon-green);
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    padding: 10px;
+    resize: none;
+}
+
+.data-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.sidebar-btn.secondary {
+    background: rgba(0, 210, 255, 0.05); /* 약간의 네온 블루 테마 추가 */
+    color: var(--neon-blue);
+    border-color: rgba(0, 210, 255, 0.2);
+    padding: 10px;
+    font-size: 0.85rem;
+}
+
+.sidebar-btn.secondary:hover {
+    background: rgba(0, 210, 255, 0.15);
+    color: #fff;
+    border-color: var(--neon-blue);
+}
+
 .sidebar-footer {
     margin-top: auto;
     display: flex;

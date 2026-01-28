@@ -77,17 +77,9 @@ export class MapEditor {
             });
         });
 
-        document.getElementById('editor-save-btn')?.addEventListener('click', () => this.showExportModal());
+        document.getElementById('editor-save-btn')?.addEventListener('click', () => this.exportToSidebar());
+        document.getElementById('sidebar-import-btn')?.addEventListener('click', () => this.importFromSidebar());
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.engine.setGameState('MENU'));
-        document.getElementById('close-export-btn')?.addEventListener('click', () => {
-            document.getElementById('export-modal').classList.add('hidden');
-        });
-        document.getElementById('copy-json-btn')?.addEventListener('click', () => {
-            const textarea = document.getElementById('export-textarea');
-            textarea.select();
-            document.execCommand('copy');
-            alert('클립보드에 복사되었습니다!');
-        });
     }
 
     activate() {
@@ -349,11 +341,11 @@ export class MapEditor {
         ctx.fillText(icon || '?', x * tileSize + tileSize/2, y * tileSize + tileSize/2);
     }
 
-    showExportModal() {
-        const modal = document.getElementById('export-modal');
-        const textarea = document.getElementById('export-textarea');
+    exportToSidebar() {
+        const area = document.getElementById('sidebar-data-area');
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         let hasData = false;
+
         for (const ln in this.layers) {
             this.layers[ln].forEach((v, k) => {
                 const [x, y] = k.split(',').map(Number);
@@ -362,19 +354,71 @@ export class MapEditor {
                 hasData = true;
             });
         }
-        if (!hasData) return;
+
+        if (!hasData) {
+            area.value = "설치된 타일이 없습니다.";
+            return;
+        }
+
         const width = maxX - minX + 1, height = maxY - minY + 1;
         const exportGrid = Array.from({ length: height }, () => Array.from({ length: width }, () => ['dirt', null, null]));
+
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
                 const f = this.layers.floor.get(k), w = this.layers.wall.get(k), u = this.layers.unit.get(k);
-                exportGrid[ly][lx] = [f ? f.id : 'dirt', w ? w.id : null, u ? { id: u.id, ownerId: u.ownerId } : null];
+                exportGrid[ly][lx] = [
+                    f ? f.id : 'dirt',
+                    w ? w.id : null,
+                    u ? { id: u.id, ownerId: u.ownerId } : null
+                ];
             }
         }
+
         const jsonHeader = `{\n  "width": ${width},\n  "height": ${height},\n  "tileSize": ${this.engine.tileMap.tileSize},\n  "grid": [\n`;
         const jsonBody = exportGrid.map(row => `    ${JSON.stringify(row)}`).join(',\n');
-        textarea.value = jsonHeader + jsonBody + '\n  ]\n}';
-        modal.classList.remove('hidden');
+        area.value = jsonHeader + jsonBody + '\n  ]\n}';
+    }
+
+    importFromSidebar() {
+        const area = document.getElementById('sidebar-data-area');
+        try {
+            const data = JSON.parse(area.value);
+            if (!data.grid || !Array.isArray(data.grid)) throw new Error("Invalid grid format");
+
+            // 기존 데이터 초기화
+            this.layers.floor.clear();
+            this.layers.wall.clear();
+            this.layers.unit.clear();
+
+            // 0,0 좌표를 기준으로 임포트
+            data.grid.forEach((row, y) => {
+                row.forEach((cell, x) => {
+                    const key = `${x},${y}`;
+                    const [floorId, wallId, unitData] = cell;
+
+                    if (floorId) this.layers.floor.set(key, { id: floorId, icon: this._getIconById(floorId) });
+                    if (wallId) this.layers.wall.set(key, { id: wallId, icon: this._getIconById(wallId) });
+                    if (unitData) this.layers.unit.set(key, { id: unitData.id, ownerId: unitData.ownerId, icon: this._getIconById(unitData.id) });
+                });
+            });
+
+            alert(`맵 로드 완료: ${data.width}x${data.height}`);
+            
+            // 카메라 위치 조정
+            this.engine.camera.x = this.engine.canvas.width / 2 - (data.width * this.engine.tileMap.tileSize) / 2 - 160;
+            this.engine.camera.y = this.engine.canvas.height / 2 - (data.height * this.engine.tileMap.tileSize) / 2;
+
+        } catch (e) {
+            alert("가져오기 실패: JSON 형식이 올바르지 않습니다.\n" + e.message);
+        }
+    }
+
+    _getIconById(id) {
+        for (const cat in this.palette) {
+            const item = this.palette[cat].find(p => p.id === id);
+            if (item) return item.icon;
+        }
+        return '?';
     }
 }
