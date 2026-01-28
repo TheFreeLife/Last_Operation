@@ -107,7 +107,7 @@ export class GameEngine {
         this.setGameState(GameState.MENU);
     }
 
-    setGameState(newState) {
+    async setGameState(newState) {
         const oldState = this.gameState;
         this.gameState = newState;
         
@@ -119,7 +119,7 @@ export class GameEngine {
         document.getElementById('debug-panel').classList.toggle('hidden', newState !== GameState.PLAYING);
 
         if (newState === GameState.MAP_SELECT) {
-            this.fetchMissions();
+            await this.fetchMissions();
             this.renderMapList();
         } else if (newState === GameState.EDITOR) {
             this.mapEditor.activate();

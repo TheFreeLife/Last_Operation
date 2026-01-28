@@ -192,8 +192,8 @@ export class TileMap {
                     const wx = x * this.tileSize;
                     const wy = y * this.tileSize;
                     
-                    ctx.fillStyle = '#555';
-                    ctx.fillRect(wx + 2, wy + 2, this.tileSize - 4, this.tileSize - 4);
+                    // 벽 베이스 그리기 제거 (바닥이 보이도록)
+                    // 대신 벽의 존재감을 위해 미세한 외곽선이나 그림자 추가 가능
                     
                     const icon = typeof wallData === 'string' ? WALL_ICONS[wallData] : wallData.icon;
                     if (icon) {
