@@ -234,10 +234,25 @@ export class GameEngine {
                     if (unitInfo && unitInfo.id) {
                         const worldX = x * tileSize + tileSize / 2;
                         const worldY = y * tileSize + tileSize / 2;
-                        const entity = this.entityManager.create(unitInfo.id, worldX, worldY, { ownerId: unitInfo.ownerId || 1 });
+                        
+                        const ownerId = (unitInfo.ownerId !== undefined) ? unitInfo.ownerId : 1;
+                        const spawnOptions = { ownerId };
+                        
+                        // 에디터에서 설정한 추가 속성 적용
+                        if (unitInfo.hp !== undefined) spawnOptions.hp = unitInfo.hp;
+                        if (unitInfo.hp !== undefined) spawnOptions.maxHp = unitInfo.hp;
+                        if (unitInfo.options) Object.assign(spawnOptions, unitInfo.options);
+
+                        // ownerId에 따른 적절한 리스트 결정
+                        let listOverride = undefined;
+                        if (ownerId === 2) listOverride = 'enemies';
+                        else if (ownerId === 0) listOverride = 'neutral';
+                        else if (ownerId === 1 || ownerId === 3) listOverride = 'units';
+
+                        const entity = this.entityManager.create(unitInfo.id, worldX, worldY, spawnOptions, listOverride);
                         if (entity) {
-                            entity.alive = true; // 시야 확보를 위해 생존 상태 강제
-                            entity.angle = Math.PI / 2;
+                            entity.alive = true;
+                            entity.angle = (unitInfo.r !== undefined) ? (unitInfo.r * Math.PI / 2) : (Math.PI / 2);
                         }
                     }
                 }
@@ -298,6 +313,9 @@ export class GameEngine {
 
     getRelation(p1Id, p2Id) {
         if (p1Id === p2Id) return 'self';
+        
+        // 0번(중립)과의 관계는 항상 중립
+        if (p1Id === 0 || p2Id === 0) return 'neutral';
 
         const p1 = this.players[p1Id];
         const p2 = this.players[p2Id];
@@ -644,18 +662,26 @@ export class GameEngine {
             const worldX = (e.clientX - rect.left - this.camera.x) / this.camera.zoom;
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
 
+            if (this.gameState === GameState.EDITOR) {
+                if (this.mapEditor.editingUnitKey) return; // 모달 열려있으면 차단
+                if (e.button === 0) this.isMouseDown = true;
+                if (e.button === 2) {
+                    this.isRightMouseDown = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                }
+                
+                if (e.button === 0 || (e.button === 2 && !this.isRightMouseDown)) {
+                    this.mapEditor.handleInput(worldX, worldY, true, e.button === 2);
+                }
+                return;
+            }
+
             if (e.button === 0) this.isMouseDown = true;
             if (e.button === 2) {
                 this.isRightMouseDown = true;
                 this.lastMouseX = e.clientX;
                 this.lastMouseY = e.clientY;
-            }
-
-            if (this.gameState === GameState.EDITOR) {
-                if (e.button === 0 || (e.button === 2 && !this.isRightMouseDown)) {
-                    this.mapEditor.handleInput(worldX, worldY, true, e.button === 2);
-                }
-                return;
             }
 
             if (this.gameState !== GameState.PLAYING) return;
@@ -761,6 +787,8 @@ export class GameEngine {
 
             // 에디터 모드 조작
             if (this.gameState === GameState.EDITOR) {
+                if (this.mapEditor.editingUnitKey) return; // 모달 열려있으면 차단
+                
                 // 클릭 중일 때는 드래그 처리, 아닐 때도 좌표 업데이트를 위해 호출
                 this.mapEditor.handleInput(worldX, worldY, this.isMouseDown, false);
 
@@ -1310,7 +1338,10 @@ export class GameEngine {
 
         this.entities.units.forEach(unit => {
             if (unit.alive) {
-                this._revealArea(unit.x, unit.y, unit.visionRange || 5);
+                const relation = this.getRelation(1, unit.ownerId);
+                if (relation === 'self' || relation === 'ally') {
+                    this._revealArea(unit.x, unit.y, unit.visionRange || 5);
+                }
             }
         });
 

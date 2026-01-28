@@ -51,9 +51,10 @@ export class EntityManager {
      * @param {number} x - X 좌표
      * @param {number} y - Y 좌표
      * @param {object} options - 추가 옵션
+     * @param {string} listOverride - 저장할 리스트 이름 강제 지정 (옵션)
      * @returns {Entity} 생성된 엔티티
      */
-    create(type, x, y, options = {}) {
+    create(type, x, y, options = {}, listOverride = null) {
         const registration = this.registry.get(type);
         if (!registration) {
             console.error(`[EntityManager] Unknown entity type: ${type}`);
@@ -61,6 +62,7 @@ export class EntityManager {
         }
 
         const { EntityClass, listName } = registration;
+        const targetList = listOverride || listName;
         let entity = null;
 
         // 1. 오브젝트 풀 확인 (투사체 등 빈번한 생성 객체 우선 적용)
@@ -80,7 +82,7 @@ export class EntityManager {
         Object.assign(entity, options);
 
         // 타입별 리스트에 추가
-        const list = this.entities[listName];
+        const list = this.entities[targetList];
         if (Array.isArray(list)) {
             if (!list.includes(entity)) list.push(entity);
         }
@@ -229,7 +231,7 @@ export class EntityManager {
                         name: variant.name,
                         icon: variant.icon,
                         category: config.category || 'unit',
-                        ownerId: config.ownerId || 1,
+                        ownerId: (config.ownerId !== undefined) ? config.ownerId : (config.category === 'unit' ? 2 : 1),
                         options: variant.options // 생성 시 전달할 옵션 (ammoType 등)
                     });
                 });
@@ -240,7 +242,7 @@ export class EntityManager {
                     name: config.name || type,
                     icon: config.icon || '❓',
                     category: config.category || 'unit',
-                    ownerId: config.ownerId || (config.category === 'unit' ? 1 : 0)
+                    ownerId: (config.ownerId !== undefined) ? config.ownerId : (config.category === 'unit' ? 2 : 0)
                 });
             }
         }

@@ -129,6 +129,74 @@ export class MapEditor {
             alert('복사되었습니다!');
         });
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.engine.setGameState('MENU'));
+
+        // Unit Config Modal
+        this.configModal = document.getElementById('unit-config-modal');
+        this.configSaveBtn = document.getElementById('config-save-btn');
+        this.configDeleteBtn = document.getElementById('config-delete-btn');
+        this.configCancelBtn = document.getElementById('config-cancel-btn');
+
+        this.configSaveBtn?.addEventListener('click', () => this.saveUnitConfig());
+        this.configDeleteBtn?.addEventListener('click', () => this.deleteCurrentUnit());
+        this.configCancelBtn?.addEventListener('click', () => this.closeUnitConfig());
+        
+        // 모달창 클릭 시 캔버스 이벤트 전파 방지
+        this.configModal?.addEventListener('mousedown', (e) => e.stopPropagation());
+        this.configModal?.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    deleteCurrentUnit() {
+        if (this.editingUnitKey) {
+            this.layers.unit.delete(this.editingUnitKey);
+            this.closeUnitConfig();
+        }
+    }
+
+    openUnitConfig(key, data) {
+        this.editingUnitKey = key;
+        const nameDisplay = document.getElementById('config-unit-name');
+        if (nameDisplay) nameDisplay.textContent = data.id.toUpperCase() + ' CONFIG';
+
+        document.getElementById('config-owner').value = (data.ownerId !== undefined) ? data.ownerId : 1;
+        document.getElementById('config-hp').value = (data.hp !== undefined) ? data.hp : 100;
+        document.getElementById('config-rotation').value = (data.r !== undefined) ? data.r : 0;
+        document.getElementById('config-options').value = data.options ? JSON.stringify(data.options) : '';
+
+        this.configModal.classList.remove('hidden');
+    }
+
+    saveUnitConfig() {
+        if (!this.editingUnitKey) return;
+        
+        const ownerId = parseInt(document.getElementById('config-owner').value);
+        const hp = parseInt(document.getElementById('config-hp').value);
+        const rotation = parseInt(document.getElementById('config-rotation').value);
+        const optionsStr = document.getElementById('config-options').value;
+        
+        let options = null;
+        if (optionsStr.trim()) {
+            try {
+                options = JSON.parse(optionsStr);
+            } catch (e) {
+                alert('JSON 형식이 올바르지 않습니다.');
+                return;
+            }
+        }
+
+        const unitData = this.layers.unit.get(this.editingUnitKey);
+        if (unitData) {
+            unitData.ownerId = ownerId;
+            unitData.hp = hp;
+            unitData.r = rotation;
+            unitData.options = options;
+        }
+
+        this.closeUnitConfig();
+    }
+
+    closeUnitConfig() {
+        this.configModal.classList.add('hidden');
+        this.editingUnitKey = null;
     }
 
     activate() {
@@ -225,6 +293,13 @@ export class MapEditor {
         document.getElementById('mouse-coords').textContent = `${gridX}, ${gridY} | R: ${this.currentRotation * 90}°`;
 
         if (isRightClick) {
+            if (this.currentLayer === 'unit') {
+                const unit = this.layers.unit.get(key);
+                if (unit) {
+                    this.openUnitConfig(key, unit);
+                    return;
+                }
+            }
             this.layers[this.currentLayer].delete(key);
             return;
         }
@@ -251,12 +326,18 @@ export class MapEditor {
 
     applyToTile(x, y) {
         if (!this.selectedItem) return;
-        this.layers[this.currentLayer].set(`${x},${y}`, { 
+        const data = { 
             id: this.selectedItem.id, 
             r: this.currentRotation,
             options: this.selectedItem.options,
-            ownerId: this.selectedItem.ownerId
-        });
+            ownerId: (this.selectedItem.ownerId !== undefined) ? this.selectedItem.ownerId : (this.currentLayer === 'unit' ? 2 : undefined)
+        };
+        
+        if (this.currentLayer === 'unit') {
+            data.hp = 100; // 기본 체력
+        }
+        
+        this.layers[this.currentLayer].set(`${x},${y}`, data);
     }
 
     floodFill(startX, startY) {
@@ -372,8 +453,16 @@ export class MapEditor {
             if (dummy) {
                 ctx.save();
                 ctx.translate(cx, cy);
-                ctx.fillStyle = item.ownerId === 2 ? 'rgba(255,0,0,0.3)' : 'rgba(0,255,0,0.2)';
+                
+                // 소유자별 색상 설정
+                let ownerColor = 'rgba(0, 255, 0, 0.2)'; // 기본 아군 (Player 1)
+                if (item.ownerId === 2) ownerColor = 'rgba(255, 0, 0, 0.3)'; // 적군
+                else if (item.ownerId === 0) ownerColor = 'rgba(200, 200, 200, 0.3)'; // 중립
+                else if (item.ownerId === 3) ownerColor = 'rgba(0, 210, 255, 0.3)'; // 동맹
+                
+                ctx.fillStyle = ownerColor;
                 ctx.beginPath(); ctx.arc(0, 0, tileSize/2.5, 0, Math.PI*2); ctx.fill();
+                
                 ctx.rotate((r * 90) * Math.PI / 180 + Math.PI/2);
                 dummy.draw(ctx);
                 ctx.restore();
@@ -403,7 +492,7 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, options: u.options } : null
                 ];
             }
         }
@@ -457,7 +546,7 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, options: u.options } : null
                 ];
             }
         }

@@ -124,6 +124,46 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Unit Config Modal -->
+            <div id="unit-config-modal" class="modal-overlay hidden">
+                <div class="modal-content glass-panel unit-config-content">
+                    <h2 id="config-unit-name">UNIT CONFIG</h2>
+                    <div class="config-body">
+                        <div class="config-row">
+                            <label>소유자 (OWNER)</label>
+                            <select id="config-owner">
+                                <option value="1">플레이어 (PLAYER)</option>
+                                <option value="2" selected>적군 (ENEMY)</option>
+                                <option value="0">중립 (NEUTRAL)</option>
+                                <option value="3">아군 (ALLY)</option>
+                            </select>
+                        </div>
+                        <div class="config-row">
+                            <label>내구도 (HP)</label>
+                            <input type="number" id="config-hp" min="1" max="9999">
+                        </div>
+                        <div class="config-row">
+                            <label>회전 (ROTATION)</label>
+                            <select id="config-rotation">
+                                <option value="0">0°</option>
+                                <option value="1">90°</option>
+                                <option value="2">180°</option>
+                                <option value="3">270°</option>
+                            </select>
+                        </div>
+                        <div class="config-section">
+                            <div class="section-title">추가 옵션 (JSON)</div>
+                            <textarea id="config-options" placeholder='{"ammo": 50, "speed": 1.2}'></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-btns">
+                        <button id="config-save-btn" class="sidebar-btn success">저장 (SAVE)</button>
+                        <button id="config-delete-btn" class="sidebar-btn danger">삭제 (DELETE)</button>
+                        <button id="config-cancel-btn" class="sidebar-btn secondary">취소 (CANCEL)</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <canvas id="gameCanvas"></canvas>
