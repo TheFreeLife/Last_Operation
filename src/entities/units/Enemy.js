@@ -1,8 +1,10 @@
 import { Entity } from '../BaseEntity.js';
+import { BaseUnit } from './BaseUnit.js';
 
 
-export class Enemy extends Entity {
-    constructor(x, y) {
+export class Enemy extends BaseUnit {
+    static editorConfig = { category: 'unit', icon: 'enemy', name: '적군 전차', ownerId: 2 };
+    constructor(x, y, engine) {
         super(x, y);
         this.ownerId = 2; // 플레이어 2 (적) 소유
         this.speed = 1.8;

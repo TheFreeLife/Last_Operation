@@ -1,6 +1,7 @@
 import { PlayerUnit } from './BaseUnit.js';
 
 export class Rifleman extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'rifleman', name: '보병 분대' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'rifleman';
@@ -98,6 +99,7 @@ export class Rifleman extends PlayerUnit {
 }
 
 export class Sniper extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'sniper', name: '저격수' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'sniper';

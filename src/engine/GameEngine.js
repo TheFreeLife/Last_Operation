@@ -20,7 +20,8 @@ export class GameEngine {
         this.ctx = this.canvas.getContext('2d');
         
         this.gameState = GameState.MENU;
-        this.missions = []; // 모든 미션 데이터를 담을 배열
+        this.missions = [];
+        this.isTestMode = false; // 에디터 테스트 플레이 여부 추적
 
         this.minimapCanvas = document.getElementById('minimapCanvas');
         this.minimapCtx = this.minimapCanvas.getContext('2d');
@@ -123,8 +124,14 @@ export class GameEngine {
             this.renderMapList();
         } else if (newState === GameState.EDITOR) {
             this.mapEditor.activate();
+            // 테스트 모드였다면 복귀 시 게임 세션만 정리
+            if (oldState === GameState.PLAYING) {
+                this.resetGameSession();
+            }
         } else if (newState === GameState.MENU) {
             this.mapEditor.deactivate();
+            this.isTestMode = false; // 테스트 모드 해제
+            
             // 게임 플레이 중이었다가 메뉴로 나가는 경우 세션 초기화
             if (oldState === GameState.PLAYING || oldState === GameState.MAP_SELECT) {
                 this.resetGameSession();
@@ -201,34 +208,62 @@ export class GameEngine {
         if (!mapData) return;
 
         try {
-            this.tileMap.loadFromData(mapData);
-            this.entityManager.clear();
+            console.log(`[Game] Loading mission: ${missionData.name}...`);
             
+            // 1. 세션 초기화
+            this.resetGameSession();
+
+            // 2. 타일맵 데이터 로드 및 렌더링 준비
+            this.tileMap.loadFromData(mapData);
+            
+            // 3. 미니맵 캐시 갱신
+            if (this.minimapCacheCanvas) {
+                this.minimapCacheCanvas.width = this.tileMap.cols;
+                this.minimapCacheCanvas.height = this.tileMap.rows;
+                this.minimapCacheCtx = this.minimapCacheCanvas.getContext('2d');
+            }
+
+            // 4. 유닛 스폰 (지연 방지를 위해 즉시 실행)
             const unitLayer = this.tileMap.layers.unit;
             const tileSize = this.tileMap.tileSize;
 
             for (let y = 0; y < mapData.height; y++) {
+                if (!unitLayer[y]) continue;
                 for (let x = 0; x < mapData.width; x++) {
                     const unitInfo = unitLayer[y][x];
-                    if (unitInfo) {
+                    if (unitInfo && unitInfo.id) {
                         const worldX = x * tileSize + tileSize / 2;
                         const worldY = y * tileSize + tileSize / 2;
                         const entity = this.entityManager.create(unitInfo.id, worldX, worldY, { ownerId: unitInfo.ownerId || 1 });
                         if (entity) {
+                            entity.alive = true; // 시야 확보를 위해 생존 상태 강제
                             entity.angle = Math.PI / 2;
                         }
                     }
                 }
             }
             
-            // 카메라 중앙 정렬
-            this.camera.zoom = 0.8;
-            this.camera.x = this.canvas.width / 2 - (mapData.width * this.tileMap.tileSize * this.camera.zoom) / 2;
-            this.camera.y = this.canvas.height / 2 - (mapData.height * this.tileMap.tileSize * this.camera.zoom) / 2;
+            // 5. 카메라 설정
+            const mapPixelWidth = mapData.width * tileSize;
+            const mapPixelHeight = mapData.height * tileSize;
+            
+            // 화면 크기에 맞게 줌 조절 (최대 1.0, 최소 0.3)
+            const padding = 1.2;
+            const idealZoom = Math.min(this.canvas.width / (mapPixelWidth * padding), this.canvas.height / (mapPixelHeight * padding));
+            this.camera.zoom = Math.min(Math.max(idealZoom, 0.4), 1.0);
 
+            this.camera.x = this.canvas.width / 2 - (mapPixelWidth * this.camera.zoom) / 2;
+            this.camera.y = this.canvas.height / 2 - (mapPixelHeight * this.camera.zoom) / 2;
+
+            // 6. 시야 및 렌더링 강제 갱신
             this.updateVisibility();
+            if (this.tileMap.updateFogCanvas) this.tileMap.updateFogCanvas();
+            this.updateMinimapCache();
+            
+            return true; // 로드 성공
         } catch (error) {
             console.error('Failed to load mission:', error);
+            return false;
         }
     }
 
@@ -328,7 +363,15 @@ export class GameEngine {
         document.getElementById('start-game-btn')?.addEventListener('click', () => this.setGameState(GameState.MAP_SELECT));
         document.getElementById('map-select-back-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('map-editor-btn')?.addEventListener('click', () => this.setGameState(GameState.EDITOR));
-        document.getElementById('in-game-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
+        
+        document.getElementById('in-game-exit-btn')?.addEventListener('click', () => {
+            if (this.isTestMode) {
+                this.setGameState(GameState.EDITOR);
+            } else {
+                this.setGameState(GameState.MENU);
+            }
+        });
+
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
         this.updateBuildMenu();

@@ -1,48 +1,65 @@
+import { EDITOR_ICONS } from '../../assets/EditorIcons.js';
+
 export class MapEditor {
     constructor(engine) {
         this.engine = engine;
         this.active = false;
         this.currentLayer = 'floor'; 
-        this.currentTool = 'pencil'; // 'pencil', 'eraser', 'fill', 'rect', 'circle', 'triangle'
+        this.currentTool = 'pencil'; 
         this.selectedItem = null;
         
+        // 유닛 드로잉을 위한 임시 인스턴스 저장소 (캐시)
+        this.dummyUnits = new Map();
+
         this.layers = {
             floor: new Map(),
             wall: new Map(),
             unit: new Map()
         };
 
-        // 도형 그리기를 위한 상태
         this.isDrawing = false;
         this.startPos = { x: 0, y: 0 };
         this.endPos = { x: 0, y: 0 };
 
         this.palette = {
             floor: [
-                { id: 'dirt', name: '흙', icon: '🟫' },
-                { id: 'grass', name: '풀', icon: '🟩' },
-                { id: 'sand', name: '모래', icon: '🟨' },
-                { id: 'water', name: '물', icon: '🟦' }
+                { id: 'dirt', name: '흙' },
+                { id: 'grass', name: '풀' },
+                { id: 'sand', name: '모래' },
+                { id: 'water', name: '물' }
             ],
             wall: [
-                { id: 'stone-wall', name: '석재 벽', icon: '🧱' },
-                { id: 'tree', name: '나무', icon: '🌳' },
-                { id: 'rock', name: '바위', icon: '🪨' },
-                { id: 'fence', name: '울타리', icon: '🚧' }
+                { id: 'stone-wall', name: '석재 벽' },
+                { id: 'tree', name: '나무' },
+                { id: 'rock', name: '바위' },
+                { id: 'fence', name: '울타리' }
             ],
-            unit: [
-                { id: 'tank', name: '전차', icon: '🚜', ownerId: 1 },
-                { id: 'rifleman', name: '보병', icon: '🔫', ownerId: 1 },
-                { id: 'enemy', name: '적군', icon: '🔴', ownerId: 2 },
-                { id: 'ammo-box', name: '탄약고', icon: '📦', ownerId: 1 }
-            ]
+            unit: []
         };
 
         this.initUI();
     }
 
+    syncPaletteWithEngine() {
+        if (!this.engine.entityManager) return;
+        const engineItems = this.engine.entityManager.getPlaceableItems();
+        this.palette.unit = engineItems.filter(item => item.category === 'unit');
+        
+        // 더미 유닛 인스턴스 생성 (드로잉용)
+        this.palette.unit.forEach(item => {
+            if (!this.dummyUnits.has(item.id)) {
+                const registration = this.engine.entityManager.registry.get(item.id);
+                if (registration) {
+                    const unit = new registration.EntityClass(0, 0, this.engine);
+                    if (item.options) Object.assign(unit, item.options);
+                    unit.ownerId = item.ownerId;
+                    this.dummyUnits.set(`${item.id}_${JSON.stringify(item.options || {})}`, unit);
+                }
+            }
+        });
+    }
+
     initUI() {
-        // 도구 버튼 설정
         const toolBtns = document.querySelectorAll('.tool-btn, .sub-tool-btn');
         const mainShapeBtn = document.getElementById('shape-tool-main');
 
@@ -51,23 +68,16 @@ export class MapEditor {
                 const tool = btn.dataset.tool;
                 this.currentTool = tool;
                 this.isDrawing = false;
-
-                // UI 업데이트
                 document.querySelectorAll('.tool-btn, .sub-tool-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-
-                // 도형 도구인 경우 메인 버튼 활성화 상태 변경
                 if (['rect', 'circle', 'triangle'].includes(tool)) {
-                    if (mainShapeBtn) {
-                        mainShapeBtn.classList.add('active');
-                    }
+                    if (mainShapeBtn) mainShapeBtn.classList.add('active');
                 } else {
                     if (mainShapeBtn) mainShapeBtn.classList.remove('active');
                 }
             });
         });
 
-        // 레이어 탭 설정
         const tabs = document.querySelectorAll('.palette-tab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -79,27 +89,32 @@ export class MapEditor {
 
         document.getElementById('editor-save-btn')?.addEventListener('click', () => this.exportToSidebar());
         document.getElementById('sidebar-import-btn')?.addEventListener('click', () => this.importFromSidebar());
+        document.getElementById('editor-test-btn')?.addEventListener('click', () => this.testCurrentMap());
+        document.getElementById('sidebar-copy-btn')?.addEventListener('click', () => {
+            const area = document.getElementById('sidebar-data-area');
+            area.select();
+            document.execCommand('copy');
+            alert('복사되었습니다!');
+        });
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.engine.setGameState('MENU'));
     }
 
     activate() {
         this.active = true;
+        this.syncPaletteWithEngine();
         this.setLayer('floor');
-        this.updatePalette();
         
         this.engine.camera.zoom = 1.0;
-        this.engine.camera.x = this.engine.canvas.width / 2 - 320/2; // 사이드바 고려
+        this.engine.camera.x = this.engine.canvas.width / 2 - 400; 
         this.engine.camera.y = this.engine.canvas.height / 2;
     }
 
-    deactivate() {
-        this.active = false;
-    }
+    deactivate() { this.active = false; }
 
     setLayer(layer) {
         this.currentLayer = layer;
         const layerDisplay = document.getElementById('current-layer-name');
-        if (layerDisplay) layerDisplay.textContent = layer.charAt(0).toUpperCase() + layer.slice(1);
+        if (layerDisplay) layerDisplay.textContent = layer.toUpperCase();
         this.updatePalette();
     }
 
@@ -108,42 +123,80 @@ export class MapEditor {
         if (!grid) return;
         grid.innerHTML = '';
         
-        this.palette[this.currentLayer].forEach(item => {
+        const items = this.palette[this.currentLayer];
+        items.forEach(item => {
             const el = document.createElement('div');
-            el.className = 'palette-item';
-            el.textContent = item.icon;
-            el.title = item.name;
+            el.className = 'palette-item-container';
+            
+            const preview = document.createElement('canvas');
+            preview.width = 60;
+            preview.height = 60;
+            el.appendChild(preview);
+            
+            const label = document.createElement('div');
+            label.className = 'palette-label';
+            label.textContent = item.name;
+            el.appendChild(label);
+
+            this.renderPalettePreview(preview, item);
+
             el.onclick = () => this.selectItem(item, el);
             grid.appendChild(el);
-            if (this.selectedItem && this.selectedItem.id === item.id) el.classList.add('active');
+            
+            if (this.selectedItem && this.selectedItem.id === item.id) {
+                if (!item.options || (this.selectedItem.options && item.options.ammoType === this.selectedItem.options.ammoType)) {
+                    el.classList.add('active');
+                }
+            }
         });
-        if (!this.selectedItem && this.palette[this.currentLayer].length > 0) {
-            this.selectItem(this.palette[this.currentLayer][0], grid.firstChild);
+    }
+
+    renderPalettePreview(canvas, item) {
+        const ctx = canvas.getContext('2d');
+        const mid = canvas.width / 2;
+        
+        if (this.currentLayer === 'floor') {
+            ctx.fillStyle = this.engine.tileMap.getTileColor(item.id);
+            ctx.fillRect(5, 5, 50, 50);
+        } else if (this.currentLayer === 'wall') {
+            ctx.translate(mid, mid);
+            ctx.fillStyle = '#555';
+            ctx.font = '30px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const WALL_ICONS = { 'stone-wall': '🧱', 'tree': '🌳', 'rock': '🪨', 'fence': '🚧' };
+            ctx.fillText(WALL_ICONS[item.id] || '?', 0, 0);
+        } else {
+            // 유닛 실물 렌더링
+            const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
+            if (dummy) {
+                ctx.translate(mid, mid);
+                ctx.scale(0.6, 0.6); // 팔레트 크기에 맞춤
+                dummy.draw(ctx);
+            }
         }
     }
 
     selectItem(item, element) {
-        if (this.selectedItem && this.selectedItem.id === item?.id) {
-            // 이미 선택된 항목을 다시 누르면 선택 취소
+        if (this.selectedItem && this.selectedItem.id === item?.id && 
+            JSON.stringify(this.selectedItem.options) === JSON.stringify(item?.options)) {
             this.selectedItem = null;
-            document.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.palette-item-container').forEach(el => el.classList.remove('active'));
         } else {
             this.selectedItem = item;
-            document.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.palette-item-container').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
         }
     }
 
     handleInput(worldX, worldY, isMouseDown, isRightClick) {
         if (!this.active) return;
-
-        const gridX = Math.floor(worldX / this.engine.tileMap.tileSize);
-        const gridY = Math.floor(worldY / this.engine.tileMap.tileSize);
+        const tileSize = this.engine.tileMap.tileSize;
+        const gridX = Math.floor(worldX / tileSize);
+        const gridY = Math.floor(worldY / tileSize);
         const key = `${gridX},${gridY}`;
 
-        // 좌표 실시간 업데이트
-        const coordsDisplay = document.getElementById('mouse-coords');
-        if (coordsDisplay) coordsDisplay.textContent = `${gridX}, ${gridY}`;
+        document.getElementById('mouse-coords').textContent = `${gridX}, ${gridY}`;
 
         if (isRightClick) {
             this.layers[this.currentLayer].delete(key);
@@ -154,28 +207,17 @@ export class MapEditor {
             if (!this.isDrawing) {
                 this.isDrawing = true;
                 this.startPos = { x: gridX, y: gridY };
-                
-                // 클릭 즉시 실행되는 도구들
                 if (this.currentTool === 'fill') {
                     this.floodFill(gridX, gridY);
-                    this.isDrawing = false; // 채우기는 즉시 완료
+                    this.isDrawing = false;
                 }
             }
-            
             this.endPos = { x: gridX, y: gridY };
-
-            // 드래그 중 실시간 반영되는 도구들
-            if (this.currentTool === 'pencil') {
-                this.applyToTile(gridX, gridY);
-            } else if (this.currentTool === 'eraser') {
-                this.layers[this.currentLayer].delete(key);
-            }
+            if (this.currentTool === 'pencil') this.applyToTile(gridX, gridY);
+            else if (this.currentTool === 'eraser') this.layers[this.currentLayer].delete(key);
         } else {
-            // 마우스 버튼을 뗐을 때
             if (this.isDrawing) {
-                if (['rect', 'circle', 'triangle'].includes(this.currentTool)) {
-                    this.commitShape();
-                }
+                if (['rect', 'circle', 'triangle'].includes(this.currentTool)) this.commitShape();
                 this.isDrawing = false;
             }
         }
@@ -183,8 +225,7 @@ export class MapEditor {
 
     applyToTile(x, y) {
         if (!this.selectedItem) return;
-        const key = `${x},${y}`;
-        this.layers[this.currentLayer].set(key, { ...this.selectedItem });
+        this.layers[this.currentLayer].set(`${x},${y}`, { ...this.selectedItem });
     }
 
     floodFill(startX, startY) {
@@ -192,22 +233,13 @@ export class MapEditor {
         const layer = this.layers[this.currentLayer];
         const targetValue = layer.get(`${startX},${startY}`)?.id || null;
         const newValue = this.selectedItem.id;
-        
         if (targetValue === newValue) return;
-
-        const queue = [[startX, startY]];
-        const visited = new Set();
-        const limit = 5000; // 안전 장치
-
+        const queue = [[startX, startY]], visited = new Set(), limit = 5000;
         while (queue.length > 0 && visited.size < limit) {
-            const [x, y] = queue.shift();
-            const key = `${x},${y}`;
-
+            const [x, y] = queue.shift(), key = `${x},${y}`;
             if (visited.has(key)) continue;
             visited.add(key);
-
-            const currentValue = layer.get(key)?.id || null;
-            if (currentValue === targetValue) {
+            if ((layer.get(key)?.id || null) === targetValue) {
                 this.applyToTile(x, y);
                 queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
             }
@@ -215,36 +247,25 @@ export class MapEditor {
     }
 
     commitShape() {
-        const points = this.getShapePoints(this.startPos, this.endPos, this.currentTool);
-        points.forEach(p => this.applyToTile(p.x, p.y));
+        this.getShapePoints(this.startPos, this.endPos, this.currentTool).forEach(p => this.applyToTile(p.x, p.y));
     }
 
     getShapePoints(start, end, tool) {
         const points = [];
-        const x1 = Math.min(start.x, end.x);
-        const x2 = Math.max(start.x, end.x);
-        const y1 = Math.min(start.y, end.y);
-        const y2 = Math.max(start.y, end.y);
-
+        const x1 = Math.min(start.x, end.x), x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y), y2 = Math.max(start.y, end.y);
         if (tool === 'rect') {
-            for (let x = x1; x <= x2; x++) {
-                for (let y = y1; y <= y2; y++) points.push({ x, y });
-            }
+            for (let x = x1; x <= x2; x++) for (let y = y1; y <= y2; y++) points.push({ x, y });
         } else if (tool === 'circle') {
-            const centerX = (start.x + end.x) / 2;
-            const centerY = (start.y + end.y) / 2;
-            const radius = Math.hypot(end.x - start.x, end.y - start.y) / 2;
-            for (let x = Math.floor(centerX - radius); x <= Math.ceil(centerX + radius); x++) {
-                for (let y = Math.floor(centerY - radius); y <= Math.ceil(centerY + radius); y++) {
-                    if (Math.hypot(x - centerX, y - centerY) <= radius) points.push({ x, y });
-                }
-            }
+            const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2, r = Math.hypot(end.x - start.x, end.y - start.y) / 2;
+            for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) 
+                for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++)
+                    if (Math.hypot(x - cx, y - cy) <= r) points.push({ x, y });
         } else if (tool === 'triangle') {
-            // 단순 수직 이등변 삼각형
-            const midX = Math.floor((start.x + end.x) / 2);
+            const mx = Math.floor((start.x + end.x) / 2);
             for (let y = y1; y <= y2; y++) {
-                const rowWidth = Math.floor(((y - y1) / (y2 - y1)) * (x2 - x1) / 2);
-                for (let x = midX - rowWidth; x <= midX + rowWidth; x++) points.push({ x, y });
+                const rw = Math.floor(((y - y1) / (y2 - y1)) * (x2 - x1) / 2);
+                for (let x = mx - rw; x <= mx + rw; x++) points.push({ x, y });
             }
         }
         return points;
@@ -253,99 +274,101 @@ export class MapEditor {
     render(ctx) {
         const tileSize = this.engine.tileMap.tileSize;
         const canvas = this.engine.canvas;
+        const camera = this.engine.camera;
 
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = '#000000';
+        ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
 
-        const camera = this.engine.camera;
-        const viewL = -camera.x / camera.zoom;
-        const viewT = -camera.y / camera.zoom;
-        const viewR = viewL + canvas.width / camera.zoom;
-        const viewB = viewT + canvas.height / camera.zoom;
+        const viewL = -camera.x / camera.zoom, viewT = -camera.y / camera.zoom;
+        const viewR = viewL + canvas.width / camera.zoom, viewB = viewT + canvas.height / camera.zoom;
+        const sX = Math.floor(viewL / tileSize), eX = Math.ceil(viewR / tileSize);
+        const sY = Math.floor(viewT / tileSize), eY = Math.ceil(viewB / tileSize);
 
-        const startX = Math.floor(viewL / tileSize);
-        const endX = Math.ceil(viewR / tileSize);
-        const startY = Math.floor(viewT / tileSize);
-        const endY = Math.ceil(viewB / tileSize);
-
-        // 그리드 렌더링
-        ctx.strokeStyle = '#111111';
+        // 그리드
+        ctx.strokeStyle = '#151515';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        for (let x = startX; x <= endX; x++) { ctx.moveTo(x * tileSize, viewT); ctx.lineTo(x * tileSize, viewB); }
-        for (let y = startY; y <= endY; y++) { ctx.moveTo(viewL, y * tileSize); ctx.lineTo(viewR, y * tileSize); }
+        for (let x = sX; x <= eX; x++) { ctx.moveTo(x * tileSize, viewT); ctx.lineTo(x * tileSize, viewB); }
+        for (let y = sY; y <= eY; y++) { ctx.moveTo(viewL, y * tileSize); ctx.lineTo(viewR, y * tileSize); }
         ctx.stroke();
 
-        // 레이어 렌더링
+        // 실물 렌더링
         ['floor', 'wall', 'unit'].forEach(layerName => {
-            const layer = this.layers[layerName];
-            if (layerName === 'unit') ctx.globalAlpha = 0.8;
-            layer.forEach((item, key) => {
+            this.layers[layerName].forEach((item, key) => {
                 const [x, y] = key.split(',').map(Number);
-                if (x >= startX && x <= endX && y >= startY && y <= endY) {
-                    if (layerName === 'floor') {
-                        ctx.fillStyle = this.getTileColor(item.id || item);
-                        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                    } else {
-                        this.drawEditorItem(ctx, item, x, y);
-                    }
+                if (x >= sX && x <= eX && y >= sY && y <= eY) {
+                    this.drawActualItem(ctx, item, x, y, layerName);
                 }
             });
-            ctx.globalAlpha = 1.0;
         });
 
-        // 도형 그리기 프리뷰
+        // 고스트 및 프리뷰
+        const mWorldX = (camera.mouseX - camera.x) / camera.zoom;
+        const mWorldY = (camera.mouseY - camera.y) / camera.zoom;
+        const mGX = Math.floor(mWorldX / tileSize), mGY = Math.floor(mWorldY / tileSize);
+
         if (this.isDrawing && ['rect', 'circle', 'triangle'].includes(this.currentTool)) {
-            const points = this.getShapePoints(this.startPos, this.endPos, this.currentTool);
-            ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
-            points.forEach(p => ctx.fillRect(p.x * tileSize, p.y * tileSize, tileSize, tileSize));
+            ctx.fillStyle = 'rgba(0, 210, 255, 0.2)';
+            this.getShapePoints(this.startPos, this.endPos, this.currentTool).forEach(p => ctx.fillRect(p.x * tileSize, p.y * tileSize, tileSize, tileSize));
         }
 
-        // 마우스 호버 가이드
-        const mouseGrid = this.engine.tileMap.worldToGrid((camera.mouseX - camera.x) / camera.zoom, (camera.mouseY - camera.y) / camera.zoom);
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(mouseGrid.x * tileSize, mouseGrid.y * tileSize, tileSize, tileSize);
         if (this.selectedItem && !this.isDrawing) {
-            ctx.globalAlpha = 0.4;
-            this.drawEditorItem(ctx, this.selectedItem, mouseGrid.x, mouseGrid.y);
+            ctx.globalAlpha = 0.5;
+            this.drawActualItem(ctx, this.selectedItem, mGX, mGY, this.currentLayer);
             ctx.globalAlpha = 1.0;
-        }
-    }
-
-    getTileColor(type) {
-        switch(type) {
-            case 'dirt': return '#4a3b31';
-            case 'grass': return '#2d4d2d';
-            case 'sand': return '#4d4d2d';
-            case 'water': return '#2d4d6d';
-            default: return '#333333';
-        }
-    }
-
-    drawEditorItem(ctx, item, x, y) {
-        const tileSize = this.engine.tileMap.tileSize;
-        const itemId = typeof item === 'string' ? item : item.id;
-        let icon = typeof item === 'object' ? item.icon : null;
-        if (!icon) {
-            for (const category in this.palette) {
-                const found = this.palette[category].find(p => p.id === itemId);
-                if (found) { icon = found.icon; break; }
+            // 사거리 가이드
+            const dummy = this.dummyUnits.get(`${this.selectedItem.id}_${JSON.stringify(this.selectedItem.options || {})}`);
+            if (dummy && dummy.attackRange) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(mGX * tileSize + tileSize/2, mGY * tileSize + tileSize/2, dummy.attackRange, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
         }
-        ctx.font = `${tileSize * 0.7}px Arial`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(icon || '?', x * tileSize + tileSize/2, y * tileSize + tileSize/2);
+        
+        ctx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(mGX * tileSize, mGY * tileSize, tileSize, tileSize);
+    }
+
+    drawActualItem(ctx, item, x, y, layer) {
+        const tileSize = this.engine.tileMap.tileSize;
+        const cx = x * tileSize + tileSize / 2, cy = y * tileSize + tileSize / 2;
+
+        if (layer === 'floor') {
+            ctx.fillStyle = this.engine.tileMap.getTileColor(item.id || item);
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+        } else if (layer === 'wall') {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.font = `${tileSize * 0.7}px Arial`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            const WALL_ICONS = { 'stone-wall': '🧱', 'tree': '🌳', 'rock': '🪨', 'fence': '🚧' };
+            ctx.fillText(WALL_ICONS[item.id] || '?', 0, 0);
+            ctx.restore();
+        } else {
+            const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
+            if (dummy) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                // 팀 컬러 인디케이터
+                ctx.fillStyle = item.ownerId === 2 ? 'rgba(255,0,0,0.3)' : 'rgba(0,255,0,0.2)';
+                ctx.beginPath(); ctx.arc(0, 0, tileSize/2.5, 0, Math.PI*2); ctx.fill();
+                ctx.rotate(Math.PI/2);
+                dummy.draw(ctx);
+                ctx.restore();
+            }
+        }
     }
 
     exportToSidebar() {
         const area = document.getElementById('sidebar-data-area');
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        let hasData = false;
-
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, hasData = false;
         for (const ln in this.layers) {
             this.layers[ln].forEach((v, k) => {
                 const [x, y] = k.split(',').map(Number);
@@ -354,71 +377,62 @@ export class MapEditor {
                 hasData = true;
             });
         }
-
-        if (!hasData) {
-            area.value = "설치된 타일이 없습니다.";
-            return;
-        }
-
-        const width = maxX - minX + 1, height = maxY - minY + 1;
-        const exportGrid = Array.from({ length: height }, () => Array.from({ length: width }, () => [null, null, null]));
-
+        if (!hasData) return;
+        const w = maxX - minX + 1, h = maxY - minY + 1;
+        const grid = Array.from({ length: h }, () => Array.from({ length: w }, () => [null, null, null]));
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
-                const f = this.layers.floor.get(k), w = this.layers.wall.get(k), u = this.layers.unit.get(k);
-                exportGrid[ly][lx] = [
-                    f ? f.id : null,
-                    w ? w.id : null,
-                    u ? { id: u.id, ownerId: u.ownerId } : null
-                ];
+                const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k);
+                grid[ly][lx] = [f ? f.id : null, wl ? wl.id : null, u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null];
             }
         }
-
-        const jsonHeader = `{\n  "width": ${width},\n  "height": ${height},\n  "tileSize": ${this.engine.tileMap.tileSize},\n  "grid": [\n`;
-        const jsonBody = exportGrid.map(row => `    ${JSON.stringify(row)}`).join(',\n');
-        area.value = jsonHeader + jsonBody + '\n  ]\n}';
+        const header = `{\n  "width": ${w},\n  "height": ${h},\n  "tileSize": ${this.engine.tileMap.tileSize},\n  "grid": [\n`;
+        const body = grid.map(row => `    ${JSON.stringify(row)}`).join(',\n');
+        area.value = header + body + '\n  ]\n}';
     }
 
     importFromSidebar() {
         const area = document.getElementById('sidebar-data-area');
         try {
             const data = JSON.parse(area.value);
-            if (!data.grid || !Array.isArray(data.grid)) throw new Error("Invalid grid format");
-
-            // 기존 데이터 초기화
-            this.layers.floor.clear();
-            this.layers.wall.clear();
-            this.layers.unit.clear();
-
-            // 0,0 좌표를 기준으로 임포트
+            this.layers.floor.clear(); this.layers.wall.clear(); this.layers.unit.clear();
             data.grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
-                    const key = `${x},${y}`;
-                    const [floorId, wallId, unitData] = cell;
-
-                    if (floorId) this.layers.floor.set(key, { id: floorId, icon: this._getIconById(floorId) });
-                    if (wallId) this.layers.wall.set(key, { id: wallId, icon: this._getIconById(wallId) });
-                    if (unitData) this.layers.unit.set(key, { id: unitData.id, ownerId: unitData.ownerId, icon: this._getIconById(unitData.id) });
+                    const k = `${x},${y}`, [f, wl, u] = cell;
+                    if (f) this.layers.floor.set(k, { id: f });
+                    if (wl) this.layers.wall.set(k, { id: wl });
+                    if (u) this.layers.unit.set(k, { id: u.id, ownerId: u.ownerId, options: u.options });
                 });
             });
-
-            alert(`맵 로드 완료: ${data.width}x${data.height}`);
-            
-            // 카메라 위치 조정
+            this.syncPaletteWithEngine();
             this.engine.camera.x = this.engine.canvas.width / 2 - (data.width * this.engine.tileMap.tileSize) / 2 - 160;
             this.engine.camera.y = this.engine.canvas.height / 2 - (data.height * this.engine.tileMap.tileSize) / 2;
-
-        } catch (e) {
-            alert("가져오기 실패: JSON 형식이 올바르지 않습니다.\n" + e.message);
-        }
+        } catch (e) { alert("형식이 올바르지 않습니다."); }
     }
 
-    _getIconById(id) {
-        for (const cat in this.palette) {
-            const item = this.palette[cat].find(p => p.id === id);
-            if (item) return item.icon;
+    async testCurrentMap() {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, hasData = false;
+        for (const ln in this.layers) {
+            this.layers[ln].forEach((v, k) => {
+                const [x, y] = k.split(',').map(Number);
+                minX = Math.min(minX, x); minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+                hasData = true;
+            });
         }
-        return '?';
+        if (!hasData) return;
+        const w = maxX - minX + 1, h = maxY - minY + 1;
+        const grid = Array.from({ length: h }, () => Array.from({ length: w }, () => [null, null, null]));
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                const k = `${x},${y}`, lx = x - minX, ly = y - minY;
+                const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k);
+                grid[ly][lx] = [f ? f.id : 'dirt', wl ? wl.id : null, u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null];
+            }
+        }
+        this.engine.isMouseDown = false; this.engine.isRightMouseDown = false; this.engine.isTestMode = true;
+        const success = await this.engine.loadMission({ name: 'Test', data: { width: w, height: h, tileSize: this.engine.tileMap.tileSize, grid: grid } });
+        if (success) this.engine.setGameState('PLAYING');
     }
 }

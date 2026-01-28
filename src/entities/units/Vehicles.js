@@ -2,6 +2,7 @@ import { PlayerUnit } from './BaseUnit.js';
 import { Missile } from '../projectiles/Missile.js';
 
 export class Tank extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'tank', name: '전차' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'tank';
@@ -68,6 +69,7 @@ export class Tank extends PlayerUnit {
 }
 
 export class MissileLauncher extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'missile-launcher', name: '미사일 발사대' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'missile-launcher';
@@ -300,6 +302,7 @@ export class MissileLauncher extends PlayerUnit {
 }
 
 export class Artillery extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'artillery', name: '자주포' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'artillery';
@@ -341,6 +344,7 @@ export class Artillery extends PlayerUnit {
 }
 
 export class AntiAirVehicle extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'anti-air', name: '대공포' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'anti-air';

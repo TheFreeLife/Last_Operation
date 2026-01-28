@@ -213,6 +213,41 @@ export class EntityManager {
     }
 
     /**
+     * 에디터에서 배치 가능한 모든 항목(유닛, 아이템 등) 리스트 반환
+     */
+    getPlaceableItems() {
+        const items = [];
+        for (const [type, info] of this.registry.entries()) {
+            const config = info.EntityClass.editorConfig;
+            if (!config) continue;
+
+            if (config.variants) {
+                // 여러 변종이 있는 경우 (예: 탄약 상자 종류별)
+                config.variants.forEach(variant => {
+                    items.push({
+                        id: type, // 베이스 타입 유지
+                        name: variant.name,
+                        icon: variant.icon,
+                        category: config.category || 'unit',
+                        ownerId: config.ownerId || 1,
+                        options: variant.options // 생성 시 전달할 옵션 (ammoType 등)
+                    });
+                });
+            } else {
+                // 단일 항목인 경우
+                items.push({
+                    id: type,
+                    name: config.name || type,
+                    icon: config.icon || '❓',
+                    category: config.category || 'unit',
+                    ownerId: config.ownerId || (config.category === 'unit' ? 1 : 0)
+                });
+            }
+        }
+        return items;
+    }
+
+    /**
      * 디버그 정보 출력
      */
     debug() {

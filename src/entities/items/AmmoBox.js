@@ -1,6 +1,15 @@
 import { PlayerUnit } from '../units/BaseUnit.js';
 
 export class AmmoBox extends PlayerUnit {
+    static editorConfig = { 
+        category: 'unit', 
+        name: '탄약 상자',
+        variants: [
+            { id: 'ammo-bullet', name: '탄약 (소총탄)', icon: 'ammo-box', options: { ammoType: 'bullet' } },
+            { id: 'ammo-shell', name: '탄약 (포탄)', icon: 'ammo-box', options: { ammoType: 'shell' } },
+            { id: 'ammo-missile', name: '탄약 (미사일)', icon: 'ammo-box', options: { ammoType: 'missile' } }
+        ]
+    };
     constructor(x, y, engine, ammoType = 'bullet') {
         super(x, y, engine);
         this.type = `ammo-${ammoType}`;

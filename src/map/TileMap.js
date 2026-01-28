@@ -22,16 +22,24 @@ export class TileMap {
     }
 
     initFogCanvas() {
-        this.fogCanvas = document.createElement('canvas');
+        if (!this.fogCanvas) {
+            this.fogCanvas = document.createElement('canvas');
+        }
+        
         this.fogCanvas.width = this.cols;
         this.fogCanvas.height = this.rows;
         this.fogCtx = this.fogCanvas.getContext('2d');
 
+        // 안개 초기 상태: 완전한 불투명 검은색 (미탐사)
         this.fogCtx.fillStyle = '#050505';
         this.fogCtx.fillRect(0, 0, this.cols, this.rows);
 
         this.fogImageData = this.fogCtx.createImageData(this.cols, this.rows);
         this.fogBuffer = new Uint32Array(this.fogImageData.data.buffer);
+        
+        // 버퍼 초기화 (모든 픽셀을 BLACK으로)
+        const BLACK = 0xFF050505;
+        this.fogBuffer.fill(BLACK);
     }
 
     initGrid() {
