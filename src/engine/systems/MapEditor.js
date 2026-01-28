@@ -26,13 +26,32 @@ export class MapEditor {
                 { id: 'dirt', name: '흙' },
                 { id: 'grass', name: '풀' },
                 { id: 'sand', name: '모래' },
-                { id: 'water', name: '물' }
+                { id: 'water', name: '물' },
+                { id: 'asphalt', name: '아스팔트' },
+                { id: 'concrete', name: '콘크리트' },
+                { id: 'metal-plate', name: '금속판' },
+                { id: 'sidewalk', name: '인도' },
+                { id: 'tactile-paving', name: '유도 블록' },
+                { id: 'brick-floor', name: '벽돌 바닥' },
+                { id: 'curb-edge', name: '경계석' },
+                { id: 'curb-h', name: '가로 경계석' },
+                { id: 'curb-v', name: '세로 경계석' },
+                { id: 'road-line-white', name: '도로 흰선' },
+                { id: 'road-line-yellow', name: '도로 황선' },
+                { id: 'crosswalk', name: '횡단보도' }
             ],
             wall: [
                 { id: 'stone-wall', name: '석재 벽' },
+                { id: 'brick-wall', name: '벽돌 벽' },
+                { id: 'concrete-wall', name: '콘크리트 벽' },
                 { id: 'tree', name: '나무' },
                 { id: 'rock', name: '바위' },
-                { id: 'fence', name: '울타리' }
+                { id: 'fence', name: '울타리' },
+                { id: 'sandbag', name: '모래주머니' },
+                { id: 'barricade', name: '바리케이드' },
+                { id: 'street-lamp', name: '가로등' },
+                { id: 'hydrant', name: '소화전' },
+                { id: 'trash-can', name: '쓰레기통' }
             ],
             unit: []
         };

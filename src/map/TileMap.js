@@ -110,8 +110,20 @@ export class TileMap {
             case 'dirt': return '#3d352e';
             case 'grass': return '#344521';
             case 'sand': return '#a6956d';
-            case 'water': return '#213a4d';
+            case 'water': return '#1a2a35';
             case 'fertile-soil': return '#2b241c';
+            case 'asphalt': return '#282828';
+            case 'concrete': return '#5a5a5a';
+            case 'metal-plate': return '#3a3f44';
+            case 'sidewalk': return '#555555';
+            case 'tactile-paving': return '#a68010';
+            case 'brick-floor': return '#5d4037';
+            case 'curb-edge': return '#666666';
+            case 'road-line-white': return '#282828';
+            case 'road-line-yellow': return '#282828';
+            case 'crosswalk': return '#282828';
+            case 'curb-h': return '#282828';
+            case 'curb-v': return '#282828';
             default: return '#1a1a1a';
         }
     }
@@ -157,28 +169,118 @@ export class TileMap {
         const ts = this.tileSize;
         const color = this.getTileColor(terrain);
         
-        // 기본 색상 채우기
         ctx.fillStyle = color;
         ctx.fillRect(px, py, ts, ts);
 
-        // 지형별 상세 질감 (단순 반복이 아닌 격자 느낌을 줄이기 위해 노이즈 추가)
+        ctx.save();
+        
+        if (['asphalt', 'road-line-white', 'road-line-yellow', 'crosswalk', 'curb-h', 'curb-v'].includes(terrain)) {
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = '#ffffff';
+            for(let i=0; i<8; i++) {
+                ctx.fillRect(px + Math.abs(Math.sin(px+i))*ts, py + Math.abs(Math.cos(py+i))*ts, 1, 1);
+            }
+            if ((px + py) % 11 === 0) {
+                ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(px + ts*0.1, py + ts*0.1);
+                ctx.lineTo(px + ts*0.3, py + ts*0.4);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 0.6;
+            if (terrain === 'road-line-white') {
+                ctx.fillStyle = '#b0b0b0';
+                ctx.fillRect(px + ts*0.46, py, ts*0.08, ts);
+            } else if (terrain === 'road-line-yellow') {
+                ctx.fillStyle = '#907020';
+                ctx.fillRect(px + ts*0.46, py, ts*0.08, ts);
+            } else if (terrain === 'crosswalk') {
+                ctx.fillStyle = '#b0b0b0'; // 바랜 흰색
+                // 2개의 굵은 선으로 변경하여 세로 연결 시 간격이 일정하도록 조정
+                // 선 두께 0.25, 간격 0.25로 설정하면 (0.125 여백 + 0.25 선 + 0.25 간격 + 0.25 선 + 0.125 여백 = 1.0)
+                const stripH = ts * 0.25;
+                ctx.fillRect(px, py + ts * 0.125, ts, stripH);
+                ctx.fillRect(px, py + ts * 0.625, ts, stripH);
+            } else if (terrain === 'curb-h') {
+                ctx.fillStyle = '#555555'; ctx.fillRect(px, py, ts, ts*0.4);
+                ctx.fillStyle = '#777777'; ctx.fillRect(px, py + ts*0.4, ts, ts*0.1);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(px, py + ts*0.5, ts, ts*0.05);
+            } else if (terrain === 'curb-v') {
+                ctx.fillStyle = '#555555'; ctx.fillRect(px, py, ts*0.4, ts);
+                ctx.fillStyle = '#777777'; ctx.fillRect(px + ts*0.4, py, ts*0.1, ts);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(px + ts*0.5, py, ts*0.05, ts);
+            }
+        } 
+        else if (['sidewalk', 'concrete', 'tactile-paving', 'brick-floor', 'metal-plate'].includes(terrain)) {
+            ctx.globalAlpha = 0.2;
+            if (terrain === 'sidewalk') {
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.strokeRect(px + 1, py + 1, ts - 2, ts - 2);
+                ctx.beginPath();
+                ctx.moveTo(px + ts/2, py); ctx.lineTo(px + ts/2, py + ts);
+                ctx.moveTo(px, py + ts/2); ctx.lineTo(px + ts, py + ts/2);
+                ctx.stroke();
+            } else if (terrain === 'tactile-paving') {
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                for (let ix = 1; ix <= 3; ix++) {
+                    for (let iy = 1; iy <= 3; iy++) {
+                        ctx.beginPath();
+                        ctx.arc(px + ts*ix/4, py + ts*iy/4, 1.5, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+            } else if (terrain === 'brick-floor') {
+                ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.moveTo(px, py + ts/2); ctx.lineTo(px + ts, py + ts/2);
+                ctx.stroke();
+            } else if (terrain === 'metal-plate') {
+                ctx.strokeStyle = '#222222';
+                ctx.strokeRect(px + 4, py + 4, ts - 8, ts - 8);
+                ctx.fillStyle = '#111111';
+                ctx.fillRect(px + 6, py + 6, 2, 2);
+                ctx.fillRect(px + ts - 8, py + 6, 2, 2);
+                ctx.fillRect(px + 6, py + ts - 8, 2, 2);
+                ctx.fillRect(px + ts - 8, py + ts - 8, 2, 2);
+            } else if (terrain === 'concrete') {
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.strokeRect(px, py, ts, ts);
+            }
+        }
+        else {
+            this.drawNaturalTexture(ctx, px, py, terrain, ts);
+        }
+
+        ctx.globalAlpha = 0.05;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeRect(px, py, ts, ts);
+        ctx.restore();
+    }
+
+    drawNaturalTexture(ctx, px, py, terrain, ts) {
         ctx.save();
         ctx.globalAlpha = 0.15;
         
+        // 좌표 기반의 간단한 시드 생성 (타일 위치가 같으면 항상 같은 랜덤값 반환)
+        const seed = (x, y) => {
+            const h = (x * 374761393 + y * 668265263) ^ 0x12345;
+            return (Math.abs(Math.sin(h)) * 10000) % 1;
+        };
+
         if (terrain === 'grass') {
             ctx.fillStyle = '#ffffff';
-            // 작은 풀잎들
             for (let i = 0; i < 3; i++) {
-                const rx = px + 5 + Math.random() * (ts - 10);
-                const ry = py + 5 + Math.random() * (ts - 10);
+                // Math.random() 대신 seed() 사용
+                const rx = px + 5 + seed(px + i, py) * (ts - 10);
+                const ry = py + 5 + seed(px, py + i) * (ts - 10);
                 ctx.fillRect(rx, ry, 2, 4);
             }
         } else if (terrain === 'dirt') {
             ctx.fillStyle = '#000000';
-            // 거친 흙 점들
             for (let i = 0; i < 5; i++) {
-                const rx = px + Math.random() * ts;
-                const ry = py + Math.random() * ts;
+                const rx = px + seed(px + i, py) * ts;
+                const ry = py + seed(px, py + i) * ts;
                 ctx.fillRect(rx, ry, 1, 1);
             }
         } else if (terrain === 'sand') {
@@ -186,27 +288,17 @@ export class TileMap {
             ctx.beginPath();
             ctx.moveTo(px, py + ts/2);
             ctx.quadraticCurveTo(px + ts/4, py + ts/4, px + ts/2, py + ts/2);
-            ctx.quadraticCurveTo(px + 3*ts/4, py + 3*ts/4, px + ts, py + ts/2);
             ctx.stroke();
         } else if (terrain === 'water') {
-            ctx.strokeStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.moveTo(px + 5, py + ts/2);
-            ctx.lineTo(px + ts - 5, py + ts/2);
-            ctx.stroke();
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fillRect(px + ts * 0.1, py + ts * 0.1, ts * 0.8, ts * 0.1);
+            ctx.fillRect(px + ts * 0.2, py + ts * 0.5, ts * 0.6, ts * 0.1);
         } else if (terrain === 'fertile-soil') {
             ctx.fillStyle = '#1a140d';
-            // 비옥한 토양 - 작은 이랑 무늬
             for (let i = 1; i < 4; i++) {
                 ctx.fillRect(px + 2, py + (ts/4)*i, ts - 4, 1);
             }
         }
-
-        // 타일 경계선 (매우 은은하게)
-        ctx.globalAlpha = 0.05;
-        ctx.strokeStyle = '#000000';
-        ctx.strokeRect(px, py, ts, ts);
-        
         ctx.restore();
     }
 
@@ -255,27 +347,22 @@ export class TileMap {
         ctx.save();
         
         if (wallId === 'tree') {
-            // 나무 그리기
-            ctx.fillStyle = '#3d2b1f'; // 기둥
+            ctx.fillStyle = '#3d2b1f';
             ctx.fillRect(px + ts*0.4, py + ts*0.6, ts*0.2, ts*0.3);
-            ctx.fillStyle = '#2d4d1e'; // 잎 상단
+            ctx.fillStyle = '#2d4d1e';
             ctx.beginPath();
             ctx.arc(px + ts/2, py + ts*0.4, ts*0.35, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#3a5a2a'; // 잎 하이라이트
+            ctx.fillStyle = '#3a5a2a';
             ctx.beginPath();
             ctx.arc(px + ts*0.4, py + ts*0.35, ts*0.15, 0, Math.PI * 2);
             ctx.fill();
         } else if (wallId === 'stone-wall') {
-            // 자연스러운 석축 (Seamless & Organic)
-            ctx.fillStyle = '#2a2a2a'; // 줄눈(Grout) 색상
+            ctx.fillStyle = '#2a2a2a';
             ctx.fillRect(px, py, ts, ts);
-            
             const drawStone = (x, y, w, h, baseColor) => {
                 ctx.fillStyle = baseColor;
                 ctx.fillRect(px + x, py + y, w - 1, h - 1);
-                
-                // 돌의 입체감 (하이라이트와 그림자)
                 ctx.strokeStyle = 'rgba(255,255,255,0.08)';
                 ctx.strokeRect(px + x + 1, py + y + 1, w - 3, h - 3);
                 ctx.strokeStyle = 'rgba(0,0,0,0.2)';
@@ -285,14 +372,10 @@ export class TileMap {
                 ctx.lineTo(px + x + w - 1, py + y);
                 ctx.stroke();
             };
-
-            // 불규칙한 크기의 돌 배치 (타일 경계는 직선을 유지하여 연결성 확보)
             drawStone(0, 0, ts * 0.65, ts * 0.45, '#4a4a48');
             drawStone(ts * 0.65, 0, ts * 0.35, ts * 0.45, '#525250');
             drawStone(0, ts * 0.45, ts * 0.35, ts * 0.55, '#454543');
             drawStone(ts * 0.35, ts * 0.45, ts * 0.65, ts * 0.55, '#4e4e4c');
-
-            // 거친 질감 추가 (노이즈)
             ctx.fillStyle = 'rgba(0,0,0,0.15)';
             for(let i = 0; i < 12; i++) {
                 const rx = Math.abs(Math.sin(px + i)) * ts;
@@ -300,7 +383,6 @@ export class TileMap {
                 ctx.fillRect(px + rx, py + ry, 1, 1);
             }
         } else if (wallId === 'rock') {
-            // 바위
             ctx.fillStyle = '#777777';
             ctx.beginPath();
             ctx.moveTo(px + ts*0.2, py + ts*0.8);
@@ -317,7 +399,6 @@ export class TileMap {
             ctx.lineTo(px + ts*0.4, py + ts*0.4);
             ctx.fill();
         } else if (wallId === 'fence') {
-            // 울타리
             ctx.strokeStyle = '#6d4c41';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -331,6 +412,77 @@ export class TileMap {
                 ctx.lineTo(px + ts*i/4, py + ts*0.9);
             }
             ctx.stroke();
+        } else if (wallId === 'concrete-wall') {
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(px, py, ts, ts);
+            ctx.strokeStyle = '#444444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px + 2, py + 2, ts - 4, ts - 4);
+            ctx.beginPath();
+            ctx.moveTo(px + ts/2, py + 2); ctx.lineTo(px + ts/2, py + ts - 2);
+            ctx.stroke();
+            ctx.fillStyle = '#333333';
+            ctx.beginPath();
+            ctx.arc(px + ts*0.25, py + ts*0.25, 2, 0, Math.PI*2);
+            ctx.arc(px + ts*0.75, py + ts*0.25, 2, 0, Math.PI*2);
+            ctx.arc(px + ts*0.25, py + ts*0.75, 2, 0, Math.PI*2);
+            ctx.arc(px + ts*0.75, py + ts*0.75, 2, 0, Math.PI*2);
+            ctx.fill();
+        } else if (wallId === 'sandbag') {
+            ctx.fillStyle = '#c2b280';
+            const bagW = ts * 0.45, bagH = ts * 0.25;
+            ctx.fillRect(px + ts*0.02, py + ts*0.6, bagW, bagH);
+            ctx.fillRect(px + ts*0.52, py + ts*0.6, bagW, bagH);
+            ctx.fillRect(px + ts*0.27, py + ts*0.3, bagW, bagH);
+            ctx.strokeStyle = '#a6956d';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(px + ts*0.02, py + ts*0.6, bagW, bagH);
+            ctx.strokeRect(px + ts*0.52, py + ts*0.6, bagW, bagH);
+            ctx.strokeRect(px + ts*0.27, py + ts*0.3, bagW, bagH);
+        } else if (wallId === 'barricade') {
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(px + 5, py + 5); ctx.lineTo(px + ts - 5, py + ts - 5);
+            ctx.moveTo(px + ts - 5, py + 5); ctx.lineTo(px + 5, py + ts - 5);
+            ctx.stroke();
+            ctx.strokeStyle = '#fbc02d';
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else if (wallId === 'brick-wall') {
+            ctx.fillStyle = '#8d2d2d';
+            ctx.fillRect(px, py, ts, ts);
+            ctx.strokeStyle = '#5d1d1d';
+            ctx.lineWidth = 1;
+            for(let i=1; i<4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(px, py + ts*i/4); ctx.lineTo(px + ts, py + ts*i/4);
+                ctx.stroke();
+            }
+        } else if (wallId === 'street-lamp') {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(px + ts*0.4, py + ts*0.1, ts*0.2, ts*0.8);
+            ctx.fillStyle = '#fbc02d';
+            ctx.beginPath();
+            ctx.arc(px + ts/2, py + ts*0.2, ts*0.15, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(251, 192, 45, 0.2)';
+            ctx.beginPath();
+            ctx.arc(px + ts/2, py + ts*0.2, ts*0.4, 0, Math.PI*2);
+            ctx.fill();
+        } else if (wallId === 'hydrant') {
+            ctx.fillStyle = '#d32f2f';
+            ctx.beginPath();
+            ctx.arc(px + ts/2, py + ts/2, ts*0.3, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#b71c1c';
+            ctx.fillRect(px + ts*0.3, py + ts*0.4, ts*0.4, ts*0.2);
+        } else if (wallId === 'trash-can') {
+            ctx.fillStyle = '#455a64';
+            ctx.fillRect(px + ts*0.25, py + ts*0.25, ts*0.5, ts*0.5);
+            ctx.fillStyle = '#37474f';
+            ctx.fillRect(px + ts*0.25, py + ts*0.25, ts*0.5, ts*0.15);
         }
 
         ctx.restore();
@@ -338,21 +490,14 @@ export class TileMap {
 
     updateFogCanvas() {
         if (!this.fogCtx || !this.fogBuffer) return;
-        const BLACK = 0xFF050505; 
-        const GREY = 0x99000000;  
-        const CLEAR = 0x00000000; 
-
+        const BLACK = 0xFF050505, GREY = 0x99000000, CLEAR = 0x00000000;
         for (let y = 0; y < this.rows; y++) {
             const rowOffset = y * this.cols;
             for (let x = 0; x < this.cols; x++) {
                 const tile = this.grid[y][x];
-                if (!tile.visible) {
-                    this.fogBuffer[rowOffset + x] = BLACK;
-                } else if (!tile.inSight) {
-                    this.fogBuffer[rowOffset + x] = GREY;
-                } else {
-                    this.fogBuffer[rowOffset + x] = CLEAR;
-                }
+                if (!tile.visible) this.fogBuffer[rowOffset + x] = BLACK;
+                else if (!tile.inSight) this.fogBuffer[rowOffset + x] = GREY;
+                else this.fogBuffer[rowOffset + x] = CLEAR;
             }
         }
         this.fogCtx.putImageData(this.fogImageData, 0, 0);
@@ -369,37 +514,26 @@ export class TileMap {
     }
 
     getTileAt(worldX, worldY) {
-        const x = Math.floor(worldX / this.tileSize);
-        const y = Math.floor(worldY / this.tileSize);
-        if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
-            return { x, y, tile: this.grid[y][x] };
-        }
+        const x = Math.floor(worldX / this.tileSize), y = Math.floor(worldY / this.tileSize);
+        if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) return { x, y, tile: this.grid[y][x] };
         return null;
     }
 
     worldToGrid(worldX, worldY) {
-        return {
-            x: Math.floor(worldX / this.tileSize),
-            y: Math.floor(worldY / this.tileSize)
-        };
+        return { x: Math.floor(worldX / this.tileSize), y: Math.floor(worldY / this.tileSize) };
     }
 
     gridToWorld(gridX, gridY) {
-        return {
-            x: gridX * this.tileSize + this.tileSize / 2,
-            y: gridY * this.tileSize + this.tileSize / 2
-        };
+        return { x: gridX * this.tileSize + this.tileSize / 2, y: gridY * this.tileSize + this.tileSize / 2 };
     }
 
     isVisible(worldX, worldY) {
-        const x = Math.floor(worldX / this.tileSize);
-        const y = Math.floor(worldY / this.tileSize);
+        const x = Math.floor(worldX / this.tileSize), y = Math.floor(worldY / this.tileSize);
         return (this.grid[y] && this.grid[y][x]) ? this.grid[y][x].visible : false;
     }
 
     isInSight(worldX, worldY) {
-        const x = Math.floor(worldX / this.tileSize);
-        const y = Math.floor(worldY / this.tileSize);
+        const x = Math.floor(worldX / this.tileSize), y = Math.floor(worldY / this.tileSize);
         return (this.grid[y] && this.grid[y][x]) ? this.grid[y][x].inSight : false;
     }
 }
