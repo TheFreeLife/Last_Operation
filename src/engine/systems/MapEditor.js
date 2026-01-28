@@ -361,14 +361,14 @@ export class MapEditor {
         }
 
         const width = maxX - minX + 1, height = maxY - minY + 1;
-        const exportGrid = Array.from({ length: height }, () => Array.from({ length: width }, () => ['dirt', null, null]));
+        const exportGrid = Array.from({ length: height }, () => Array.from({ length: width }, () => [null, null, null]));
 
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
                 const f = this.layers.floor.get(k), w = this.layers.wall.get(k), u = this.layers.unit.get(k);
                 exportGrid[ly][lx] = [
-                    f ? f.id : 'dirt',
+                    f ? f.id : null,
                     w ? w.id : null,
                     u ? { id: u.id, ownerId: u.ownerId } : null
                 ];

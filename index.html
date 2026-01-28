@@ -21,6 +21,17 @@
             </div>
         </div>
 
+        <!-- Map Selection Layer -->
+        <div id="map-selection" class="menu-overlay hidden">
+            <div class="menu-content glass-panel map-select-content">
+                <h2 class="menu-subtitle">SELECT MISSION</h2>
+                <div id="map-list" class="map-grid">
+                    <!-- Map items will be injected here -->
+                </div>
+                <button id="map-select-back-btn" class="menu-btn back-btn">뒤로 가기 (BACK)</button>
+            </div>
+        </div>
+
         <!-- Map Editor UI Layer -->
         <div id="editor-ui" class="hidden">
             <div id="editor-sidebar" class="glass-panel">
@@ -196,6 +207,7 @@
             </div>
 
             <div id="top-right-area">
+                <button id="in-game-exit-btn" class="glass-panel exit-btn-mini">종료 (EXIT)</button>
                 <div id="minimap-container" class="glass-panel">
                     <canvas id="minimapCanvas"></canvas>
                 </div>

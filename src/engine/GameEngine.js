@@ -9,6 +9,7 @@ import { MapEditor } from './systems/MapEditor.js';
 
 export const GameState = {
     MENU: 'MENU',
+    MAP_SELECT: 'MAP_SELECT',
     PLAYING: 'PLAYING',
     EDITOR: 'EDITOR'
 };
@@ -19,6 +20,7 @@ export class GameEngine {
         this.ctx = this.canvas.getContext('2d');
         
         this.gameState = GameState.MENU;
+        this.missions = []; // 모든 미션 데이터를 담을 배열
 
         this.minimapCanvas = document.getElementById('minimapCanvas');
         this.minimapCtx = this.minimapCanvas.getContext('2d');
@@ -106,33 +108,102 @@ export class GameEngine {
     }
 
     setGameState(newState) {
+        const oldState = this.gameState;
         this.gameState = newState;
         
         // UI 레이어 토글
         document.getElementById('main-menu').classList.toggle('hidden', newState !== GameState.MENU);
+        document.getElementById('map-selection').classList.toggle('hidden', newState !== GameState.MAP_SELECT);
         document.getElementById('ui-layer').classList.toggle('hidden', newState !== GameState.PLAYING);
         document.getElementById('editor-ui').classList.toggle('hidden', newState !== GameState.EDITOR);
         document.getElementById('debug-panel').classList.toggle('hidden', newState !== GameState.PLAYING);
 
-        if (newState === GameState.PLAYING) {
-            this.loadMap();
+        if (newState === GameState.MAP_SELECT) {
+            this.fetchMissions();
+            this.renderMapList();
         } else if (newState === GameState.EDITOR) {
             this.mapEditor.activate();
-        } else {
+        } else if (newState === GameState.MENU) {
             this.mapEditor.deactivate();
+            // 게임 플레이 중이었다가 메뉴로 나가는 경우 세션 초기화
+            if (oldState === GameState.PLAYING || oldState === GameState.MAP_SELECT) {
+                this.resetGameSession();
+            }
         }
     }
 
-    async loadMap() {
+    resetGameSession() {
+        console.log('[Game] Resetting game session...');
+        
+        // 1. 엔티티 및 관리자 초기화
+        if (this.entityManager) this.entityManager.clear();
+        
+        // 2. 선택 상태 초기화
+        this.selectedEntities = [];
+        this.selectedEntity = null;
+        this.hoveredEntity = null;
+        this.unitCommandMode = null;
+        this.updateCursor();
+        
+        // 3. 부대 지정 초기화
+        this.controlGroups = {
+            1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 0: []
+        };
+        
+        // 4. 시각 효과 및 파티클 초기화
+        this.effects = [];
+        if (this.renderSystem) {
+            this.renderSystem.particles = [];
+        }
+        
+        // 5. UI 초기화
+        this.updateBuildMenu();
+        this.hideUITooltip();
+        
+        // 6. 타일맵 초기화 (선택 사항 - loadMission에서 어차피 새로고침함)
+        if (this.tileMap) {
+            this.tileMap.initGrid();
+        }
+    }
+
+    async fetchMissions() {
+        if (this.missions.length > 0) return; // 이미 불러왔다면 건너뜀
         try {
             const response = await fetch('./maps/map.json');
-            if (!response.ok) throw new Error('Map file not found');
-            const mapData = await response.json();
-            
+            const data = await response.json();
+            this.missions = data.missions || [];
+        } catch (error) {
+            console.error('Failed to fetch missions:', error);
+        }
+    }
+
+    renderMapList() {
+        const list = document.getElementById('map-list');
+        list.innerHTML = '';
+
+        this.missions.forEach((mission, index) => {
+            const card = document.createElement('div');
+            card.className = 'map-card';
+            card.innerHTML = `
+                <div class="map-card-icon">${mission.icon || '⚔️'}</div>
+                <div class="map-card-title">${mission.name}</div>
+            `;
+            card.onclick = () => {
+                this.loadMission(mission);
+                this.setGameState(GameState.PLAYING);
+            };
+            list.appendChild(card);
+        });
+    }
+
+    async loadMission(missionData) {
+        const mapData = missionData.data;
+        if (!mapData) return;
+
+        try {
             this.tileMap.loadFromData(mapData);
             this.entityManager.clear();
             
-            // TileMap에서 분리해둔 유닛 레이어로부터 실제 엔티티 생성
             const unitLayer = this.tileMap.layers.unit;
             const tileSize = this.tileMap.tileSize;
 
@@ -157,7 +228,7 @@ export class GameEngine {
 
             this.updateVisibility();
         } catch (error) {
-            console.error('Failed to load map:', error);
+            console.error('Failed to load mission:', error);
         }
     }
 
@@ -254,8 +325,10 @@ export class GameEngine {
     }
 
     initUI() {
-        document.getElementById('start-game-btn')?.addEventListener('click', () => this.setGameState(GameState.PLAYING));
+        document.getElementById('start-game-btn')?.addEventListener('click', () => this.setGameState(GameState.MAP_SELECT));
+        document.getElementById('map-select-back-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('map-editor-btn')?.addEventListener('click', () => this.setGameState(GameState.EDITOR));
+        document.getElementById('in-game-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
         this.updateBuildMenu();

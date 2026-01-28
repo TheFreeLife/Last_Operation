@@ -69,7 +69,8 @@ export class TileMap {
 
             for (let x = 0; x < this.cols; x++) {
                 const cell = data.grid[y][x]; // [floor, wall, unit]
-                const floorId = cell[0] || 'dirt';
+                // 바닥이 없으면 'dirt'로 자동 보정
+                const floorId = cell[0] || 'dirt'; 
                 const wallId = cell[1];
                 const unitData = cell[2];
 
@@ -96,12 +97,13 @@ export class TileMap {
     }
 
     getTileColor(terrain) {
+        if (!terrain) return '#000000'; // 바닥이 없는 경우 검은색
         switch(terrain) {
             case 'dirt': return '#3d2e1e';
             case 'grass': return '#2d4d1e';
             case 'sand': return '#c2b280';
             case 'water': return '#1e3d5a';
-            default: return '#3d2e1e';
+            default: return '#000000';
         }
     }
 
@@ -127,8 +129,10 @@ export class TileMap {
                         if (worldX >= this.cols || worldY >= this.rows) continue;
 
                         const tile = this.grid[worldY][worldX];
-                        ctx.fillStyle = tile.cachedColor;
-                        ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                        if (tile.terrain !== 'none' && tile.cachedColor !== '#000000') {
+                            ctx.fillStyle = tile.cachedColor;
+                            ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                        }
                     }
                 }
 
