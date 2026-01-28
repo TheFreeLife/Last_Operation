@@ -1,5 +1,3 @@
-import { EDITOR_ICONS } from '../../assets/EditorIcons.js';
-
 export class MapEditor {
     constructor(engine) {
         this.engine = engine;
@@ -7,6 +5,7 @@ export class MapEditor {
         this.currentLayer = 'floor'; 
         this.currentTool = 'pencil'; 
         this.selectedItem = null;
+        this.currentRotation = 0; // 0, 1, 2, 3 (90도 단위)
         
         // 유닛 드로잉을 위한 임시 인스턴스 저장소 (캐시)
         this.dummyUnits = new Map();
@@ -23,40 +22,54 @@ export class MapEditor {
 
         this.palette = {
             floor: [
-                { id: 'dirt', name: '흙' },
-                { id: 'grass', name: '풀' },
-                { id: 'sand', name: '모래' },
-                { id: 'water', name: '물' },
-                { id: 'asphalt', name: '아스팔트' },
-                { id: 'concrete', name: '콘크리트' },
-                { id: 'metal-plate', name: '금속판' },
-                { id: 'sidewalk', name: '인도' },
-                { id: 'tactile-paving', name: '유도 블록' },
-                { id: 'brick-floor', name: '벽돌 바닥' },
-                { id: 'curb-edge', name: '경계석' },
-                { id: 'curb-h', name: '가로 경계석' },
-                { id: 'curb-v', name: '세로 경계석' },
-                { id: 'road-line-white', name: '도로 흰선' },
-                { id: 'road-line-yellow', name: '도로 황선' },
-                { id: 'crosswalk', name: '횡단보도' }
+                { id: 'dirt', name: '흙', rotatable: false },
+                { id: 'grass', name: '풀', rotatable: false },
+                { id: 'sand', name: '모래', rotatable: false },
+                { id: 'water', name: '물', rotatable: false },
+                { id: 'asphalt', name: '아스팔트', rotatable: false },
+                { id: 'concrete', name: '콘크리트', rotatable: false },
+                { id: 'metal-plate', name: '금속판', rotatable: true },
+                { id: 'sidewalk', name: '인도', rotatable: true },
+                { id: 'tactile-paving', name: '유도 블록', rotatable: true },
+                { id: 'brick-floor', name: '벽돌 바닥', rotatable: true },
+                { id: 'curb-edge', name: '경계석', rotatable: true },
+                { id: 'curb-h', name: '가로 경계석', rotatable: true },
+                { id: 'curb-v', name: '세로 경계석', rotatable: true },
+                { id: 'road-line-white', name: '도로 흰선', rotatable: true },
+                { id: 'road-line-yellow', name: '도로 황선', rotatable: true },
+                { id: 'crosswalk', name: '횡단보도', rotatable: true }
             ],
             wall: [
-                { id: 'stone-wall', name: '석재 벽' },
-                { id: 'brick-wall', name: '벽돌 벽' },
-                { id: 'concrete-wall', name: '콘크리트 벽' },
-                { id: 'tree', name: '나무' },
-                { id: 'rock', name: '바위' },
-                { id: 'fence', name: '울타리' },
-                { id: 'sandbag', name: '모래주머니' },
-                { id: 'barricade', name: '바리케이드' },
-                { id: 'street-lamp', name: '가로등' },
-                { id: 'hydrant', name: '소화전' },
-                { id: 'trash-can', name: '쓰레기통' }
+                { id: 'stone-wall', name: '석재 벽', rotatable: true },
+                { id: 'brick-wall', name: '벽돌 벽', rotatable: true },
+                { id: 'concrete-wall', name: '콘크리트 벽', rotatable: true },
+                { id: 'tree', name: '나무', rotatable: false },
+                { id: 'rock', name: '바위', rotatable: true },
+                { id: 'fence', name: '울타리', rotatable: true },
+                { id: 'sandbag', name: '모래주머니', rotatable: true },
+                { id: 'barricade', name: '바리케이드', rotatable: true },
+                { id: 'street-lamp', name: '가로등', rotatable: false },
+                { id: 'hydrant', name: '소화전', rotatable: false },
+                { id: 'trash-can', name: '쓰레기통', rotatable: true }
             ],
             unit: []
         };
 
         this.initUI();
+        this.initKeyListeners();
+    }
+
+    initKeyListeners() {
+        window.addEventListener('keydown', (e) => {
+            if (!this.active) return;
+            if (e.key.toLowerCase() === 'r') {
+                if (this.selectedItem && this.selectedItem.rotatable !== false) {
+                    this.currentRotation = (this.currentRotation + 1) % 4;
+                } else {
+                    this.currentRotation = 0;
+                }
+            }
+        });
     }
 
     syncPaletteWithEngine() {
@@ -172,21 +185,17 @@ export class MapEditor {
 
     renderPalettePreview(canvas, item) {
         const ctx = canvas.getContext('2d');
-        const mid = canvas.width / 2;
-        
         if (this.currentLayer === 'floor') {
-            this.engine.tileMap.drawTileTexture(ctx, 5, 5, item.id);
-            // 크기 보정 (팔레트 미리보기는 50x50 영역 권장)
-            // drawTileTexture가 이미 그렸으므로 추가 작업 불필요
+            this.engine.tileMap.drawTileTexture(ctx, 5, 5, item.id, 0);
         } else if (this.currentLayer === 'wall') {
-            this.engine.tileMap.drawSingleWall(ctx, item.id, 5, 5, 50);
+            this.engine.tileMap.drawSingleWall(ctx, item.id, 5, 5, 50, 0);
         } else {
-            // 유닛 실물 렌더링
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
             if (dummy) {
-                ctx.translate(mid, mid);
-                ctx.scale(0.6, 0.6); // 팔레트 크기에 맞춤
+                ctx.save();
+                ctx.translate(30, 30); ctx.scale(0.6, 0.6);
                 dummy.draw(ctx);
+                ctx.restore();
             }
         }
     }
@@ -195,9 +204,12 @@ export class MapEditor {
         if (this.selectedItem && this.selectedItem.id === item?.id && 
             JSON.stringify(this.selectedItem.options) === JSON.stringify(item?.options)) {
             this.selectedItem = null;
+            this.currentRotation = 0;
             document.querySelectorAll('.palette-item-container').forEach(el => el.classList.remove('active'));
         } else {
             this.selectedItem = item;
+            // 회전 불가능한 타일이면 강제로 0도 고정, 가능하면 이전 회전 유지 혹은 초기화 (여기서는 사용자 편의를 위해 초기화)
+            this.currentRotation = 0; 
             document.querySelectorAll('.palette-item-container').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
         }
@@ -210,7 +222,7 @@ export class MapEditor {
         const gridY = Math.floor(worldY / tileSize);
         const key = `${gridX},${gridY}`;
 
-        document.getElementById('mouse-coords').textContent = `${gridX}, ${gridY}`;
+        document.getElementById('mouse-coords').textContent = `${gridX}, ${gridY} | R: ${this.currentRotation * 90}°`;
 
         if (isRightClick) {
             this.layers[this.currentLayer].delete(key);
@@ -239,7 +251,12 @@ export class MapEditor {
 
     applyToTile(x, y) {
         if (!this.selectedItem) return;
-        this.layers[this.currentLayer].set(`${x},${y}`, { ...this.selectedItem });
+        this.layers[this.currentLayer].set(`${x},${y}`, { 
+            id: this.selectedItem.id, 
+            r: this.currentRotation,
+            options: this.selectedItem.options,
+            ownerId: this.selectedItem.ownerId
+        });
     }
 
     floodFill(startX, startY) {
@@ -273,7 +290,7 @@ export class MapEditor {
         } else if (tool === 'circle') {
             const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2, r = Math.hypot(end.x - start.x, end.y - start.y) / 2;
             for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) 
-                for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++)
+                for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); iy++)
                     if (Math.hypot(x - cx, y - cy) <= r) points.push({ x, y });
         } else if (tool === 'triangle') {
             const mx = Math.floor((start.x + end.x) / 2);
@@ -331,18 +348,8 @@ export class MapEditor {
 
         if (this.selectedItem && !this.isDrawing) {
             ctx.globalAlpha = 0.5;
-            this.drawActualItem(ctx, this.selectedItem, mGX, mGY, this.currentLayer);
+            this.drawActualItem(ctx, { ...this.selectedItem, r: this.currentRotation }, mGX, mGY, this.currentLayer);
             ctx.globalAlpha = 1.0;
-            // 사거리 가이드
-            const dummy = this.dummyUnits.get(`${this.selectedItem.id}_${JSON.stringify(this.selectedItem.options || {})}`);
-            if (dummy && dummy.attackRange) {
-                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.arc(mGX * tileSize + tileSize/2, mGY * tileSize + tileSize/2, dummy.attackRange, 0, Math.PI*2);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
         }
         
         ctx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
@@ -354,20 +361,20 @@ export class MapEditor {
         const tileSize = this.engine.tileMap.tileSize;
         const wx = x * tileSize, wy = y * tileSize;
         const cx = wx + tileSize / 2, cy = wy + tileSize / 2;
+        const r = item.r || 0;
 
         if (layer === 'floor') {
-            this.engine.tileMap.drawTileTexture(ctx, wx, wy, item.id || item);
+            this.engine.tileMap.drawTileTexture(ctx, wx, wy, item.id || item, r);
         } else if (layer === 'wall') {
-            this.engine.tileMap.drawSingleWall(ctx, item.id || item, wx, wy, tileSize);
+            this.engine.tileMap.drawSingleWall(ctx, item.id || item, wx, wy, tileSize, r);
         } else {
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
             if (dummy) {
                 ctx.save();
                 ctx.translate(cx, cy);
-                // 팀 컬러 인디케이터
                 ctx.fillStyle = item.ownerId === 2 ? 'rgba(255,0,0,0.3)' : 'rgba(0,255,0,0.2)';
                 ctx.beginPath(); ctx.arc(0, 0, tileSize/2.5, 0, Math.PI*2); ctx.fill();
-                ctx.rotate(Math.PI/2);
+                ctx.rotate((r * 90) * Math.PI / 180 + Math.PI/2);
                 dummy.draw(ctx);
                 ctx.restore();
             }
@@ -392,7 +399,12 @@ export class MapEditor {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
                 const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k);
-                grid[ly][lx] = [f ? f.id : null, wl ? wl.id : null, u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null];
+                // [ [id, rotation], [id, rotation], unitData ]
+                grid[ly][lx] = [
+                    f ? [f.id, f.r || 0] : 'dirt',
+                    wl ? [wl.id, wl.r || 0] : null,
+                    u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null
+                ];
             }
         }
         const header = `{\n  "width": ${w},\n  "height": ${h},\n  "tileSize": ${this.engine.tileMap.tileSize},\n  "grid": [\n`;
@@ -408,9 +420,15 @@ export class MapEditor {
             data.grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
                     const k = `${x},${y}`, [f, wl, u] = cell;
-                    if (f) this.layers.floor.set(k, { id: f });
-                    if (wl) this.layers.wall.set(k, { id: wl });
-                    if (u) this.layers.unit.set(k, { id: u.id, ownerId: u.ownerId, options: u.options });
+                    const parse = (d) => {
+                        if (!d) return null;
+                        if (typeof d === 'string') return { id: d, r: 0 };
+                        if (Array.isArray(d)) return { id: d[0], r: d[1] || 0 };
+                        return d;
+                    };
+                    if (f) this.layers.floor.set(k, parse(f));
+                    if (wl) this.layers.wall.set(k, parse(wl));
+                    if (u) this.layers.unit.set(k, u);
                 });
             });
             this.syncPaletteWithEngine();
@@ -436,7 +454,11 @@ export class MapEditor {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
                 const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k);
-                grid[ly][lx] = [f ? f.id : 'dirt', wl ? wl.id : null, u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null];
+                grid[ly][lx] = [
+                    f ? [f.id, f.r || 0] : 'dirt',
+                    wl ? [wl.id, wl.r || 0] : null,
+                    u ? { id: u.id, ownerId: u.ownerId, options: u.options } : null
+                ];
             }
         }
         this.engine.isMouseDown = false; this.engine.isRightMouseDown = false; this.engine.isTestMode = true;
