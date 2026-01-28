@@ -452,6 +452,12 @@ export class GameEngine {
             }
 
             if (e.key === 'Escape') {
+                // 에디터 모드에서는 메뉴로 이동
+                if (this.gameState === GameState.EDITOR) {
+                    this.setGameState(GameState.MENU);
+                    return;
+                }
+
                 // 1. 활성화된 특수 모드(명령 타겟팅, 디버그 모드) 취소
                 const isDebugMode = this.debugSystem && (this.debugSystem.isSpawnSandbagMode || this.debugSystem.isSpawnAirSandbagMode || this.debugSystem.spawnUnitType || this.debugSystem.isEraserMode);
                 if (this.unitCommandMode || isDebugMode) {
@@ -637,11 +643,12 @@ export class GameEngine {
             const worldX = (e.clientX - rect.left - this.camera.x) / this.camera.zoom;
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
 
-            // 에디터 모드 드래그 조작
+            // 에디터 모드 조작
             if (this.gameState === GameState.EDITOR) {
-                if (this.isMouseDown) {
-                    this.mapEditor.handleInput(worldX, worldY, true, false);
-                } else if (this.isRightMouseDown) {
+                // 클릭 중일 때는 드래그 처리, 아닐 때도 좌표 업데이트를 위해 호출
+                this.mapEditor.handleInput(worldX, worldY, this.isMouseDown, false);
+
+                if (this.isRightMouseDown) {
                     const dx = e.clientX - this.lastMouseX;
                     const dy = e.clientY - this.lastMouseY;
                     this.camera.x += dx;
@@ -688,6 +695,11 @@ export class GameEngine {
             const rect = this.canvas.getBoundingClientRect();
             const worldX = (e.clientX - rect.left - this.camera.x) / this.camera.zoom;
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
+
+            if (this.gameState === GameState.EDITOR) {
+                this.mapEditor.handleInput(worldX, worldY, false, e.button === 2);
+                return;
+            }
 
             if (e.button === 0) { // LEFT CLICK
                 if (this.camera.selectionBox) {

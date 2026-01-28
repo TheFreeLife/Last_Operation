@@ -160,70 +160,228 @@ button,
     z-index: 500;
 }
 
-#editor-top-panel {
+/* --- Map Editor Sidebar --- */
+#editor-sidebar {
     position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 80%;
-    padding: 15px 30px;
-    pointer-events: auto;
-    background: rgba(10, 10, 10, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-}
-
-.editor-info {
-    display: flex;
-    gap: 30px;
-    font-weight: 600;
-    font-family: monospace;
-}
-
-#current-layer-name { color: var(--neon-green); }
-#mouse-coords { color: var(--neon-blue); opacity: 0.8; }
-
-.editor-actions {
-    display: flex;
-    gap: 15px;
-}
-
-.editor-action-btn {
-    padding: 8px 20px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.editor-action-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-#editor-save-btn { border-color: var(--neon-green); color: var(--neon-green); }
-#editor-exit-btn { border-color: var(--neon-red); color: var(--neon-red); }
-
-#editor-palette {
-    position: absolute;
-    right: 20px;
-    top: 100px;
-    width: 280px;
-    max-height: 80vh;
-    padding: 20px;
+    right: 0;
+    top: 0;
+    width: 320px;
+    height: 100vh;
+    border-radius: 0;
+    border-left: 1px solid var(--panel-border);
+    background: rgba(5, 5, 5, 0.98);
     pointer-events: auto;
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    background: rgba(5, 5, 5, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    padding: 25px;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+}
+
+.sidebar-header {
+    margin-bottom: 30px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 15px;
+}
+
+.sidebar-header h2 {
+    font-size: 1.5rem;
+    color: var(--neon-blue);
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+}
+
+.editor-info-mini {
+    display: flex;
+    justify-content: space-between;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.sidebar-section {
+    margin-bottom: 25px;
+}
+
+.section-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #555;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.tool-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.tool-btn {
+    aspect-ratio: 1/1;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid #222;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: #444;
+}
+
+.tool-group {
+
+    position: relative;
+
+    display: flex;
+
+    width: 100%; /* 그리드 칸 전체 사용 */
+
+}
+
+
+
+.tool-group .tool-btn {
+
+    width: 100%; /* 그룹 내에서 버튼이 꽉 차게 확장 */
+
+    height: 100%;
+
+}
+
+
+
+.tool-sub-menu {
+
+    position: absolute;
+
+    right: 100%; 
+
+ /* 버튼 왼쪽 끝에 밀착 */
+    top: 0;
+    background: rgba(10, 10, 10, 0.98);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 12px;
+    display: none;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.8);
+    z-index: 1002;
+    margin-right: 10px; /* 메인 버튼과의 간격 */
+}
+
+/* 마우스 이동 시 끊김 방지를 위한 가교(Bridge) */
+.tool-sub-menu::after {
+    content: "";
+    position: absolute;
+    right: -15px;
+    top: 0;
+    width: 20px;
+    height: 100%;
+    background: transparent;
+}
+
+.tool-group:hover .tool-sub-menu {
+    display: grid;
+}
+
+.shape-main-icon {
+    width: 60%;
+    height: 60%;
+    stroke: #888;
+    stroke-width: 1.5; /* 선 굵기 살짝 감소 */
+    transition: all 0.3s ease;
+}
+
+.tool-btn.active .shape-main-icon {
+    stroke: var(--neon-blue);
+    filter: drop-shadow(0 0 5px rgba(0, 210, 255, 0.5));
+}
+
+.sub-tool-btn {
+    width: 65px; /* 메인 버튼 크기와 동기화 */
+    height: 65px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #333;
+    border-radius: 10px;
+    color: #f0f0f0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s;
+}
+
+.sub-tool-btn:hover {
+    background: rgba(0, 210, 255, 0.1);
+    border-color: var(--neon-blue);
+    color: var(--neon-blue);
+}
+
+.sub-tool-btn.active {
+    border-color: var(--neon-blue);
+    background: rgba(0, 210, 255, 0.2);
+}
+
+.palette-section {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#palette-items {
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 20px;
+    border-top: 1px solid #222;
+}
+
+.sidebar-btn {
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.sidebar-btn.primary {
+    background: rgba(0, 210, 255, 0.15);
+    color: var(--neon-blue);
+    border-color: var(--neon-blue);
+}
+
+.sidebar-btn.primary:hover {
+    background: var(--neon-blue);
+    color: #000;
+}
+
+.sidebar-btn.danger {
+    background: rgba(255, 49, 49, 0.1);
+    color: var(--neon-red);
+    border-color: var(--neon-red);
+}
+
+.sidebar-btn.danger:hover {
+    background: var(--neon-red);
+    color: #fff;
 }
 
 .palette-tabs {

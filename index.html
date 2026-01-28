@@ -23,28 +23,59 @@
 
         <!-- Map Editor UI Layer -->
         <div id="editor-ui" class="hidden">
-            <div id="editor-top-panel" class="glass-panel">
-                <div class="editor-info">
-                    <span id="current-layer-name">Layer: Floor</span>
-                    <span id="mouse-coords">0, 0</span>
+            <div id="editor-sidebar" class="glass-panel">
+                <div class="sidebar-header">
+                    <h2>MAP EDITOR</h2>
+                    <div class="editor-info-mini">
+                        <span id="current-layer-name">Floor</span>
+                        <span id="mouse-coords">0, 0</span>
+                    </div>
                 </div>
-                <div class="editor-actions">
-                    <button id="editor-save-btn" class="editor-action-btn">내보내기 (Export)</button>
-                    <button id="editor-exit-btn" class="editor-action-btn">종료 (Exit)</button>
+
+                <div class="sidebar-section">
+                    <div class="section-title">TOOLS</div>
+                    <div class="tool-grid">
+                        <button class="tool-btn active" data-tool="pencil" title="연필 (P)">✏️</button>
+                        <button class="tool-btn" data-tool="eraser" title="지우개 (E)">🧹</button>
+                        <button class="tool-btn" data-tool="fill" title="채우기 (F)">🫗</button>
+                        
+                        <!-- Shape Tool Group (Dropdown) -->
+                        <div class="tool-group">
+                            <button class="tool-btn" data-tool="rect" id="shape-tool-main" title="도형 도구">
+                                <svg class="shape-main-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="4" y="4" width="10" height="10" rx="1.5"/>
+                                    <circle cx="15" cy="15" r="5.5"/>
+                                </svg>
+                            </button>
+                            <div class="tool-sub-menu">
+                                <button class="sub-tool-btn" data-tool="rect" title="사각형 (R)">⬜</button>
+                                <button class="sub-tool-btn" data-tool="circle" title="원 (C)">⭕</button>
+                                <button class="sub-tool-btn" data-tool="triangle" title="삼각형 (T)">▲</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="section-title">LAYERS</div>
+                    <div class="palette-tabs">
+                        <button class="palette-tab active" data-layer="floor">Floor</button>
+                        <button class="palette-tab" data-layer="wall">Wall</button>
+                        <button class="palette-tab" data-layer="unit">Unit</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section palette-section">
+                    <div class="section-title">PALETTE</div>
+                    <div id="palette-items" class="palette-grid"></div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <button id="editor-save-btn" class="sidebar-btn primary">EXPORT</button>
+                    <button id="editor-exit-btn" class="sidebar-btn danger">EXIT</button>
                 </div>
             </div>
             
-            <div id="editor-palette" class="glass-panel">
-                <div class="palette-tabs">
-                    <button class="palette-tab active" data-layer="floor">Floor</button>
-                    <button class="palette-tab" data-layer="wall">Wall</button>
-                    <button class="palette-tab" data-layer="unit">Unit</button>
-                </div>
-                <div id="palette-items" class="palette-grid">
-                    <!-- Items will be injected by Editor -->
-                </div>
-            </div>
-
             <div id="export-modal" class="modal-overlay hidden">
                 <div class="modal-content glass-panel">
                     <h2>맵 데이터 내보내기</h2>
