@@ -156,16 +156,11 @@ export class MapEditor {
         const mid = canvas.width / 2;
         
         if (this.currentLayer === 'floor') {
-            ctx.fillStyle = this.engine.tileMap.getTileColor(item.id);
-            ctx.fillRect(5, 5, 50, 50);
+            this.engine.tileMap.drawTileTexture(ctx, 5, 5, item.id);
+            // 크기 보정 (팔레트 미리보기는 50x50 영역 권장)
+            // drawTileTexture가 이미 그렸으므로 추가 작업 불필요
         } else if (this.currentLayer === 'wall') {
-            ctx.translate(mid, mid);
-            ctx.fillStyle = '#555';
-            ctx.font = '30px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            const WALL_ICONS = { 'stone-wall': '🧱', 'tree': '🌳', 'rock': '🪨', 'fence': '🚧' };
-            ctx.fillText(WALL_ICONS[item.id] || '?', 0, 0);
+            this.engine.tileMap.drawSingleWall(ctx, item.id, 5, 5, 50);
         } else {
             // 유닛 실물 렌더링
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
@@ -338,19 +333,13 @@ export class MapEditor {
 
     drawActualItem(ctx, item, x, y, layer) {
         const tileSize = this.engine.tileMap.tileSize;
-        const cx = x * tileSize + tileSize / 2, cy = y * tileSize + tileSize / 2;
+        const wx = x * tileSize, wy = y * tileSize;
+        const cx = wx + tileSize / 2, cy = wy + tileSize / 2;
 
         if (layer === 'floor') {
-            ctx.fillStyle = this.engine.tileMap.getTileColor(item.id || item);
-            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            this.engine.tileMap.drawTileTexture(ctx, wx, wy, item.id || item);
         } else if (layer === 'wall') {
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.font = `${tileSize * 0.7}px Arial`;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            const WALL_ICONS = { 'stone-wall': '🧱', 'tree': '🌳', 'rock': '🪨', 'fence': '🚧' };
-            ctx.fillText(WALL_ICONS[item.id] || '?', 0, 0);
-            ctx.restore();
+            this.engine.tileMap.drawSingleWall(ctx, item.id || item, wx, wy, tileSize);
         } else {
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
             if (dummy) {
