@@ -1,10 +1,11 @@
 export class TileMap {
-    constructor(canvas, tileSize = 40) {
+    constructor(engine, canvas, tileSize = 48) {
+        this.engine = engine;
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.tileSize = tileSize;
-        this.cols = 240;
-        this.rows = 240;
+        this.cols = 64;
+        this.rows = 64;
 
         // [청크 설정] 20x20 타일 단위로 분할
         this.chunkSize = 20;
@@ -12,14 +13,11 @@ export class TileMap {
         this.chunksY = Math.ceil(this.rows / this.chunkSize);
         this.chunks = [];
 
-        // 중앙 좌표 계산
-        this.centerX = Math.floor(this.cols / 2);
-        this.centerY = Math.floor(this.rows / 2);
-
         this.grid = [];
+        this.layers = { floor: [], wall: [], unit: [] };
+        
         this.initGrid();
-        this.generateTerrain();
-        this.initChunks();      // 청크 시스템 초기화 (기존 offscreenCanvas 대체)
+        this.initChunks();
         this.initFogCanvas();
     }
 
@@ -32,12 +30,12 @@ export class TileMap {
         this.fogCtx.fillStyle = '#050505';
         this.fogCtx.fillRect(0, 0, this.cols, this.rows);
 
-        // [최적화] ImageData 버퍼 미리 생성
         this.fogImageData = this.fogCtx.createImageData(this.cols, this.rows);
         this.fogBuffer = new Uint32Array(this.fogImageData.data.buffer);
     }
 
     initGrid() {
+        this.grid = [];
         for (let y = 0; y < this.rows; y++) {
             this.grid[y] = [];
             for (let x = 0; x < this.cols; x++) {
@@ -48,59 +46,68 @@ export class TileMap {
                     buildable: true,
                     visible: false,
                     inSight: false,
-                    cachedColor: null
+                    cachedColor: '#3d2e1e'
                 };
             }
         }
     }
 
-    generateTerrain() {
-        const numGrassPatches = 40;
-        const minRadius = 8;
-        const maxRadius = 20;
+    loadFromData(data) {
+        this.cols = data.width || 64;
+        this.rows = data.height || 64;
+        this.tileSize = data.tileSize || 48;
+        
+        // 통합 그리드 데이터를 내부 레이어로 분리
+        this.layers = { floor: [], wall: [], unit: [] };
+        this.grid = [];
 
-        for (let i = 0; i < numGrassPatches; i++) {
-            const cx = Math.floor(Math.random() * this.cols);
-            const cy = Math.floor(Math.random() * this.rows);
-            const radius = minRadius + Math.random() * (maxRadius - minRadius);
-            const r = Math.ceil(radius);
+        for (let y = 0; y < this.rows; y++) {
+            this.grid[y] = [];
+            this.layers.floor[y] = [];
+            this.layers.wall[y] = [];
+            this.layers.unit[y] = [];
 
-            for (let y = -r; y <= r; y++) {
-                for (let x = -r; x <= r; x++) {
-                    const dist = Math.hypot(x, y);
-                    const noise = (Math.random() - 0.5) * 4;
-                    if (dist + noise <= radius) {
-                        const nx = cx + x;
-                        const ny = cy + y;
-                        if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
-                            if (this.grid[ny][nx].type === 'empty') {
-                                this.grid[ny][nx].terrain = 'fertile-soil';
-                            }
-                        }
-                    }
-                }
+            for (let x = 0; x < this.cols; x++) {
+                const cell = data.grid[y][x]; // [floor, wall, unit]
+                const floorId = cell[0] || 'dirt';
+                const wallId = cell[1];
+                const unitData = cell[2];
+
+                this.layers.floor[y][x] = floorId;
+                this.layers.wall[y][x] = wallId;
+                this.layers.unit[y][x] = unitData;
+                
+                this.grid[y][x] = {
+                    type: 'empty',
+                    terrain: floorId,
+                    occupied: wallId ? true : false,
+                    buildable: wallId ? false : true,
+                    visible: false,
+                    inSight: false,
+                    cachedColor: this.getTileColor(floorId)
+                };
             }
         }
 
-        for (let y = 0; y < this.rows; y++) {
-            for (let x = 0; x < this.cols; x++) {
-                const tile = this.grid[y][x];
-                const n1 = Math.sin(x * 0.12) * Math.cos(y * 0.15) * 4;
-                const n2 = Math.sin(x * 0.5 + y * 0.3) * 2;
-                const n3 = ((x * 93 + y * 71) % 5) - 2;
-                const brightness = Math.round(n1 + n2 + n3);
+        this.chunksX = Math.ceil(this.cols / this.chunkSize);
+        this.chunksY = Math.ceil(this.rows / this.chunkSize);
+        this.initChunks();
+        this.initFogCanvas();
+    }
 
-                const baseR = tile.terrain === 'fertile-soil' ? 74 : 61;
-                const baseG = tile.terrain === 'fertile-soil' ? 55 : 90;
-                const baseB = tile.terrain === 'fertile-soil' ? 40 : 45;
-
-                tile.cachedColor = `rgb(${baseR + brightness}, ${baseG + brightness}, ${baseB + brightness})`;
-            }
+    getTileColor(terrain) {
+        switch(terrain) {
+            case 'dirt': return '#3d2e1e';
+            case 'grass': return '#2d4d1e';
+            case 'sand': return '#c2b280';
+            case 'water': return '#1e3d5a';
+            default: return '#3d2e1e';
         }
     }
 
     initChunks() {
         const chunkPixelSize = this.chunkSize * this.tileSize;
+        this.chunks = [];
 
         for (let cy = 0; cy < this.chunksY; cy++) {
             this.chunks[cy] = [];
@@ -110,7 +117,6 @@ export class TileMap {
                 canvas.height = chunkPixelSize;
                 const ctx = canvas.getContext('2d');
 
-                // 해당 청크 범위의 타일들 그리기
                 const startX = cx * this.chunkSize;
                 const startY = cy * this.chunkSize;
 
@@ -137,10 +143,7 @@ export class TileMap {
 
     drawGrid(camera) {
         if (!camera) return;
-
         const chunkPixelSize = this.chunkSize * this.tileSize;
-
-        // 뷰포트 컬링을 위한 가시 청크 범위 계산
         const viewportLeft = -camera.x / camera.zoom;
         const viewportTop = -camera.y / camera.zoom;
         const viewportRight = viewportLeft + this.canvas.width / camera.zoom;
@@ -154,19 +157,55 @@ export class TileMap {
         for (let cy = startCY; cy <= endCY; cy++) {
             for (let cx = startCX; cx <= endCX; cx++) {
                 const chunk = this.chunks[cy][cx];
-                this.ctx.drawImage(chunk.canvas, chunk.x, chunk.y);
+                if (chunk) this.ctx.drawImage(chunk.canvas, chunk.x, chunk.y);
             }
         }
     }
 
+    drawWalls(ctx) {
+        if (!this.layers || !this.layers.wall) return;
+        
+        // 아이콘 매핑 테이블 (데이터 간소화를 위해 내부에서 관리)
+        const WALL_ICONS = {
+            'stone-wall': '🧱',
+            'tree': '🌳',
+            'rock': '🪨',
+            'fence': '🚧'
+        };
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `${this.tileSize * 0.7}px Arial`;
+
+        for (let y = 0; y < this.rows; y++) {
+            if (!this.layers.wall[y]) continue;
+            for (let x = 0; x < this.cols; x++) {
+                const wallData = this.layers.wall[y][x];
+                if (wallData) {
+                    if (!this.grid[y][x].visible && !(this.engine && this.engine.debugSystem && this.engine.debugSystem.isFullVision)) continue;
+                    
+                    const wx = x * this.tileSize;
+                    const wy = y * this.tileSize;
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(wx + 2, wy + 2, this.tileSize - 4, this.tileSize - 4);
+                    
+                    const icon = typeof wallData === 'string' ? WALL_ICONS[wallData] : wallData.icon;
+                    if (icon) {
+                        ctx.fillText(icon, wx + this.tileSize / 2, wy + this.tileSize / 2);
+                    }
+                }
+            }
+        }
+        ctx.restore();
+    }
+
     updateFogCanvas() {
         if (!this.fogCtx || !this.fogBuffer) return;
-
-        // [최적화] Uint32Array를 사용하여 픽셀 데이터를 한 번에 조작 (RGBA 채널 개별 접근보다 빠름)
-        // Little Endian 환경: ABGR 순서 (0xAABBGGRR)
-        const BLACK = 0xFF050505; // 미탐사: #050505 (완전 불투명)
-        const GREY = 0x99000000;  // 탐사: #000000 (60% 불투명)
-        const CLEAR = 0x00000000; // 시야: 투명
+        const BLACK = 0xFF050505; 
+        const GREY = 0x99000000;  
+        const CLEAR = 0x00000000; 
 
         for (let y = 0; y < this.rows; y++) {
             const rowOffset = y * this.cols;
@@ -186,25 +225,12 @@ export class TileMap {
 
     drawFog(camera) {
         if (!camera || !this.fogCanvas) return;
-
         this.ctx.save();
         this.ctx.imageSmoothingEnabled = false;
-
         const worldWidth = this.cols * this.tileSize;
         const worldHeight = this.rows * this.tileSize;
-
-        this.ctx.drawImage(
-            this.fogCanvas,
-            0, 0, this.cols, this.rows,
-            0, 0, worldWidth, worldHeight
-        );
-
+        this.ctx.drawImage(this.fogCanvas, 0, 0, this.cols, this.rows, 0, 0, worldWidth, worldHeight);
         this.ctx.restore();
-    }
-
-    draw() {
-        this.drawGrid();
-        this.drawFog();
     }
 
     getTileAt(worldX, worldY) {

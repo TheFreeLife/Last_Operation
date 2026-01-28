@@ -1,11 +1,11 @@
 :root {
-    --bg-color: #0d0f14;
-    --panel-bg: rgba(255, 255, 255, 0.05);
+    --bg-color: #000000;
+    --panel-bg: rgba(0, 0, 0, 0.9);
     --panel-border: rgba(255, 255, 255, 0.1);
     --neon-blue: #00d2ff;
     --neon-green: #39ff14;
     --neon-red: #ff3131;
-    --text-color: #e0e0e0;
+    --text-color: #f0f0f0;
 }
 
 * {
@@ -88,8 +88,234 @@ button,
 }
 
 
+/* --- Main Menu --- */
+.menu-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000000;
+    z-index: 1000;
+}
+
+.menu-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 80px;
+    gap: 40px;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 0 100px rgba(0, 0, 0, 1);
+}
+
+.menu-title {
+    font-size: 4rem;
+    font-weight: 900;
+    color: var(--neon-blue);
+    letter-spacing: 8px;
+    text-shadow: 0 0 20px rgba(0, 210, 255, 0.5);
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+.menu-btn {
+    padding: 20px 40px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.menu-btn:hover {
+    background: var(--neon-blue);
+    color: #000;
+    box-shadow: 0 0 30px rgba(0, 210, 255, 0.4);
+    transform: translateY(-5px);
+}
+
+/* --- Map Editor UI --- */
+#editor-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 500;
+}
+
+#editor-top-panel {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 80%;
+    padding: 15px 30px;
+    pointer-events: auto;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+.editor-info {
+    display: flex;
+    gap: 30px;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+#current-layer-name { color: var(--neon-green); }
+#mouse-coords { color: var(--neon-blue); opacity: 0.8; }
+
+.editor-actions {
+    display: flex;
+    gap: 15px;
+}
+
+.editor-action-btn {
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.editor-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#editor-save-btn { border-color: var(--neon-green); color: var(--neon-green); }
+#editor-exit-btn { border-color: var(--neon-red); color: var(--neon-red); }
+
+#editor-palette {
+    position: absolute;
+    right: 20px;
+    top: 100px;
+    width: 280px;
+    max-height: 80vh;
+    padding: 20px;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: rgba(5, 5, 5, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.palette-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+}
+
+.palette-tab {
+    padding: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.palette-tab.active {
+    color: var(--neon-blue);
+    border-color: var(--neon-blue);
+    background: rgba(0, 210, 255, 0.05);
+}
+
+.palette-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.palette-item {
+    aspect-ratio: 1/1;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1.5rem;
+}
+
+.palette-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.palette-item.active {
+    border-color: var(--neon-blue);
+    background: rgba(0, 210, 255, 0.08);
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.15);
+}
+
+/* --- Export Modal --- */
+#export-textarea {
+    width: 100%;
+    height: 300px;
+    background: #000000;
+    color: var(--neon-green);
+    font-family: 'Consolas', monospace;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #222;
+    margin: 20px 0;
+    resize: none;
+    font-size: 12px;
+}
+
+.modal-btns {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+#copy-json-btn, #close-export-btn {
+    padding: 12px 30px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+}
+
+#copy-json-btn { background: var(--neon-blue); color: #000; }
+#close-export-btn { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
 canvas {
-    background-color: #3d5a2d; /* 지형(dirt) 평균 색상으로 변경 */
+    background-color: #000000;
     display: block;
     cursor: inherit;
 }

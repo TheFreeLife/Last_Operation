@@ -108,7 +108,10 @@ export class RenderSystem {
         const viewport = this.getViewportBounds();
 
         // 3. 지형
-        if (this.engine.tileMap) this.engine.tileMap.drawGrid(camera);
+        if (this.engine.tileMap) {
+            this.engine.tileMap.drawGrid(camera);
+            this.engine.tileMap.drawWalls(this.ctx);
+        }
 
         // 4. 엔티티 분류 및 렌더링
         const visibleEntities = this.getVisibleEntities(viewport);

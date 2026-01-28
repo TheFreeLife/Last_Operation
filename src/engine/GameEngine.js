@@ -5,12 +5,20 @@ import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
 import { RenderSystem } from './systems/RenderSystem.js';
 import { DebugSystem } from './systems/DebugSystem.js';
+import { MapEditor } from './systems/MapEditor.js';
+
+export const GameState = {
+    MENU: 'MENU',
+    PLAYING: 'PLAYING',
+    EDITOR: 'EDITOR'
+};
 
 export class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        // imageSmoothingEnabled를 기본값(true)으로 유지하여 격자 현상 완화
+        
+        this.gameState = GameState.MENU;
 
         this.minimapCanvas = document.getElementById('minimapCanvas');
         this.minimapCtx = this.minimapCanvas.getContext('2d');
@@ -18,116 +26,29 @@ export class GameEngine {
         this.resize();
 
         this.entityClasses = { Entity, PlayerUnit, Enemy, Projectile, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
-        this.tileMap = new TileMap(this.canvas);
+        this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
-        // EntityManager 초기화 (새로운 최적화 시스템)
         this.entityManager = new EntityManager(this);
         this.renderSystem = new RenderSystem(this);
+        this.mapEditor = new MapEditor(this);
 
-        // 엔티티 타입 등록
         this.registerEntityTypes();
 
-        const centerX = (this.tileMap.cols * this.tileMap.tileSize) / 2;
-        const centerY = (this.tileMap.rows * this.tileMap.tileSize) / 2;
-
-        // 기존 entities 구조 유지 (하위 호환성)
-        // EntityManager의 entities 객체를 직접 참조하여 기존 코드와 호환
         this.entities = this.entityManager.entities;
-
-        // --- 초기 유닛 배치 ---
-        const startX = centerX;
-        const startY = centerY;
-        const spX = 90; // 가로 간격
-        const spY = 90; // 세로 간격
-
-        // [공중 전력]
-        const airY = startY - 180;
-        const startBomber = new Bomber(startX - spX, airY, this);
-        const startCargo = new CargoPlane(startX, airY, this);
-        const startScout = new ScoutPlane(startX + spX, airY, this);
-
-        // [지상군]
-        const groundY = startY + 180;
-
-        // 1열: 기갑 및 중화기
-        const startTank = new Tank(startX - spX, groundY, this);
-        const startMissile = new MissileLauncher(startX, groundY, this);
-        const startAntiAir = new AntiAirVehicle(startX + spX, groundY, this);
-
-        // 2열: 보병 및 지원 화력
-        const startSniper = new Sniper(startX - spX, groundY + spY, this);
-        const startInfantry = new Rifleman(startX, groundY + spY, this);
-        const startArtillery = new Artillery(startX + spX, groundY + spY, this);
-
-        // 3열: 수송 트럭
-        const startTruck = new MilitaryTruck(startX, groundY + spY * 2, this);
-
-        // 4열: 탄약 보급품 (상자 유닛)
-        const startAmmoBoxes = [
-            new AmmoBox(startX - spX, groundY + spY * 3, this, 'bullet'),
-            new AmmoBox(startX, groundY + spY * 3, this, 'shell'),
-            new AmmoBox(startX + spX, groundY + spY * 3, this, 'missile')
-        ];
-
-        // 모든 아군 유닛 설정 및 등록
-        const allStartingUnits = [
-            startTank, startMissile, startAntiAir,
-            startSniper, startInfantry, startArtillery,
-            startTruck,
-            ...startAmmoBoxes,
-            startBomber, startCargo, startScout
-        ];
-
-        allStartingUnits.forEach(u => {
-            u.ownerId = 1;
-            // 살짝 아래를 바라보게 설정
-            u.angle = Math.PI / 2;
-            this.entities.units.push(u);
-
-            // [중요] EntityManager에 수동 등록 (create를 안 썼으므로)
-            this.entityManager.allEntities.push(u);
-            this.entityManager.spatialGrid.add(u);
-
-            // 수송기는 전용 리스트에도 등록
-            if (u.type === 'cargo-plane') this.entities.cargoPlanes.push(u);
-        });
-
-        // 테스트용 중립 유닛 (플레이어 3)
-        const neutralTank = new Tank(startX - 350, startY - 100, this);
-        neutralTank.ownerId = 3;
-        neutralTank.name = "중립 전차 (P3)";
-
-        const neutralDrone = new ScoutPlane(startX - 450, startY - 100, this);
-        neutralDrone.ownerId = 3;
-        neutralDrone.name = "정찰 무인기 (P3)";
-
-        this.entities.units.push(neutralTank, neutralDrone);
-        this.entityManager.allEntities.push(neutralTank, neutralDrone);
-        this.entityManager.spatialGrid.add(neutralTank);
-        this.entityManager.spatialGrid.add(neutralDrone);
-
-        this.updateVisibility();
-
         this.resources = {};
         this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
 
-
-        // 플레이어 시스템 초기화
         this.players = {
             1: { name: 'Player 1 (User)', team: 1 },
             2: { name: 'Player 2 (Enemy)', team: 2 },
             3: { name: 'Player 3 (Neutral)', team: 3 }
         };
 
-        // 부대 지정 시스템 (StarCraft Style)
         this.controlGroups = {
             1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 0: []
         };
-        this.lastControlGroupKey = null;
-        this.lastControlGroupTime = 0;
-
-        // 관계 설정 (나중에 외부 설정 파일로 분리 가능)
+        
         this.relations = {
             '1-2': 'enemy',
             '2-1': 'enemy',
@@ -138,20 +59,25 @@ export class GameEngine {
         };
 
         this.lastTime = 0;
-        this.gameState = 'playing';
         this.unitCommandMode = null;
         this.selectedEntity = null;
         this.selectedEntities = [];
         this.currentMenuName = 'main';
-        this.hoveredEntity = null; // 호버 중인 엔티티 저장용
+        this.hoveredEntity = null;
         this.isHoveringUI = false;
-        this.effects = []; // 시각 효과(파티클 등) 관리용 배열 추가
+        this.effects = [];
+
+        // 마우스 상태 추적
+        this.isMouseDown = false;
+        this.isRightMouseDown = false;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
 
         // Camera State
         const initialZoom = 0.8;
         this.camera = {
-            x: this.canvas.width / 2 - centerX * initialZoom,
-            y: this.canvas.height / 2 - centerY * initialZoom,
+            x: 0,
+            y: 0,
             width: this.canvas.width,
             height: this.canvas.height,
             zoom: initialZoom,
@@ -162,11 +88,9 @@ export class GameEngine {
             selectionBox: null
         };
 
-        // Visibility Optimization
         this.visibilityTimer = 0;
-        this.visibilityInterval = 100; // 100ms
+        this.visibilityInterval = 100;
 
-        // [최적화] 미니맵 배경 캐시 캔버스 (1px = 1타일)
         this.minimapCacheCanvas = document.createElement('canvas');
         this.minimapCacheCanvas.width = this.tileMap.cols;
         this.minimapCacheCanvas.height = this.tileMap.rows;
@@ -177,6 +101,64 @@ export class GameEngine {
         window.addEventListener('resize', () => this.resize());
         this.initInput();
         this.initUI();
+        
+        this.setGameState(GameState.MENU);
+    }
+
+    setGameState(newState) {
+        this.gameState = newState;
+        
+        // UI 레이어 토글
+        document.getElementById('main-menu').classList.toggle('hidden', newState !== GameState.MENU);
+        document.getElementById('ui-layer').classList.toggle('hidden', newState !== GameState.PLAYING);
+        document.getElementById('editor-ui').classList.toggle('hidden', newState !== GameState.EDITOR);
+        document.getElementById('debug-panel').classList.toggle('hidden', newState !== GameState.PLAYING);
+
+        if (newState === GameState.PLAYING) {
+            this.loadMap();
+        } else if (newState === GameState.EDITOR) {
+            this.mapEditor.activate();
+        } else {
+            this.mapEditor.deactivate();
+        }
+    }
+
+    async loadMap() {
+        try {
+            const response = await fetch('./maps/map.json');
+            if (!response.ok) throw new Error('Map file not found');
+            const mapData = await response.json();
+            
+            this.tileMap.loadFromData(mapData);
+            this.entityManager.clear();
+            
+            // TileMap에서 분리해둔 유닛 레이어로부터 실제 엔티티 생성
+            const unitLayer = this.tileMap.layers.unit;
+            const tileSize = this.tileMap.tileSize;
+
+            for (let y = 0; y < mapData.height; y++) {
+                for (let x = 0; x < mapData.width; x++) {
+                    const unitInfo = unitLayer[y][x];
+                    if (unitInfo) {
+                        const worldX = x * tileSize + tileSize / 2;
+                        const worldY = y * tileSize + tileSize / 2;
+                        const entity = this.entityManager.create(unitInfo.id, worldX, worldY, { ownerId: unitInfo.ownerId || 1 });
+                        if (entity) {
+                            entity.angle = Math.PI / 2;
+                        }
+                    }
+                }
+            }
+            
+            // 카메라 중앙 정렬
+            this.camera.zoom = 0.8;
+            this.camera.x = this.canvas.width / 2 - (mapData.width * this.tileMap.tileSize * this.camera.zoom) / 2;
+            this.camera.y = this.canvas.height / 2 - (mapData.height * this.tileMap.tileSize * this.camera.zoom) / 2;
+
+            this.updateVisibility();
+        } catch (error) {
+            console.error('Failed to load map:', error);
+        }
     }
 
     registerEntityTypes() {
@@ -272,6 +254,9 @@ export class GameEngine {
     }
 
     initUI() {
+        document.getElementById('start-game-btn')?.addEventListener('click', () => this.setGameState(GameState.PLAYING));
+        document.getElementById('map-editor-btn')?.addEventListener('click', () => this.setGameState(GameState.EDITOR));
+        document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
         this.updateBuildMenu();
     }
@@ -281,7 +266,9 @@ export class GameEngine {
     }
 
     updateBuildMenu() {
+        if (this.gameState !== GameState.PLAYING) return;
         const grid = document.getElementById('build-grid');
+        if (!grid) return;
         grid.innerHTML = '';
 
         const header = document.querySelector('.panel-header');
@@ -454,7 +441,16 @@ export class GameEngine {
         }
     }
     initInput() {
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+
         window.addEventListener('keydown', (e) => {
+            // 에디터 모드 시 브라우저 기본 단축키 차단 (저장, 인쇄 등)
+            if (this.gameState === GameState.EDITOR) {
+                if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'f', 'g'].includes(e.key.toLowerCase())) {
+                    e.preventDefault();
+                }
+            }
+
             if (e.key === 'Escape') {
                 // 1. 활성화된 특수 모드(명령 타겟팅, 디버그 모드) 취소
                 const isDebugMode = this.debugSystem && (this.debugSystem.isSpawnSandbagMode || this.debugSystem.isSpawnAirSandbagMode || this.debugSystem.spawnUnitType || this.debugSystem.isEraserMode);
@@ -522,11 +518,25 @@ export class GameEngine {
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
-            if (this.gameState !== 'playing') return;
-
             const rect = this.canvas.getBoundingClientRect();
             const worldX = (e.clientX - rect.left - this.camera.x) / this.camera.zoom;
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
+
+            if (e.button === 0) this.isMouseDown = true;
+            if (e.button === 2) {
+                this.isRightMouseDown = true;
+                this.lastMouseX = e.clientX;
+                this.lastMouseY = e.clientY;
+            }
+
+            if (this.gameState === GameState.EDITOR) {
+                if (e.button === 0 || (e.button === 2 && !this.isRightMouseDown)) {
+                    this.mapEditor.handleInput(worldX, worldY, true, e.button === 2);
+                }
+                return;
+            }
+
+            if (this.gameState !== GameState.PLAYING) return;
 
             if (e.button === 0) { // LEFT CLICK
                 if (this.unitCommandMode) {
@@ -623,12 +633,26 @@ export class GameEngine {
         });
 
         window.addEventListener('mousemove', (e) => {
-            this.camera.mouseX = e.clientX;
-            this.camera.mouseY = e.clientY;
-
             const rect = this.canvas.getBoundingClientRect();
             const worldX = (e.clientX - rect.left - this.camera.x) / this.camera.zoom;
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
+
+            // 에디터 모드 드래그 조작
+            if (this.gameState === GameState.EDITOR) {
+                if (this.isMouseDown) {
+                    this.mapEditor.handleInput(worldX, worldY, true, false);
+                } else if (this.isRightMouseDown) {
+                    const dx = e.clientX - this.lastMouseX;
+                    const dy = e.clientY - this.lastMouseY;
+                    this.camera.x += dx;
+                    this.camera.y += dy;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                }
+            }
+
+            this.camera.mouseX = e.clientX;
+            this.camera.mouseY = e.clientY;
 
             if (this.camera.selectionBox) {
                 this.camera.selectionBox.currentX = worldX;
@@ -658,6 +682,9 @@ export class GameEngine {
         });
 
         window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) this.isMouseDown = false;
+            if (e.button === 2) this.isRightMouseDown = false;
+
             const rect = this.canvas.getBoundingClientRect();
             const worldX = (e.clientX - rect.left - this.camera.x) / this.camera.zoom;
             const worldY = (e.clientY - rect.top - this.camera.y) / this.camera.zoom;
@@ -957,7 +984,14 @@ export class GameEngine {
     }
 
     update(deltaTime) {
-        if (this.gameState !== 'playing') return;
+        if (this.gameState === GameState.MENU) return;
+        
+        if (this.gameState === GameState.EDITOR) {
+            // 에디터에서는 외곽 스크롤 비활성화 (사용자 요청)
+            return;
+        }
+
+        if (this.gameState !== GameState.PLAYING) return;
 
         this.frameCount = (this.frameCount || 0) + 1;
 
@@ -1025,6 +1059,16 @@ export class GameEngine {
     }
 
     render() {
+        if (this.gameState === GameState.EDITOR) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.save();
+            this.ctx.translate(this.camera.x, this.camera.y);
+            this.ctx.scale(this.camera.zoom, this.camera.zoom);
+            this.mapEditor.render(this.ctx);
+            this.ctx.restore();
+            return;
+        }
+
         if (this.renderSystem) {
             this.renderSystem.render();
             this.ctx.save();

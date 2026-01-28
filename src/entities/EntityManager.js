@@ -208,6 +208,10 @@ export class EntityManager {
         }
     }
 
+    clear() {
+        this.reset();
+    }
+
     /**
      * 디버그 정보 출력
      */

@@ -10,9 +10,57 @@
 
 <body>
     <div id="game-container">
+        <!-- Main Menu Layer -->
+        <div id="main-menu" class="menu-overlay">
+            <div class="menu-content glass-panel">
+                <h1 class="menu-title">COMMAND DEFENCE</h1>
+                <div class="menu-buttons">
+                    <button id="start-game-btn" class="menu-btn">작전 개시 (START)</button>
+                    <button id="map-editor-btn" class="menu-btn">맵 에디터 (EDITOR)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Editor UI Layer -->
+        <div id="editor-ui" class="hidden">
+            <div id="editor-top-panel" class="glass-panel">
+                <div class="editor-info">
+                    <span id="current-layer-name">Layer: Floor</span>
+                    <span id="mouse-coords">0, 0</span>
+                </div>
+                <div class="editor-actions">
+                    <button id="editor-save-btn" class="editor-action-btn">내보내기 (Export)</button>
+                    <button id="editor-exit-btn" class="editor-action-btn">종료 (Exit)</button>
+                </div>
+            </div>
+            
+            <div id="editor-palette" class="glass-panel">
+                <div class="palette-tabs">
+                    <button class="palette-tab active" data-layer="floor">Floor</button>
+                    <button class="palette-tab" data-layer="wall">Wall</button>
+                    <button class="palette-tab" data-layer="unit">Unit</button>
+                </div>
+                <div id="palette-items" class="palette-grid">
+                    <!-- Items will be injected by Editor -->
+                </div>
+            </div>
+
+            <div id="export-modal" class="modal-overlay hidden">
+                <div class="modal-content glass-panel">
+                    <h2>맵 데이터 내보내기</h2>
+                    <p>아래 배열을 복사하여 maps/map.json 파일의 layers 항목에 붙여넣으세요.</p>
+                    <textarea id="export-textarea" readonly></textarea>
+                    <div class="modal-btns">
+                        <button id="copy-json-btn">복사하기</button>
+                        <button id="close-export-btn">닫기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <canvas id="gameCanvas"></canvas>
 
-        <div id="ui-layer">
+        <div id="ui-layer" class="hidden">
             <!-- Debug Control Panel (Practice Tool) -->
             <div id="debug-panel">
                 <div class="debug-group">
