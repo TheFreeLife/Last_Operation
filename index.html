@@ -46,9 +46,26 @@
                 <div class="sidebar-section">
                     <div class="section-title">TOOLS</div>
                     <div class="tool-grid">
-                        <button class="tool-btn active" data-tool="pencil" title="연필 (P)">✏️</button>
-                        <button class="tool-btn" data-tool="eraser" title="지우개 (E)">🧹</button>
-                        <button class="tool-btn" data-tool="fill" title="채우기 (F)">🫗</button>
+                        <button class="tool-btn active" data-tool="pencil" title="브러시 (P)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+                        <path d="m15 5 4 4"></path>
+                    </svg>
+                </button>
+                        <button class="tool-btn" data-tool="eraser" title="지우개 (E)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                        <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path>
+                        <path d="m22 21-14 0"></path>
+                        <path d="m18 11-4.6 4.6"></path>
+                    </svg>
+                </button>
+                        <button class="tool-btn" data-tool="fill" title="채우기 (F)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                        <path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"></path>
+                        <path d="m5 7 5 5"></path>
+                        <path d="m21 15-3.5 3.5c-.8.8-2 .8-2.8 0L11 15"></path>
+                    </svg>
+                </button>
                         
                         <!-- Shape Tool Group (Dropdown) -->
                         <div class="tool-group">
@@ -127,7 +144,13 @@
                                         <div class="debug-tooltip">공중 샌드백 적 생성 (마우스 위치)</div>
                                     </div>
                                                             <div class="debug-group">
-                                                                <button class="debug-btn" id="db-eraser">🧹</button>
+                                                                <button class="debug-btn" id="db-eraser" title="객체 지우개">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                    <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path>
+                    <path d="m22 21-14 0"></path>
+                    <path d="m18 11-4.6 4.6"></path>
+                </svg>
+            </button>
                                                                 <div class="debug-tooltip">엔티티 삭제 (지우개)</div>
                                                             </div>
                                                             <hr style="width: 100%; border: 0; border-top: 1px solid #c8aa6e; margin: 5px 0;">
