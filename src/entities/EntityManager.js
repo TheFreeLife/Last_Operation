@@ -1,58 +1,111 @@
 import { SpatialGrid } from '../engine/systems/SpatialGrid.js';
+import { ObjectPool } from '../engine/systems/ObjectPool.js';
+import { World } from '../engine/ecs/World.js';
+import * as ECSSystems from '../engine/ecs/systems/CoreSystems.js';
+import * as ProjectileSystem from '../engine/ecs/systems/ProjectileSystem.js';
 
 /**
- * EntityManager - 엔티티 생성 및 관리 중앙화
- * 
- * 역할:
- * 1. 팩토리 패턴으로 엔티티 생성
- * 2. 타입별 레지스트리 관리
- * 3. 공간 분할(SpatialGrid)을 통한 효율적인 검색
- * 4. 엔티티 풀링 (추후 확장)
+ * EntityManager - ECS와 Object Pooling을 결합한 하이브리드 관리자
  */
 export class EntityManager {
     constructor(engine) {
         this.engine = engine;
 
-        // 엔티티 타입별 클래스 레지스트리
+        // 1. ECS World (고성능 데이터 관리)
+        this.ecsWorld = new World(20000); 
+
+        // 2. 기존 레지스트리 및 공간 분할
         this.registry = new Map();
+        this.spatialGrid = new SpatialGrid(100);
 
-        // 공간 분할 그리드
-        this.spatialGrid = new SpatialGrid(100); // 100px 셀 크기
-
-        // 타입별 엔티티 저장소 (기존 호환성 유지)
         this.entities = {
             units: [],
             enemies: [],
             neutral: [],
-            projectiles: [],
+            projectiles: [], // ECS 미적용 레거시 호환용
             cargoPlanes: []
         };
 
-        // 모든 활성 엔티티 (빠른 전체 순회용)
         this.allEntities = [];
-
-        // 엔티티 풀 (타입별)
         this.pools = new Map();
     }
 
     /**
-     * 엔티티 타입 등록
-     * @param {string} type - 엔티티 타입 (예: 'tank', 'rifleman')
-     * @param {Class} EntityClass - 엔티티 클래스
-     * @param {string} listName - 저장할 리스트 이름 (예: 'units')
+     * ECS 전용 투사체 생성 (초고속)
      */
-    register(type, EntityClass, listName = 'units') {
-        this.registry.set(type, { EntityClass, listName });
+    spawnProjectileECS(x, y, target, damage, options = {}) {
+        const idx = this.ecsWorld.createEntity();
+        if (idx === -1) return;
+
+        this.ecsWorld.typeId[idx] = 1; // 1: Projectile
+        this.ecsWorld.x[idx] = x;
+        this.ecsWorld.y[idx] = y;
+        this.ecsWorld.targetX[idx] = target.x;
+        this.ecsWorld.targetY[idx] = target.y;
+        this.ecsWorld.speed[idx] = options.speed || 8;
+        this.ecsWorld.damage[idx] = damage;
+        this.ecsWorld.explosionRadius[idx] = options.explosionRadius || 0;
+        this.ecsWorld.ownerId[idx] = options.ownerId || 0;
+        
+        return idx;
     }
 
     /**
-     * 엔티티 생성 (팩토리 메서드 - 오브젝트 풀링 적용)
-     * @param {string} type - 엔티티 타입
-     * @param {number} x - X 좌표
-     * @param {number} y - Y 좌표
-     * @param {object} options - 추가 옵션
-     * @param {string} listOverride - 저장할 리스트 이름 강제 지정 (옵션)
-     * @returns {Entity} 생성된 엔티티
+     * ECS 시스템 실행
+     */
+    update(deltaTime) {
+        // 1. 고성능 ECS 시스템 일괄 처리
+        ECSSystems.updateMovement(this.ecsWorld, deltaTime);
+        ProjectileSystem.updateProjectiles(this.ecsWorld, deltaTime, this.engine);
+        ECSSystems.updateHealth(this.ecsWorld, (idx) => this.handleECSDestruction(idx));
+
+        // 2. 기존 객체 기반 업데이트
+        const lists = Object.values(this.entities);
+        for (const list of lists) {
+            if (Array.isArray(list)) {
+                for (let i = list.length - 1; i >= 0; i--) {
+                    const entity = list[i];
+                    if (!entity || !entity.active) continue;
+                    
+                    // ECS에 데이터가 있는 경우 동기화
+                    if (entity.ecsIndex !== undefined) {
+                        entity.x = this.ecsWorld.x[entity.ecsIndex];
+                        entity.y = this.ecsWorld.y[entity.ecsIndex];
+                    }
+                    
+                    if (entity.update) entity.update(deltaTime, this.engine);
+                    this.spatialGrid.update(entity);
+                }
+            }
+        }
+
+        // 주기적 cleanup
+        if (!this._cleanupTimer) this._cleanupTimer = 0;
+        this._cleanupTimer += deltaTime;
+        if (this._cleanupTimer >= 1000) {
+            this.cleanup();
+            this._cleanupTimer = 0;
+        }
+    }
+
+    handleECSDestruction(idx) {
+        // ECS 엔티티 파괴 시 필요한 로직 (예: 폭발 효과)
+        // 기존 객체 래퍼가 있다면 해당 객체도 비활성화
+    }
+
+    /**
+     * 엔티티 타입 등록 및 풀 초기화
+     */
+    register(type, EntityClass, listName = 'units', initialPoolSize = 0) {
+        this.registry.set(type, { EntityClass, listName });
+        
+        // 해당 타입을 위한 전용 풀 생성
+        const pool = new ObjectPool(() => new EntityClass(0, 0, this.engine), initialPoolSize);
+        this.pools.set(type, pool);
+    }
+
+    /**
+     * 엔티티 생성 (풀링 적용)
      */
     create(type, x, y, options = {}, listOverride = null) {
         const registration = this.registry.get(type);
@@ -61,83 +114,84 @@ export class EntityManager {
             return null;
         }
 
-        const { EntityClass, listName } = registration;
-        const targetList = listOverride || listName;
+        const pool = this.pools.get(type);
         let entity = null;
 
-        // 1. 오브젝트 풀 확인 (투사체 등 빈번한 생성 객체 우선 적용)
-        const pool = this.pools.get(type);
-        if (pool && pool.length > 0) {
-            entity = pool.pop();
-            entity.x = x;
-            entity.y = y;
-            entity.active = true;
-            if (entity.init) entity.init(x, y, this.engine); // 재사용 초기화 메서드 호출
+        if (pool) {
+            entity = pool.acquire();
+            // init() 메서드를 통해 새로운 상태로 초기화
+            // options가 있을 경우를 대비해 x, y 등 기본값은 options 전후로 처리 가능
+            entity.init(x, y, this.engine);
         } else {
-            // 2. 풀에 없으면 새로 생성
+            const { EntityClass } = registration;
             entity = new EntityClass(x, y, this.engine);
         }
 
-        // 추가 옵션 적용
+        // 추가 옵션 적용 (속도, 팀 ID 등)
         Object.assign(entity, options);
 
-        // 타입별 리스트에 추가
+        const { listName } = registration;
+        const targetList = listOverride || listName;
+        
+        // 리스트에 추가 (중복 방지)
         const list = this.entities[targetList];
-        if (Array.isArray(list)) {
-            if (!list.includes(entity)) list.push(entity);
+        if (Array.isArray(list) && !list.includes(entity)) {
+            list.push(entity);
         }
 
-        // 전체 엔티티 리스트에 추가
         if (!this.allEntities.includes(entity)) {
             this.allEntities.push(entity);
         }
 
-        // 공간 그리드에 등록
         this.spatialGrid.add(entity);
 
         return entity;
     }
 
     /**
-     * 엔티티 제거 (오브젝트 풀로 반환)
-     * @param {Entity} entity - 제거할 엔티티
+     * 엔티티 제거 및 풀 반환
      */
     remove(entity) {
         if (!entity || !entity.active) return;
 
         entity.active = false;
-
-        // 공간 그리드에서 제거
         this.spatialGrid.remove(entity);
 
-        // 오브젝트 풀에 반환 (투사체 타입 위주)
-        if (entity.type === 'projectile' || entity.type === 'bullet' || entity.type === 'shell') {
-            if (!this.pools.has(entity.type)) {
-                this.pools.set(entity.type, []);
-            }
-            const pool = this.pools.get(entity.type);
-            if (pool.length < 500) { // 풀 크기 제한
-                pool.push(entity);
-            }
-        }
-
-        // 전체 리스트에서 제거는 cleanup에서 일괄 처리
+        // 즉시 리스트에서 제거하는 대신 cleanup에서 처리하거나 
+        // 빈번한 객체(투사체 등)의 경우 즉시 풀로 보낼 수 있도록 설계 가능
     }
 
     /**
-     * 비활성 엔티티 정리 (매 프레임 또는 주기적으로 호출)
+     * 비활성 엔티티 정리 및 풀 반환 (GC 최적화 버전)
+     * filter() 대신 역순 순회 및 splice를 사용하거나, 새 배열 할당을 최소화합니다.
      */
     cleanup() {
-        // 각 리스트에서 비활성 엔티티 제거
-        for (const key in this.entities) {
-            const list = this.entities[key];
-            if (Array.isArray(list)) {
-                this.entities[key] = list.filter(e => e.active);
+        // 전체 엔티티 리스트 정리
+        for (let i = this.allEntities.length - 1; i >= 0; i--) {
+            const entity = this.allEntities[i];
+            if (!entity.active) {
+                // 풀에 반환
+                const pool = this.pools.get(entity.type || entity.constructor.name.toLowerCase());
+                if (pool) {
+                    pool.release(entity);
+                }
+
+                // 배열에서 제거
+                this.allEntities.splice(i, 1);
             }
         }
 
-        // 전체 리스트 정리
-        this.allEntities = this.allEntities.filter(e => e.active);
+        // 타입별 리스트 정리
+        for (const key in this.entities) {
+            const list = this.entities[key];
+            if (Array.isArray(list)) {
+                for (let i = list.length - 1; i >= 0; i--) {
+                    if (!list[i].active) {
+                        list.splice(i, 1);
+                    }
+                }
+            }
+        }
     }
 
     /**

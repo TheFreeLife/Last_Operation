@@ -1,8 +1,16 @@
 import { Entity } from '../BaseEntity.js';
 
 export class Projectile extends Entity {
-    constructor(x, y, target, damage, color = '#ffff00', source) {
-        super(x, y);
+    constructor(x, y, target, damage, color, source, engine) {
+        super(x, y, engine);
+        // 생성자에서는 init이 super()를 통해 호출됨
+        if (target !== undefined) {
+            this.init(x, y, target, damage, color, source, engine);
+        }
+    }
+
+    init(x, y, target, damage, color = '#ffff00', source, engine) {
+        super.init(x, y, engine);
         this.target = target;
         this.damage = damage;
         this.color = color;
@@ -15,6 +23,13 @@ export class Projectile extends Entity {
         this.exploding = false; // 폭발 연출 중인지 여부
         this.explosionTimer = 0;
         this.trail = []; // 궤적 저장을 위한 배열
+    }
+
+    onRelease() {
+        super.onRelease();
+        this.target = null;
+        this.source = null;
+        this.trail = [];
     }
 
     explode(engine) {

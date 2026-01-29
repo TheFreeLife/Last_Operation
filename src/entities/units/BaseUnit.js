@@ -57,17 +57,10 @@ export class BaseUnit extends Entity {
                 // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
                 this.path = [{ x: value.x, y: value.y }];
             } else {
-                // 지상 유닛은 기존대로 A* 경로 탐색 수행 (중앙 집중형 크기 로직 사용)
-                this.path = this.engine.pathfinding.findPath(this.x, this.y, value.x, value.y, this.canBypassObstacles, this.pathfindingSize) || [];
-
-                while (this.path.length > 0) {
-                    const first = this.path[0];
-                    if (Math.hypot(first.x - this.x, first.y - this.y) < 20) {
-                        this.path.shift();
-                    } else {
-                        break;
-                    }
-                }
+                // [Flow Field 최적화] 목적지 그리드 좌표로 유동장 생성
+                const grid = this.engine.tileMap.worldToGrid(value.x, value.y);
+                this.engine.flowField.generate(grid.x, grid.y);
+                this.path = []; // FlowField 사용 시 고정 경로는 사용하지 않음
             }
 
             this.pathRecalculateTimer = 1000;
@@ -170,19 +163,20 @@ export class BaseUnit extends Entity {
     }
 
     executeProjectileAttack() {
-        const { Projectile } = this.engine.entityClasses;
-        const p = new Projectile(this.x, this.y, this.target, this.damage, this.color || '#ffff00', this);
+        // ECS 기반 고성능 투사체 생성
+        const options = {
+            speed: (this.type === 'anti-air') ? 18 : 8,
+            explosionRadius: this.explosionRadius || 0,
+            ownerId: this.ownerId
+        };
 
-        // 유닛 설정값 전달
-        if (this.explosionRadius > 0) {
-            p.type = 'shell';
-            p.explosionRadius = this.explosionRadius;
-        } else if (this.type === 'anti-air') {
-            p.type = 'tracer';
-            p.speed = 18;
-        }
-
-        this.engine.entities.projectiles.push(p);
+        this.engine.entityManager.spawnProjectileECS(
+            this.x, 
+            this.y, 
+            this.target, 
+            this.damage, 
+            options
+        );
     }
 
     // [최적화] 상태 기반 비트맵 캐시 키 반환
@@ -315,43 +309,36 @@ export class BaseUnit extends Entity {
                 this.path = [];
             }
         } else if (this._destination) {
-            // 2. --- A* Path Following ---
-            while (this.path.length > 0) {
-                const waypoint = this.path[0];
-                const distToWaypoint = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
-                if (distToWaypoint < 5) {
-                    this.path.shift();
-                } else {
-                    break;
-                }
-            }
+            const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
 
-            if (this.path.length > 0) {
-                const waypoint = this.path[0];
-                this.angle = Math.atan2(waypoint.y - this.y, waypoint.x - this.x);
-                this.moveWithCollision(this.speed);
+            if (distToFinal < 10) {
+                this.isInitialExit = false; // 출격 모드 해제
+                if (this.command === 'patrol') {
+                    const temp = this.patrolStart;
+                    this.patrolStart = this.patrolEnd;
+                    this.patrolEnd = temp;
+                    this.destination = this.patrolEnd;
+                } else {
+                    this._destination = null;
+                    if (this.command !== 'build') this.command = 'stop';
+                }
             } else {
-                const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
-                if (distToFinal < 3) {
-                    this.isInitialExit = false; // 출격 모드 해제
-                    if (this.command === 'patrol') {
-                        const temp = this.patrolStart;
-                        this.patrolStart = this.patrolEnd;
-                        this.patrolEnd = temp;
-                        this.destination = this.patrolEnd;
-                    } else {
-                        this._destination = null;
-                        if (this.command !== 'build') this.command = 'stop';
-                    }
-                } else {
+                // [Flow Field 이동 연산]
+                if (this.domain === 'air') {
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
-                    this.moveWithCollision(Math.min(this.speed, distToFinal));
-
-                    this.pathRecalculateTimer -= deltaTime;
-                    if (this.pathRecalculateTimer <= 0) {
-                        this.destination = this._destination;
+                } else {
+                    const vector = this.engine.flowField.getFlowVector(this.x, this.y);
+                    if (vector.x !== 0 || vector.y !== 0) {
+                        // 유동장 벡터 방향으로 부드럽게 회전
+                        const targetAngle = Math.atan2(vector.y, vector.x);
+                        const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
+                        this.angle += angleDiff * 0.15; // 회전 감도
+                    } else {
+                        // 유동장 정보가 없는 경우 직선 이동
+                        this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                     }
                 }
+                this.moveWithCollision(Math.min(this.speed, distToFinal));
             }
         }
 

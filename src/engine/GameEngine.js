@@ -4,8 +4,11 @@ import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
 import { RenderSystem } from './systems/RenderSystem.js';
+import { FlowField } from './systems/FlowField.js';
 import { DebugSystem } from './systems/DebugSystem.js';
 import { MapEditor } from './systems/MapEditor.js';
+
+import { renderECS } from './ecs/systems/RenderSystem.js';
 
 export const GameState = {
     MENU: 'MENU',
@@ -34,6 +37,7 @@ export class GameEngine {
 
         this.entityManager = new EntityManager(this);
         this.renderSystem = new RenderSystem(this);
+        this.flowField = new FlowField(this);
         this.mapEditor = new MapEditor(this);
 
         this.registerEntityTypes();
@@ -215,6 +219,7 @@ export class GameEngine {
 
             // 2. 타일맵 데이터 로드 및 렌더링 준비
             this.tileMap.loadFromData(mapData);
+            this.flowField.init(this.tileMap.cols, this.tileMap.rows);
             
             // 3. 미니맵 캐시 갱신
             if (this.minimapCacheCanvas) {
@@ -1200,8 +1205,8 @@ export class GameEngine {
 
         this.entities.cargoPlanes = processList(this.entities.cargoPlanes, (p) => p.update(deltaTime));
         this.entities.neutral = processList(this.entities.neutral, (n) => n.update(deltaTime));
-        this.entities.projectiles = this.entities.projectiles.filter(p => p.active || p.arrived);
-        this.entities.projectiles.forEach(proj => proj.update(deltaTime, this));
+        
+        // [ECS 최적화] 투사체 업데이트는 entityManager.update(deltaTime) 내의 ECS 시스템에서 일괄 처리됨
 
         this.entities.enemies = this.entities.enemies.filter(enemy => {
             enemy.update(deltaTime, null, [], this);
@@ -1230,6 +1235,10 @@ export class GameEngine {
             this.ctx.save();
             this.ctx.translate(this.camera.x, this.camera.y);
             this.ctx.scale(this.camera.zoom, this.camera.zoom);
+            
+            // ECS 엔티티 일괄 렌더링 (투사체 등)
+            renderECS(this.entityManager.ecsWorld, this.ctx);
+
             this.renderOverlays();
             this.ctx.restore();
             

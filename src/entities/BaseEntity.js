@@ -1,7 +1,15 @@
 export class Entity {
-    constructor(x, y) {
+    constructor(x, y, engine) {
+        this.init(x, y, engine);
+    }
+
+    /**
+     * 객체 초기화 (생성 및 풀에서 재사용 시 호출)
+     */
+    init(x, y, engine) {
         this.x = x;
         this.y = y;
+        this.engine = engine;
         this.active = true;
         this.width = 40;  // Default 1x1
         this.height = 40; // Default 1x1
@@ -18,8 +26,17 @@ export class Entity {
         this.hitTimer = 0;
     }
 
-        // 피격 처리 공통 메서드
-        takeDamage(amount) {
+    /**
+     * 오브젝트 풀로 반환되기 전 호출되는 정리 메서드
+     */
+    onRelease() {
+        this.active = false;
+        // 엔진 참조 해제 등으로 메모리 누수 방지 (선택적)
+        // this.engine = null; 
+    }
+
+    // 피격 처리 공통 메서드
+    takeDamage(amount) {
             if (this.hp === undefined || !this.active) return;
     
             // [추가] 디버그 시스템 무적 모드 체크
