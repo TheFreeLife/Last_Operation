@@ -92,7 +92,7 @@ export class MissileLauncher extends PlayerUnit {
 
         this.isFiring = false;
         this.fireDelayTimer = 0;
-        this.maxFireDelay = 45;
+        this.maxFireDelay = 90; // 정렬 후 대기 시간 (약 1.5초)
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackType = 'projectile';
         this.attackTargets = ['ground', 'sea'];
@@ -134,7 +134,7 @@ export class MissileLauncher extends PlayerUnit {
             super.update(deltaTime);
         }
 
-        // 시즈 모드 중 상부 독립 회전 로직 (발사 시에만 회전 및 방향 유지)
+        // 시즈 모드 중 상부 독립 회전 로직
         if (this.isSieged && !this.isTransitioning) {
             if (this.isFiring) {
                 // 발사 중일 때만 타겟 방향으로 회전
@@ -145,9 +145,14 @@ export class MissileLauncher extends PlayerUnit {
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 
-                this.turretAngle += diff * 0.15;
+                // 포탑 회전 속도 극도로 하향 (0.025 -> 0.0125)
+                this.turretAngle += diff * 0.0125;
+
+                // 포탑이 어느 정도 정렬되었을 때만 발사 타이머 가동 (차이 < 0.05 라디안)
+                if (Math.abs(diff) < 0.05) {
+                    this.fireDelayTimer++;
+                }
             }
-            // else 절 제거: 더 이상 정면으로 복귀하지 않음
         } else if (!this.isSieged) {
             // 시즈 모드가 완전히 해제된 상태에서만 정면 정렬
             this.turretAngle *= 0.9;
@@ -171,7 +176,6 @@ export class MissileLauncher extends PlayerUnit {
         }
 
         if (this.isFiring) {
-            this.fireDelayTimer++;
             if (this.fireDelayTimer >= this.maxFireDelay) {
                 this.executeFire();
                 this.isFiring = false;
@@ -200,6 +204,8 @@ export class MissileLauncher extends PlayerUnit {
             this.isFiring = true;
             this.fireDelayTimer = 0;
             this.pendingFirePos = { x: targetX, y: targetY };
+            // 발사 예고 효과
+            this.engine.addEffect?.('system', this.x, this.y - 50, '#ff3131', '미사일 포탑 정렬 중...');
         }
     }
 

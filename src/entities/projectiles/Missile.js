@@ -14,8 +14,8 @@ export class Missile extends Entity {
         this.damage = damage;
         this.engine = engine;
 
-        // 물리 설정
-        this.speed = 8; 
+        // 물리 설정 (긴장감을 위해 속도 하향: 8 -> 4)
+        this.speed = 4; 
         // RenderSystem의 자동 회전을 피하기 위해 moveAngle로 이름을 바꿈
         this.moveAngle = Math.atan2(targetY - startY, targetX - startX);
         this.angle = 0; // Renderer가 회전시키지 못하게 0으로 고정
