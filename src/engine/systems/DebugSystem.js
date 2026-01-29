@@ -3,8 +3,6 @@ export class DebugSystem {
         this.engine = engine;
         this.isGodMode = false;
         this.isFullVision = false;
-        this.isSpawnSandbagMode = false;
-        this.isSpawnAirSandbagMode = false;
         this.isEraserMode = false;
         this.spawnUnitType = null; // 현재 소환할 유닛 타입
         this.init();
@@ -13,8 +11,6 @@ export class DebugSystem {
     init() {
         // UI 버튼 이벤트 바인딩
         document.getElementById('db-god-mode')?.addEventListener('click', () => this.toggleGodMode());
-        document.getElementById('db-spawn-sandbag')?.addEventListener('click', () => this.toggleSpawnSandbagMode());
-        document.getElementById('db-spawn-air-sandbag')?.addEventListener('click', () => this.toggleSpawnAirSandbagMode());
         document.getElementById('db-eraser')?.addEventListener('click', () => this.toggleEraserMode());
         document.getElementById('db-heal-all')?.addEventListener('click', () => this.healAll());
         document.getElementById('db-clear-fog')?.addEventListener('click', () => this.toggleFullVision());
@@ -90,28 +86,6 @@ export class DebugSystem {
         this.engine.addEffect?.('system', this.engine.canvas.width / 2, 100, this.isGodMode ? '#ff3131' : '#fff', `God Mode: ${this.isGodMode ? 'ON' : 'OFF'}`);
     }
 
-    toggleSpawnSandbagMode() {
-        const wasActive = this.isSpawnSandbagMode;
-        this.engine.cancelModes?.(); 
-        
-        if (!wasActive) {
-            this.isSpawnSandbagMode = true;
-            const btn = document.getElementById('db-spawn-sandbag');
-            if (btn) btn.classList.add('active');
-        }
-    }
-
-    toggleSpawnAirSandbagMode() {
-        const wasActive = this.isSpawnAirSandbagMode;
-        this.engine.cancelModes?.();
-
-        if (!wasActive) {
-            this.isSpawnAirSandbagMode = true;
-            const btn = document.getElementById('db-spawn-air-sandbag');
-            if (btn) btn.classList.add('active');
-        }
-    }
-
     toggleEraserMode() {
         const wasActive = this.isEraserMode;
         this.engine.cancelModes?.();
@@ -133,50 +107,6 @@ export class DebugSystem {
         });
 
         this.engine.addEffect?.('system', this.engine.canvas.width / 2, 200, '#2ecc71', '아군 전원 회복 완료');
-    }
-
-    executeSpawnSandbag(worldX, worldY) {
-        const { Enemy } = this.engine.entityClasses;
-        if (Enemy) {
-            const sandbag = new Enemy(worldX, worldY, this.engine);
-            sandbag.name = "연습용 샌드백";
-            sandbag.maxHp = 10000;
-            sandbag.hp = 10000;
-            sandbag.speed = 0; // 움직이지 않음
-            sandbag.attack = () => {}; // 공격하지 않음
-            
-            // 적군 플레이어(2번) 소유로 설정하여 공격 대상으로 인식되게 함
-            sandbag.ownerId = 2;
-            
-            this.engine.entities.enemies.push(sandbag);
-            this.engine.entityManager?.spatialGrid.add(sandbag);
-            this.engine.entityManager?.allEntities.push(sandbag);
-            
-            this.engine.addEffect?.('system', worldX, worldY - 50, '#ff3131', '샌드백 생성');
-        }
-    }
-
-    executeSpawnAirSandbag(worldX, worldY) {
-        const { Enemy } = this.engine.entityClasses;
-        if (Enemy) {
-            const sandbag = new Enemy(worldX, worldY, this.engine);
-            sandbag.name = "연습용 공중 샌드백";
-            sandbag.maxHp = 10000;
-            sandbag.hp = 10000;
-            sandbag.speed = 0;
-            sandbag.attack = () => {};
-            
-            // 공중 유닛 설정
-            sandbag.domain = 'air';
-            sandbag.altitude = 1;
-            sandbag.ownerId = 2;
-            
-            this.engine.entities.enemies.push(sandbag);
-            this.engine.entityManager?.spatialGrid.add(sandbag);
-            this.engine.entityManager?.allEntities.push(sandbag);
-            
-            this.engine.addEffect?.('system', worldX, worldY - 50, '#00d2ff', '공중 샌드백 생성');
-        }
     }
 
     executeEraser(worldX, worldY) {

@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Enemy, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -31,7 +31,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, Enemy, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -234,6 +234,12 @@ export class GameEngine {
                 for (let x = 0; x < mapData.width; x++) {
                     const unitInfo = unitLayer[y][x];
                     if (unitInfo && unitInfo.id) {
+                        // [추가] 등록된 엔티티 타입인지 확인 (지형 데이터 등이 유닛 레이어에 섞여 들어오는 것 방지)
+                        if (!this.entityManager.registry.has(unitInfo.id)) {
+                            console.warn(`[Game] Skipping invalid unit type in map data: ${unitInfo.id}`);
+                            continue;
+                        }
+
                         const worldX = x * tileSize + tileSize / 2;
                         const worldY = y * tileSize + tileSize / 2;
                         
@@ -303,7 +309,6 @@ export class GameEngine {
         em.register('cargo-plane', CargoPlane, 'units');
         em.register('scout-plane', ScoutPlane, 'units');
         em.register('bomber', Bomber, 'units');
-        em.register('enemy', Enemy, 'enemies');
 
         // 자원 및 아이템
         em.register('ammo-box', AmmoBox, 'units');
@@ -598,7 +603,7 @@ export class GameEngine {
                 }
 
                 // 1. 활성화된 특수 모드(명령 타겟팅, 디버그 모드) 취소
-                const isDebugMode = this.debugSystem && (this.debugSystem.isSpawnSandbagMode || this.debugSystem.isSpawnAirSandbagMode || this.debugSystem.spawnUnitType || this.debugSystem.isEraserMode);
+                const isDebugMode = this.debugSystem && (this.debugSystem.spawnUnitType || this.debugSystem.isEraserMode);
                 if (this.unitCommandMode || isDebugMode) {
                     this.cancelModes();
                     this.unitCommandMode = null;
@@ -719,10 +724,6 @@ export class GameEngine {
 
                     const finalTarget = canTarget ? clickedTarget : null;
                     this.executeUnitCommand(this.unitCommandMode, worldX, worldY, finalTarget);
-                } else if (this.debugSystem && this.debugSystem.isSpawnSandbagMode) {
-                    this.debugSystem.executeSpawnSandbag(worldX, worldY);
-                } else if (this.debugSystem && this.debugSystem.isSpawnAirSandbagMode) {
-                    this.debugSystem.executeSpawnAirSandbag(worldX, worldY);
                 } else if (this.debugSystem && this.debugSystem.spawnUnitType) {
                     this.debugSystem.executeSpawnUnit(worldX, worldY);
                 } else if (this.debugSystem && this.debugSystem.isEraserMode) {
@@ -964,12 +965,10 @@ export class GameEngine {
 
     cancelModes() {
         if (this.debugSystem) {
-            this.debugSystem.isSpawnSandbagMode = false;
-            this.debugSystem.isSpawnAirSandbagMode = false;
             this.debugSystem.spawnUnitType = null;
             this.debugSystem.isEraserMode = false;
             
-            const dbBtns = ['db-spawn-sandbag', 'db-spawn-air-sandbag', 'db-eraser', 
+            const dbBtns = ['db-eraser', 
                            'db-spawn-tank', 'db-spawn-rifleman', 'db-spawn-sniper', 
                            'db-spawn-engineer', 'db-spawn-missile'];
             

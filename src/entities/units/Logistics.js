@@ -84,8 +84,6 @@ export class MilitaryTruck extends PlayerUnit {
             return;
         }
         ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
 
         // 1. 바퀴 (6개 - 대형 트럭)
         ctx.fillStyle = '#111';

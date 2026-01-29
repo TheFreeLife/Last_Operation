@@ -231,29 +231,30 @@ export class EntityManager {
     getPlaceableItems() {
         const items = [];
         for (const [type, info] of this.registry.entries()) {
-            const config = info.EntityClass.editorConfig;
-            if (!config) continue;
+            const EntityClass = info.EntityClass;
+            const config = EntityClass.editorConfig || {}; // 설정이 없으면 빈 객체 사용
 
             if (config.variants) {
                 // 여러 변종이 있는 경우 (예: 탄약 상자 종류별)
                 config.variants.forEach(variant => {
                     items.push({
-                        id: type, // 베이스 타입 유지
-                        name: variant.name,
-                        icon: variant.icon,
-                        category: config.category || 'unit',
-                        ownerId: (config.ownerId !== undefined) ? config.ownerId : (config.category === 'unit' ? 2 : 1),
-                        options: variant.options // 생성 시 전달할 옵션 (ammoType 등)
+                        id: type,
+                        name: variant.name || `${type} (${variant.options?.ammoType || '?'})`,
+                        icon: variant.icon || '📦',
+                        category: config.category || 'item',
+                        ownerId: (variant.ownerId !== undefined) ? variant.ownerId : (config.ownerId !== undefined ? config.ownerId : 0),
+                        options: variant.options
                     });
                 });
             } else {
-                // 단일 항목인 경우
+                // 단일 항목인 경우 (설정이 없어도 기본값으로 생성)
                 items.push({
                     id: type,
-                    name: config.name || type,
-                    icon: config.icon || '❓',
-                    category: config.category || 'unit',
-                    ownerId: (config.ownerId !== undefined) ? config.ownerId : (config.category === 'unit' ? 2 : 0)
+                    name: config.name || type.charAt(0).toUpperCase() + type.slice(1), // 이름 없으면 타입명 사용
+                    icon: config.icon || '❓', // 아이콘 없으면 물음표
+                    category: config.category || (type.includes('ammo') ? 'item' : 'unit'),
+                    ownerId: (config.ownerId !== undefined) ? config.ownerId : (type.includes('enemy') ? 2 : 1),
+                    options: config.options || null
                 });
             }
         }

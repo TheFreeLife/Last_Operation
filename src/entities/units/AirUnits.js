@@ -2,6 +2,7 @@ import { PlayerUnit } from './BaseUnit.js';
 import { FallingBomb } from '../projectiles/Bomb.js';
 
 export class ScoutPlane extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'scout-plane', name: '정찰기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'scout-plane';
@@ -46,6 +47,7 @@ export class ScoutPlane extends PlayerUnit {
 }
 
 export class Bomber extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'bomber', name: '폭격기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'bomber';
@@ -295,6 +297,7 @@ export class Bomber extends PlayerUnit {
 }
 
 export class CargoPlane extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'cargo-plane', name: '수송기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'cargo-plane';

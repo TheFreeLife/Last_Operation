@@ -222,6 +222,7 @@ export class MapEditor {
 
     setLayer(layer) {
         this.currentLayer = layer;
+        this.selectedItem = null; // 레이어 변경 시 선택된 아이템 초기화 (오배치 방지)
         const layerDisplay = document.getElementById('current-layer-name');
         if (layerDisplay) layerDisplay.textContent = layer.toUpperCase();
         this.updatePalette();
