@@ -277,6 +277,14 @@ export class RenderSystem {
             if (!ent.active && !ent.arrived) continue;
             if (ent.visible === false || ent.isBoarded) continue;
 
+            // [안개 시스템] 아군 외 유닛은 시야 내에 있을 때만 렌더링
+            const isAlly = (ent.ownerId === 1 || ent.ownerId === 3); // 1: Player, 3: Ally
+            if (!isAlly && this.engine.tileMap) {
+                if (!this.engine.tileMap.isInSight(ent.x, ent.y) && !(this.engine.debugSystem?.isFullVision)) {
+                    continue;
+                }
+            }
+
             if (['projectile', 'bullet', 'shell', 'missile'].includes(ent.type)) {
                 this.layerBuckets[this.layers.PROJECTILES].push(ent);
             } else {

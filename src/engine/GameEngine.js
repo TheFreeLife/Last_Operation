@@ -241,8 +241,14 @@ export class GameEngine {
                         const spawnOptions = { ownerId };
                         
                         // 에디터에서 설정한 추가 속성 적용
-                        if (unitInfo.hp !== undefined) spawnOptions.hp = unitInfo.hp;
-                        if (unitInfo.hp !== undefined) spawnOptions.maxHp = unitInfo.hp;
+                        if (unitInfo.hp !== undefined) {
+                            spawnOptions.hp = unitInfo.hp;
+                            spawnOptions.maxHp = unitInfo.hp;
+                        }
+                        if (unitInfo.damage !== undefined) spawnOptions.damage = unitInfo.damage;
+                        if (unitInfo.speed !== undefined) spawnOptions.speed = unitInfo.speed;
+                        if (unitInfo.ammo !== undefined) spawnOptions.ammo = unitInfo.ammo;
+                        
                         if (unitInfo.options) Object.assign(spawnOptions, unitInfo.options);
 
                         // ownerId에 따른 적절한 리스트 결정
@@ -816,6 +822,13 @@ export class GameEngine {
 
                 const hovered = potentialEntities.find(ent => {
                     if (!ent || (ent.active === false && ent.hp !== 99999999)) return false;
+
+                    // [시야 체크] 아군 외 유닛은 시야 내에 있을 때만 호버 정보 표시
+                    const isAlly = (ent.ownerId === 1 || ent.ownerId === 3);
+                    if (!isAlly && this.tileMap && !this.tileMap.isInSight(ent.x, ent.y) && !(this.debugSystem?.isFullVision)) {
+                        return false;
+                    }
+
                     const b = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                         left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                     };
@@ -976,6 +989,13 @@ export class GameEngine {
 
         const found = potentialEntities.find(ent => {
             if (!ent || (ent.active === false && !ent.isBoarded) || ent.isBoarded) return false;
+            
+            // [시야 체크] 아군 외 유닛은 시야 내에 있을 때만 선택 가능
+            const isAlly = (ent.ownerId === 1 || ent.ownerId === 3);
+            if (!isAlly && this.tileMap && !this.tileMap.isInSight(ent.x, ent.y) && !(this.debugSystem?.isFullVision)) {
+                return false;
+            }
+
             const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                 left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
             };
@@ -1026,6 +1046,13 @@ export class GameEngine {
         const selectedUnits = [];
         potentialEntities.forEach(ent => {
             if (!ent || (!ent.active && !ent.isBoarded) || ent.isBoarded) return;
+
+            // [시야 체크] 아군 외 유닛은 시야 내에 있을 때만 멀티 선택 가능
+            const isAlly = (ent.ownerId === 1 || ent.ownerId === 3);
+            if (!isAlly && this.tileMap && !this.tileMap.isInSight(ent.x, ent.y) && !(this.debugSystem?.isFullVision)) {
+                return;
+            }
+
             const bounds = ent.getSelectionBounds();
             const overlaps = !(bounds.right < left || bounds.left > right || bounds.bottom < top || bounds.top > bottom);
             if (overlaps) selectedUnits.push(ent);
@@ -1231,7 +1258,7 @@ export class GameEngine {
             this.ctx.scale(this.camera.zoom, this.camera.zoom);
             
             // ECS 엔티티 일괄 렌더링 (투사체 등)
-            renderECS(this.entityManager.ecsWorld, this.ctx);
+            renderECS(this.entityManager.ecsWorld, this.ctx, this);
 
             this.renderOverlays();
             this.ctx.restore();
@@ -1266,7 +1293,11 @@ export class GameEngine {
 
         const isVisible = (worldX, worldY) => {
             const g = this.tileMap.worldToGrid(worldX, worldY);
-            return this.tileMap.grid[g.y] && this.tileMap.grid[g.y][g.x] && this.tileMap.grid[g.y][g.x].visible;
+            if (!this.tileMap.grid[g.y] || !this.tileMap.grid[g.y][g.x]) return false;
+            
+            const tile = this.tileMap.grid[g.y][g.x];
+            // [안개 시스템] 디버그 모드가 아닐 때, 현재 시야(inSight) 내에 있는 것만 미니맵에 표시
+            return (this.debugSystem?.isFullVision) ? tile.visible : tile.inSight;
         };
 
         this.entities.units.forEach(u => {
@@ -1483,18 +1514,18 @@ export class GameEngine {
             }
             this.ctx.restore();
 
-            // 타겟 하이라이트 (재사용 Set 활용 권장되나 현재는 지역 변수로 유지하되 로직 간소화)
-            const targetsToHighlight = [];
+            // 타겟 하이라이트 (중복 방지를 위해 Set 사용)
+            const targetsToHighlight = new Set();
             this.selectedEntities.forEach(selUnit => {
                 const mTarget = selUnit.manualTarget;
                 if (mTarget && mTarget.active && mTarget.hp > 0) {
-                    if (!targetsToHighlight.includes(mTarget)) targetsToHighlight.push(mTarget);
+                    targetsToHighlight.add(mTarget);
                 }
                 if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
                     const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent =>
                         ent.active && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
                     );
-                    if (fireTarget && !targetsToHighlight.includes(fireTarget)) targetsToHighlight.push(fireTarget);
+                    if (fireTarget) targetsToHighlight.add(fireTarget);
                 }
             });
             if (this.unitCommandMode === 'manual_fire') {
@@ -1508,6 +1539,12 @@ export class GameEngine {
                 if (hoverTarget) targetsToHighlight.add(hoverTarget);
             }
             targetsToHighlight.forEach(target => {
+                // [시야 체크] 아군 외 타겟은 시야 내에 있을 때만 하이라이트 표시
+                const isAlly = (target.ownerId === 1 || target.ownerId === 3);
+                if (!isAlly && this.tileMap && !this.tileMap.isInSight(target.x, target.y) && !(this.debugSystem?.isFullVision)) {
+                    return;
+                }
+
                 const bounds = target.getSelectionBounds ? target.getSelectionBounds() : {
                     left: target.x - 20, right: target.x + 20, top: target.y - 20, bottom: target.y + 20
                 };

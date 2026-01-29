@@ -669,6 +669,12 @@ button,
     gap: 8px;
 }
 
+.config-col-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
 .config-row label {
     font-size: 0.8rem;
     font-weight: 800;

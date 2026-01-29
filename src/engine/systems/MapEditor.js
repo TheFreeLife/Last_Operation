@@ -159,6 +159,9 @@ export class MapEditor {
 
         document.getElementById('config-owner').value = (data.ownerId !== undefined) ? data.ownerId : 1;
         document.getElementById('config-hp').value = (data.hp !== undefined) ? data.hp : 100;
+        document.getElementById('config-damage').value = (data.damage !== undefined) ? data.damage : 0;
+        document.getElementById('config-speed').value = (data.speed !== undefined) ? data.speed : 0;
+        document.getElementById('config-ammo').value = (data.ammo !== undefined) ? data.ammo : 0;
         document.getElementById('config-rotation').value = (data.r !== undefined) ? data.r : 0;
         document.getElementById('config-options').value = data.options ? JSON.stringify(data.options) : '';
 
@@ -170,6 +173,9 @@ export class MapEditor {
         
         const ownerId = parseInt(document.getElementById('config-owner').value);
         const hp = parseInt(document.getElementById('config-hp').value);
+        const damage = parseInt(document.getElementById('config-damage').value);
+        const speed = parseFloat(document.getElementById('config-speed').value);
+        const ammo = parseInt(document.getElementById('config-ammo').value);
         const rotation = parseInt(document.getElementById('config-rotation').value);
         const optionsStr = document.getElementById('config-options').value;
         
@@ -187,6 +193,9 @@ export class MapEditor {
         if (unitData) {
             unitData.ownerId = ownerId;
             unitData.hp = hp;
+            unitData.damage = damage;
+            unitData.speed = speed;
+            unitData.ammo = ammo;
             unitData.r = rotation;
             unitData.options = options;
         }
@@ -334,7 +343,11 @@ export class MapEditor {
         };
         
         if (this.currentLayer === 'unit') {
-            data.hp = 100; // 기본 체력
+            const dummy = this.dummyUnits.get(`${this.selectedItem.id}_${JSON.stringify(this.selectedItem.options || {})}`);
+            data.hp = dummy ? dummy.maxHp : 100;
+            data.damage = dummy ? dummy.damage : 0;
+            data.speed = dummy ? dummy.speed : 0;
+            data.ammo = dummy ? dummy.ammo : 0;
         }
         
         this.layers[this.currentLayer].set(`${x},${y}`, data);
