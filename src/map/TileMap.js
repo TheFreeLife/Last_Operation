@@ -47,6 +47,7 @@ export class TileMap {
                     wallRotation: 0,
                     occupied: false,
                     buildable: true,
+                    passable: true,
                     visible: false,
                     inSight: false
                 };
@@ -91,6 +92,7 @@ export class TileMap {
                     wallRotation: w.r,
                     occupied: !!w.id,
                     buildable: !w.id,
+                    passable: !(w.id || f.id === 'water'), // 벽이 있거나 물이면 통과 불가
                     visible: false,
                     inSight: false
                 };

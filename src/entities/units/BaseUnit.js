@@ -413,13 +413,75 @@ export class BaseUnit extends Entity {
         }
     }
 
-    // [헬퍼] 충돌을 고려한 이동 처리 (슬라이딩)
+    // [헬퍼] 충돌을 고려한 이동 처리 (축 분리 슬라이딩 + 벽 반발력 시스템)
     moveWithCollision(dist) {
-        const nextX = this.x + Math.cos(this.angle) * dist;
-        const nextY = this.y + Math.sin(this.angle) * dist;
+        if (this.domain === 'air') {
+            this.x += Math.cos(this.angle) * dist;
+            this.y += Math.sin(this.angle) * dist;
+            return;
+        }
 
-        this.x = nextX;
-        this.y = nextY;
+        const tileMap = this.engine.tileMap;
+        const moveX = Math.cos(this.angle) * dist;
+        const moveY = Math.sin(this.angle) * dist;
+        
+        // 판정 반경 극소화 (끼임 방지 극대화)
+        const radius = this.size * 0.15; 
+
+        const isPassable = (worldX, worldY) => {
+            if (worldX < 0 || worldX >= tileMap.cols * tileMap.tileSize || 
+                worldY < 0 || worldY >= tileMap.rows * tileMap.tileSize) return false;
+            
+            // 5지점 정밀 체크
+            const points = [
+                {x: worldX, y: worldY},
+                {x: worldX - radius, y: worldY}, {x: worldX + radius, y: worldY},
+                {x: worldX, y: worldY - radius}, {x: worldX, y: worldY + radius}
+            ];
+
+            return points.every(p => {
+                const g = tileMap.worldToGrid(p.x, p.y);
+                const tile = tileMap.grid[g.y]?.[g.x];
+                return tile && tile.passable;
+            });
+        };
+
+        // --- 1. 축 분리 이동 (Perfect Sliding) ---
+        // X축 이동 시도
+        if (isPassable(this.x + moveX, this.y)) {
+            this.x += moveX;
+        }
+        // Y축 이동 시도
+        if (isPassable(this.x, this.y + moveY)) {
+            this.y += moveY;
+        }
+
+        // --- 2. 능동적 벽 반발력 (Wall Repulsion Force) ---
+        // 유닛 주변 9개 타일을 검사하여 벽이 있으면 반대 방향으로 밀어냄
+        const curG = tileMap.worldToGrid(this.x, this.y);
+        const searchRange = 1;
+        
+        for (let dy = -searchRange; dy <= searchRange; dy++) {
+            for (let dx = -searchRange; dx <= searchRange; dx++) {
+                const tx = curG.x + dx;
+                const ty = curG.y + dy;
+                const tile = tileMap.grid[ty]?.[tx];
+                
+                if (tile && !tile.passable) {
+                    // 벽 타일의 중앙 좌표
+                    const wallWorld = tileMap.gridToWorld(tx, ty);
+                    const d = Math.hypot(this.x - wallWorld.x, this.y - wallWorld.y);
+                    const minDist = tileMap.tileSize * 0.7; // 반발력이 작용할 거리
+                    
+                    if (d < minDist) {
+                        const pushAngle = Math.atan2(this.y - wallWorld.y, this.x - wallWorld.x);
+                        const force = (minDist - d) / minDist;
+                        this.x += Math.cos(pushAngle) * force * 3; // 강력하게 밀어냄
+                        this.y += Math.sin(pushAngle) * force * 3;
+                    }
+                }
+            }
+        }
     }
 
     attack() { }
