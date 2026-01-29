@@ -5,15 +5,33 @@ export class ScoutPlane extends PlayerUnit {
     static editorConfig = { category: 'unit', icon: 'scout-plane', name: '정찰기' };
     constructor(x, y, engine) {
         super(x, y, engine);
+        this.init(x, y, engine);
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
         this.type = 'scout-plane';
         this.name = '고등 정찰 무인기';
         this.domain = 'air';
-        this.speed = 4.5;    // 속도 살짝 상향
-        this.visionRange = 18; // 정찰 능력 강화
-        this.hp = 250;       // 체력 상향
+        this.speed = 4.5;    
+        this.visionRange = 18; 
+        this.hp = 250;       
         this.maxHp = 250;
-        this.size = 70;      // 크기 대폭 확장
-        this.cargoSize = 99; // 수송기 탑승 불가
+        this.size = 70;      
+        this.width = 60;    
+        this.height = 60;
+        this.cargoSize = 99; 
+    }
+
+    getSelectionBounds() {
+        const bounds = super.getSelectionBounds();
+        const offset = (this.altitude || 1.0) * 8; // draw에서 사용하는 부상 높이 (8)
+        return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top - offset,
+            bottom: bounds.bottom - offset
+        };
     }
 
     draw(ctx) {
@@ -69,40 +87,55 @@ export class Bomber extends PlayerUnit {
     static editorConfig = { category: 'unit', icon: 'bomber', name: '폭격기' };
     constructor(x, y, engine) {
         super(x, y, engine);
+        this.init(x, y, engine);
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
         this.type = 'bomber';
         this.name = '전략 폭격기';
-        this.domain = 'ground'; // 지상 시작
+        this.domain = 'ground'; 
         this.baseSpeed = 2.2;
-        this.airSpeed = 5.0;   // 공중 비행 속도 (7.0 -> 5.0 하향)
-        this.speed = 0.5;      // 낮은 속도로 시작
+        this.airSpeed = 5.0;   
+        this.speed = 0.5;      
         this.visionRange = 12;
         this.hp = 1200;
         this.maxHp = 1200;
-        this.size = 120; // 베이스 사이즈 상향 (92 -> 120)
-        this.width = 140;
-        this.height = 115;
+        this.size = 120; 
+        this.width = 100; 
+        this.height = 100;
         this.damage = 0;
         this.attackTargets = ['ground', 'sea'];
-        this.cargoSize = 99; // 수송기 탑승 불가
+        this.cargoSize = 99; 
 
         this.bombTimer = 0;
         this.bombInterval = 500;
 
-        // 이착륙 시스템
-        this.altitude = 0.0; // 지상 시작
+        this.altitude = 0.0; 
         this.isLandingZoneSafe = false;
         this.lastX = x;
         this.lastY = y;
 
-        this.isTakeoffStarting = false; // 수동 이륙 플래그
-        this.isManualLanding = false;   // 수동 착륙 플래그
-        this.maneuverFrameCount = 0;    // 활주 시작 프레임 카운터
-        this.takeoffDistance = 0;       // 활주 거리 누적
-        this.isBombingActive = false;   // 폭격 모드 활성화 여부
+        this.isTakeoffStarting = false; 
+        this.isManualLanding = false;   
+        this.maneuverFrameCount = 0;    
+        this.takeoffDistance = 0;       
+        this.isBombingActive = false;   
 
         this.ammoType = 'shell';
         this.maxAmmo = 12;
         this.ammo = 12;
+    }
+
+    getSelectionBounds() {
+        const bounds = super.getSelectionBounds();
+        const offset = (this.altitude || 0) * 12; // draw에서 사용하는 부상 높이 (12)
+        return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top - offset,
+            bottom: bounds.bottom - offset
+        };
     }
 
     // 스킬 설정 정보 제공
@@ -344,20 +377,24 @@ export class CargoPlane extends PlayerUnit {
     static editorConfig = { category: 'unit', icon: 'cargo-plane', name: '수송기' };
     constructor(x, y, engine) {
         super(x, y, engine);
+        this.init(x, y, engine);
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
         this.type = 'cargo-plane';
         this.name = '전략 수송기';
-        this.domain = 'ground'; // 지상 시작
-        this.baseSpeed = 0.8;   // 지상 이동/활주 속도 (하향)
-        this.airSpeed = 2.2;    // 공중 비행 속도 (반으로 하향)
-        this.speed = 0.3;       // 초기 속도 (하향)
+        this.domain = 'ground'; 
+        this.baseSpeed = 0.8;   
+        this.airSpeed = 2.2;    
+        this.speed = 0.3;       
         this.hp = 1500;
         this.maxHp = 1500;
-        this.size = 140; // 베이스 사이즈 상향 (110 -> 140)
-        this.width = 130;
-        this.height = 140;
+        this.size = 160; 
+        this.width = 120; 
+        this.height = 120; 
 
-        // 이착륙 시스템 (폭격기와 동일)
-        this.altitude = 0.0; // 지상 시작
+        this.altitude = 0.0; 
         this.isLandingZoneSafe = false;
         this.lastX = x;
         this.lastY = y;
@@ -367,13 +404,23 @@ export class CargoPlane extends PlayerUnit {
         this.maneuverFrameCount = 0;
         this.takeoffDistance = 0;
 
-        // --- 수송 시스템 설정 ---
         this.cargo = [];
-        this.cargoCapacity = 20; // 최대 부피 20
-        this.cargoSize = 99; // 수송기 탑승 불가
+        this.cargoCapacity = 20; 
+        this.cargoSize = 99; 
         this.isUnloading = false;
         this.unloadTimer = 0;
         this.unloadInterval = 300;
+    }
+
+    getSelectionBounds() {
+        const bounds = super.getSelectionBounds();
+        const offset = (this.altitude || 0) * 15; // draw에서 사용하는 부상 높이 (15)
+        return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top - offset,
+            bottom: bounds.bottom - offset
+        };
     }
 
     // 현재 적재된 총 부피 계산

@@ -11,18 +11,20 @@ export class Entity {
         this.y = y;
         this.engine = engine;
         this.active = true;
-        this.width = 40;  // Default 1x1
-        this.height = 40; // Default 1x1
-        this.size = 40;   // Default for circles
-        this.domain = 'ground'; // 'ground', 'air', 'sea' (기본값 지상)
-        this.attackTargets = ['ground', 'sea']; // 공격 가능 대상 (기본값 지상/해상)
-        this.passable = false; // 통과 가능 여부 (기본값: 불가능)
-        this.isBoarded = false; // 수송기 탑승 여부
+        
+        // [구조화] size는 유닛의 물리적/피격 중심 크기
+        if (this.size === undefined) this.size = 40;
+        
+        // width/height는 선택 및 시각적 영역 (피격 범위보다 약간 넉넉하게 설정될 수 있음)
+        if (this.width === undefined) this.width = this.size;
+        if (this.height === undefined) this.height = this.size;
 
-        // 소유권 속성 추가
-        this.ownerId = 1; // 기본적으로 플레이어 1 (사용자) 소유
-
-        // 피격 효과 관련
+        if (this.domain === undefined) this.domain = 'ground';
+        if (this.attackTargets === undefined) this.attackTargets = ['ground', 'sea'];
+        if (this.passable === undefined) this.passable = false;
+        
+        this.isBoarded = false; 
+        this.ownerId = this.ownerId || 1; 
         this.hitTimer = 0;
     }
 
@@ -73,13 +75,12 @@ export class Entity {
     }
 
     getSelectionBounds() {
-        const w = this.width || this.size || 40;
-        const h = this.height || this.size || 40;
+        // [통합] 이제 width/height가 size와 동기화되어 있으므로 일관된 영역 반환
         return {
-            left: this.x - w / 2,
-            right: this.x + w / 2,
-            top: this.y - h / 2,
-            bottom: this.y + h / 2
+            left: this.x - this.width / 2,
+            right: this.x + this.width / 2,
+            top: this.y - this.height / 2,
+            bottom: this.y + this.height / 2
         };
     }
 
