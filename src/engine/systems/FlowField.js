@@ -1,6 +1,5 @@
 /**
- * FlowField - 수백 명의 유닛을 위한 최적화된 경로 탐색 시스템
- * Dijkstra 알고리즘을 사용하여 목적지로부터의 거리 지도를 일괄 계산합니다.
+ * FlowField - 수백 명의 유닛을 위한 최적화된 경로 탐색 시스템 (Web Worker 버전)
  */
 export class FlowField {
     constructor(engine) {
@@ -8,18 +7,32 @@ export class FlowField {
         this.cols = 0;
         this.rows = 0;
         
-        // 맵 데이터 (TypedArray를 사용하여 성능 극대화)
-        this.costMap = null;        // 이동 비용 (0-255)
-        this.integrationMap = null; // 목적지로부터의 누적 거리
-        this.flowFieldX = null;     // X 방향 벡터 (-1, 0, 1)
-        this.flowFieldY = null;     // Y 방향 벡터 (-1, 0, 1)
+        this.costMap = null;
+        this.integrationMap = null;
+        this.flowFieldX = null;
+        this.flowFieldY = null;
         
+        this.isCalculating = false;
         this.targetGrid = { x: -1, y: -1 };
+
+        // Web Worker 초기화
+        this.worker = new Worker(new URL('./PathfindingWorker.js', import.meta.url));
+        this.initWorker();
     }
 
-    /**
-     * 타일맵 크기에 맞춰 내부 배열 초기화
-     */
+    initWorker() {
+        this.worker.onmessage = (e) => {
+            const { type, data } = e.data;
+            if (type === 'FLOW_FIELD_RESULT') {
+                // 워커로부터 전송받은 버퍼를 다시 멤버 변수로 할당 (복사 없이 소유권 이전)
+                this.integrationMap = data.integrationMap;
+                this.flowFieldX = data.flowFieldX;
+                this.flowFieldY = data.flowFieldY;
+                this.isCalculating = false;
+            }
+        };
+    }
+
     init(cols, rows) {
         this.cols = cols;
         this.rows = rows;
@@ -33,116 +46,49 @@ export class FlowField {
         this.updateCostMap();
     }
 
-    /**
-     * 타일맵의 장애물 상태를 반영하여 CostMap 업데이트
-     */
     updateCostMap() {
         const grid = this.engine.tileMap.grid;
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const idx = y * this.cols + x;
-                // buildable이 false면 장애물로 간주 (최고 비용)
                 this.costMap[idx] = grid[y][x].buildable ? 1 : 255;
             }
         }
     }
 
-    /**
-     * Dijkstra 알고리즘을 사용한 Integration Map 생성
-     * @param {number} targetX 목적지 그리드 X
-     * @param {number} targetY 목적지 그리드 Y
-     */
     generate(targetX, targetY) {
-        if (this.targetGrid.x === targetX && this.targetGrid.y === targetY) return;
-        this.targetGrid = { x: targetX, y: targetY };
-
-        const size = this.cols * this.rows;
-        this.integrationMap.fill(65535); // Max value
+        // 이미 연산 중이거나 동일한 목적지면 스킵
+        if (this.isCalculating || (this.targetGrid.x === targetX && this.targetGrid.y === targetY)) return;
         
-        const targetIdx = targetY * this.cols + targetX;
-        this.integrationMap[targetIdx] = 0;
+        // TypedArray의 buffer가 유효한지 체크 (Transfer 중에는 byteLength가 0이 됨)
+        if (!this.integrationMap || this.integrationMap.byteLength === 0) return;
 
-        // Dijkstra 전용 큐 (단순 BFS 큐 사용으로 성능 최적화)
-        const queue = [targetIdx];
-        let head = 0;
+        this.targetGrid = { x: targetX, y: targetY };
+        this.isCalculating = true;
 
-        const neighbors = [
-            { dx: 0, dy: -1, cost: 1 }, { dx: 0, dy: 1, cost: 1 },
-            { dx: -1, dy: 0, cost: 1 }, { dx: 1, dy: 0, cost: 1 },
-            { dx: -1, dy: -1, cost: 1.414 }, { dx: 1, dy: -1, cost: 1.414 },
-            { dx: -1, dy: 1, cost: 1.414 }, { dx: 1, dy: 1, cost: 1.414 }
-        ];
+        const data = {
+            cols: this.cols,
+            rows: this.rows,
+            targetX, targetY,
+            costMap: this.costMap, // costMap은 전송하지 않고 복사함 (읽기 전용)
+            integrationMap: this.integrationMap,
+            flowFieldX: this.flowFieldX,
+            flowFieldY: this.flowFieldY
+        };
 
-        // Dijkstra/BFS 루프
-        while (head < queue.length) {
-            const currIdx = queue[head++];
-            const cx = currIdx % this.cols;
-            const cy = Math.floor(currIdx / this.cols);
-            const currDist = this.integrationMap[currIdx];
-
-            for (const n of neighbors) {
-                const nx = cx + n.dx;
-                const ny = cy + n.dy;
-
-                if (nx < 0 || nx >= this.cols || ny < 0 || ny >= this.rows) continue;
-
-                const nIdx = ny * this.cols + nx;
-                const cost = this.costMap[nIdx];
-                if (cost === 255) continue; // 장애물
-
-                const newDist = currDist + n.cost + (cost - 1);
-                if (newDist < this.integrationMap[nIdx]) {
-                    this.integrationMap[nIdx] = newDist;
-                    queue.push(nIdx);
-                }
-            }
-        }
-
-        this.generateFlowMap();
+        // Transferable Objects 리스트: integrationMap, flowFieldX, flowFieldY의 buffer 소유권을 워커로 넘김
+        this.worker.postMessage({
+            type: 'GENERATE_FLOW_FIELD',
+            data
+        }, [this.integrationMap.buffer, this.flowFieldX.buffer, this.flowFieldY.buffer]);
     }
 
-    /**
-     * Integration Map을 바탕으로 각 타일의 최적 이동 방향(Vector) 계산
-     */
-    generateFlowMap() {
-        for (let y = 0; y < this.rows; y++) {
-            for (let x = 0; x < this.cols; x++) {
-                const idx = y * this.cols + x;
-                if (this.costMap[idx] === 255) continue;
-
-                let minNeighborDist = this.integrationMap[idx];
-                let bestX = 0;
-                let bestY = 0;
-
-                // 8방향 이웃 검사
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        if (dx === 0 && dy === 0) continue;
-
-                        const nx = x + dx;
-                        const ny = y + dy;
-
-                        if (nx < 0 || nx >= this.cols || ny < 0 || ny >= this.rows) continue;
-
-                        const nDist = this.integrationMap[ny * this.cols + nx];
-                        if (nDist < minNeighborDist) {
-                            minNeighborDist = nDist;
-                            bestX = dx;
-                            bestY = dy;
-                        }
-                    }
-                }
-
-                this.flowFieldX[idx] = bestX;
-                this.flowFieldY[idx] = bestY;
-            }
-        }
-    }
-
-    /**
-     * 월드 좌표에서 이동 방향 벡터를 가져옵니다.
-     */
     getFlowVector(worldX, worldY) {
+        // 연산 중에는 이전 데이터를 참조할 수 없으므로 안전 처리
+        if (!this.flowFieldX || this.flowFieldX.byteLength === 0) {
+            return { x: 0, y: 0 };
+        }
+        
         const grid = this.engine.tileMap.worldToGrid(worldX, worldY);
         if (grid.x < 0 || grid.x >= this.cols || grid.y < 0 || grid.y >= this.rows) {
             return { x: 0, y: 0 };
