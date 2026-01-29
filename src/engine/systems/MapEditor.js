@@ -476,7 +476,7 @@ export class MapEditor {
                 ctx.fillStyle = ownerColor;
                 ctx.beginPath(); ctx.arc(0, 0, tileSize/2.5, 0, Math.PI*2); ctx.fill();
                 
-                ctx.rotate((r * 90) * Math.PI / 180 + Math.PI/2);
+                ctx.rotate((r * 90) * Math.PI / 180);
                 dummy.draw(ctx);
                 ctx.restore();
             }

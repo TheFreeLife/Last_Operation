@@ -260,7 +260,7 @@ export class GameEngine {
                         const entity = this.entityManager.create(unitInfo.id, worldX, worldY, spawnOptions, listOverride);
                         if (entity) {
                             entity.alive = true;
-                            entity.angle = (unitInfo.r !== undefined) ? (unitInfo.r * Math.PI / 2) : (Math.PI / 2);
+                            entity.angle = (unitInfo.r !== undefined) ? (unitInfo.r * Math.PI / 2) : 0;
                         }
                     }
                 }
