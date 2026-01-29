@@ -9,8 +9,5 @@ export * from './units/Enemy.js';
 
 export * from './items/AmmoBox.js';
 
-export * from './projectiles/Projectile.js';
 export * from './projectiles/Missile.js';
 export * from './projectiles/Bomb.js';
-
-export * from './effects/DamageText.js';

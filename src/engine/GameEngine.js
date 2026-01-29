@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, Enemy, Projectile, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper } from '../entities/Entities.js';
+import { Entity, PlayerUnit, Enemy, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -31,7 +31,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, Enemy, Projectile, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
+        this.entityClasses = { Entity, PlayerUnit, Enemy, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -43,8 +43,6 @@ export class GameEngine {
         this.registerEntityTypes();
 
         this.entities = this.entityManager.entities;
-        this.resources = {};
-        this.globalStats = { damage: 10, range: 150, fireRate: 1000 };
 
         this.players = {
             1: { name: 'Player 1 (User)', team: 1 },
@@ -69,7 +67,6 @@ export class GameEngine {
         this.unitCommandMode = null;
         this.selectedEntity = null;
         this.selectedEntities = [];
-        this.currentMenuName = 'main';
         this.hoveredEntity = null;
         this.isHoveringUI = false;
         this.effects = [];
@@ -304,9 +301,6 @@ export class GameEngine {
 
         // 자원 및 아이템
         em.register('ammo-box', AmmoBox, 'units');
-
-        // 투사체
-        em.register('projectile', Projectile, 'projectiles');
     }
 
     resize() {

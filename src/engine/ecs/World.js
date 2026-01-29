@@ -26,9 +26,6 @@ export class World {
         this.targetX = new Float32Array(maxEntities);
         this.targetY = new Float32Array(maxEntities);
         this.explosionRadius = new Float32Array(maxEntities);
-        this.color = new Uint32Array(maxEntities); // Packed ARGB (0xRRGGBBAA)
-        
-        this.timers = new Float32Array(maxEntities);
     }
 
     createEntity() {

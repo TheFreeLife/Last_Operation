@@ -51,7 +51,7 @@ export class EntityManager {
     }
 
     /**
-     * ECS 시스템 실행
+     * 모든 엔티티 업데이트 (ECS + 레거시 하이브리드)
      */
     update(deltaTime) {
         // 1. 고성능 ECS 시스템 일괄 처리
@@ -59,13 +59,13 @@ export class EntityManager {
         ProjectileSystem.updateProjectiles(this.ecsWorld, deltaTime, this.engine);
         ECSSystems.updateHealth(this.ecsWorld, (idx) => this.handleECSDestruction(idx));
 
-        // 2. 기존 객체 기반 업데이트
+        // 2. 기존 객체 기반 업데이트 및 SpatialGrid 동기화
         const lists = Object.values(this.entities);
         for (const list of lists) {
             if (Array.isArray(list)) {
                 for (let i = list.length - 1; i >= 0; i--) {
                     const entity = list[i];
-                    if (!entity || !entity.active) continue;
+                    if (!entity || !entity.active || entity.isBoarded) continue;
                     
                     // ECS에 데이터가 있는 경우 동기화
                     if (entity.ecsIndex !== undefined) {
@@ -79,7 +79,7 @@ export class EntityManager {
             }
         }
 
-        // 주기적 cleanup
+        // 주기적 cleanup (1초마다)
         if (!this._cleanupTimer) this._cleanupTimer = 0;
         this._cleanupTimer += deltaTime;
         if (this._cleanupTimer >= 1000) {
@@ -89,8 +89,7 @@ export class EntityManager {
     }
 
     handleECSDestruction(idx) {
-        // ECS 엔티티 파괴 시 필요한 로직 (예: 폭발 효과)
-        // 기존 객체 래퍼가 있다면 해당 객체도 비활성화
+        // ECS 엔티티 파괴 시 필요한 로직
     }
 
     /**
@@ -119,21 +118,17 @@ export class EntityManager {
 
         if (pool) {
             entity = pool.acquire();
-            // init() 메서드를 통해 새로운 상태로 초기화
-            // options가 있을 경우를 대비해 x, y 등 기본값은 options 전후로 처리 가능
             entity.init(x, y, this.engine);
         } else {
             const { EntityClass } = registration;
             entity = new EntityClass(x, y, this.engine);
         }
 
-        // 추가 옵션 적용 (속도, 팀 ID 등)
         Object.assign(entity, options);
 
         const { listName } = registration;
         const targetList = listOverride || listName;
         
-        // 리스트에 추가 (중복 방지)
         const list = this.entities[targetList];
         if (Array.isArray(list) && !list.includes(entity)) {
             list.push(entity);
@@ -156,32 +151,23 @@ export class EntityManager {
 
         entity.active = false;
         this.spatialGrid.remove(entity);
-
-        // 즉시 리스트에서 제거하는 대신 cleanup에서 처리하거나 
-        // 빈번한 객체(투사체 등)의 경우 즉시 풀로 보낼 수 있도록 설계 가능
     }
 
     /**
      * 비활성 엔티티 정리 및 풀 반환 (GC 최적화 버전)
-     * filter() 대신 역순 순회 및 splice를 사용하거나, 새 배열 할당을 최소화합니다.
      */
     cleanup() {
-        // 전체 엔티티 리스트 정리
         for (let i = this.allEntities.length - 1; i >= 0; i--) {
             const entity = this.allEntities[i];
             if (!entity.active) {
-                // 풀에 반환
                 const pool = this.pools.get(entity.type || entity.constructor.name.toLowerCase());
                 if (pool) {
                     pool.release(entity);
                 }
-
-                // 배열에서 제거
                 this.allEntities.splice(i, 1);
             }
         }
 
-        // 타입별 리스트 정리
         for (const key in this.entities) {
             const list = this.entities[key];
             if (Array.isArray(list)) {
@@ -196,45 +182,16 @@ export class EntityManager {
 
     /**
      * 특정 위치 주변의 엔티티 검색
-     * @param {number} x - 중심 X 좌표
-     * @param {number} y - 중심 Y 좌표
-     * @param {number} radius - 검색 반경
-     * @param {function} filter - 필터 함수 (옵션)
      */
     getNearby(x, y, radius, filter = null) {
         return this.spatialGrid.getNearby(x, y, radius, filter);
     }
 
     /**
-     * 직사각형 영역 내의 엔티티 검색 (주로 화면 컬링용)
+     * 직사각형 영역 내의 엔티티 검색
      */
     getInRect(left, top, right, bottom, filter = null) {
         return this.spatialGrid.getInRect(left, top, right, bottom, filter);
-    }
-
-    /**
-     * 모든 엔티티 업데이트
-     * @param {number} deltaTime - 프레임 시간
-     */
-    update(deltaTime) {
-        // [수정] GameEngine이 직접 관리하는 entities 리스트들을 순회하여 SpatialGrid 갱신
-        const lists = Object.values(this.entities);
-        for (const list of lists) {
-            if (Array.isArray(list)) {
-                for (const entity of list) {
-                    if (!entity || !entity.active || entity.isBoarded) continue;
-                    this.spatialGrid.update(entity);
-                }
-            }
-        }
-
-        // 일정 주기마다 정리 (매 프레임은 과도할 수 있음)
-        if (!this._cleanupTimer) this._cleanupTimer = 0;
-        this._cleanupTimer += deltaTime;
-        if (this._cleanupTimer >= 1000) { // 1초마다
-            this.cleanup();
-            this._cleanupTimer = 0;
-        }
     }
 
     /**

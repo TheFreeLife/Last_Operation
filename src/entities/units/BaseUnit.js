@@ -206,11 +206,6 @@ export class BaseUnit extends Entity {
             return; // 낙하 중에는 이동/공격 불가
         }
 
-        // --- 강력한 끼임 방지 ( foolproof anti-stuck ) ---
-        if (this.domain === 'ground' && !this.isFalling && !this.isBoarded) {
-            // 자원 및 건물 끼임 방지 로직 제거됨
-        }
-
         // --- 수송기 탑승 로직 추가 ---
         if (this.transportTarget) {
             const target = this.transportTarget;
