@@ -15,8 +15,9 @@ export class RenderSystem {
             TERRAIN: 0,
             UNITS: 1,
             PROJECTILES: 2,
-            EFFECTS: 3,
-            UI: 4
+            AIR_UNITS: 3,
+            EFFECTS: 4,
+            UI: 5
         };
 
         // 비트맵 캐싱 저장소
@@ -33,7 +34,8 @@ export class RenderSystem {
         // 메모리 재사용용 버킷
         this.layerBuckets = {
             [this.layers.UNITS]: [],
-            [this.layers.PROJECTILES]: []
+            [this.layers.PROJECTILES]: [],
+            [this.layers.AIR_UNITS]: []
         };
 
         this.stats = { renderedEntities: 0, totalEntities: 0, lastFrameTime: 0 };
@@ -119,6 +121,7 @@ export class RenderSystem {
 
         this.renderEntities(this.layerBuckets[this.layers.UNITS]);
         this.renderEntities(this.layerBuckets[this.layers.PROJECTILES]);
+        this.renderEntities(this.layerBuckets[this.layers.AIR_UNITS]);
         
         // 5. 파티클 및 이펙트 (최상단)
         this.updateParticles(16);
@@ -219,7 +222,8 @@ export class RenderSystem {
         // 상태값 임시 저장 (캐시용 이미지를 위해 각도를 0으로 설정)
         const oldX = entity.x, oldY = entity.y, oldAngle = entity.angle;
         
-        const size = (entity.size || 60) * 2.5; 
+        // [수정] 대형 기체(수송기 등)와 공중 부상 오프셋을 완벽히 수용하기 위해 캐시 크기 대폭 확장 (4.0 -> 6.0)
+        const size = (entity.size || 60) * 6.0; 
         const offCanvas = document.createElement('canvas');
         offCanvas.width = size;
         offCanvas.height = size;
@@ -272,6 +276,7 @@ export class RenderSystem {
     sortEntitiesByLayer(entities) {
         this.layerBuckets[this.layers.UNITS].length = 0;
         this.layerBuckets[this.layers.PROJECTILES].length = 0;
+        this.layerBuckets[this.layers.AIR_UNITS].length = 0;
 
         for (const ent of entities) {
             if (!ent.active && !ent.arrived) continue;
@@ -288,7 +293,14 @@ export class RenderSystem {
             if (['projectile', 'bullet', 'shell', 'missile'].includes(ent.type)) {
                 this.layerBuckets[this.layers.PROJECTILES].push(ent);
             } else {
-                this.layerBuckets[this.layers.UNITS].push(ent);
+                // 공중 유닛 판별: 도메인이 air이거나, 현재 떠 있는 상태(altitude > 0.1)인 경우
+                const isFlying = (ent.domain === 'air' || (ent.altitude !== undefined && ent.altitude > 0.1));
+                
+                if (isFlying) {
+                    this.layerBuckets[this.layers.AIR_UNITS].push(ent);
+                } else {
+                    this.layerBuckets[this.layers.UNITS].push(ent);
+                }
             }
         }
     }

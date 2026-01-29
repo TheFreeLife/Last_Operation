@@ -91,6 +91,19 @@ export class MapEditor {
         });
     }
 
+    updateStatusUI() {
+        const toolEl = document.getElementById('selected-tool-name');
+        const itemEl = document.getElementById('selected-item-name');
+        if (toolEl) toolEl.textContent = this.currentTool;
+        if (itemEl) {
+            let itemName = this.selectedItem ? this.selectedItem.name : 'None';
+            if (this.selectedItem && this.selectedItem.options?.ammoType) {
+                itemName += ` (${this.selectedItem.options.ammoType})`;
+            }
+            itemEl.textContent = itemName;
+        }
+    }
+
     initUI() {
         const toolBtns = document.querySelectorAll('.tool-btn, .sub-tool-btn');
         const mainShapeBtn = document.getElementById('shape-tool-main');
@@ -100,6 +113,7 @@ export class MapEditor {
                 const tool = btn.dataset.tool;
                 this.currentTool = tool;
                 this.isDrawing = false;
+                this.updateStatusUI();
                 document.querySelectorAll('.tool-btn, .sub-tool-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 if (['rect', 'circle', 'triangle'].includes(tool)) {
@@ -122,6 +136,7 @@ export class MapEditor {
         document.getElementById('editor-save-btn')?.addEventListener('click', () => this.exportToSidebar());
         document.getElementById('sidebar-import-btn')?.addEventListener('click', () => this.importFromSidebar());
         document.getElementById('editor-test-btn')?.addEventListener('click', () => this.testCurrentMap());
+        document.getElementById('editor-clear-btn')?.addEventListener('click', () => this.clearCanvas());
         document.getElementById('sidebar-copy-btn')?.addEventListener('click', () => {
             const area = document.getElementById('sidebar-data-area');
             area.select();
@@ -208,10 +223,26 @@ export class MapEditor {
         this.editingUnitKey = null;
     }
 
+    clearCanvas() {
+        if (!confirm('정말 맵을 초기화하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
+        
+        // 모든 맵 레이어 비우기
+        this.layers.floor.clear();
+        this.layers.wall.clear();
+        this.layers.unit.clear();
+        
+        // 텍스트 영역 비우기
+        const area = document.getElementById('sidebar-data-area');
+        if (area) area.value = '';
+        
+        console.log('[MapEditor] Canvas cleared.');
+    }
+
     activate() {
         this.active = true;
         this.syncPaletteWithEngine();
         this.setLayer('floor');
+        this.updateStatusUI();
         
         this.engine.camera.zoom = 1.0;
         this.engine.camera.x = this.engine.canvas.width / 2 - 400; 
@@ -291,6 +322,7 @@ export class MapEditor {
             document.querySelectorAll('.palette-item-container').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
         }
+        this.updateStatusUI();
     }
 
     handleInput(worldX, worldY, isMouseDown, isRightClick) {
@@ -340,7 +372,8 @@ export class MapEditor {
             id: this.selectedItem.id, 
             r: this.currentRotation,
             options: this.selectedItem.options,
-            ownerId: (this.selectedItem.ownerId !== undefined) ? this.selectedItem.ownerId : (this.currentLayer === 'unit' ? 2 : undefined)
+            // [수정] 모든 유닛은 기본적으로 적군(2) 소유로 설정
+            ownerId: (this.currentLayer === 'unit') ? 2 : undefined
         };
         
         if (this.currentLayer === 'unit') {

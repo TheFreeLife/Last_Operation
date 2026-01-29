@@ -37,6 +37,16 @@
             <div id="editor-sidebar" class="glass-panel">
                 <div class="sidebar-header">
                     <h2>MAP EDITOR</h2>
+                    <div class="editor-status-bar">
+                        <div class="status-item">
+                            <span class="label">TOOL</span>
+                            <span id="selected-tool-name" class="value">Pencil</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">ITEM</span>
+                            <span id="selected-item-name" class="value">None</span>
+                        </div>
+                    </div>
                     <div class="editor-info-mini">
                         <span id="current-layer-name">Floor</span>
                         <span id="mouse-coords">0, 0</span>
@@ -109,7 +119,10 @@
 
                 <div class="sidebar-footer">
                     <button id="editor-test-btn" class="sidebar-btn success">TEST PLAY</button>
-                    <button id="editor-exit-btn" class="sidebar-btn danger">EXIT</button>
+                    <div class="footer-btns">
+                        <button id="editor-clear-btn" class="sidebar-btn warning">CLEAR</button>
+                        <button id="editor-exit-btn" class="sidebar-btn danger">EXIT</button>
+                    </div>
                 </div>
             </div>
             

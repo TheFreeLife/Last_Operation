@@ -21,10 +21,31 @@ export class ScoutPlane extends PlayerUnit {
             this.drawConstruction(ctx);
             return;
         }
-        ctx.save();
+        
+        const alt = this.altitude || 1.0; // 기본은 비행 중
+        const shadowOffset = alt * 8; // 오프셋 대폭 축소 (15 -> 8)
+        const shadowScale = 1 + alt * 0.1; 
 
+        // 0. 그림자 (더 연하게 조정)
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        ctx.translate(shadowOffset, shadowOffset);
+        ctx.scale(shadowScale, shadowScale);
+        this.drawPlaneShape(ctx, true);
+        ctx.restore();
+
+        // 1. 기체 본체 (고도에 따라 아주 약간만 부상)
+        ctx.save();
+        ctx.translate(0, -alt * 8); // 부상 높이 대폭 축소 (15 -> 8)
+        this.drawPlaneShape(ctx, false);
+        ctx.restore();
+    }
+
+    drawPlaneShape(ctx, isShadow) {
         // 1. 주익 (Wings)
-        ctx.fillStyle = '#bdc3c7';
+        ctx.fillStyle = isShadow ? 'transparent' : '#bdc3c7';
+        if (isShadow) ctx.fillStyle = 'rgba(0,0,0,1)';
+        
         ctx.beginPath();
         ctx.moveTo(10, 0); 
         ctx.lineTo(-18, -48); ctx.lineTo(-28, -48);
@@ -34,15 +55,13 @@ export class ScoutPlane extends PlayerUnit {
         ctx.fill();
 
         // 2. 동체 (Main Body)
-        ctx.fillStyle = '#ecf0f1';
+        if (!isShadow) ctx.fillStyle = '#ecf0f1';
         ctx.beginPath();
         ctx.moveTo(40, 0);
         ctx.bezierCurveTo(30, -12, 10, -10, -25, -6);
         ctx.lineTo(-25, 6);
         ctx.bezierCurveTo(10, 10, 30, 12, 40, 0);
         ctx.fill();
-
-        ctx.restore();
     }
 }
 
@@ -59,7 +78,7 @@ export class Bomber extends PlayerUnit {
         this.visionRange = 12;
         this.hp = 1200;
         this.maxHp = 1200;
-        this.size = 92;
+        this.size = 120; // 베이스 사이즈 상향 (92 -> 120)
         this.width = 140;
         this.height = 115;
         this.damage = 0;
@@ -261,10 +280,30 @@ export class Bomber extends PlayerUnit {
     }
 
     draw(ctx) {
-        ctx.save();
+        const alt = this.altitude || 0;
+        const shadowOffset = alt * 10; // 오프셋 대폭 축소 (20 -> 10)
+        const shadowScale = 1 + alt * 0.1; 
 
+        // 0. 그림자 (연하고 자연스럽게)
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        ctx.translate(shadowOffset, shadowOffset);
+        ctx.scale(shadowScale, shadowScale);
+        this.drawBomberShape(ctx, true);
+        ctx.restore();
+
+        // 1. 기체 본체
+        ctx.save();
+        ctx.translate(0, -alt * 12); // 부상 높이 대폭 축소 (25 -> 12)
+        this.drawBomberShape(ctx, false);
+        ctx.restore();
+    }
+
+
+
+    drawBomberShape(ctx, isShadow) {
         // 1. 주익
-        ctx.fillStyle = '#2c3e50';
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(15, 0); ctx.lineTo(-20, -75); ctx.lineTo(-35, -75);
         ctx.lineTo(-10, 0); ctx.lineTo(-35, 75); ctx.lineTo(-20, 75);
@@ -273,12 +312,19 @@ export class Bomber extends PlayerUnit {
         // 2. 엔진
         const engineOffsets = [-28, -52, 28, 52];
         engineOffsets.forEach(offset => {
-            ctx.fillStyle = '#2c3e50';
+            if (!isShadow) ctx.fillStyle = '#2c3e50';
             ctx.fillRect(-18, offset - 6, 26, 12);
+            
+            // 비행 중일 때만 엔진 화염 효과
+            if (!isShadow && this.altitude > 0.1) {
+                const pulse = 1 + Math.random() * 0.5;
+                ctx.fillStyle = '#ff8c00';
+                ctx.fillRect(-22, offset - 3, 6 * pulse, 6);
+            }
         });
 
         // 3. 동체
-        ctx.fillStyle = '#34495e';
+        if (!isShadow) ctx.fillStyle = '#34495e';
         ctx.beginPath();
         ctx.moveTo(60, 0); ctx.bezierCurveTo(60, -14, 50, -16, 40, -16);
         ctx.lineTo(-55, -12); ctx.lineTo(-65, 0); ctx.lineTo(-55, 12);
@@ -286,13 +332,11 @@ export class Bomber extends PlayerUnit {
         ctx.fill();
 
         // 4. 꼬리 날개
-        ctx.fillStyle = '#2c3e50';
+        if (!isShadow) ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
         ctx.moveTo(-45, 0); ctx.lineTo(-65, -30); ctx.lineTo(-75, -30);
         ctx.lineTo(-60, 0); ctx.lineTo(-75, 30); ctx.lineTo(-65, 30);
         ctx.closePath(); ctx.fill();
-
-        ctx.restore();
     }
 }
 
@@ -308,7 +352,7 @@ export class CargoPlane extends PlayerUnit {
         this.speed = 0.3;       // 초기 속도 (하향)
         this.hp = 1500;
         this.maxHp = 1500;
-        this.size = 110;
+        this.size = 140; // 베이스 사이즈 상향 (110 -> 140)
         this.width = 130;
         this.height = 140;
 
@@ -619,10 +663,29 @@ export class CargoPlane extends PlayerUnit {
             this.drawConstruction(ctx);
             return;
         }
-        ctx.save();
+        
+        const alt = this.altitude || 0;
+        const shadowOffset = alt * 12; // 오프셋 대폭 축소 (25 -> 12)
+        const shadowScale = 1 + alt * 0.05; 
 
+        // 0. 그림자 (매우 연하게)
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.translate(shadowOffset, shadowOffset);
+        ctx.scale(shadowScale, shadowScale);
+        this.drawCargoShape(ctx, true);
+        ctx.restore();
+
+        // 1. 기체 본체
+        ctx.save();
+        ctx.translate(0, -alt * 15); // 부상 높이 대폭 축소 (30 -> 15)
+        this.drawCargoShape(ctx, false);
+        ctx.restore();
+    }
+
+    drawCargoShape(ctx, isShadow) {
         // 1. 고익기 주익
-        ctx.fillStyle = '#bdc3c7';
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : '#bdc3c7';
         ctx.beginPath();
         ctx.moveTo(12, 0);
         ctx.lineTo(-38, -115); ctx.lineTo(-72, -115);
@@ -633,12 +696,20 @@ export class CargoPlane extends PlayerUnit {
         // 2. 엔진
         const engineOffsets = [-88, -52, 52, 88];
         engineOffsets.forEach(offset => {
-            ctx.fillStyle = '#34495e';
+            if (!isShadow) ctx.fillStyle = '#34495e';
             ctx.fillRect(-18, offset - 9, 28, 18);
+            
+            // 엔진 배기 이펙트
+            if (!isShadow && this.altitude > 0.1) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(-25, offset, 8 * (1 + Math.random() * 0.5), 0, Math.PI * 2);
+                ctx.fill();
+            }
         });
 
         // 3. 동체
-        ctx.fillStyle = '#bdc3c7';
+        if (!isShadow) ctx.fillStyle = '#bdc3c7';
         ctx.beginPath();
         ctx.moveTo(85, 0);
         ctx.bezierCurveTo(85, -24, 65, -26, 45, -26);
@@ -649,15 +720,13 @@ export class CargoPlane extends PlayerUnit {
         ctx.fill();
 
         // 4. 꼬리 날개
-        ctx.fillStyle = '#95a5a6';
+        if (!isShadow) ctx.fillStyle = '#95a5a6';
         ctx.save();
         ctx.translate(-92, 0);
         ctx.beginPath();
         ctx.moveTo(0, 0); ctx.lineTo(-18, -48); ctx.lineTo(-32, -48);
         ctx.lineTo(-22, 0); ctx.lineTo(-32, 48); ctx.lineTo(-18, 48);
         ctx.closePath(); ctx.fill();
-        ctx.restore();
-
         ctx.restore();
     }
 }
