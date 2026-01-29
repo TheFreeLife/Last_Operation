@@ -10,7 +10,7 @@ export class Rifleman extends PlayerUnit {
         this.fireRate = 150; // 분대 사격 연사력 조정
         this.damage = 15;    // 분대 통합 공격력 15
         this.attackRange = 200; // 사거리 소폭 상향
-        this.size = 60;      // 분대 크기에 맞춰 선택 영역 확장
+        this.size = 40;      // 소형 표준
         this.visionRange = 5;
         this.hp = 210;       // 3인 통합 체력 (70*3)
         this.maxHp = 210;
@@ -108,7 +108,7 @@ export class Sniper extends PlayerUnit {
         this.fireRate = 2000; // 2초에 한 번 발사
         this.damage = 70;
         this.attackRange = 450;
-        this.size = 24;
+        this.size = 40;
         this.visionRange = 10; // 시야가 매우 넓음
         this.hp = 40;
         this.maxHp = 40;

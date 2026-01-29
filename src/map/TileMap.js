@@ -275,6 +275,32 @@ export class TileMap {
 
     worldToGrid(wX, wY) { return { x: Math.floor(wX/this.tileSize), y: Math.floor(wY/this.tileSize) }; }
     gridToWorld(gX, gY) { return { x: gX*this.tileSize + this.tileSize/2, y: gY*this.tileSize + this.tileSize/2 }; }
+    
+    /**
+     * 특정 격자 위치에서 특정 크기(sizeClass)의 유닛이 통과 가능한지 확인
+     * @param {number} gX 격자 X
+     * @param {number} gY 격자 Y
+     * @param {number} sizeClass 유닛의 타일 크기 (1, 2, 3 등)
+     */
+    isPassableArea(gX, gY, sizeClass = 1) {
+        // 맵 범위를 벗어나면 통과 불가능
+        if (gX < 0 || gY < 0 || gX + sizeClass > this.cols || gY + sizeClass > this.rows) {
+            return false;
+        }
+
+        if (sizeClass <= 1) {
+            return this.grid[gY][gX].passable;
+        }
+
+        // 영역 내 모든 타일이 통과 가능한지 체크
+        for (let dy = 0; dy < sizeClass; dy++) {
+            for (let row = this.grid[gY + dy], dx = 0; dx < sizeClass; dx++) {
+                if (!row[gX + dx].passable) return false;
+            }
+        }
+        return true;
+    }
+
     isVisible(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.visible || false; }
     isInSight(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.inSight || false; }
 }

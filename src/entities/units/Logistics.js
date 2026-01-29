@@ -8,9 +8,7 @@ export class MilitaryTruck extends PlayerUnit {
         this.speed = 2.0;
         this.hp = 600;
         this.maxHp = 600;
-        this.size = 60;
-        this.width = 80;
-        this.height = 45;
+        this.size = 80;
         this.cargoSize = 15; // 다른 수송기에 탈 수는 있지만 큰 부피 차지
 
         this.cargo = [];

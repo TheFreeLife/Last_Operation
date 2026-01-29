@@ -17,9 +17,7 @@ export class ScoutPlane extends PlayerUnit {
         this.visionRange = 18; 
         this.hp = 250;       
         this.maxHp = 250;
-        this.size = 70;      
-        this.width = 60;    
-        this.height = 60;
+        this.size = 80;      
         this.cargoSize = 99; 
     }
 
@@ -101,9 +99,7 @@ export class Bomber extends PlayerUnit {
         this.visionRange = 12;
         this.hp = 1200;
         this.maxHp = 1200;
-        this.size = 120; 
-        this.width = 100; 
-        this.height = 100;
+        this.size = 130; 
         this.damage = 0;
         this.attackTargets = ['ground', 'sea'];
         this.cargoSize = 99; 
@@ -390,10 +386,7 @@ export class CargoPlane extends PlayerUnit {
         this.speed = 0.3;       
         this.hp = 1500;
         this.maxHp = 1500;
-        this.size = 160; 
-        this.width = 120; 
-        this.height = 120; 
-
+        this.size = 130; 
         this.altitude = 0.0; 
         this.isLandingZoneSafe = false;
         this.lastX = x;

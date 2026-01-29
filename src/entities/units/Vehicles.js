@@ -14,6 +14,7 @@ export class Tank extends PlayerUnit {
         this.attackRange = 360;
         this.visionRange = 6;
         this.explosionRadius = 40;
+        this.size = 80;
         this.cargoSize = 10;
         this.hp = 1000;
         this.maxHp = 1000;
@@ -81,6 +82,7 @@ export class MissileLauncher extends PlayerUnit {
         this.attackRange = 1800;
         this.visionRange = 8;
         this.recoil = 0;
+        this.size = 80;
         this.cargoSize = 10;
 
         this.isSieged = false;
@@ -318,6 +320,7 @@ export class Artillery extends PlayerUnit {
         this.damage = 100;
         this.attackRange = 600;
         this.explosionRadius = 60;
+        this.size = 80;
         this.cargoSize = 5;
         this.attackType = 'projectile';
 
@@ -362,6 +365,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.visionRange = 10;
         this.attackTargets = ['air'];
         this.lastBarrelSide = 1;
+        this.size = 80;
         this.cargoSize = 5;
         this.attackType = 'hitscan';
         this.hitEffectType = 'flak';

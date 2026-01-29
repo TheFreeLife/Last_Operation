@@ -1,14 +1,14 @@
 /**
- * PathfindingWorker - 무거운 경로 탐색 연산을 담당하는 백그라운드 스레드
+ * PathfindingWorker - 무거운 플로우 필드 연산을 담당
  */
 self.onmessage = function(e) {
     const { type, data } = e.data;
 
     if (type === 'GENERATE_FLOW_FIELD') {
-        const { cols, rows, targetX, targetY, costMap, integrationMap, flowFieldX, flowFieldY } = data;
+        const { cols, rows, targetX, targetY, costMap, integrationMap, flowFieldX, flowFieldY, sizeClass } = data;
         const size = cols * rows;
 
-        // 1. Dijkstra 연산
+        // 1. Integration Map (Dijkstra)
         integrationMap.fill(65535);
         const targetIdx = targetY * cols + targetX;
         if (targetIdx >= 0 && targetIdx < size) {
@@ -36,18 +36,16 @@ self.onmessage = function(e) {
 
                 if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
 
-                // [추가] 대각선 통과 유효성 체크
-                if (n.dx !== 0 && n.dy !== 0) {
-                    const corner1 = costMap[cy * cols + nx];
-                    const corner2 = costMap[ny * cols + cx];
-                    if (corner1 === 255 || corner2 === 255) continue;
-                }
-
                 const nIdx = ny * cols + nx;
                 const cost = costMap[nIdx];
                 if (cost === 255) continue;
 
-                const newDist = currDist + n.cost + (cost - 1);
+                // 대각선 이동 시 코너 끼임 방지
+                if (n.dx !== 0 && n.dy !== 0) {
+                    if (costMap[cy * cols + nx] === 255 || costMap[ny * cols + cx] === 255) continue;
+                }
+
+                const newDist = currDist + n.cost;
                 if (newDist < integrationMap[nIdx]) {
                     integrationMap[nIdx] = newDist;
                     queue.push(nIdx);
@@ -55,7 +53,9 @@ self.onmessage = function(e) {
             }
         }
 
-        // 2. Flow Map 생성
+        // 2. Flow Map (Gradient)
+        flowFieldX.fill(0);
+        flowFieldY.fill(0);
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
                 const idx = y * cols + x;
@@ -85,10 +85,9 @@ self.onmessage = function(e) {
             }
         }
 
-        // 3. 결과 전송 (Transferable Objects 리스트 포함)
         self.postMessage({
             type: 'FLOW_FIELD_RESULT',
-            data: { integrationMap, flowFieldX, flowFieldY }
+            data: { integrationMap, flowFieldX, flowFieldY, sizeClass }
         }, [integrationMap.buffer, flowFieldX.buffer, flowFieldY.buffer]);
     }
 };

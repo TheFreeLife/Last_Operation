@@ -435,7 +435,8 @@ export class GameEngine {
             );
 
             if (isUserOwned && allUnits) {                // [아군 유닛 메뉴]
-                header.textContent = this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name;
+                const sizeInfo = (this.selectedEntities.length === 1) ? ` [${firstEnt.sizeCategoryName}]` : '';
+                header.textContent = (this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name) + sizeInfo;
 
                 items = [
                     { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move', skillType: 'targeted' },
@@ -509,9 +510,11 @@ export class GameEngine {
                     }
                 }
             } else if (isEnemy) {
-                header.textContent = `[적] ${firstEnt.name}`;
+                const sizeInfo = firstEnt.sizeCategoryName ? ` [${firstEnt.sizeCategoryName}]` : '';
+                header.textContent = `[적] ${firstEnt.name}${sizeInfo}`;
             } else if (isNeutral) {
-                header.textContent = `[중립] ${firstEnt.name}`;
+                const sizeInfo = firstEnt.sizeCategoryName ? ` [${firstEnt.sizeCategoryName}]` : '';
+                header.textContent = `[중립] ${firstEnt.name}${sizeInfo}`;
             }
         } else {
             // 아무것도 선택되지 않은 상태
@@ -1108,6 +1111,9 @@ export class GameEngine {
         const displayRange = hovered.attackRange || hovered.range;
         if (displayRange > 0) {
             desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${displayRange}</span></div>`;
+        }
+        if (hovered.sizeCategoryName) {
+            desc += `<div class="stat-row"><span>📏 체급:</span> <span class="highlight">${hovered.sizeCategoryName}</span></div>`;
         }
         if (hovered.speed > 0) {
             desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;

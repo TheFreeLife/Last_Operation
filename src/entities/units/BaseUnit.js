@@ -57,16 +57,30 @@ export class BaseUnit extends Entity {
                 // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
                 this.path = [{ x: value.x, y: value.y }];
             } else {
-                // [Flow Field 최적화] 목적지 그리드 좌표로 유동장 생성
-                const grid = this.engine.tileMap.worldToGrid(value.x, value.y);
-                this.engine.flowField.generate(grid.x, grid.y);
-                this.path = []; // FlowField 사용 시 고정 경로는 사용하지 않음
+                // [수정] worldToGrid를 거치지 않고 직접 월드 좌표를 전달
+                this.engine.flowField.generate(value.x, value.y, this.sizeClass);
+                this.path = []; 
             }
-
             this.pathRecalculateTimer = 1000;
         } else {
             this.path = [];
         }
+    }
+
+    /**
+     * 유닛의 크기에 따른 Size Class 반환 (1x1, 2x2, 3x3 등)
+     */
+    get sizeClass() {
+        if (this.size <= 48) return 1;
+        if (this.size <= 96) return 2;
+        return 3;
+    }
+
+    get sizeCategoryName() {
+        const sc = this.sizeClass;
+        if (sc === 1) return '소형 (1x1)';
+        if (sc === 2) return '대형 (2x2)';
+        return '초대형 (3x3)';
     }
 
     // 공통 공격 처리 로직
@@ -322,15 +336,17 @@ export class BaseUnit extends Entity {
                 if (this.domain === 'air') {
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                 } else {
-                    const vector = this.engine.flowField.getFlowVector(this.x, this.y);
+                    const vector = this.engine.flowField.getFlowVector(this.x, this.y, this.sizeClass);
                     if (vector.x !== 0 || vector.y !== 0) {
                         // 유동장 벡터 방향으로 부드럽게 회전
                         const targetAngle = Math.atan2(vector.y, vector.x);
                         const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
                         this.angle += angleDiff * 0.15; // 회전 감도
-                    } else {
-                        // 유동장 정보가 없는 경우 직선 이동
-                        this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+                    } else if (distToFinal > 5) {
+                        // 유동장이 없거나 목적지 타일에 도달했지만, 물리적으로 아직 거리가 남은 경우 직선 이동
+                        const targetAngle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+                        const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
+                        this.angle += angleDiff * 0.15;
                     }
                 }
                 this.moveWithCollision(Math.min(this.speed, distToFinal));
@@ -356,7 +372,7 @@ export class BaseUnit extends Entity {
             if (this.domain !== other.domain) continue;
 
             const d = Math.hypot(this.x - other.x, this.y - other.y);
-            const minDist = (this.size + other.size) * 0.4; // 겹침 허용 반경
+            const minDist = (this.size + other.size) * 0.5; // 선택 박스와 일치하도록 0.5로 변경
             
             if (d < minDist && d > 0.1) { // 0 나누기 방지
                 const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
@@ -425,19 +441,22 @@ export class BaseUnit extends Entity {
         const moveX = Math.cos(this.angle) * dist;
         const moveY = Math.sin(this.angle) * dist;
         
-        // 이동 가능 여부 체크 (중심점 기준 - 매우 관대하게 설정하여 끼임 방지)
+        // 이동 가능 여부 체크 (Size Class 기반 영역 체크)
         const canPass = (wx, wy) => {
-            const g = tileMap.worldToGrid(wx, wy);
-            const tile = tileMap.grid[g.y]?.[g.x];
-            return tile && tile.passable;
+            const sc = this.sizeClass;
+            const ts = tileMap.tileSize;
+            // 유닛 중심(wx, wy)으로부터 좌상단 격자(gx, gy) 계산
+            const gx = Math.floor(wx / ts - (sc - 1) / 2);
+            const gy = Math.floor(wy / ts - (sc - 1) / 2);
+            return tileMap.isPassableArea(gx, gy, sc);
         };
 
-        // --- 1. 전진 시도 (중심점이 통과 가능하면 이동) ---
+        // --- 1. 전진 시도 ---
         if (canPass(this.x + moveX, this.y + moveY)) {
             this.x += moveX;
             this.y += moveY;
         } else {
-            // --- 2. 슬라이딩 시도 (한 축씩 이동) ---
+            // --- 2. 슬라이딩 시도 ---
             if (canPass(this.x + moveX, this.y)) {
                 this.x += moveX;
             } else if (canPass(this.x, this.y + moveY)) {
@@ -445,11 +464,10 @@ export class BaseUnit extends Entity {
             }
         }
 
-        // --- 3. 능동적 벽 반발력 (실제 부피감 및 끼임 탈출 담당) ---
-        // 주변 타일을 검사하여 벽이 유닛의 반경 내에 있으면 반대 방향으로 밀어냄
+        // --- 3. 능동적 벽 반발력 ---
         const curG = tileMap.worldToGrid(this.x, this.y);
-        const searchRange = 1;
-        const pushRadius = tileMap.tileSize * 0.55; // 반발력이 작용할 최소 거리
+        const searchRange = Math.ceil(this.sizeClass / 2) + 1;
+        const minDist = this.size * 0.5; // 선택 박스 절반 크기와 일치하도록 변경
 
         for (let dy = -searchRange; dy <= searchRange; dy++) {
             for (let dx = -searchRange; dx <= searchRange; dx++) {
@@ -458,7 +476,6 @@ export class BaseUnit extends Entity {
                 const tile = tileMap.grid[ty]?.[tx];
                 
                 if (tile && !tile.passable) {
-                    // 벽 타일의 가장자리와 유닛 중심 사이의 가장 가까운 지점 계산 (AABB vs Circle)
                     const wallLeft = tx * tileMap.tileSize;
                     const wallTop = ty * tileMap.tileSize;
                     const wallRight = wallLeft + tileMap.tileSize;
@@ -468,12 +485,10 @@ export class BaseUnit extends Entity {
                     const closestY = Math.max(wallTop, Math.min(this.y, wallBottom));
 
                     const d = Math.hypot(this.x - closestX, this.y - closestY);
-                    const minDist = this.size * 0.3; // 유닛 몸집에 따른 최소 유지 거리
 
                     if (d < minDist) {
                         const pushAngle = Math.atan2(this.y - closestY, this.x - closestX);
                         const force = (minDist - d) / minDist;
-                        // 벽에서 강하게 밀어내어 충돌 지점 밖으로 배출
                         this.x += Math.cos(pushAngle) * force * 4;
                         this.y += Math.sin(pushAngle) * force * 4;
                     }

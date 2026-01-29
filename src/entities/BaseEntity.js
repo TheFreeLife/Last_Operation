@@ -12,12 +12,12 @@ export class Entity {
         this.engine = engine;
         this.active = true;
         
-        // [구조화] size는 유닛의 물리적/피격 중심 크기
+        // [구조화] size는 유닛의 체급별 표준 크기 (40, 80, 130)
         if (this.size === undefined) this.size = 40;
         
-        // width/height는 선택 및 시각적 영역 (피격 범위보다 약간 넉넉하게 설정될 수 있음)
-        if (this.width === undefined) this.width = this.size;
-        if (this.height === undefined) this.height = this.size;
+        // width/height를 size와 강제 동기화하여 체급별 동일한 충돌/선택 박스 보장
+        this.width = this.size;
+        this.height = this.size;
 
         if (this.domain === undefined) this.domain = 'ground';
         if (this.attackTargets === undefined) this.attackTargets = ['ground', 'sea'];
@@ -85,9 +85,9 @@ export class Entity {
     }
 
     // --- 자동 계산 로직 추가 ---
-    // 유닛의 크기에 따른 물리 충돌 반경 (0.45는 대형 유닛 우회 마진 포함)
+    // 유닛의 크기에 따른 물리 충돌 반경 (선택 박스와 일치하도록 size의 0.5배 적용)
     get collisionRadius() {
-        return (this.size || 40) * 0.45;
+        return (this.size || 40) * 0.5;
     }
 
     // 길찾기 엔진에 전달할 크기
