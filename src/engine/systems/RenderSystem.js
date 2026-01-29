@@ -130,8 +130,7 @@ export class RenderSystem {
 
         if (this.engine.tileMap) this.engine.tileMap.drawFog(camera);
 
-        // 6. 선택 도구
-        this.renderSelectionBox();
+        // 6. 선택 도구 및 오버레이 (GameEngine에서 중복 처리되는 부분 제외하고 필요한 것만 유지)
         this.renderOverlays(visibleEntities);
 
         this.ctx.restore();
@@ -245,9 +244,13 @@ export class RenderSystem {
     }
 
     drawMiniHealthBar(entity) {
-        const w = (entity.width || entity.size || 40) * 0.8;
+        const bounds = entity.getSelectionBounds ? entity.getSelectionBounds() : {
+            left: entity.x - 20, right: entity.x + 20, top: entity.y - 20, bottom: entity.y + 20
+        };
+        const w = (bounds.right - bounds.left) * 0.8;
         const h = 3;
-        const x = entity.x - w / 2, y = entity.y - (entity.height || entity.size || 40) / 2 - 5;
+        const x = bounds.left + (bounds.right - bounds.left - w) / 2;
+        const y = bounds.top - 5;
         this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
         this.ctx.fillRect(x, y, w, h);
         const hpRatio = Math.max(0, entity.hp / entity.maxHp);
@@ -336,33 +339,30 @@ export class RenderSystem {
         }
     }
 
-    renderSelectionBox() {
-        const box = this.engine.camera.selectionBox;
-        if (!box) return;
-        this.ctx.save();
-        this.ctx.strokeStyle = '#00ff00';
-        this.ctx.lineWidth = 1;
-        this.ctx.setLineDash([5, 5]);
-        this.ctx.strokeRect(box.startX, box.startY, box.currentX - box.startX, box.currentY - box.startY);
-        this.ctx.restore();
-    }
-
     renderOverlays(visibleEntities) {
         const selected = this.engine.selectedEntities;
         if (!selected) return;
         for (const entity of selected) {
             if (!entity.active || entity.hp === undefined) continue;
-            const w = entity.width || entity.size || 40;
+            
+            // [수정] getSelectionBounds를 사용하여 공중 유닛의 고도 오프셋을 반영
+            const bounds = entity.getSelectionBounds ? entity.getSelectionBounds() : {
+                left: entity.x - 20, right: entity.x + 20, top: entity.y - 20, bottom: entity.y + 20
+            };
+            
+            const w = bounds.right - bounds.left;
             const h = 4;
-            const x = entity.x - w / 2, y = entity.y - (entity.height || entity.size || 40) / 2 - 10;
+            const x = bounds.left;
+            const y = bounds.top - 10; // 박스 상단에서 10px 위
+            
+            // 1. 체력바 렌더링
             this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             this.ctx.fillRect(x, y, w, h);
             const hpRatio = Math.max(0, entity.hp / entity.maxHp);
             this.ctx.fillStyle = hpRatio > 0.5 ? '#00ff00' : (hpRatio > 0.2 ? '#ffff00' : '#ff0000');
             this.ctx.fillRect(x, y, w * hpRatio, h);
-            this.ctx.strokeStyle = '#00ff00';
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(entity.x - w/2, entity.y - (entity.height||40)/2, w, entity.height||40);
+            
+            // [제거] 선택 박스 strokeRect는 GameEngine.renderOverlays에서 색상/관계별로 더 정확하게 그리므로 여기서 제거
         }
     }
 }
