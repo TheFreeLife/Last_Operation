@@ -36,6 +36,13 @@ self.onmessage = function(e) {
 
                 if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
 
+                // [추가] 대각선 통과 유효성 체크
+                if (n.dx !== 0 && n.dy !== 0) {
+                    const corner1 = costMap[cy * cols + nx];
+                    const corner2 = costMap[ny * cols + cx];
+                    if (corner1 === 255 || corner2 === 255) continue;
+                }
+
                 const nIdx = ny * cols + nx;
                 const cost = costMap[nIdx];
                 if (cost === 255) continue;

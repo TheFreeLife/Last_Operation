@@ -413,7 +413,7 @@ export class BaseUnit extends Entity {
         }
     }
 
-    // [헬퍼] 충돌을 고려한 이동 처리 (축 분리 슬라이딩 + 벽 반발력 시스템)
+    // [헬퍼] 충돌을 고려한 이동 처리 (점 기반 이동 + 원형 반발력 시스템)
     moveWithCollision(dist) {
         if (this.domain === 'air') {
             this.x += Math.cos(this.angle) * dist;
@@ -425,42 +425,32 @@ export class BaseUnit extends Entity {
         const moveX = Math.cos(this.angle) * dist;
         const moveY = Math.sin(this.angle) * dist;
         
-        // 판정 반경 극소화 (끼임 방지 극대화)
-        const radius = this.size * 0.15; 
-
-        const isPassable = (worldX, worldY) => {
-            if (worldX < 0 || worldX >= tileMap.cols * tileMap.tileSize || 
-                worldY < 0 || worldY >= tileMap.rows * tileMap.tileSize) return false;
-            
-            // 5지점 정밀 체크
-            const points = [
-                {x: worldX, y: worldY},
-                {x: worldX - radius, y: worldY}, {x: worldX + radius, y: worldY},
-                {x: worldX, y: worldY - radius}, {x: worldX, y: worldY + radius}
-            ];
-
-            return points.every(p => {
-                const g = tileMap.worldToGrid(p.x, p.y);
-                const tile = tileMap.grid[g.y]?.[g.x];
-                return tile && tile.passable;
-            });
+        // 이동 가능 여부 체크 (중심점 기준 - 매우 관대하게 설정하여 끼임 방지)
+        const canPass = (wx, wy) => {
+            const g = tileMap.worldToGrid(wx, wy);
+            const tile = tileMap.grid[g.y]?.[g.x];
+            return tile && tile.passable;
         };
 
-        // --- 1. 축 분리 이동 (Perfect Sliding) ---
-        // X축 이동 시도
-        if (isPassable(this.x + moveX, this.y)) {
+        // --- 1. 전진 시도 (중심점이 통과 가능하면 이동) ---
+        if (canPass(this.x + moveX, this.y + moveY)) {
             this.x += moveX;
-        }
-        // Y축 이동 시도
-        if (isPassable(this.x, this.y + moveY)) {
             this.y += moveY;
+        } else {
+            // --- 2. 슬라이딩 시도 (한 축씩 이동) ---
+            if (canPass(this.x + moveX, this.y)) {
+                this.x += moveX;
+            } else if (canPass(this.x, this.y + moveY)) {
+                this.y += moveY;
+            }
         }
 
-        // --- 2. 능동적 벽 반발력 (Wall Repulsion Force) ---
-        // 유닛 주변 9개 타일을 검사하여 벽이 있으면 반대 방향으로 밀어냄
+        // --- 3. 능동적 벽 반발력 (실제 부피감 및 끼임 탈출 담당) ---
+        // 주변 타일을 검사하여 벽이 유닛의 반경 내에 있으면 반대 방향으로 밀어냄
         const curG = tileMap.worldToGrid(this.x, this.y);
         const searchRange = 1;
-        
+        const pushRadius = tileMap.tileSize * 0.55; // 반발력이 작용할 최소 거리
+
         for (let dy = -searchRange; dy <= searchRange; dy++) {
             for (let dx = -searchRange; dx <= searchRange; dx++) {
                 const tx = curG.x + dx;
@@ -468,16 +458,24 @@ export class BaseUnit extends Entity {
                 const tile = tileMap.grid[ty]?.[tx];
                 
                 if (tile && !tile.passable) {
-                    // 벽 타일의 중앙 좌표
-                    const wallWorld = tileMap.gridToWorld(tx, ty);
-                    const d = Math.hypot(this.x - wallWorld.x, this.y - wallWorld.y);
-                    const minDist = tileMap.tileSize * 0.7; // 반발력이 작용할 거리
-                    
+                    // 벽 타일의 가장자리와 유닛 중심 사이의 가장 가까운 지점 계산 (AABB vs Circle)
+                    const wallLeft = tx * tileMap.tileSize;
+                    const wallTop = ty * tileMap.tileSize;
+                    const wallRight = wallLeft + tileMap.tileSize;
+                    const wallBottom = wallTop + tileMap.tileSize;
+
+                    const closestX = Math.max(wallLeft, Math.min(this.x, wallRight));
+                    const closestY = Math.max(wallTop, Math.min(this.y, wallBottom));
+
+                    const d = Math.hypot(this.x - closestX, this.y - closestY);
+                    const minDist = this.size * 0.3; // 유닛 몸집에 따른 최소 유지 거리
+
                     if (d < minDist) {
-                        const pushAngle = Math.atan2(this.y - wallWorld.y, this.x - wallWorld.x);
+                        const pushAngle = Math.atan2(this.y - closestY, this.x - closestX);
                         const force = (minDist - d) / minDist;
-                        this.x += Math.cos(pushAngle) * force * 3; // 강력하게 밀어냄
-                        this.y += Math.sin(pushAngle) * force * 3;
+                        // 벽에서 강하게 밀어내어 충돌 지점 밖으로 배출
+                        this.x += Math.cos(pushAngle) * force * 4;
+                        this.y += Math.sin(pushAngle) * force * 4;
                     }
                 }
             }
