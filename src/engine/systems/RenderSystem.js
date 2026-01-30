@@ -134,7 +134,50 @@ export class RenderSystem {
         this.renderOverlays(visibleEntities);
 
         this.ctx.restore();
+        
+        // 7. UI 오버레이 (카메라 영향 받지 않음)
+        this.renderGold();
+        
         this.stats.lastFrameTime = performance.now() - startTime;
+    }
+
+    renderGold() {
+        if (this.engine.gameState !== 'PLAYING') return;
+
+        const gold = this.engine.gold;
+        const income = this.engine.goldIncome;
+        const x = 20, y = 20;
+        const w = 160, h = 40;
+
+        // 배경 박스
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        this.ctx.strokeStyle = '#fbc02d';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, w, h, 5);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // 골드 아이콘 (코인 모양)
+        this.ctx.fillStyle = '#fbc02d';
+        this.ctx.beginPath();
+        this.ctx.arc(x + 20, y + 20, 10, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillStyle = '#000';
+        this.ctx.font = 'bold 14px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('$', x + 20, y + 25);
+
+        // 골드 수치
+        this.ctx.textAlign = 'left';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = 'bold 20px "Courier New", monospace';
+        this.ctx.fillText(Math.floor(gold).toLocaleString(), x + 40, y + 27);
+
+        // 초당 수익 표시
+        this.ctx.fillStyle = '#39ff14';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.fillText(`+${income}/s`, x + w - 45, y + 25);
     }
 
     renderParticles() {

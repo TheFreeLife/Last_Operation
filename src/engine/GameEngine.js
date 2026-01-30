@@ -102,6 +102,11 @@ export class GameEngine {
 
         this.debugSystem = new DebugSystem(this);
 
+        // 골드 시스템 추가
+        this.gold = 1000;      // 초기 골드
+        this.goldIncome = 30;  // 초당 수익 (사용자 요청: 30)
+        this.goldTimer = 0;
+
         window.addEventListener('resize', () => this.resize());
         this.initInput();
         this.initUI();
@@ -1179,6 +1184,9 @@ export class GameEngine {
         }
 
         if (this.gameState !== GameState.PLAYING) return;
+
+        // 골드 자동 증가 (프레임마다 부드럽게 증가)
+        this.gold += (this.goldIncome * deltaTime) / 1000;
 
         this.frameCount = (this.frameCount || 0) + 1;
 
