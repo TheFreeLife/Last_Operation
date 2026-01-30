@@ -369,55 +369,64 @@ export class MapEditor {
 
     applyToTile(x, y) {
         if (!this.selectedItem) return;
+        const tileMap = this.engine.tileMap;
 
-        // [추가] 스폰 지점(spawn-point)은 맵에 하나만 존재해야 함
+        // [추가] 스폰 지점(spawn-point)은 3x3 크기이며 맵에 하나만 존재해야 함
         if (this.selectedItem.id === 'spawn-point') {
+            // 1. 기존 스폰 지점 전체(9타일)를 찾아 완벽히 제거
             this.layers.wall.forEach((val, key) => {
                 if (val.id === 'spawn-point') {
                     const [oldX, oldY] = key.split(',').map(Number);
                     this.layers.wall.delete(key);
-                    // 기존 스폰 지점의 격자 데이터 원복
-                    const oldGrid = this.engine.tileMap.grid[oldY]?.[oldX];
-                    if (oldGrid) {
-                        this.engine.tileMap.layers.wall[oldY][oldX] = null;
-                        oldGrid.occupied = false;
-                        oldGrid.passable = (oldGrid.terrain !== 'water');
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const gx = oldX + dx, gy = oldY + dy;
+                            const oldGrid = tileMap.grid[gy]?.[gx];
+                            if (oldGrid) {
+                                if (dx === 0 && dy === 0) tileMap.layers.wall[gy][gx] = null;
+                                oldGrid.buildable = true;
+                                oldGrid.occupied = false;
+                                oldGrid.passable = (oldGrid.terrain !== 'water');
+                            }
+                        }
                     }
                 }
             });
+
+            // 2. 새로운 3x3 영역 설정 (범위 체크 생략 - 맵 끝단 주의)
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const gx = x + dx, gy = y + dy;
+                    const gridCell = tileMap.grid[gy]?.[gx];
+                    if (gridCell) {
+                        gridCell.buildable = false;
+                        gridCell.occupied = false;
+                        gridCell.passable = true;
+                    }
+                }
+            }
         }
 
         const data = { 
             id: this.selectedItem.id, 
             r: this.currentRotation,
             options: this.selectedItem.options,
-            // [수정] 모든 유닛은 기본적으로 적군(2) 소유로 설정
             ownerId: (this.currentLayer === 'unit') ? 2 : undefined
         };
         
-        if (this.currentLayer === 'unit') {
-            const dummy = this.dummyUnits.get(`${this.selectedItem.id}_${JSON.stringify(this.selectedItem.options || {})}`);
-            data.hp = dummy ? dummy.maxHp : 100;
-            data.damage = dummy ? dummy.damage : 0;
-            data.speed = dummy ? dummy.speed : 0;
-            data.ammo = dummy ? dummy.ammo : 0;
-        }
-        
         this.layers[this.currentLayer].set(`${x},${y}`, data);
 
-        // [추가] TileMap 데이터 즉시 동기화
-        const tileMap = this.engine.tileMap;
+        // [수정] TileMap 데이터 즉시 동기화
         const gridCell = tileMap.grid[y]?.[x];
-        
         if (gridCell) {
             if (this.currentLayer === 'floor') {
                 tileMap.updateTile(x, y, data.id, data.r);
             } else if (this.currentLayer === 'wall') {
                 tileMap.layers.wall[y][x] = { id: data.id, r: data.r };
-                // 스폰 지점 블록만 예외적으로 통과 가능/점유하지 않음 처리
-                const isSpawnPoint = data.id === 'spawn-point';
-                gridCell.occupied = !isSpawnPoint;
-                gridCell.passable = isSpawnPoint;
+                if (data.id !== 'spawn-point') {
+                    gridCell.occupied = true;
+                    gridCell.passable = false;
+                }
             }
         }
     }
@@ -511,6 +520,12 @@ export class MapEditor {
 
         if (this.selectedItem && !this.isDrawing) {
             ctx.globalAlpha = 0.5;
+            const isLarge = this.selectedItem.id === 'spawn-point';
+            if (isLarge) {
+                ctx.strokeStyle = '#00d2ff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect((mGX-1) * tileSize, (mGY-1) * tileSize, tileSize * 3, tileSize * 3);
+            }
             this.drawActualItem(ctx, { ...this.selectedItem, r: this.currentRotation }, mGX, mGY, this.currentLayer);
             ctx.globalAlpha = 1.0;
         }

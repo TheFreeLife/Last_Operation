@@ -248,45 +248,90 @@ export class TileMap {
         else if (id === 'hydrant') { ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0, Math.PI*2); ctx.fill(); }
         else if (id === 'trash-can') { ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5); ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15); }
         else if (id === 'spawn-point') {
-            // 하단 베이스 블록
-            ctx.fillStyle = '#222';
-            ctx.fillRect(lpx+2, lpy+2, ts-4, ts-4);
+            const size = ts * 3;
+            const hSize = size / 2;
             
-            // 상단 빛나는 패널 (약간 작게)
-            ctx.fillStyle = '#111';
-            ctx.fillRect(lpx+6, lpy+6, ts-12, ts-12);
+            // 1. 강화 콘크리트 베이스
+            ctx.fillStyle = '#444'; // 어두운 콘크리트
+            ctx.fillRect(-hSize, -hSize, size, size);
             
-            // 글로우 테두리
-            ctx.strokeStyle = '#00d2ff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(lpx+8, lpy+8, ts-16, ts-16);
-            
-            // 에너지 코어 (중앙)
-            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, ts*0.3);
-            grad.addColorStop(0, '#00d2ff');
-            grad.addColorStop(0.5, 'rgba(0, 100, 255, 0.4)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = grad;
+            // 콘크리트 질감 (노이즈)
+            ctx.globalAlpha = 0.1;
+            ctx.fillStyle = '#000';
+            for(let i=0; i<30; i++) {
+                ctx.fillRect(-hSize + Math.random()*size, -hSize + Math.random()*size, 2, 2);
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 2. 가장자리 안전 스트라이프 (Yellow/Black Hazard)
+            const stripeW = 10;
+            ctx.save();
             ctx.beginPath();
-            ctx.arc(0, 0, ts*0.3, 0, Math.PI*2);
+            ctx.rect(-hSize, -hSize, size, size);
+            ctx.rect(-hSize + stripeW, -hSize + stripeW, size - stripeW*2, size - stripeW*2);
+            ctx.clip("evenodd");
+            
+            ctx.fillStyle = '#fbc02d';
+            ctx.fillRect(-hSize, -hSize, size, size);
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 5;
+            for(let i = -size; i < size; i += 15) {
+                ctx.beginPath();
+                ctx.moveTo(i, -hSize);
+                ctx.lineTo(i + size, hSize);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // 3. 내부 베이스 라인
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-hSize + 15, -hSize + 15, size - 30, size - 30);
+
+            // 4. 보급 상자 및 장비 디테일 (모서리 장식)
+            const drawCrate = (x, y, s) => {
+                ctx.fillStyle = '#4b5320'; // Olive Drab
+                ctx.fillRect(x, y, s, s);
+                ctx.strokeStyle = '#2a2f10';
+                ctx.strokeRect(x+1, y+1, s-2, s-2);
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+s, y+s); ctx.moveTo(x+s, y); ctx.lineTo(x, y+s); ctx.stroke();
+            };
+            drawCrate(hSize - 35, hSize - 35, 20); // BR
+            drawCrate(hSize - 55, hSize - 30, 15);
+            
+            // 드럼통 (TL)
+            ctx.fillStyle = '#7a2b2b'; // 붉은 드럼통
+            ctx.beginPath(); ctx.arc(-hSize + 30, -hSize + 30, 8, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#444'; ctx.stroke();
+
+            // 5. 전술 배치 지시계 (Chevron)
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.moveTo(0, -ts * 1.0);
+            ctx.lineTo(ts * 0.4, -ts * 0.6);
+            ctx.lineTo(ts * 0.15, -ts * 0.6);
+            ctx.lineTo(ts * 0.15, -ts * 0.2);
+            ctx.lineTo(-ts * 0.15, -ts * 0.2);
+            ctx.lineTo(-ts * 0.15, -ts * 0.6);
+            ctx.lineTo(-ts * 0.4, -ts * 0.6);
+            ctx.closePath();
             ctx.fill();
 
-            // 방향 표시 (세련된 V자형 화살표)
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(-ts*0.15, -ts*0.2);
-            ctx.lineTo(0, -ts*0.35);
-            ctx.lineTo(ts*0.15, -ts*0.2);
-            ctx.stroke();
+            // 6. 군용 스텐실 텍스트
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = 'bold 12px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText("UNIT DEPLOYMENT ZONE", 0, ts * 0.5);
+            ctx.font = '10px "Courier New", monospace';
+            ctx.fillText("SEC-ALPHA / L-ZONE", 0, ts * 0.8);
             
-            // 사이드 장식 (블록 느낌)
-            ctx.globalAlpha = 0.5;
-            ctx.fillStyle = '#00d2ff';
-            ctx.fillRect(lpx+4, lpy+4, 4, 4);
-            ctx.fillRect(lpx+ts-8, lpy+4, 4, 4);
-            ctx.fillRect(lpx+4, lpy+ts-8, 4, 4);
-            ctx.fillRect(lpx+ts-8, lpy+ts-8, 4, 4);
+            // 중앙 십자 마크
+            ctx.strokeStyle = '#fff';
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
+            ctx.moveTo(0, -20); ctx.lineTo(0, 20);
+            ctx.stroke();
             ctx.globalAlpha = 1.0;
         }
         ctx.restore();
