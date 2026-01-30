@@ -301,6 +301,56 @@ export class GameEngine {
         }
     }
 
+    // 유닛 소환 풀 (랜덤 소환 대상)
+    getRandomUnitPool() {
+        return ['tank', 'missile-launcher', 'anti-air', 'artillery', 'rifleman', 'sniper', 'military-truck', 'scout-plane'];
+    }
+
+    spawnRandomUnit() {
+        const cost = 200;
+        if (this.gold < cost) {
+            this.addEffect('system', this.canvas.width/2, this.canvas.height/2, '#ff3131', '골드가 부족합니다!');
+            return;
+        }
+
+        // 1. 맵에서 스폰 지점 찾기
+        let spawnPos = null;
+        let spawnAngle = 0;
+        for (let y = 0; y < this.tileMap.rows; y++) {
+            for (let x = 0; x < this.tileMap.cols; x++) {
+                const wall = this.tileMap.layers.wall[y][x];
+                if (wall && wall.id === 'spawn-point') {
+                    spawnPos = this.tileMap.gridToWorld(x, y);
+                    spawnAngle = (wall.r || 0) * (Math.PI / 2);
+                    break;
+                }
+            }
+            if (spawnPos) break;
+        }
+
+        if (!spawnPos) {
+            this.addEffect('system', this.canvas.width/2, this.canvas.height/2, '#ff3131', '배치 구역이 없습니다!');
+            return;
+        }
+
+        // 2. 골드 차감 및 랜덤 선택
+        this.gold -= cost;
+        const pool = this.getRandomUnitPool();
+        const unitId = pool[Math.floor(Math.random() * pool.length)];
+
+        // 3. 유닛 생성
+        const unit = this.entityManager.create(unitId, spawnPos.x, spawnPos.y, { ownerId: 1 });
+        if (unit) {
+            unit.angle = spawnAngle;
+            // 약간의 흩뿌림 효과 (겹침 방지)
+            unit.x += (Math.random() - 0.5) * 20;
+            unit.y += (Math.random() - 0.5) * 20;
+            
+            this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료!`);
+            console.log(`[Game] Spawned random unit: ${unitId}`);
+        }
+    }
+
     registerEntityTypes() {
         const em = this.entityManager;
         // 유닛
@@ -407,6 +457,10 @@ export class GameEngine {
 
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
+        
+        // 랜덤 소환 버튼 리스너 추가
+        document.getElementById('random-spawn-btn')?.addEventListener('click', () => this.spawnRandomUnit());
+
         this.updateBuildMenu();
     }
 
@@ -1188,6 +1242,13 @@ export class GameEngine {
         // 골드 자동 증가 (프레임마다 부드럽게 증가)
         this.gold += (this.goldIncome * deltaTime) / 1000;
 
+        // 소환 버튼 상태 업데이트
+        const spawnBtn = document.getElementById('random-spawn-btn');
+        if (spawnBtn) {
+            if (this.gold < 200) spawnBtn.classList.add('disabled');
+            else spawnBtn.classList.remove('disabled');
+        }
+
         this.frameCount = (this.frameCount || 0) + 1;
 
         for (let i = this.effects.length - 1; i >= 0; i--) {
@@ -1380,6 +1441,17 @@ export class GameEngine {
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
                 grid[y][x].inSight = false;
+            }
+        }
+
+        // [추가] 스폰 지점 주변 시야 상시 확보 (유닛 없어도 보임)
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                const wall = this.tileMap.layers.wall[y][x];
+                if (wall && wall.id === 'spawn-point') {
+                    const worldPos = this.tileMap.gridToWorld(x, y);
+                    this._revealArea(worldPos.x, worldPos.y, 8); // 8타일 반경 시야 제공
+                }
             }
         }
 

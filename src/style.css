@@ -1211,3 +1211,77 @@ canvas {
     top: auto;
     transform: translateX(-50%);
 }
+
+/* --- Deployment System (Random Spawn) --- */
+#deployment-area {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+.deployment-btn {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 20px;
+    background: rgba(45, 55, 35, 0.9); /* Olive Drab Military Tone */
+    border: 2px solid #4b5320;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.deployment-btn:hover {
+    background: rgba(65, 85, 45, 1);
+    border-color: #6b8e23;
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), 0 0 15px rgba(107, 142, 35, 0.3);
+}
+
+.deployment-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.deployment-btn .btn-icon {
+    font-size: 24px;
+    background: rgba(0, 0, 0, 0.3);
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.btn-label {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.btn-cost {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ffd700; /* Gold color */
+    opacity: 0.9;
+}
+
+/* 골드 부족 시 효과 */
+.deployment-btn.disabled {
+    opacity: 0.5;
+    filter: grayscale(1);
+    cursor: not-allowed;
+}
