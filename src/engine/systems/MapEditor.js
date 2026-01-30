@@ -50,7 +50,8 @@ export class MapEditor {
                 { id: 'barricade', name: '바리케이드', rotatable: true },
                 { id: 'street-lamp', name: '가로등', rotatable: false },
                 { id: 'hydrant', name: '소화전', rotatable: false },
-                { id: 'trash-can', name: '쓰레기통', rotatable: true }
+                { id: 'trash-can', name: '쓰레기통', rotatable: true },
+                { id: 'spawn-point', name: '스폰 지점', rotatable: true }
             ],
             unit: []
         };
@@ -368,6 +369,24 @@ export class MapEditor {
 
     applyToTile(x, y) {
         if (!this.selectedItem) return;
+
+        // [추가] 스폰 지점(spawn-point)은 맵에 하나만 존재해야 함
+        if (this.selectedItem.id === 'spawn-point') {
+            this.layers.wall.forEach((val, key) => {
+                if (val.id === 'spawn-point') {
+                    const [oldX, oldY] = key.split(',').map(Number);
+                    this.layers.wall.delete(key);
+                    // 기존 스폰 지점의 격자 데이터 원복
+                    const oldGrid = this.engine.tileMap.grid[oldY]?.[oldX];
+                    if (oldGrid) {
+                        this.engine.tileMap.layers.wall[oldY][oldX] = null;
+                        oldGrid.occupied = false;
+                        oldGrid.passable = (oldGrid.terrain !== 'water');
+                    }
+                }
+            });
+        }
+
         const data = { 
             id: this.selectedItem.id, 
             r: this.currentRotation,
@@ -385,6 +404,22 @@ export class MapEditor {
         }
         
         this.layers[this.currentLayer].set(`${x},${y}`, data);
+
+        // [추가] TileMap 데이터 즉시 동기화
+        const tileMap = this.engine.tileMap;
+        const gridCell = tileMap.grid[y]?.[x];
+        
+        if (gridCell) {
+            if (this.currentLayer === 'floor') {
+                tileMap.updateTile(x, y, data.id, data.r);
+            } else if (this.currentLayer === 'wall') {
+                tileMap.layers.wall[y][x] = { id: data.id, r: data.r };
+                // 스폰 지점 블록만 예외적으로 통과 가능/점유하지 않음 처리
+                const isSpawnPoint = data.id === 'spawn-point';
+                gridCell.occupied = !isSpawnPoint;
+                gridCell.passable = isSpawnPoint;
+            }
+        }
     }
 
     floodFill(startX, startY) {

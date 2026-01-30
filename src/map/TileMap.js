@@ -86,13 +86,16 @@ export class TileMap {
                 this.layers.wall[y][x] = w;
                 this.layers.unit[y][x] = cell[2];
                 
+                // 스폰 지점 블록은 통과 가능하도록 예외 처리
+                const isWallPassable = !w.id || w.id === 'spawn-point';
+
                 this.grid[y][x] = {
                     terrain: f.id,
                     floorRotation: f.r,
                     wallRotation: w.r,
-                    occupied: !!w.id,
-                    buildable: !w.id,
-                    passable: !(w.id || f.id === 'water'), // 벽이 있거나 물이면 통과 불가
+                    occupied: !!w.id && w.id !== 'spawn-point',
+                    buildable: !w.id && f.id !== 'spawn-point',
+                    passable: isWallPassable && f.id !== 'water',
                     visible: false,
                     inSight: false
                 };
@@ -244,6 +247,48 @@ export class TileMap {
         else if (id === 'street-lamp') { ctx.fillStyle = '#333'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.1, ts*0.2, ts*0.8); ctx.fillStyle = '#fbc02d'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.2, ts*0.15, 0, Math.PI*2); ctx.fill(); }
         else if (id === 'hydrant') { ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0, Math.PI*2); ctx.fill(); }
         else if (id === 'trash-can') { ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5); ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15); }
+        else if (id === 'spawn-point') {
+            // 하단 베이스 블록
+            ctx.fillStyle = '#222';
+            ctx.fillRect(lpx+2, lpy+2, ts-4, ts-4);
+            
+            // 상단 빛나는 패널 (약간 작게)
+            ctx.fillStyle = '#111';
+            ctx.fillRect(lpx+6, lpy+6, ts-12, ts-12);
+            
+            // 글로우 테두리
+            ctx.strokeStyle = '#00d2ff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(lpx+8, lpy+8, ts-16, ts-16);
+            
+            // 에너지 코어 (중앙)
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, ts*0.3);
+            grad.addColorStop(0, '#00d2ff');
+            grad.addColorStop(0.5, 'rgba(0, 100, 255, 0.4)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, ts*0.3, 0, Math.PI*2);
+            ctx.fill();
+
+            // 방향 표시 (세련된 V자형 화살표)
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-ts*0.15, -ts*0.2);
+            ctx.lineTo(0, -ts*0.35);
+            ctx.lineTo(ts*0.15, -ts*0.2);
+            ctx.stroke();
+            
+            // 사이드 장식 (블록 느낌)
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#00d2ff';
+            ctx.fillRect(lpx+4, lpy+4, 4, 4);
+            ctx.fillRect(lpx+ts-8, lpy+4, 4, 4);
+            ctx.fillRect(lpx+4, lpy+ts-8, 4, 4);
+            ctx.fillRect(lpx+ts-8, lpy+ts-8, 4, 4);
+            ctx.globalAlpha = 1.0;
+        }
         ctx.restore();
     }
 
@@ -276,6 +321,35 @@ export class TileMap {
     worldToGrid(wX, wY) { return { x: Math.floor(wX/this.tileSize), y: Math.floor(wY/this.tileSize) }; }
     gridToWorld(gX, gY) { return { x: gX*this.tileSize + this.tileSize/2, y: gY*this.tileSize + this.tileSize/2 }; }
     
+    /**
+     * 특정 타일을 갱신하고 해당 청크를 다시 그립니다. (에디터용)
+     */
+    updateTile(x, y, terrain, rotation = 0) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+        
+        // 데이터 갱신
+        this.layers.floor[y][x] = { id: terrain, r: rotation };
+        this.grid[y][x].terrain = terrain;
+        this.grid[y][x].floorRotation = rotation;
+        this.grid[y][x].buildable = (this.layers.wall[y][x] === null && terrain !== 'spawn-point');
+        
+        // 해당 타일이 속한 청크 갱신
+        const cx = Math.floor(x / this.chunkSize);
+        const cy = Math.floor(y / this.chunkSize);
+        const chunk = this.chunks[cy][cx];
+        
+        if (chunk) {
+            const ctx = chunk.canvas.getContext('2d');
+            const lx = (x % this.chunkSize) * this.tileSize;
+            const ly = (y % this.chunkSize) * this.tileSize;
+            
+            // 기존 타일 영역 지우기
+            ctx.clearRect(lx, ly, this.tileSize, this.tileSize);
+            // 새로 그리기
+            this.drawTileTexture(ctx, lx, ly, terrain, rotation);
+        }
+    }
+
     /**
      * 특정 격자 위치에서 특정 크기(sizeClass)의 유닛이 통과 가능한지 확인
      * @param {number} gX 격자 X
