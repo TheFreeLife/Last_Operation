@@ -134,50 +134,230 @@ export class RenderSystem {
         this.renderOverlays(visibleEntities);
 
         this.ctx.restore();
-        
+
         // 7. UI 오버레이 (카메라 영향 받지 않음)
         this.renderGold();
+        this.renderSentiment();
         
         this.stats.lastFrameTime = performance.now() - startTime;
     }
 
     renderGold() {
         if (this.engine.gameState !== 'PLAYING') return;
+        this.renderCommandUI();
+    }
 
-        const gold = this.engine.gold;
+    renderSentiment() {
+        // renderCommandUI에서 통합 처리하므로 비워둠
+    }
+
+    renderCommandUI() {
+        if (this.engine.gameState !== 'PLAYING') return;
+
+        const gold = Math.floor(this.engine.gold);
+        const sentiment = Math.floor(this.engine.publicSentiment);
         const income = this.engine.goldIncome;
+        
         const x = 20, y = 20;
-        const w = 160, h = 40;
+        const w = 220, h = 100; // 크기를 약간 키움
+        const isCritical = sentiment < 30;
 
-        // 배경 박스
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        this.ctx.strokeStyle = '#fbc02d';
-        this.ctx.lineWidth = 2;
+        // 1. 웅장한 배경 및 테두리
+        this.ctx.save();
+        
+        // 배경 그림자 (Outer Glow)
+        this.ctx.shadowBlur = 20;
+        this.ctx.shadowColor = isCritical ? 'rgba(255, 49, 49, 0.4)' : 'rgba(0, 0, 0, 0.5)';
+        
+        // 메인 배경
+        const bgGrad = this.ctx.createLinearGradient(x, y, x, y + h);
+        bgGrad.addColorStop(0, 'rgba(20, 20, 25, 0.95)');
+        bgGrad.addColorStop(1, 'rgba(10, 10, 15, 0.98)');
+        this.ctx.fillStyle = bgGrad;
+        
         this.ctx.beginPath();
-        this.ctx.roundRect(x, y, w, h, 5);
+        this.ctx.roundRect(x, y, w, h, 10);
         this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+
+        // 금속 느낌의 테두리 그라데이션
+        const borderGrad = this.ctx.createLinearGradient(x, y, x + w, y + h);
+        if (isCritical) {
+            borderGrad.addColorStop(0, '#ff1744');
+            borderGrad.addColorStop(0.5, '#b71c1c');
+            borderGrad.addColorStop(1, '#ff1744');
+        } else {
+            borderGrad.addColorStop(0, '#9e9e9e');
+            borderGrad.addColorStop(0.5, '#ffffff');
+            borderGrad.addColorStop(1, '#757575');
+        }
+        
+        this.ctx.strokeStyle = borderGrad;
+        this.ctx.lineWidth = 2;
         this.ctx.stroke();
 
-        // 골드 아이콘 (코인 모양)
-        this.ctx.fillStyle = '#fbc02d';
+        // 내부 상단 하이라이트
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        this.ctx.arc(x + 20, y + 20, 10, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.fillStyle = '#000';
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('$', x + 20, y + 25);
+        this.ctx.roundRect(x + 2, y + 2, w - 4, h / 2, 8);
+        this.ctx.stroke();
 
-        // 골드 수치
+        // 2. 골드 섹션 (상단)
+        // 아이콘 (금화)
+        const goldGrad = this.ctx.createRadialGradient(x + 25, y + 25, 2, x + 25, y + 25, 12);
+        goldGrad.addColorStop(0, '#fff176');
+        goldGrad.addColorStop(1, '#ffd700');
+        
+        this.ctx.fillStyle = goldGrad;
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowColor = '#ffd700';
+        this.ctx.beginPath();
+        this.ctx.arc(x + 25, y + 25, 12, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+        
+        this.ctx.fillStyle = '#4527a0'; // 대비를 위한 진한 색상
+        this.ctx.font = '900 14px "Segoe UI", Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('G', x + 25, y + 30);
+
+        // 큰 골드 숫자
         this.ctx.textAlign = 'left';
         this.ctx.fillStyle = '#fff';
-        this.ctx.font = 'bold 20px "Courier New", monospace';
-        this.ctx.fillText(Math.floor(gold).toLocaleString(), x + 40, y + 27);
+        this.ctx.font = '900 26px "Segoe UI", Arial';
+        this.ctx.shadowBlur = 10;
+        this.ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+        this.ctx.fillText(gold.toLocaleString(), x + 45, y + 35);
+        this.ctx.shadowBlur = 0;
 
-        // 초당 수익 표시
+        // 수익 (+30)
         this.ctx.fillStyle = '#39ff14';
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.fillText(`+${income}/s`, x + w - 45, y + 25);
+        this.ctx.font = 'bold 13px "Segoe UI", Arial';
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText(`+${income}`, x + w - 15, y + 32);
+
+        // 중앙 구분선
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + 10, y + 45);
+        this.ctx.lineTo(x + w - 10, y + 45);
+        this.ctx.stroke();
+
+        // 3. 민심 섹션 (하단)
+        // 아이콘 (하트/생명)
+        const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
+        this.ctx.fillStyle = isCritical ? `rgba(255, 49, 49, ${0.7 + pulse * 0.3})` : '#ff5e5e';
+        this.ctx.shadowBlur = isCritical ? 15 + pulse * 10 : 0;
+        this.ctx.shadowColor = '#ff3131';
+        
+        // 시민 실루엣 아이콘 그리기 (여러 명의 군중 느낌)
+        const hx = x + 25, hy = y + 72;
+        this.ctx.fillStyle = isCritical ? `rgba(255, 49, 49, ${0.7 + pulse * 0.3})` : '#69f0ae';
+        this.ctx.shadowBlur = isCritical ? 15 + pulse * 10 : 5;
+        this.ctx.shadowColor = this.ctx.fillStyle;
+
+        // 중앙 메인 시민
+        this.ctx.beginPath();
+        this.ctx.arc(hx, hy - 10, 4, 0, Math.PI * 2); // 머리
+        this.ctx.moveTo(hx - 6, hy);
+        this.ctx.lineTo(hx + 6, hy);
+        this.ctx.lineTo(hx + 4, hy - 6);
+        this.ctx.lineTo(hx - 4, hy - 6);
+        this.ctx.closePath(); // 몸통
+        this.ctx.fill();
+
+        // 좌측 시민 (약간 뒤)
+        this.ctx.globalAlpha = 0.6;
+        this.ctx.beginPath();
+        this.ctx.arc(hx - 8, hy - 7, 3, 0, Math.PI * 2);
+        this.ctx.moveTo(hx - 13, hy);
+        this.ctx.lineTo(hx - 5, hy);
+        this.ctx.lineTo(hx - 6, hy - 4);
+        this.ctx.lineTo(hx - 12, hy - 4);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // 우측 시민 (약간 뒤)
+        this.ctx.beginPath();
+        this.ctx.arc(hx + 8, hy - 7, 3, 0, Math.PI * 2);
+        this.ctx.moveTo(hx + 5, hy);
+        this.ctx.lineTo(hx + 13, hy);
+        this.ctx.lineTo(hx + 12, hy - 4);
+        this.ctx.lineTo(hx + 6, hy - 4);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.shadowBlur = 0;
+
+        // 민심 게이지 바 배경
+        const barX = x + 45, barY = y + 63, barW = w - 60, barH = 12;
+        
+        // 게이지 외곽선/배경
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        this.ctx.fillRect(barX, barY, barW, barH);
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(barX, barY, barW, barH);
+
+        const currentBarW = barW * (sentiment / 100);
+        let barColor1, barColor2;
+        if (sentiment < 30) {
+            barColor1 = '#ff1744';
+            barColor2 = '#ff5252';
+        } else if (sentiment < 60) {
+            barColor1 = '#fbc02d';
+            barColor2 = '#fff176';
+        } else {
+            barColor1 = '#00c853';
+            barColor2 = '#69f0ae';
+        }
+
+        // 게이지 그라데이션
+        if (currentBarW > 0) {
+            const grad = this.ctx.createLinearGradient(barX, 0, barX + currentBarW, 0);
+            grad.addColorStop(0, barColor1);
+            grad.addColorStop(1, barColor2);
+            
+            this.ctx.save();
+            this.ctx.shadowBlur = isCritical ? 15 : 8;
+            this.ctx.shadowColor = barColor1;
+            this.ctx.fillStyle = grad;
+            this.ctx.fillRect(barX, barY, currentBarW, barH);
+            
+            // 광택 효과
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            this.ctx.fillRect(barX, barY, currentBarW, barH / 2);
+            this.ctx.restore();
+        }
+
+        // 눈금 추가 (25%, 50%, 75%)
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        for (let i = 1; i <= 3; i++) {
+            const mx = barX + (barW * i / 4);
+            this.ctx.beginPath();
+            this.ctx.moveTo(mx, barY);
+            this.ctx.lineTo(mx, barY + barH);
+            this.ctx.stroke();
+        }
+
+        // 민심 퍼센트 숫자 (웅장한 폰트 느낌) - 여백 추가를 위해 y값 조정
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = '900 18px "Segoe UI", Arial';
+        this.ctx.shadowBlur = 4;
+        this.ctx.shadowColor = '#000';
+        this.ctx.fillText(`${sentiment}%`, x + 45, y + 92); // 85 -> 92로 변경
+
+        // 상태 텍스트
+        this.ctx.textAlign = 'right';
+        this.ctx.font = 'bold 11px "Segoe UI", Arial';
+        this.ctx.fillStyle = barColor2;
+        const status = isCritical ? "CRITICAL" : (sentiment < 60 ? "UNSTABLE" : "STABLE");
+        this.ctx.fillText(status, x + w - 15, y + 89); // 82 -> 89로 변경
+        this.ctx.shadowBlur = 0;
+
+        this.ctx.restore();
     }
 
     renderParticles() {

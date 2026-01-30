@@ -107,6 +107,9 @@ export class GameEngine {
         this.goldIncome = 30;  // 초당 수익 (사용자 요청: 30)
         this.goldTimer = 0;
 
+        // 민심 시스템 추가 (라이프 역할)
+        this.publicSentiment = 100; // 초기 민심 100%
+
         window.addEventListener('resize', () => this.resize());
         this.initInput();
         this.initUI();
@@ -348,6 +351,26 @@ export class GameEngine {
             
             this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료!`);
             console.log(`[Game] Spawned random unit: ${unitId}`);
+        }
+    }
+
+    spawnRandomUnit() {
+        // ... (이전 코드와 동일)
+    }
+
+    updateSentiment(amount) {
+        this.publicSentiment = Math.min(100, Math.max(0, this.publicSentiment + amount));
+        if (this.publicSentiment <= 0) {
+            this.triggerGameOver("민심 악화로 인한 지휘권 박탈 (지지율 0%)");
+        }
+    }
+
+    triggerGameOver(reason) {
+        this.gameState = GameState.MENU; // 임시로 메뉴로 보냄 (또는 게임오버 상태)
+        const modal = document.getElementById('game-over-modal');
+        if (modal) {
+            modal.querySelector('p').textContent = reason;
+            modal.classList.remove('hidden');
         }
     }
 
@@ -1273,17 +1296,34 @@ export class GameEngine {
             let writeIdx = 0;
             let countChanged = false;
 
-            for (let readIdx = 0; readIdx < list.length; readIdx++) {
-                const obj = list[readIdx];
-                if (updateFn && !obj.isBoarded) updateFn(obj);
-                let keep = true;
-                if (!obj.isBoarded) {
-                    if (obj.hp <= 0 || obj.active === false) {
-                        keep = false;
-                    }
-                }
-                if (keep) {
-                    if (writeIdx !== readIdx) list[writeIdx] = obj;
+                        for (let readIdx = 0; readIdx < list.length; readIdx++) {
+                            const obj = list[readIdx];
+                            if (updateFn && !obj.isBoarded) updateFn(obj);
+                            let keep = true;
+                            if (!obj.isBoarded) {
+                                if (obj.hp <= 0 || obj.active === false) {
+                                    keep = false;
+                                    
+                                    // 민심 시스템 반영
+                                    if (obj.hp <= 0) { // 파괴된 경우에만 (비활성화 제외)
+                                        const isAlly = (obj.ownerId === 1);
+                                        const isEnemy = (obj.ownerId === 2);
+                                        const sizeScale = obj.sizeCategory || 1; // 1:보병, 2:차량, 3:대형
+            
+                                        if (isAlly) {
+                                            // 아군 손실: 민심 하락 (체급이 클수록 더 많이 하락)
+                                            const penalty = sizeScale === 1 ? -2 : (sizeScale === 2 ? -5 : -10);
+                                            this.updateSentiment(penalty);
+                                            this.addEffect('system', obj.x, obj.y - 20, '#ff3131', `민심 하락 ${penalty}`);
+                                        } else if (isEnemy) {
+                                            // 적군 처치: 민심 상승 (승전보 효과)
+                                            this.updateSentiment(1);
+                                            this.addEffect('system', obj.x, obj.y - 20, '#39ff14', `민심 상승 +1`);
+                                        }
+                                    }
+                                }
+                            }
+                            if (keep) {                    if (writeIdx !== readIdx) list[writeIdx] = obj;
                     writeIdx++;
                 } else {
                     countChanged = true;
