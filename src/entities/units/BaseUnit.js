@@ -409,6 +409,41 @@ export class BaseUnit extends Entity {
         this.x += pushX;
         this.y += pushY;
 
+        // 3. [추가] 밀려난 후 벽에 박히지 않도록 지형 충돌 해결 (Wall Repulsion)
+        if (this.domain !== 'air') {
+            const tileMap = this.engine.tileMap;
+            const curG = tileMap.worldToGrid(this.x, this.y);
+            const searchRange = Math.ceil(this.sizeClass / 2) + 1;
+            const minDist = this.size * 0.5;
+
+            for (let dy = -searchRange; dy <= searchRange; dy++) {
+                for (let dx = -searchRange; dx <= searchRange; dx++) {
+                    const tx = curG.x + dx;
+                    const ty = curG.y + dy;
+                    const tile = tileMap.grid[ty]?.[tx];
+                    
+                    if (tile && !tile.passable) {
+                        const wallLeft = tx * tileMap.tileSize;
+                        const wallTop = ty * tileMap.tileSize;
+                        const wallRight = wallLeft + tileMap.tileSize;
+                        const wallBottom = wallTop + tileMap.tileSize;
+
+                        const closestX = Math.max(wallLeft, Math.min(this.x, wallRight));
+                        const closestY = Math.max(wallTop, Math.min(this.y, wallBottom));
+                        const d = Math.hypot(this.x - closestX, this.y - closestY);
+
+                        if (d < minDist) {
+                            const pushAngle = Math.atan2(this.y - closestY, this.x - closestX);
+                            const force = (minDist - d) / minDist;
+                            // 벽에서 강력하게 밀어냄
+                            this.x += Math.cos(pushAngle) * force * 5;
+                            this.y += Math.sin(pushAngle) * force * 5;
+                        }
+                    }
+                }
+            }
+        }
+
         const mapW = this.engine.tileMap.cols * this.engine.tileMap.tileSize;
         const mapH = this.engine.tileMap.rows * this.engine.tileMap.tileSize;
         this.x = Math.max(this.size / 2, Math.min(mapW - this.size / 2, this.x));
