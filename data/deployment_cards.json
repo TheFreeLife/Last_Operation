@@ -1,0 +1,45 @@
+{
+    "cards": [
+        {
+            "id": "infantry_squad",
+            "name": "보병 분대",
+            "description": "표준 보병 5명으로 구성된 기본 전투 단위입니다.",
+            "icon": "🔫",
+            "units": [
+                { "id": "rifleman", "count": 5 }
+            ]
+        },
+        {
+            "id": "armored_platoon",
+            "name": "기갑 소대",
+            "description": "전차 2대와 보병 3명으로 구성된 강력한 돌파 부대입니다.",
+            "icon": "🚜",
+            "units": [
+                { "id": "tank", "count": 2 },
+                { "id": "rifleman", "count": 3 }
+            ]
+        },
+        {
+            "id": "special_ops",
+            "name": "특수전 분대",
+            "description": "저격수 2명과 정찰 보병 2명으로 구성된 정밀 타격 부대입니다.",
+            "icon": "🔭",
+            "units": [
+                { "id": "sniper", "count": 2 },
+                { "id": "rifleman", "count": 2 },
+                { "id": "scout-plane", "count": 1 }
+            ]
+        },
+        {
+            "id": "artillery_battery",
+            "name": "포병 포대",
+            "description": "자주포 1대와 미사일 발사대 1대, 호위 보병 2명입니다.",
+            "icon": "💥",
+            "units": [
+                { "id": "artillery", "count": 1 },
+                { "id": "missile-launcher", "count": 1 },
+                { "id": "rifleman", "count": 2 }
+            ]
+        }
+    ]
+}

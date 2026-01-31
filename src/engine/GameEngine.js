@@ -7,6 +7,7 @@ import { RenderSystem } from './systems/RenderSystem.js';
 import { FlowField } from './systems/FlowField.js';
 import { DebugSystem } from './systems/DebugSystem.js';
 import { MapEditor } from './systems/MapEditor.js';
+import { DeploymentSystem } from './systems/DeploymentSystem.js';
 
 import { renderECS } from './ecs/systems/RenderSystem.js';
 
@@ -39,6 +40,7 @@ export class GameEngine {
         this.renderSystem = new RenderSystem(this);
         this.flowField = new FlowField(this);
         this.mapEditor = new MapEditor(this);
+        this.deploymentSystem = new DeploymentSystem(this);
 
         this.registerEntityTypes();
 
@@ -180,7 +182,7 @@ export class GameEngine {
     async fetchMissions() {
         if (this.missions.length > 0) return; // 이미 불러왔다면 건너뜀
         try {
-            const response = await fetch('./maps/map.json');
+            const response = await fetch('./data/map.json');
             const data = await response.json();
             this.missions = data.missions || [];
         } catch (error) {
@@ -299,144 +301,9 @@ export class GameEngine {
         }
     }
 
-    // 유닛 소환 풀 (랜덤 소환 대상)
-    getRandomUnitPool() {
-        return ['tank', 'missile-launcher', 'anti-air', 'artillery', 'rifleman', 'sniper', 'military-truck', 'scout-plane'];
-    }
-
+    // 유닛 소환 위임
     spawnRandomUnit() {
-        const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
-        const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
-
-        if (this.publicSentiment < 1) {
-            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '민심이 너무 낮아 징집이 불가능합니다!');
-            return;
-        }
-
-        // 1. 맵에서 스폰 지점 찾기 (유효성 미리 체크)
-        let hasSpawnPoint = false;
-        for (let y = 0; y < this.tileMap.rows; y++) {
-            for (let x = 0; x < this.tileMap.cols; x++) {
-                const wall = this.tileMap.layers.wall[y][x];
-                if (wall && wall.id === 'spawn-point') {
-                    hasSpawnPoint = true;
-                    break;
-                }
-            }
-            if (hasSpawnPoint) break;
-        }
-
-        if (!hasSpawnPoint) {
-            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '배치 구역이 없습니다!');
-            return;
-        }
-
-        // 2. 랜덤 3개 추출 및 선택 UI 표시
-        const pool = this.getRandomUnitPool();
-        const shuffled = [...pool].sort(() => 0.5 - Math.random());
-        const selection = shuffled.slice(0, 3);
-        
-        this.showUnitSelection(selection);
-    }
-
-    showUnitSelection(unitIds) {
-        const overlay = document.getElementById('unit-selection-overlay');
-        const cardList = document.getElementById('unit-card-list');
-        if (!overlay || !cardList) return;
-
-        cardList.innerHTML = '';
-        
-        unitIds.forEach(id => {
-            const registration = this.entityManager.registry.get(id);
-            if (!registration) return;
-            
-            const tempEntity = new registration.EntityClass(0, 0, this);
-            const card = document.createElement('div');
-            card.className = 'unit-card';
-            
-            // 비용 계산: 인구수의 절반 (반올림)
-            const cost = Math.ceil((tempEntity.population || 1) / 2);
-            const canAfford = this.publicSentiment >= cost;
-            
-            if (!canAfford) card.classList.add('locked-card');
-
-            // 유닛 외형을 그릴 캔버스 생성
-            const canvas = document.createElement('canvas');
-            canvas.width = 120;
-            canvas.height = 120;
-            canvas.className = 'card-unit-canvas';
-            const ctx = canvas.getContext('2d');
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            tempEntity.angle = -Math.PI / 4; 
-            if (tempEntity.domain === 'air') tempEntity.altitude = 1.0;
-            const baseScale = id.includes('plane') || id.includes('bomber') ? 0.8 : 1.0;
-            ctx.scale(baseScale, baseScale);
-            tempEntity.draw(ctx);
-            ctx.restore();
-            
-            card.innerHTML = `
-                <div class="card-icon-container"></div>
-                <div class="card-name">${tempEntity.name || id}</div>
-                <div class="card-stats">
-                    <div class="card-stat-row"><span>인원수</span> <span class="stat-val">${tempEntity.population || '1'}명</span></div>
-                    <div class="card-stat-row"><span>공격력</span> <span class="stat-val">${tempEntity.damage || '0'}</span></div>
-                    <div class="card-stat-row"><span>사거리</span> <span class="stat-val">${tempEntity.attackRange || tempEntity.range || '0'}</span></div>
-                    <div class="card-stat-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-                        <span>징집 비용</span> <span class="stat-val ${canAfford ? 'text-green' : 'text-red'}">민심 ${cost}%</span>
-                    </div>
-                </div>
-                <button class="select-btn" ${canAfford ? '' : 'disabled'}>${canAfford ? '선택' : '민심 부족'}</button>
-            `;
-            
-            card.querySelector('.card-icon-container').appendChild(canvas);
-            if (canAfford) {
-                card.onclick = () => this.confirmUnitSelection(id, cost);
-            }
-            cardList.appendChild(card);
-        });
-
-        overlay.classList.remove('hidden');
-    }
-
-    confirmUnitSelection(unitId, cost) {
-        if (this.publicSentiment < cost) return;
-
-        // 1. 스폰 위치 확인
-        let spawnPos = null;
-        let spawnAngle = 0;
-        for (let y = 0; y < this.tileMap.rows; y++) {
-            for (let x = 0; x < this.tileMap.cols; x++) {
-                const wall = this.tileMap.layers.wall[y][x];
-                if (wall && wall.id === 'spawn-point') {
-                    spawnPos = this.tileMap.gridToWorld(x, y);
-                    spawnAngle = (wall.r || 0) * (Math.PI / 2);
-                    break;
-                }
-            }
-            if (spawnPos) break;
-        }
-
-        if (!spawnPos) return;
-
-        // 2. 민심 차감 및 유닛 생성
-        this.updateSentiment(-cost);
-        const unit = this.entityManager.create(unitId, spawnPos.x, spawnPos.y, { ownerId: 1 });
-        if (unit) {
-            unit.angle = spawnAngle;
-            unit.x += (Math.random() - 0.5) * 30;
-            unit.y += (Math.random() - 0.5) * 30;
-            this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료! (-${cost}%)`);
-        }
-
-        this.hideUnitSelection();
-    }
-
-    hideUnitSelection() {
-        const overlay = document.getElementById('unit-selection-overlay');
-        if (overlay) overlay.classList.add('hidden');
+        this.deploymentSystem.presentOptions();
     }
 
     updateSentiment(amount) {
