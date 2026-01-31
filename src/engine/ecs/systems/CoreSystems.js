@@ -17,10 +17,13 @@ export function updateMovement(world, deltaTime) {
 }
 
 export function updateHealth(world, onEntityDestroyed) {
-    const { active, hp, maxEntities } = world;
+    const { active, hp, typeId, maxEntities } = world;
     for (let i = 0; i < maxEntities; i++) {
         if (active[i] === 0) continue;
         
+        // 투사체(typeId 1)는 체력 시스템에서 관리하지 않음
+        if (typeId[i] === 1) continue;
+
         if (hp[i] <= 0) {
             if (onEntityDestroyed) onEntityDestroyed(i);
             active[i] = 0; // 즉시 비활성화

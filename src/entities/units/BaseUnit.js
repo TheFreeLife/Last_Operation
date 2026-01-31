@@ -37,7 +37,7 @@ export class BaseUnit extends Entity {
         this.ammoConsumption = 1; // 기본 발당 소모량
 
         // 공격 특성 설정
-        this.attackType = 'hitscan'; // 'hitscan' (즉시 타격) 또는 'projectile' (탄환 발사)
+        this.attackType = 'projectile'; // 이제 모든 유닛은 투사체를 발사함
         this.explosionRadius = 0;    // 0보다 크면 범위 공격 적용
         this.hitEffectType = 'bullet'; // 기본 피격 효과
 
@@ -136,74 +136,32 @@ export class BaseUnit extends Entity {
             }
         }
 
-        if (this.attackType === 'hitscan') {
-            this.executeHitscanAttack();
-        } else if (this.attackType === 'projectile') {
-            this.executeProjectileAttack();
-        }
+        // 모든 공격은 이제 투사체 방식
+        this.executeProjectileAttack();
 
         this.lastFireTime = now;
     }
 
-    executeHitscanAttack() {
-        const tx = this.target.x;
-        const ty = this.target.y;
-
-        if (this.explosionRadius > 0) {
-            // 범위 공격 (전차 등)
-            const radiusSq = this.explosionRadius * this.explosionRadius;
-            const entities = this.engine.entities;
-
-            const applyAoE = (ent) => {
-                if (!ent || ent.hp === undefined || !ent.active || ent.hp <= 0) return;
-                if (!this.attackTargets.includes(ent.domain || 'ground')) return;
-
-                const relation = this.engine.getRelation(this.ownerId, ent.ownerId);
-                if (this.manualTarget !== ent && (relation === 'self' || relation === 'ally')) return;
-
-                const dx = ent.x - tx;
-                const dy = ent.y - ty;
-                if (dx * dx + dy * dy <= radiusSq) {
-                    ent.takeDamage(this.damage);
-                }
-            };
-
-            entities.enemies.forEach(applyAoE);
-            entities.units.forEach(applyAoE);
-            entities.neutral.forEach(applyAoE);
-            
-            // 피격 파티클 (폭발)
-            if (this.engine.addEffect) {
-                this.engine.addEffect('explosion', tx, ty, '#ff4500');
-            }
-        } else {
-            // 단일 대상 공격 (보병 등)
-            if (this.target && typeof this.target.takeDamage === 'function') {
-                this.target.takeDamage(this.damage);
-                
-                // 피격 파티클 (스파크)
-                if (this.engine.addEffect) {
-                    this.engine.addEffect('hit', tx, ty, this.color || '#fff');
-                }
-            } else {
-                // 타겟이 부적절하면 타겟 해제
-                this.target = null;
-                this.manualTarget = null;
-            }
-        }
-    }
-
     executeProjectileAttack() {
+        // [수정] 발사 위치를 유닛 중심이 아닌 총구 끝으로 오프셋 적용 (자기 자신 피격 방지)
+        let barrelLen = this.size * 0.6;
+        if (this.type === 'tank') barrelLen = 60;
+        else if (this.type === 'artillery') barrelLen = 80;
+        else if (this.type === 'sniper') barrelLen = 40;
+
+        const spawnX = this.x + Math.cos(this.angle) * barrelLen;
+        const spawnY = this.y + Math.sin(this.angle) * barrelLen;
+
         // ECS 기반 고성능 투사체 생성
         const options = {
-            speed: (this.type === 'anti-air') ? 18 : 8,
+            speed: (this.type === 'anti-air') ? 18 : 12,
             explosionRadius: this.explosionRadius || 0,
             ownerId: this.ownerId
         };
 
         this.engine.entityManager.spawnProjectileECS(
-            this.x, 
-            this.y, 
+            spawnX, 
+            spawnY, 
             this.target, 
             this.damage, 
             options

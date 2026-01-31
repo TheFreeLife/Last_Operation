@@ -19,7 +19,6 @@ export class Tank extends PlayerUnit {
         this.population = 4; // 전차장, 포수, 탄약수, 조종수
         this.hp = 1000;
         this.maxHp = 1000;
-        this.attackType = 'hitscan';
         this.hitEffectType = 'explosion';
 
         this.ammoType = 'shell';
@@ -97,7 +96,6 @@ export class MissileLauncher extends PlayerUnit {
         this.fireDelayTimer = 0;
         this.maxFireDelay = 90; // 정렬 후 대기 시간 (약 1.5초)
         this.pendingFirePos = { x: 0, y: 0 };
-        this.attackType = 'projectile';
         this.attackTargets = ['ground', 'sea'];
 
         this.ammoType = 'missile';
@@ -319,7 +317,6 @@ export class Artillery extends PlayerUnit {
         this.size = 80;
         this.cargoSize = 5;
         this.population = 5; // 승무원 5명
-        this.attackType = 'projectile';
 
         this.ammoType = 'shell';
         this.maxAmmo = 20;
@@ -365,7 +362,6 @@ export class AntiAirVehicle extends PlayerUnit {
         this.size = 80;
         this.cargoSize = 5;
         this.population = 3; // 운전수, 포수, 지휘관
-        this.attackType = 'hitscan';
         this.hitEffectType = 'flak';
 
         this.ammoType = 'bullet';

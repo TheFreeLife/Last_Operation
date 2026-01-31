@@ -17,7 +17,6 @@ export class Rifleman extends PlayerUnit {
         this.population = 1; // 인구수 1명
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 1;  
-        this.attackType = 'hitscan';
         this.hitEffectType = 'bullet';
 
         this.ammoType = 'bullet';
@@ -104,7 +103,6 @@ export class Sniper extends PlayerUnit {
         this.maxHp = 50;
         this.population = 1; // 2인 1조에서 단일 유닛으로 변경
         this.attackTargets = ['ground', 'sea', 'air'];
-        this.attackType = 'hitscan';
         this.hitEffectType = 'hit';
 
         this.ammoType = 'bullet';
