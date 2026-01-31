@@ -336,7 +336,28 @@
             </div>
         </div>
     </div>
-    <script type="module" src="./src/main.js"></script>
+    <!-- 게임 오버 모달 -->
+    <div id="game-over-modal" class="modal hidden">
+        <div class="modal-content">
+            <h1>전투 패배</h1>
+            <p>이유</p>
+            <button id="restart-btn" class="menu-btn">다시 시작</button>
+        </div>
+    </div>
+
+    <!-- 유닛 선택 오버레이 -->
+    <div id="unit-selection-overlay" class="modal hidden">
+        <div class="selection-container">
+            <h2 class="selection-title">추가 병력 선택</h2>
+            <p class="selection-subtitle">민심 3%를 소모하여 부대에 합류시킬 유닛을 선택하십시오.</p>
+            <div id="unit-card-list" class="card-container">
+                <!-- 카드가 동적으로 생성됨 -->
+            </div>
+            <button id="cancel-selection-btn" class="cancel-btn">취소</button>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
 </body>
 
 </html>

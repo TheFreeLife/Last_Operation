@@ -314,7 +314,94 @@ export class GameEngine {
             return;
         }
 
-        // 1. 맵에서 스폰 지점 찾기
+        // 1. 맵에서 스폰 지점 찾기 (유효성 미리 체크)
+        let hasSpawnPoint = false;
+        for (let y = 0; y < this.tileMap.rows; y++) {
+            for (let x = 0; x < this.tileMap.cols; x++) {
+                const wall = this.tileMap.layers.wall[y][x];
+                if (wall && wall.id === 'spawn-point') {
+                    hasSpawnPoint = true;
+                    break;
+                }
+            }
+            if (hasSpawnPoint) break;
+        }
+
+        if (!hasSpawnPoint) {
+            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '배치 구역이 없습니다!');
+            return;
+        }
+
+        // 2. 랜덤 3개 추출 및 선택 UI 표시
+        const pool = this.getRandomUnitPool();
+        const shuffled = [...pool].sort(() => 0.5 - Math.random());
+        const selection = shuffled.slice(0, 3);
+        
+        this.showUnitSelection(selection);
+    }
+
+    showUnitSelection(unitIds) {
+        const overlay = document.getElementById('unit-selection-overlay');
+        const cardList = document.getElementById('unit-card-list');
+        if (!overlay || !cardList) return;
+
+        cardList.innerHTML = '';
+        
+        unitIds.forEach(id => {
+            const registration = this.entityManager.registry.get(id);
+            if (!registration) return;
+            
+            const tempEntity = new registration.EntityClass(0, 0, this);
+            const card = document.createElement('div');
+            card.className = 'unit-card';
+            
+            // 유닛 외형을 그릴 캔버스 생성
+            const canvas = document.createElement('canvas');
+            canvas.width = 120;
+            canvas.height = 120;
+            canvas.className = 'card-unit-canvas';
+            const ctx = canvas.getContext('2d');
+            
+            // 유닛 렌더링 (중앙 정렬 및 적절한 각도 설정)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            
+            // 유닛의 기본 방향을 약간 대각선으로 설정하여 입체감 부여
+            tempEntity.angle = -Math.PI / 4; 
+            if (tempEntity.domain === 'air') tempEntity.altitude = 1.0;
+            
+            // 유닛 크기에 따른 스케일 조정
+            const baseScale = id.includes('plane') || id.includes('bomber') ? 0.8 : 1.0;
+            ctx.scale(baseScale, baseScale);
+            
+            tempEntity.draw(ctx);
+            ctx.restore();
+            
+            card.innerHTML = `
+                <div class="card-icon-container"></div>
+                <div class="card-name">${tempEntity.name || id}</div>
+                <div class="card-stats">
+                    <div class="card-stat-row"><span>체급</span> <span class="stat-val">${tempEntity.sizeCategoryName || '보통'}</span></div>
+                    <div class="card-stat-row"><span>공격력</span> <span class="stat-val">${tempEntity.damage || '0'}</span></div>
+                    <div class="card-stat-row"><span>사거리</span> <span class="stat-val">${tempEntity.attackRange || tempEntity.range || '0'}</span></div>
+                    <div class="card-stat-row"><span>인원수</span> <span class="stat-val">${tempEntity.population || '1'}명</span></div>
+                </div>
+                <button class="select-btn">선택</button>
+            `;
+            
+            card.querySelector('.card-icon-container').appendChild(canvas);
+            card.onclick = () => this.confirmUnitSelection(id);
+            cardList.appendChild(card);
+        });
+
+        overlay.classList.remove('hidden');
+    }
+
+    confirmUnitSelection(unitId) {
+        const cost = 3;
+        
+        // 1. 스폰 위치 다시 확인
         let spawnPos = null;
         let spawnAngle = 0;
         for (let y = 0; y < this.tileMap.rows; y++) {
@@ -329,28 +416,24 @@ export class GameEngine {
             if (spawnPos) break;
         }
 
-        if (!spawnPos) {
-            const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
-            const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
-            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '배치 구역이 없습니다!');
-            return;
-        }
+        if (!spawnPos) return;
 
-        // 2. 민심 차감 및 랜덤 선택
+        // 2. 민심 차감 및 유닛 생성
         this.updateSentiment(-cost);
-        const pool = this.getRandomUnitPool();
-        const unitId = pool[Math.floor(Math.random() * pool.length)];
-
         const unit = this.entityManager.create(unitId, spawnPos.x, spawnPos.y, { ownerId: 1 });
         if (unit) {
             unit.angle = spawnAngle;
-            // 약간의 흩뿌림 효과 (겹침 방지)
-            unit.x += (Math.random() - 0.5) * 20;
-            unit.y += (Math.random() - 0.5) * 20;
-            
+            unit.x += (Math.random() - 0.5) * 30;
+            unit.y += (Math.random() - 0.5) * 30;
             this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료!`);
-            console.log(`[Game] Spawned random unit: ${unitId}`);
         }
+
+        this.hideUnitSelection();
+    }
+
+    hideUnitSelection() {
+        const overlay = document.getElementById('unit-selection-overlay');
+        if (overlay) overlay.classList.add('hidden');
     }
 
     updateSentiment(amount) {
@@ -476,8 +559,9 @@ export class GameEngine {
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
         document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
         
-        // 랜덤 소환 버튼 리스너 추가
+        // 랜덤 소환 및 선택 취소 버튼 리스너
         document.getElementById('random-spawn-btn')?.addEventListener('click', () => this.spawnRandomUnit());
+        document.getElementById('cancel-selection-btn')?.addEventListener('click', () => this.hideUnitSelection());
 
         this.updateBuildMenu();
     }
