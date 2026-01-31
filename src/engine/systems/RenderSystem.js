@@ -136,30 +136,18 @@ export class RenderSystem {
         this.ctx.restore();
 
         // 7. UI 오버레이 (카메라 영향 받지 않음)
-        this.renderGold();
-        this.renderSentiment();
+        this.renderStatusUI();
         
         this.stats.lastFrameTime = performance.now() - startTime;
     }
 
-    renderGold() {
-        if (this.engine.gameState !== 'PLAYING') return;
-        this.renderCommandUI();
-    }
-
-    renderSentiment() {
-        // renderCommandUI에서 통합 처리하므로 비워둠
-    }
-
-    renderCommandUI() {
+    renderStatusUI() {
         if (this.engine.gameState !== 'PLAYING') return;
 
-        const gold = Math.floor(this.engine.gold);
         const sentiment = Math.floor(this.engine.publicSentiment);
-        const income = this.engine.goldIncome;
         
         const x = 20, y = 20;
-        const w = 220, h = 100; // 크기를 약간 키움
+        const w = 350, h = 60; // 너비를 220에서 350으로 확장
         const isCritical = sentiment < 30;
 
         // 1. 웅장한 배경 및 테두리
@@ -196,63 +184,9 @@ export class RenderSystem {
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
 
-        // 내부 상단 하이라이트
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.roundRect(x + 2, y + 2, w - 4, h / 2, 8);
-        this.ctx.stroke();
-
-        // 2. 골드 섹션 (상단)
-        // 아이콘 (금화)
-        const goldGrad = this.ctx.createRadialGradient(x + 25, y + 25, 2, x + 25, y + 25, 12);
-        goldGrad.addColorStop(0, '#fff176');
-        goldGrad.addColorStop(1, '#ffd700');
-        
-        this.ctx.fillStyle = goldGrad;
-        this.ctx.shadowBlur = 15;
-        this.ctx.shadowColor = '#ffd700';
-        this.ctx.beginPath();
-        this.ctx.arc(x + 25, y + 25, 12, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.shadowBlur = 0;
-        
-        this.ctx.fillStyle = '#4527a0'; // 대비를 위한 진한 색상
-        this.ctx.font = '900 14px "Segoe UI", Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('G', x + 25, y + 30);
-
-        // 큰 골드 숫자
-        this.ctx.textAlign = 'left';
-        this.ctx.fillStyle = '#fff';
-        this.ctx.font = '900 26px "Segoe UI", Arial';
-        this.ctx.shadowBlur = 10;
-        this.ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
-        this.ctx.fillText(gold.toLocaleString(), x + 45, y + 35);
-        this.ctx.shadowBlur = 0;
-
-        // 수익 (+30)
-        this.ctx.fillStyle = '#39ff14';
-        this.ctx.font = 'bold 13px "Segoe UI", Arial';
-        this.ctx.textAlign = 'right';
-        this.ctx.fillText(`+${income}`, x + w - 15, y + 32);
-
-        // 중앙 구분선
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        this.ctx.beginPath();
-        this.ctx.moveTo(x + 10, y + 45);
-        this.ctx.lineTo(x + w - 10, y + 45);
-        this.ctx.stroke();
-
-        // 3. 민심 섹션 (하단)
-        // 아이콘 (하트/생명)
+        // 2. 민심 섹션 (중앙 배치)
         const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
-        this.ctx.fillStyle = isCritical ? `rgba(255, 49, 49, ${0.7 + pulse * 0.3})` : '#ff5e5e';
-        this.ctx.shadowBlur = isCritical ? 15 + pulse * 10 : 0;
-        this.ctx.shadowColor = '#ff3131';
-        
-        // 시민 실루엣 아이콘 그리기 (여러 명의 군중 느낌)
-        const hx = x + 25, hy = y + 72;
+        const hx = x + 25, hy = y + 35; // 위치 조정
         this.ctx.fillStyle = isCritical ? `rgba(255, 49, 49, ${0.7 + pulse * 0.3})` : '#69f0ae';
         this.ctx.shadowBlur = isCritical ? 15 + pulse * 10 : 5;
         this.ctx.shadowColor = this.ctx.fillStyle;
@@ -291,10 +225,9 @@ export class RenderSystem {
         this.ctx.globalAlpha = 1.0;
         this.ctx.shadowBlur = 0;
 
-        // 민심 게이지 바 배경
-        const barX = x + 45, barY = y + 63, barW = w - 60, barH = 12;
+        // 민심 게이지 바
+        const barX = x + 45, barY = y + 25, barW = w - 60, barH = 12;
         
-        // 게이지 외곽선/배경
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
         this.ctx.fillRect(barX, barY, barW, barH);
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
@@ -314,7 +247,6 @@ export class RenderSystem {
             barColor2 = '#69f0ae';
         }
 
-        // 게이지 그라데이션
         if (currentBarW > 0) {
             const grad = this.ctx.createLinearGradient(barX, 0, barX + currentBarW, 0);
             grad.addColorStop(0, barColor1);
@@ -325,37 +257,30 @@ export class RenderSystem {
             this.ctx.shadowColor = barColor1;
             this.ctx.fillStyle = grad;
             this.ctx.fillRect(barX, barY, currentBarW, barH);
-            
-            // 광택 효과
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-            this.ctx.fillRect(barX, barY, currentBarW, barH / 2);
             this.ctx.restore();
         }
 
-        // 눈금 추가 (25%, 50%, 75%)
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        for (let i = 1; i <= 3; i++) {
-            const mx = barX + (barW * i / 4);
+        // 구분선 추가 (10% 단위로 9개 표시)
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        this.ctx.lineWidth = 1;
+        for (let i = 1; i <= 9; i++) {
+            const lx = barX + (barW * i / 10);
             this.ctx.beginPath();
-            this.ctx.moveTo(mx, barY);
-            this.ctx.lineTo(mx, barY + barH);
+            this.ctx.moveTo(lx, barY);
+            this.ctx.lineTo(lx, barY + barH);
             this.ctx.stroke();
         }
 
-        // 민심 퍼센트 숫자 (웅장한 폰트 느낌) - 여백 추가를 위해 y값 조정
+        // 민심 퍼센트 및 상태
         this.ctx.fillStyle = '#fff';
-        this.ctx.font = '900 18px "Segoe UI", Arial';
-        this.ctx.shadowBlur = 4;
-        this.ctx.shadowColor = '#000';
-        this.ctx.fillText(`${sentiment}%`, x + 45, y + 92); // 85 -> 92로 변경
+        this.ctx.font = '900 16px "Segoe UI", Arial';
+        this.ctx.fillText(`${sentiment}%`, barX, y + 52);
 
-        // 상태 텍스트
         this.ctx.textAlign = 'right';
         this.ctx.font = 'bold 11px "Segoe UI", Arial';
         this.ctx.fillStyle = barColor2;
         const status = isCritical ? "CRITICAL" : (sentiment < 60 ? "UNSTABLE" : "STABLE");
-        this.ctx.fillText(status, x + w - 15, y + 89); // 82 -> 89로 변경
-        this.ctx.shadowBlur = 0;
+        this.ctx.fillText(status, x + w - 15, y + 49);
 
         this.ctx.restore();
     }

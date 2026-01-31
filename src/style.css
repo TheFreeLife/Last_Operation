@@ -1023,12 +1023,6 @@ canvas {
     margin-bottom: 2px;
 }
 
-.btn-cost {
-    font-size: 9px;
-    color: #ffd700;
-    font-weight: 600;
-}
-
 .build-btn.locked {
     opacity: 0.3;
     cursor: not-allowed;
@@ -1272,16 +1266,3 @@ canvas {
     text-transform: uppercase;
 }
 
-.btn-cost {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #ffd700; /* Gold color */
-    opacity: 0.9;
-}
-
-/* 골드 부족 시 효과 */
-.deployment-btn.disabled {
-    opacity: 0.5;
-    filter: grayscale(1);
-    cursor: not-allowed;
-}

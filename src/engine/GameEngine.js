@@ -102,11 +102,6 @@ export class GameEngine {
 
         this.debugSystem = new DebugSystem(this);
 
-        // 골드 시스템 추가
-        this.gold = 1000;      // 초기 골드
-        this.goldIncome = 30;  // 초당 수익 (사용자 요청: 30)
-        this.goldTimer = 0;
-
         // 민심 시스템 추가 (라이프 역할)
         this.publicSentiment = 100; // 초기 민심 100%
 
@@ -310,15 +305,6 @@ export class GameEngine {
     }
 
     spawnRandomUnit() {
-        const cost = 200;
-        const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
-        const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
-
-        if (this.gold < cost) {
-            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '골드가 부족합니다!');
-            return;
-        }
-
         // 1. 맵에서 스폰 지점 찾기
         let spawnPos = null;
         let spawnAngle = 0;
@@ -335,16 +321,16 @@ export class GameEngine {
         }
 
         if (!spawnPos) {
+            const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
+            const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
             this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '배치 구역이 없습니다!');
             return;
         }
 
-        // 2. 골드 차감 및 랜덤 선택
-        this.gold -= cost;
+        // 2. 랜덤 선택 및 유닛 생성
         const pool = this.getRandomUnitPool();
         const unitId = pool[Math.floor(Math.random() * pool.length)];
 
-        // 3. 유닛 생성
         const unit = this.entityManager.create(unitId, spawnPos.x, spawnPos.y, { ownerId: 1 });
         if (unit) {
             unit.angle = spawnAngle;
@@ -562,8 +548,7 @@ export class GameEngine {
                                     name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)',
                                     action: 'unit:combat_drop',
                                     skillType: 'instant',
-                                    locked: !isFlying || firstEnt.cargo.length === 0,
-                                    cost: 100
+                                    locked: !isFlying || firstEnt.cargo.length === 0
                                 };
                             }
                         }
@@ -1260,16 +1245,6 @@ export class GameEngine {
         }
 
         if (this.gameState !== GameState.PLAYING) return;
-
-        // 골드 자동 증가 (프레임마다 부드럽게 증가)
-        this.gold += (this.goldIncome * deltaTime) / 1000;
-
-        // 소환 버튼 상태 업데이트
-        const spawnBtn = document.getElementById('random-spawn-btn');
-        if (spawnBtn) {
-            if (this.gold < 200) spawnBtn.classList.add('disabled');
-            else spawnBtn.classList.remove('disabled');
-        }
 
         this.frameCount = (this.frameCount || 0) + 1;
 
