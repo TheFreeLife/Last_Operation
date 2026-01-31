@@ -311,8 +311,11 @@ export class GameEngine {
 
     spawnRandomUnit() {
         const cost = 200;
+        const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
+        const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
+
         if (this.gold < cost) {
-            this.addEffect('system', this.canvas.width/2, this.canvas.height/2, '#ff3131', '골드가 부족합니다!');
+            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '골드가 부족합니다!');
             return;
         }
 
@@ -332,7 +335,7 @@ export class GameEngine {
         }
 
         if (!spawnPos) {
-            this.addEffect('system', this.canvas.width/2, this.canvas.height/2, '#ff3131', '배치 구역이 없습니다!');
+            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '배치 구역이 없습니다!');
             return;
         }
 
@@ -352,10 +355,6 @@ export class GameEngine {
             this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료!`);
             console.log(`[Game] Spawned random unit: ${unitId}`);
         }
-    }
-
-    spawnRandomUnit() {
-        // ... (이전 코드와 동일)
     }
 
     updateSentiment(amount) {
