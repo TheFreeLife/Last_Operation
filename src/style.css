@@ -1348,7 +1348,7 @@ canvas {
 }
 
 .unit-card:hover {
-    transform: translateY(-15px) rotateY(5deg);
+    transform: translateY(-15px);
     border-color: var(--neon-blue);
     box-shadow: 0 20px 50px rgba(0, 210, 255, 0.3), 0 0 20px rgba(0, 210, 255, 0.2);
 }
