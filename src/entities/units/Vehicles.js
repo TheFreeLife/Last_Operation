@@ -105,6 +105,18 @@ export class MissileLauncher extends PlayerUnit {
         this.ammo = 6;
     }
 
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.raiseAngle = 0;
+        this.turretAngle = 0;
+        this.isFiring = false;
+        this.fireDelayTimer = 0;
+        this.speed = this.baseSpeed || 1.4;
+    }
+
     getSkillConfig(cmd) {
         const skills = {
             'siege': { type: 'state', handler: this.toggleSiege },
@@ -129,8 +141,15 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     update(deltaTime) {
-        // 부모의 업데이트를 항상 호출하여 충돌 및 상태 관리를 유지함
+        // [수정] 시즈 모드 중에는 차체(하단부) 회전 고정
+        const prevAngle = this.angle;
+
+        // 부모의 업데이트를 호출하여 충돌 및 상태 관리를 유지함
         super.update(deltaTime);
+
+        if (this.isSieged) {
+            this.angle = prevAngle; // 시즈 중이면 차체 각도를 이전 상태로 고정
+        }
 
         // 시즈 모드 중 상부 독립 회전 로직
         if (this.isSieged && !this.isTransitioning) {
@@ -184,7 +203,12 @@ export class MissileLauncher extends PlayerUnit {
 
     attack() {
         if (this.isSieged && !this.isTransitioning && !this.isFiring) {
-            this.performAttack();
+            // [수정] ECS 기반 performAttack 대신 객체 기반 executeFire 호출
+            const now = Date.now();
+            if (now - this.lastFireTime > this.fireRate && this.target) {
+                this.pendingFirePos = { x: this.target.x, y: this.target.y };
+                this.executeFire();
+            }
         }
     }
 

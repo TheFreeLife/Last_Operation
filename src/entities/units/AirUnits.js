@@ -400,10 +400,11 @@ export class CargoPlane extends PlayerUnit {
         this.maneuverFrameCount = 0;
         this.takeoffDistance = 0;
 
-        this.cargo = [];
+        this.cargo = []; // 화물 비우기
         this.cargoCapacity = 20; 
         this.cargoSize = 99; 
         this.isUnloading = false;
+        this.isCombatDropping = false; // [추가] 강하 상태 초기화
         this.unloadTimer = 0;
         this.unloadInterval = 300;
     }

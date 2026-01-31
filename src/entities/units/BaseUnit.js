@@ -53,6 +53,7 @@ export class BaseUnit extends Entity {
         this.hp = this.maxHp || 100;
         this.alive = true;
         this.target = null;
+        this.manualTarget = null; // [추가] 수동 타겟 초기화
         this.command = 'stop';
         this._destination = null;
         this.path = [];
@@ -62,6 +63,13 @@ export class BaseUnit extends Entity {
         this.lastFireTime = 0;
         this.isFalling = false;
         this.isUnloading = false;
+        this.targetingTimer = Math.random() * 500; // 타이머 리셋
+        this.hitTimer = 0;
+        
+        // [추가] 기타 상태 플래그 초기화
+        this.isTransitioning = false;
+        this.isInitialExit = false;
+        this._lastAmmoMsgTime = 0;
     }
 
     get destination() { return this._destination; }
