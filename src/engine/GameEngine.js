@@ -305,12 +305,11 @@ export class GameEngine {
     }
 
     spawnRandomUnit() {
-        const cost = 3;
         const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
         const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
 
-        if (this.publicSentiment < cost) {
-            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '민심이 부족하여 추가 징집이 불가능합니다!');
+        if (this.publicSentiment < 1) {
+            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '민심이 너무 낮아 징집이 불가능합니다!');
             return;
         }
 
@@ -355,6 +354,12 @@ export class GameEngine {
             const card = document.createElement('div');
             card.className = 'unit-card';
             
+            // 비용 계산: 인구수의 절반 (반올림)
+            const cost = Math.ceil((tempEntity.population || 1) / 2);
+            const canAfford = this.publicSentiment >= cost;
+            
+            if (!canAfford) card.classList.add('locked-card');
+
             // 유닛 외형을 그릴 캔버스 생성
             const canvas = document.createElement('canvas');
             canvas.width = 120;
@@ -362,19 +367,13 @@ export class GameEngine {
             canvas.className = 'card-unit-canvas';
             const ctx = canvas.getContext('2d');
             
-            // 유닛 렌더링 (중앙 정렬 및 적절한 각도 설정)
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save();
             ctx.translate(canvas.width / 2, canvas.height / 2);
-            
-            // 유닛의 기본 방향을 약간 대각선으로 설정하여 입체감 부여
             tempEntity.angle = -Math.PI / 4; 
             if (tempEntity.domain === 'air') tempEntity.altitude = 1.0;
-            
-            // 유닛 크기에 따른 스케일 조정
             const baseScale = id.includes('plane') || id.includes('bomber') ? 0.8 : 1.0;
             ctx.scale(baseScale, baseScale);
-            
             tempEntity.draw(ctx);
             ctx.restore();
             
@@ -382,26 +381,30 @@ export class GameEngine {
                 <div class="card-icon-container"></div>
                 <div class="card-name">${tempEntity.name || id}</div>
                 <div class="card-stats">
-                    <div class="card-stat-row"><span>체급</span> <span class="stat-val">${tempEntity.sizeCategoryName || '보통'}</span></div>
+                    <div class="card-stat-row"><span>인원수</span> <span class="stat-val">${tempEntity.population || '1'}명</span></div>
                     <div class="card-stat-row"><span>공격력</span> <span class="stat-val">${tempEntity.damage || '0'}</span></div>
                     <div class="card-stat-row"><span>사거리</span> <span class="stat-val">${tempEntity.attackRange || tempEntity.range || '0'}</span></div>
-                    <div class="card-stat-row"><span>인원수</span> <span class="stat-val">${tempEntity.population || '1'}명</span></div>
+                    <div class="card-stat-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                        <span>징집 비용</span> <span class="stat-val ${canAfford ? 'text-green' : 'text-red'}">민심 ${cost}%</span>
+                    </div>
                 </div>
-                <button class="select-btn">선택</button>
+                <button class="select-btn" ${canAfford ? '' : 'disabled'}>${canAfford ? '선택' : '민심 부족'}</button>
             `;
             
             card.querySelector('.card-icon-container').appendChild(canvas);
-            card.onclick = () => this.confirmUnitSelection(id);
+            if (canAfford) {
+                card.onclick = () => this.confirmUnitSelection(id, cost);
+            }
             cardList.appendChild(card);
         });
 
         overlay.classList.remove('hidden');
     }
 
-    confirmUnitSelection(unitId) {
-        const cost = 3;
-        
-        // 1. 스폰 위치 다시 확인
+    confirmUnitSelection(unitId, cost) {
+        if (this.publicSentiment < cost) return;
+
+        // 1. 스폰 위치 확인
         let spawnPos = null;
         let spawnAngle = 0;
         for (let y = 0; y < this.tileMap.rows; y++) {
@@ -425,7 +428,7 @@ export class GameEngine {
             unit.angle = spawnAngle;
             unit.x += (Math.random() - 0.5) * 30;
             unit.y += (Math.random() - 0.5) * 30;
-            this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료!`);
+            this.addEffect('system', spawnPos.x, spawnPos.y, '#39ff14', `${unit.name} 배치 완료! (-${cost}%)`);
         }
 
         this.hideUnitSelection();

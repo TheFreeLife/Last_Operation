@@ -1424,6 +1424,25 @@ canvas {
     box-shadow: 0 0 20px rgba(0, 210, 255, 0.5);
 }
 
+.unit-card.locked-card {
+    opacity: 0.6;
+    filter: grayscale(0.5);
+    cursor: not-allowed;
+    border-color: rgba(255, 49, 49, 0.2);
+}
+
+.unit-card.locked-card:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.select-btn:disabled {
+    background: rgba(100, 100, 100, 0.1);
+    border-color: #444;
+    color: #666;
+    cursor: not-allowed;
+}
+
 .cancel-btn {
     background: transparent;
     border: 1px solid #444;
