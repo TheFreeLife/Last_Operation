@@ -16,7 +16,7 @@ export class FlowField {
         this.fields = new Map();
         
         // 최대 캐시 개수 제한 (메모리 관리)
-        this.maxCachedFields = 20;
+        this.maxCachedFields = 100;
 
         this.worker = new Worker(new URL('./PathfindingWorker.js', import.meta.url));
         this.initWorker();
