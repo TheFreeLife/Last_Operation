@@ -1173,6 +1173,12 @@ export class GameEngine {
             desc += `<div class="stat-row"><span>🌐 영역:</span> <span class="highlight">${domainMap[hovered.domain] || hovered.domain}</span></div>`;
         }
 
+        // [추가] 공격 방식 (직사/곡사) 표시
+        if (hovered.damage > 0) {
+            const attackMethod = hovered.isIndirect ? '곡사' : '직사';
+            desc += `<div class="stat-row"><span>🎯 방식:</span> <span class="highlight">${attackMethod}</span></div>`;
+        }
+
         desc += `</div>`;
         this.showUITooltip(title, desc, x, y);
     }

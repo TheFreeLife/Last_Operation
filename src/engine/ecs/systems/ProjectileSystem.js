@@ -23,51 +23,74 @@ export function updateProjectiles(world, deltaTime, engine) {
         y[i] += Math.sin(angle[i]) * speed[i] * dt;
 
         // 2. 충돌 체크 (SpatialGrid 활용)
-        // 투사체는 매우 작으므로 주변 엔티티만 확인
-        const nearby = entityManager.getNearby(x[i], y[i], 30);
+        // [곡사/직사 구분] 곡사 탄환(isIndirect === 1)은 비행 중 충돌을 무시함
         let collided = false;
-
-        for (const target of nearby) {
-            if (!target.active || target.hp === undefined) continue;
-            
-            // [수정] 소유권 확인: ID가 같거나(자기 자신/팀) 아군 관계인 경우 확실히 통과
-            const projOwnerId = world.ownerId[i];
-            const targetOwnerId = target.ownerId;
-            
-            if (projOwnerId === targetOwnerId) continue; // 동일 소속(자기 자신 포함) 무조건 통과
-
-            const relation = engine.getRelation(projOwnerId, targetOwnerId);
-            if (relation === 'self' || relation === 'ally') continue;
-
-            // 투사체(도메인이 projectile인 것)는 무시
-            if (target.domain === 'projectile') continue;
-
-            const tx = target.x - x[i];
-            const ty = target.y - y[i];
-            const dist = Math.sqrt(tx * tx + ty * ty);
-
-            if (dist < (target.size || 20) / 2) {
-                // 충돌 발생! (적군 또는 중립 대상)
-                if (explosionRadius[i] > 0) {
-                    handleExplosion(world, i, engine);
-                } else {
-                    target.takeDamage(damage[i]);
+        if (world.isIndirect[i] === 0) {
+            // --- 2-A. 지형 충돌 체크 (벽, 건물 등) ---
+            const tileMap = engine.tileMap;
+            if (tileMap) {
+                const gridPos = tileMap.worldToGrid(x[i], y[i]);
+                const tile = tileMap.grid[gridPos.y]?.[gridPos.x];
+                
+                // 통과 불가능한 타일(벽 등)에 부딪힌 경우
+                if (tile && !tile.passable) {
+                    if (explosionRadius[i] > 0) {
+                        handleExplosion(world, i, engine);
+                    } else if (engine.addEffect) {
+                        // 일반 탄환은 벽에 불꽃 튐
+                        engine.addEffect('hit', x[i], y[i], '#ccc');
+                    }
+                    collided = true;
                 }
-                collided = true;
-                break;
+            }
+
+            // --- 2-B. 유닛 충돌 체크 (이미 벽에 부딪히지 않은 경우만) ---
+            if (!collided) {
+                const nearby = entityManager.getNearby(x[i], y[i], 30);
+
+                for (const target of nearby) {
+                    if (!target.active || target.hp === undefined) continue;
+                    
+                    // 소유권 확인: ID가 같거나(자기 자신/팀) 아군 관계인 경우 확실히 통과
+                    const projOwnerId = world.ownerId[i];
+                    const targetOwnerId = target.ownerId;
+                    
+                    if (projOwnerId === targetOwnerId) continue; 
+
+                    const relation = engine.getRelation(projOwnerId, targetOwnerId);
+                    if (relation === 'self' || relation === 'ally') continue;
+
+                    // 투사체(도메인이 projectile인 것)는 무시
+                    if (target.domain === 'projectile') continue;
+
+                    const tx = target.x - x[i];
+                    const ty = target.y - y[i];
+                    const dist = Math.sqrt(tx * tx + ty * ty);
+
+                    if (dist < (target.size || 20) / 2) {
+                        // 충돌 발생! (직사 탄환)
+                        if (explosionRadius[i] > 0) {
+                            handleExplosion(world, i, engine);
+                        } else {
+                            target.takeDamage(damage[i]);
+                        }
+                        collided = true;
+                        break;
+                    }
+                }
             }
         }
 
         // 3. 목표 도달 또는 충돌 시 제거
-        const reachedTarget = distToTarget < 10;
+        const reachedTarget = distToTarget < 15; // 곡사는 오차 범위를 약간 더 줌 (10 -> 15)
         
         if (collided || reachedTarget) {
-            // 목표에 도달했을 때도 폭발 반경이 있으면 폭발 처리
+            // 목표에 도달했을 때 (곡사 탄환 포함) 폭발 처리
             if (reachedTarget && explosionRadius[i] > 0 && !collided) {
                 handleExplosion(world, i, engine);
             }
             
-            // 일반 탄환(폭발 X)이 목표에 도달하면 작은 히트 이펙트 정도는 보여줌
+            // 일반 탄환이 목표에 도달하면 히트 이펙트
             if (reachedTarget && explosionRadius[i] <= 0 && !collided) {
                 if (engine.addEffect) {
                     engine.addEffect('hit', targetX[i], targetY[i], '#ffff00');

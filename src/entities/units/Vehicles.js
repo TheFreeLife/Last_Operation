@@ -19,6 +19,8 @@ export class Tank extends PlayerUnit {
         this.population = 4; // 전차장, 포수, 탄약수, 조종수
         this.hp = 1000;
         this.maxHp = 1000;
+        this.muzzleOffset = 60;
+        this.projectileSpeed = 16;
         this.hitEffectType = 'explosion';
 
         this.ammoType = 'shell';
@@ -317,10 +319,13 @@ export class Artillery extends PlayerUnit {
         this.size = 80;
         this.cargoSize = 5;
         this.population = 5; // 승무원 5명
+        this.isIndirect = true; // 자주포는 곡사 사격
 
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
+        this.muzzleOffset = 80;
+        this.projectileSpeed = 10; // 곡사포는 탄속이 약간 느림
     }
 
     attack() {
@@ -362,6 +367,8 @@ export class AntiAirVehicle extends PlayerUnit {
         this.size = 80;
         this.cargoSize = 5;
         this.population = 3; // 운전수, 포수, 지휘관
+        this.muzzleOffset = 50;
+        this.projectileSpeed = 20; // 대공탄은 빠름
         this.hitEffectType = 'flak';
 
         this.ammoType = 'bullet';

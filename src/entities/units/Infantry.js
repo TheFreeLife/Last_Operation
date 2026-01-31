@@ -17,6 +17,8 @@ export class Rifleman extends PlayerUnit {
         this.population = 1; // 인구수 1명
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 1;  
+        this.muzzleOffset = 20;
+        this.projectileSpeed = 14; // 보병 탄속 소폭 상향
         this.hitEffectType = 'bullet';
 
         this.ammoType = 'bullet';
@@ -103,6 +105,8 @@ export class Sniper extends PlayerUnit {
         this.maxHp = 50;
         this.population = 1; // 2인 1조에서 단일 유닛으로 변경
         this.attackTargets = ['ground', 'sea', 'air'];
+        this.muzzleOffset = 40;
+        this.projectileSpeed = 22; // 저격탄은 매우 빠름
         this.hitEffectType = 'hit';
 
         this.ammoType = 'bullet';

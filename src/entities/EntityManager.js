@@ -46,6 +46,7 @@ export class EntityManager {
         this.ecsWorld.damage[idx] = damage;
         this.ecsWorld.explosionRadius[idx] = options.explosionRadius || 0;
         this.ecsWorld.ownerId[idx] = options.ownerId || 0;
+        this.ecsWorld.isIndirect[idx] = options.isIndirect ? 1 : 0;
         
         // [추가] 투사체는 체력 시스템의 영향을 받지 않도록 충분한 HP 설정 또는 초기화
         this.ecsWorld.hp[idx] = 1; 

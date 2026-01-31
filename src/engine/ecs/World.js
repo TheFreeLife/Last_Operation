@@ -26,6 +26,7 @@ export class World {
         this.targetX = new Float32Array(maxEntities);
         this.targetY = new Float32Array(maxEntities);
         this.explosionRadius = new Float32Array(maxEntities);
+        this.isIndirect = new Uint8Array(maxEntities); // 0: 직사, 1: 곡사
     }
 
     createEntity() {

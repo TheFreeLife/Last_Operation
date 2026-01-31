@@ -37,9 +37,12 @@ export class BaseUnit extends Entity {
         this.ammoConsumption = 1; // 기본 발당 소모량
 
         // 공격 특성 설정
-        this.attackType = 'projectile'; // 이제 모든 유닛은 투사체를 발사함
-        this.explosionRadius = 0;    // 0보다 크면 범위 공격 적용
-        this.hitEffectType = 'bullet'; // 기본 피격 효과
+        this.attackType = 'projectile'; // 모든 유닛은 투사체 방식
+        this.explosionRadius = 0;    // 범위 공격 반경
+        this.isIndirect = false;     // 곡사 여부
+        this.muzzleOffset = 30;      // 발사구 오프셋 (자기 피격 방지)
+        this.projectileSpeed = 12;   // 투사체 속도
+        this.hitEffectType = 'bullet'; // 피격 효과 타입
 
         // [최적화] 타겟팅 연산 부하 분산을 위한 타이머
         this.targetingTimer = Math.random() * 500;
@@ -119,17 +122,11 @@ export class BaseUnit extends Entity {
 
         // --- 총구 화염 (Muzzle Flash) 생성 ---
         if (this.engine.addEffect) {
-            // 유닛 타입별 총구 오프셋 (단순화된 계산)
-            let barrelLen = this.size * 0.6;
-            if (this.type === 'tank') barrelLen = 60;
-            else if (this.type === 'artillery') barrelLen = 80;
-            else if (this.type === 'sniper') barrelLen = 40;
-
-            const mx = this.x + Math.cos(this.angle) * barrelLen;
-            const my = this.y + Math.sin(this.angle) * barrelLen;
+            const mx = this.x + Math.cos(this.angle) * this.muzzleOffset;
+            const my = this.y + Math.sin(this.angle) * this.muzzleOffset;
             
             // 전차나 자주포는 대형 포구 화염 (전용 효과)
-            if (this.type === 'tank' || this.type === 'artillery' || this.type === 'missile-launcher') {
+            if (this.explosionRadius > 20 || this.type === 'missile-launcher') {
                 this.engine.addEffect('muzzle_large', mx, my, '#ff8c00');
             } else {
                 this.engine.addEffect('muzzle', mx, my, '#fff');
@@ -143,20 +140,16 @@ export class BaseUnit extends Entity {
     }
 
     executeProjectileAttack() {
-        // [수정] 발사 위치를 유닛 중심이 아닌 총구 끝으로 오프셋 적용 (자기 자신 피격 방지)
-        let barrelLen = this.size * 0.6;
-        if (this.type === 'tank') barrelLen = 60;
-        else if (this.type === 'artillery') barrelLen = 80;
-        else if (this.type === 'sniper') barrelLen = 40;
-
-        const spawnX = this.x + Math.cos(this.angle) * barrelLen;
-        const spawnY = this.y + Math.sin(this.angle) * barrelLen;
+        // 발사 위치 계산 (오프셋 기반)
+        const spawnX = this.x + Math.cos(this.angle) * this.muzzleOffset;
+        const spawnY = this.y + Math.sin(this.angle) * this.muzzleOffset;
 
         // ECS 기반 고성능 투사체 생성
         const options = {
-            speed: (this.type === 'anti-air') ? 18 : 12,
+            speed: this.projectileSpeed,
             explosionRadius: this.explosionRadius || 0,
-            ownerId: this.ownerId
+            ownerId: this.ownerId,
+            isIndirect: this.isIndirect // 곡사 여부 전달
         };
 
         this.engine.entityManager.spawnProjectileECS(
