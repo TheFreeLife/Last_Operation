@@ -7,7 +7,7 @@ export class Rifleman extends PlayerUnit {
         this.type = 'rifleman';
         this.name = '보병';
         this.speed = 1.0;    // 단일 유닛이 되어 기동성 소폭 상향
-        this.fireRate = 450; // 분대 사격보다 연사 속도 정상화
+        this.fireRate = 250; // 공격 속도 상향 (450 -> 250)
         this.damage = 5;     // 공격력 1/3 하향 (15 -> 5)
         this.attackRange = 220; 
         this.size = 24;      // 크기 축소 (40 -> 24)
@@ -96,7 +96,7 @@ export class Sniper extends PlayerUnit {
         this.type = 'sniper';
         this.name = '저격수';
         this.speed = 1.0; 
-        this.fireRate = 2500; 
+        this.fireRate = 1500; // 공격 속도 상향 (2500 -> 1500)
         this.damage = 80;
         this.attackRange = 500;
         this.size = 24;      // 크기 축소

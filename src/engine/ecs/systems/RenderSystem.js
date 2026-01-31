@@ -99,15 +99,61 @@ export function renderECS(world, ctx, engine) {
 
         } else {
             // --- 직사 탄환 연출 (보병, 전차 등) ---
-            ctx.fillStyle = '#ffff00';
-            ctx.beginPath();
-            ctx.arc(x[i], y[i], 2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // 전차 포탄처럼 큰 직사 탄환은 추가 연출
-            if (world.explosionRadius[i] > 20) {
-                ctx.strokeStyle = '#ff8c00';
+            const isHeavyShell = world.explosionRadius[i] > 20;
+
+            if (isHeavyShell) {
+                // 1. 대구경 직사 포탄 (전차, 자주포 직사 등)
+                ctx.save();
+                ctx.translate(x[i], y[i]);
+                ctx.rotate(world.angle[i]);
+
+                // 포탄 바디 (강철 질감)
+                const shellGrad = ctx.createLinearGradient(0, -2, 0, 2);
+                shellGrad.addColorStop(0, '#7f8c8d');
+                shellGrad.addColorStop(0.5, '#bdc3c7');
+                shellGrad.addColorStop(1, '#2d3436');
+                
+                ctx.fillStyle = shellGrad;
+                ctx.beginPath();
+                ctx.moveTo(6, 0);
+                ctx.lineTo(-2, -2.5);
+                ctx.lineTo(-6, -2.5);
+                ctx.lineTo(-6, 2.5);
+                ctx.lineTo(-2, 2.5);
+                ctx.closePath();
+                ctx.fill();
+
+                // 탄미 예광 효과 (Tracer)
+                ctx.fillStyle = '#ff3131'; // 빨간색 예광탄 느낌
+                ctx.fillRect(-7, -1.5, 2, 3);
+                
+                // 비행 잔상 (Motion Blur)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
                 ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-8, 0);
+                ctx.lineTo(-20, 0);
+                ctx.stroke();
+
+                ctx.restore();
+
+                // 주기적인 연기/열기 파티클
+                if (engine.renderSystem && Math.random() > 0.6) {
+                    engine.renderSystem.addParticle(x[i], y[i], 0, 0, 1 + Math.random() * 2, '#fff', 200, 'smoke');
+                }
+            } else {
+                // 2. 소구경 탄환 (보병 등)
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(x[i], y[i], 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 아주 짧은 궤적
+                ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x[i], y[i]);
+                ctx.lineTo(x[i] - Math.cos(world.angle[i]) * 10, y[i] - Math.sin(world.angle[i]) * 10);
                 ctx.stroke();
             }
         }
