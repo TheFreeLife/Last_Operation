@@ -45,6 +45,22 @@ export class BaseUnit extends Entity {
         this.targetingTimer = Math.random() * 500;
     }
 
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.hp = this.maxHp || 100;
+        this.alive = true;
+        this.target = null;
+        this.command = 'stop';
+        this._destination = null;
+        this.path = [];
+        this.transportTarget = null;
+        this.isBoarded = false;
+        this.ammo = this.maxAmmo || 0;
+        this.lastFireTime = 0;
+        this.isFalling = false;
+        this.isUnloading = false;
+    }
+
     get destination() { return this._destination; }
     set destination(value) {
         this._destination = value;
