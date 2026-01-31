@@ -1258,10 +1258,13 @@ export class GameEngine {
                                         const isEnemy = (obj.ownerId === 2);
             
                                         if (isAlly) {
-                                            // 아군 손실: 민심 하락 (인구수만큼 하락)
-                                            const penalty = -(obj.population || 1);
-                                            this.updateSentiment(penalty);
-                                            this.addEffect('system', obj.x, obj.y - 20, '#ff3131', `민심 하락 ${penalty}`);
+                                            // 아군 손실: 민심 하락 (인구수가 1 이상인 경우에만)
+                                            const pop = obj.population || 0;
+                                            if (pop > 0) {
+                                                const penalty = -pop;
+                                                this.updateSentiment(penalty);
+                                                this.addEffect('system', obj.x, obj.y - 20, '#ff3131', `민심 하락 ${penalty}`);
+                                            }
                                         } else if (isEnemy) {
                                             // 적군 처치: 민심 상승 (승전보 효과)
                                             this.updateSentiment(2);

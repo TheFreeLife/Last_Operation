@@ -125,13 +125,16 @@ export class EntityManager {
 
         if (pool) {
             entity = pool.acquire();
+            // [수정] init 호출 전에 옵션을 먼저 할당하여 init 로직이 옵션을 반영할 수 있게 함
+            Object.assign(entity, options);
             entity.init(x, y, this.engine);
         } else {
             const { EntityClass } = registration;
             entity = new EntityClass(x, y, this.engine);
+            Object.assign(entity, options);
+            // new 생성자의 경우 init이 이미 호출되었을 수 있으므로 필요시 재호출
+            if (entity.init) entity.init(x, y, this.engine);
         }
-
-        Object.assign(entity, options);
 
         const { listName } = registration;
         const targetList = listOverride || listName;

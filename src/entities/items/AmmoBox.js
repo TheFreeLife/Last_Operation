@@ -30,6 +30,24 @@ export class AmmoBox extends PlayerUnit {
         this.chargingUnits = []; // 현재 충전 중인 유닛 목록 (시각 효과용)
     }
 
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        
+        // EntityManager가 Object.assign(this, options)를 수행한 후 
+        // 바뀐 ammoType에 맞춰 이름과 속성들을 동기화함
+        const ammoType = this.ammoType || 'bullet';
+        this.type = `ammo-${ammoType}`;
+        this.name = ammoType === 'bullet' ? '총알 상자' : (ammoType === 'shell' ? '포탄 상자' : '미사일 상자');
+        
+        const amountMap = { bullet: 200, shell: 6, missile: 2 };
+        this.maxAmount = this.maxAmount || amountMap[ammoType] || 0;
+        if (this.amount === undefined || this.amount <= 0) {
+            this.amount = this.maxAmount;
+        }
+        
+        this.chargingUnits = [];
+    }
+
     attack() { /* 탄약 상자는 공격하지 않음 */ }
 
     getCacheKey() {

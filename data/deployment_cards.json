@@ -54,6 +54,19 @@
             "units": [
                 { "id": "anti-tank", "count": 3 }
             ]
+        },
+        {
+            "id": "logistics_support",
+            "name": "보급 지원 부대",
+            "description": "전선의 탄약을 보급하고 유닛을 수송하는 지원 부대입니다.",
+            "icon": "🚛",
+            "cost": 3,
+            "units": [
+                { "id": "military-truck", "count": 1 },
+                { "id": "ammo-box", "count": 3, "options": { "ammoType": "bullet", "amount": 200 } },
+                { "id": "ammo-box", "count": 1, "options": { "ammoType": "shell", "amount": 30 } },
+                { "id": "ammo-box", "count": 1, "options": { "ammoType": "missile", "amount": 10 } }
+            ]
         }
     ]
 }

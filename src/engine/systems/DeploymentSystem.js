@@ -123,7 +123,10 @@ export class DeploymentSystem {
                 const offsetX = (groupIdx * 40) + (Math.random() - 0.5) * 60;
                 const offsetY = (i * 30) + (Math.random() - 0.5) * 60;
                 
-                const unit = this.engine.entityManager.create(uInfo.id, spawnPos.x + offsetX, spawnPos.y + offsetY, { ownerId: 1 });
+                // [수정] 카드에 정의된 추가 옵션(options)을 병합하여 전달
+                const spawnOptions = Object.assign({ ownerId: 1 }, uInfo.options || {});
+                
+                const unit = this.engine.entityManager.create(uInfo.id, spawnPos.x + offsetX, spawnPos.y + offsetY, spawnOptions);
                 if (unit) {
                     unit.angle = spawnAngle;
                     spawnedCount++;
