@@ -129,13 +129,8 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     update(deltaTime) {
-        // [중요] 시즈 모드 중에는 부모(BaseUnit)의 이동/회전 로직을 건너뜀
-        if (this.isSieged && !this.isTransitioning) {
-            // 부모의 update 대신 기본적인 속성 업데이트만 수행 (필요 시)
-            // (BaseUnit.update가 각도를 강제로 조절하는 것을 방지)
-        } else {
-            super.update(deltaTime);
-        }
+        // 부모의 업데이트를 항상 호출하여 충돌 및 상태 관리를 유지함
+        super.update(deltaTime);
 
         // 시즈 모드 중 상부 독립 회전 로직
         if (this.isSieged && !this.isTransitioning) {
