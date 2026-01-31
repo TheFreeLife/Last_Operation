@@ -1383,11 +1383,10 @@ export class GameEngine {
                                     if (obj.hp <= 0) { // 파괴된 경우에만 (비활성화 제외)
                                         const isAlly = (obj.ownerId === 1);
                                         const isEnemy = (obj.ownerId === 2);
-                                        const sizeScale = obj.sizeCategory || 1; // 1:보병, 2:차량, 3:대형
             
                                         if (isAlly) {
-                                            // 아군 손실: 민심 하락 (체급이 클수록 더 많이 하락)
-                                            const penalty = sizeScale === 1 ? -2 : (sizeScale === 2 ? -5 : -10);
+                                            // 아군 손실: 민심 하락 (인구수만큼 하락)
+                                            const penalty = -(obj.population || 1);
                                             this.updateSentiment(penalty);
                                             this.addEffect('system', obj.x, obj.y - 20, '#ff3131', `민심 하락 ${penalty}`);
                                         } else if (isEnemy) {
