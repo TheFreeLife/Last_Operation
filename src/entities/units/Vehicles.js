@@ -9,18 +9,18 @@ export class Tank extends PlayerUnit {
         this.name = '전차';
         this.speed = 1.8;
         this.fireRate = 1800;
-        this.damage = 200;
+        this.damage = 180; // 데미지 소폭 조정 (광역딜 밸런스)
         this.color = '#39ff14';
         this.attackRange = 360;
         this.visionRange = 6;
-        this.explosionRadius = 40;
+        this.explosionRadius = 70; // 범위 피해 반경 확대 (40 -> 70)
         this.size = 80;
         this.cargoSize = 10;
         this.population = 4; // 전차장, 포수, 탄약수, 조종수
         this.hp = 1000;
         this.maxHp = 1000;
         this.muzzleOffset = 60;
-        this.projectileSpeed = 16;
+        this.projectileSpeed = 18; // 탄속 상향 (16 -> 18)
         this.hitEffectType = 'explosion';
 
         this.ammoType = 'shell';

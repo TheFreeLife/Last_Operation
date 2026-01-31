@@ -58,12 +58,13 @@
         {
             "id": "medical_support",
             "name": "의무 지원 분대",
-            "description": "부상당한 보병을 치료하는 의무병과 호위 보병으로 구성된 지원팀입니다.",
+            "description": "의무병의 활력을 충전해주는 의무차량과 치료를 담당하는 의무병들로 구성된 전문 지원팀입니다.",
             "icon": "🏥",
-            "cost": 4,
+            "cost": 5,
             "units": [
+                { "id": "medical-truck", "count": 1 },
                 { "id": "medic", "count": 2 },
-                { "id": "rifleman", "count": 3 }
+                { "id": "rifleman", "count": 2 }
             ]
         },
         {

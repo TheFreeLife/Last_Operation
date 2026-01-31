@@ -1,6 +1,7 @@
 import { PlayerUnit } from './BaseUnit.js';
 
 export class MilitaryTruck extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'military-truck', name: '군용 트럭' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'military-truck';
@@ -170,6 +171,125 @@ export class MilitaryTruck extends PlayerUnit {
                 ctx.fillStyle = dotColor;
                 ctx.beginPath(); ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2); ctx.fill();
             });
+        }
+    }
+}
+
+export class MedicalTruck extends MilitaryTruck {
+    static editorConfig = { category: 'unit', icon: 'medical-truck', name: '의무 차량' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'medical-truck';
+        this.name = '의무 차량';
+        this.speed = 1.8;
+        this.hp = 800;
+        this.maxHp = 800;
+        this.population = 3;
+        this.size = 80;
+        
+        // 에너지 충전 시스템 (주변 의무병 지원)
+        this.energyRestoreRate = 15; // 초당 활력 충전량
+        this.attackRange = 250;      // 충전 범위
+        this.energy = 250;
+        this.maxEnergy = 250;
+        this.energyConsumptionRate = 12; // 충전 시 본인 에너지 소모율
+        this.energyRegenRate = 8;
+        this.chargingMedics = [];    // 현재 충전 중인 의무병 목록
+    }
+
+    getCacheKey() {
+        if ((this.chargingMedics && this.chargingMedics.length > 0) || this.energy < this.maxEnergy) return null;
+        return this.type;
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (!this.active || this.hp <= 0) return;
+
+        const isMoving = this.destination !== null;
+        this.chargingMedics = [];
+
+        // 활력이 있을 때만 충전 시도
+        if (this.energy > 1.0) {
+            const frameRestore = this.energyRestoreRate * deltaTime / 1000;
+            const neighbors = this.engine.entityManager.getNearby(this.x, this.y, this.attackRange);
+            
+            for (const unit of neighbors) {
+                if (unit === this || unit.ownerId !== 1 || !unit.active || unit.hp <= 0) continue;
+                
+                // 오직 의무병(Medic)만 충전 대상
+                if (unit.type === 'medic' && unit.energy < unit.maxEnergy) {
+                    const dist = Math.hypot(this.x - unit.x, this.y - unit.y);
+                    if (dist <= this.attackRange) {
+                        const toRestore = Math.min(frameRestore, unit.maxEnergy - unit.energy);
+                        if (toRestore > 0.001) {
+                            unit.energy += toRestore;
+                            this.chargingMedics.push(unit);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 활력 소모 및 재생 로직
+        if (this.chargingMedics.length > 0) {
+            const totalConsumption = this.energyConsumptionRate * this.chargingMedics.length * deltaTime / 1000;
+            this.energy = Math.max(0, this.energy - totalConsumption);
+        } else if (!isMoving) {
+            this.energy = Math.min(this.maxEnergy, this.energy + (this.energyRegenRate * deltaTime / 1000));
+        }
+    }
+
+    draw(ctx) {
+        // 에너지 전송 빔 렌더링
+        if (this.chargingMedics.length > 0) {
+            ctx.save();
+            if (this.angle) ctx.rotate(-this.angle);
+            this.chargingMedics.forEach(unit => {
+                const relX = unit.x - this.x;
+                const relY = unit.y - this.y;
+                
+                // 에너지 공급용 하늘색 빔
+                ctx.strokeStyle = 'rgba(0, 210, 255, 0.4)';
+                ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(relX, relY); ctx.stroke();
+
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([10, 15]);
+                ctx.lineDashOffset = -Date.now() / 20;
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(relX, relY); ctx.stroke();
+            });
+            ctx.restore();
+        }
+
+        super.draw(ctx);
+
+        // 의무 차량 마크
+        ctx.save();
+        ctx.translate(-10, 0);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-8, -8, 16, 16);
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(-2, -6, 4, 12);
+        ctx.fillRect(-6, -2, 12, 4);
+        ctx.restore();
+
+        // 활력 게이지
+        if (this.energy < this.maxEnergy) {
+            ctx.save();
+            const barW = 50;
+            const barH = 5;
+            const bx = -barW / 2;
+            const by = 45;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(bx, by, barW, barH);
+            ctx.fillStyle = '#00d2ff';
+            ctx.fillRect(bx, by, (this.energy / this.maxEnergy) * barW, barH);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, barW, barH);
+            ctx.restore();
         }
     }
 }
