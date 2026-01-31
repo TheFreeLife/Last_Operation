@@ -54,20 +54,17 @@ export class DeploymentSystem {
         const div = document.createElement('div');
         div.className = 'unit-card';
         
-        // 부대 구성 정보 및 총 인구수 계산
-        let totalPop = 0;
+        // 부대 구성 정보 표시용 (인구수 자동 계산 제거, 구성만 나열)
         let unitDetailsHtml = '';
-        
         cardData.units.forEach(u => {
             const registration = this.engine.entityManager.registry.get(u.id);
             if (registration) {
                 const temp = new registration.EntityClass(0, 0, this.engine);
-                totalPop += (temp.population || 1) * u.count;
                 unitDetailsHtml += `<div class="card-stat-row"><span>${temp.name}</span> <span class="stat-val">x${u.count}</span></div>`;
             }
         });
 
-        const cost = Math.ceil(totalPop / 2);
+        const cost = cardData.cost || 0; // JSON에 정의된 고정 비용 사용
         const canAfford = this.engine.publicSentiment >= cost;
 
         if (!canAfford) div.classList.add('locked-card');
@@ -79,9 +76,6 @@ export class DeploymentSystem {
             <div class="card-stats">
                 ${unitDetailsHtml}
                 <div class="card-stat-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-                    <span>총 인원</span> <span class="stat-val">${totalPop}명</span>
-                </div>
-                <div class="card-stat-row">
                     <span>징집 비용</span> <span class="stat-val ${canAfford ? 'text-green' : 'text-red'}">민심 ${cost}%</span>
                 </div>
             </div>
