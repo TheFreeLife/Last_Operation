@@ -22,6 +22,11 @@ export const ICONS = {
         <rect x="15" y="25" width="4" height="6" fill="#636e72"/>
         <circle cx="20" cy="12" r="3" fill="#fff" opacity="0.4"/>
     </svg></div>`,
+    'skill:medic': `<div class="btn-icon white"><svg viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="18" fill="#fff" stroke="#e74c3c" stroke-width="2"/>
+        <rect x="17" y="10" width="6" height="20" fill="#e74c3c"/>
+        <rect x="10" y="17" width="20" height="6" fill="#e74c3c"/>
+    </svg></div>`,
     'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
     'skill:cargo-plane': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
     'skill:scout-plane': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">

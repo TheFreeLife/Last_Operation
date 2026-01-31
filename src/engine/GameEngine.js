@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -32,7 +32,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -332,6 +332,7 @@ export class GameEngine {
         em.register('rifleman', Rifleman, 'units');
         em.register('sniper', Sniper, 'units');
         em.register('anti-tank', AntiTankInfantry, 'units');
+        em.register('medic', Medic, 'units');
         em.register('military-truck', MilitaryTruck, 'units');
         em.register('cargo-plane', CargoPlane, 'units');
         em.register('scout-plane', ScoutPlane, 'units');
@@ -1168,6 +1169,10 @@ export class GameEngine {
             const name = ammoNames[hovered.ammoType] || '탄약';
             const colorClass = (hovered.ammo <= 0) ? 'text-red' : 'highlight';
             desc += `<div class="stat-row"><span>🔋 ${name}:</span> <span class="${colorClass}">${Math.floor(hovered.ammo)} / ${hovered.maxAmmo}</span></div>`;
+        }
+        if (hovered.type === 'medic' && hovered.maxEnergy > 0) {
+            const colorClass = (hovered.energy <= 0) ? 'text-red' : 'highlight';
+            desc += `<div class="stat-row"><span>⚡ 활력:</span> <span class="${colorClass}">${Math.floor(hovered.energy)} / ${hovered.maxEnergy}</span></div>`;
         }
         if (hovered.domain) {
             const domainMap = { ground: '지상', air: '공중', sea: '해상' };

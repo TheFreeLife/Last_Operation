@@ -6,6 +6,7 @@ export class Rifleman extends PlayerUnit {
         super(x, y, engine);
         this.type = 'rifleman';
         this.name = '보병';
+        this.isHuman = true;
         this.speed = 1.0;    // 단일 유닛이 되어 기동성 소폭 상향
         this.fireRate = 250; // 공격 속도 상향 (450 -> 250)
         this.damage = 5;     // 공격력 1/3 하향 (15 -> 5)
@@ -95,6 +96,7 @@ export class Sniper extends PlayerUnit {
         super(x, y, engine);
         this.type = 'sniper';
         this.name = '저격수';
+        this.isHuman = true;
         this.speed = 1.0; 
         this.fireRate = 1500; // 공격 속도 상향 (2500 -> 1500)
         this.damage = 80;
@@ -169,6 +171,7 @@ export class AntiTankInfantry extends PlayerUnit {
         super(x, y, engine);
         this.type = 'anti-tank';
         this.name = '대전차 보병';
+        this.isHuman = true;
         this.speed = 0.85;   // 발사기 무게로 인해 보병보다 소폭 느림
         this.fireRate = 3500; // 재장전 시간 필요
         this.damage = 180;    // 전차에 치명적인 데미지
@@ -254,6 +257,179 @@ export class AntiTankInfantry extends PlayerUnit {
 
         ctx.restore();
         ctx.restore();
+    }
+}
+
+export class Medic extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'medic', name: '의무병' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'medic';
+        this.name = '의무병';
+        this.isHuman = true;
+        this.speed = 1.1; 
+        this.fireRate = 1000; 
+        this.damage = 0;
+        this.attackRange = 160;
+        this.size = 24;
+        this.visionRange = 6;
+        this.hp = 60;
+        this.maxHp = 60;
+        this.population = 1;
+        this.healingRate = 4; // 초당 회복량 (8 -> 4로 하향)
+        
+        // 활력(Energy) 시스템 추가
+        this.energy = 150;
+        this.maxEnergy = 150;
+        this.energyConsumptionRate = 10; // 초당 활력 소모량 (치료 시)
+        this.energyRegenRate = 5;      // 초당 활력 재생량 (대기 시)
+        
+        this.healingUnits = []; // 현재 치료 중인 유닛 목록
+    }
+
+    getCacheKey() {
+        // 치료 중이거나 활력이 풀이 아닐 때는 동적 게이지 표현을 위해 캐시 미사용
+        if ((this.healingUnits && this.healingUnits.length > 0) || this.energy < this.maxEnergy) return null;
+        return this.type;
+    }
+
+    attack() { /* 의무병은 공격하지 않음 */ }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (!this.active || this.hp <= 0) return;
+
+        const isMoving = this.destination !== null;
+        this.healingUnits = [];
+
+        // 활력이 있을 때만 치료 시도
+        if (this.energy > 0.1) {
+            const frameHeal = this.healingRate * deltaTime / 1000;
+
+            // 사거리 내 치료가 필요한 아군 보병 검색
+            const neighbors = this.engine.entityManager.getNearby(this.x, this.y, this.attackRange);
+            for (const unit of neighbors) {
+                if (unit === this || unit.ownerId !== 1 || !unit.active || unit.hp <= 0) continue;
+                if (!unit.isHuman || unit.hp >= unit.maxHp) continue;
+
+                const dist = Math.hypot(this.x - unit.x, this.y - unit.y);
+                if (dist <= this.attackRange) {
+                    const toHeal = Math.min(frameHeal, unit.maxHp - unit.hp);
+                    if (toHeal > 0.001) {
+                        unit.hp += toHeal;
+                        this.healingUnits.push(unit);
+                    }
+                }
+            }
+        }
+
+        // 활력 소모 및 재생 로직 (치료 중인 유닛 수에 비례)
+        if (this.healingUnits.length > 0) {
+            // 소모량 = 기본 소모율 * 치료 중인 유닛 수
+            const totalConsumption = this.energyConsumptionRate * this.healingUnits.length * deltaTime / 1000;
+            this.energy = Math.max(0, this.energy - totalConsumption);
+        } else if (!isMoving) {
+            // 치료를 안 하고 가만히 있을 때만 활력 재생
+            this.energy = Math.min(this.maxEnergy, this.energy + (this.energyRegenRate * deltaTime / 1000));
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+
+        ctx.save();
+        
+        // 치료 효과 레이저/빔
+        if (this.healingUnits.length > 0) {
+            ctx.save();
+            if (this.angle) ctx.rotate(-this.angle);
+            this.healingUnits.forEach(unit => {
+                const relX = unit.x - this.x;
+                const relY = unit.y - this.y;
+                
+                // 외곽 글로우 빔
+                ctx.strokeStyle = 'rgba(57, 255, 20, 0.3)';
+                ctx.lineWidth = 4 + Math.sin(Date.now() / 50) * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(relX, relY);
+                ctx.stroke();
+
+                // 중심 코어 빔
+                ctx.strokeStyle = 'rgba(200, 255, 200, 0.8)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([10, 5]);
+                ctx.lineDashOffset = -Date.now() / 30;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(relX, relY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // 치료 입자 (addEffect 호출 위치 수정)
+                if (Math.random() > 0.8) {
+                    const p = Math.random();
+                    // draw 내에서 addEffect를 호출할 때는 좌표 주의
+                    this.engine.addEffect?.('hit', this.x + relX * p, this.y + relY * p, '#39ff14');
+                }
+            });
+            ctx.restore();
+        }
+
+        // 의무병 본체
+        const breathing = Math.sin(Date.now() / 400) * 0.5;
+        ctx.rotate(breathing * 0.05);
+        ctx.scale(1.8, 1.8);
+
+        // 0. 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath(); ctx.ellipse(0, 2, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 1. 구급 가방
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillRect(-10, -5, 5, 10);
+        ctx.fillStyle = '#e74c3c'; // 빨간 십자가
+        ctx.fillRect(-9, -1, 3, 2);
+        ctx.fillRect(-8.5, -3, 2, 6);
+
+        // 2. 바디 (밝은색 전투복)
+        ctx.fillStyle = '#dcdde1';
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+
+        // 3. 헬멧 (흰색 바탕에 빨간 띠)
+        ctx.fillStyle = '#f5f6fa';
+        ctx.beginPath(); ctx.arc(1, 0, 4.8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(1, -4.8, 2, 9.6);
+
+        ctx.restore();
+
+        // 4. 활력(Energy) 게이지 바 (유닛 하단)
+        if (this.energy < this.maxEnergy) {
+            ctx.save();
+            const barW = 30;
+            const barH = 4;
+            const bx = -barW / 2;
+            const by = 20;
+
+            // 배경
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(bx, by, barW, barH);
+
+            // 에너지 채우기
+            const energyFill = (this.energy / this.maxEnergy) * barW;
+            ctx.fillStyle = '#00d2ff'; // 하늘색 에너지
+            ctx.fillRect(bx, by, energyFill, barH);
+            
+            // 테두리
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(bx, by, barW, barH);
+            ctx.restore();
+        }
     }
 }
 
