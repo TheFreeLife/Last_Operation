@@ -337,7 +337,7 @@ export class BaseUnit extends Entity {
                 if (this.domain === 'air') {
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                 } else {
-                    const vector = this.engine.flowField.getFlowVector(this.x, this.y, this.sizeClass);
+                    const vector = this.engine.flowField.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
                     if (vector.x !== 0 || vector.y !== 0) {
                         // 유동장 벡터 방향으로 부드럽게 회전
                         const targetAngle = Math.atan2(vector.y, vector.x);

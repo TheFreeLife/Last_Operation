@@ -8,10 +8,15 @@ export class FlowField {
         this.cols = 0;
         this.rows = 0;
         
-        // sizeClass별 데이터 (1: 소형, 2: 대형, 3: 초대형)
-        this.fields = {};
-        this.calculatingClasses = new Set();
-        this.targetGrids = {}; 
+        // sizeClass별 지형 비용 맵 (고정 데이터)
+        this.costMaps = {};
+        
+        // 목적지별 유동장 데이터 (gx_gy_sc 키 사용)
+        // fields[key] = { integrationMap, flowFieldX, flowFieldY, isCalculating }
+        this.fields = new Map();
+        
+        // 최대 캐시 개수 제한 (메모리 관리)
+        this.maxCachedFields = 20;
 
         this.worker = new Worker(new URL('./PathfindingWorker.js', import.meta.url));
         this.initWorker();
@@ -21,14 +26,17 @@ export class FlowField {
         this.worker.onmessage = (e) => {
             const { type, data } = e.data;
             if (type === 'FLOW_FIELD_RESULT') {
-                const sc = data.sizeClass || 1;
-                const field = this.fields[sc];
+                const { targetX, targetY, sizeClass } = data;
+                const key = `${targetX}_${targetY}_${sizeClass}`;
+                const field = this.fields.get(key);
+                
                 if (field) {
                     field.integrationMap = data.integrationMap;
                     field.flowFieldX = data.flowFieldX;
                     field.flowFieldY = data.flowFieldY;
+                    field.isCalculating = false;
+                    field.lastUsed = Date.now();
                 }
-                this.calculatingClasses.delete(sc);
             }
         };
     }
@@ -36,82 +44,89 @@ export class FlowField {
     init(cols, rows) {
         this.cols = cols;
         this.rows = rows;
-        this.fields = {};
-        this.calculatingClasses.clear();
-        this.targetGrids = {};
+        this.costMaps = {};
+        this.fields.clear();
         
-        // 표준 체급 1, 2, 3 미리 준비
-        [1, 2, 3].forEach(sc => this.ensureField(sc));
+        // 표준 체급 1, 2, 3 지형 데이터 미리 준비
+        [1, 2, 3].forEach(sc => this.ensureCostMap(sc));
     }
 
-    ensureField(sizeClass) {
-        if (this.fields[sizeClass]) return;
-        const size = this.cols * this.rows;
-        this.fields[sizeClass] = {
-            costMap: new Uint8Array(size),
-            integrationMap: new Float32Array(size),
-            flowFieldX: new Int8Array(size),
-            flowFieldY: new Int8Array(size)
-        };
+    ensureCostMap(sizeClass) {
+        if (this.costMaps[sizeClass]) return;
+        this.costMaps[sizeClass] = new Uint8Array(this.cols * this.rows);
         this.updateCostMap(sizeClass);
     }
 
     updateCostMap(sizeClass) {
-        const field = this.fields[sizeClass];
-        if (!field) return;
+        const costMap = this.costMaps[sizeClass];
+        if (!costMap) return;
 
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const idx = y * this.cols + x;
-                // 해당 격자를 "좌상단"으로 했을 때 sizeClass만큼의 면적이 모두 통과 가능한지 체크
-                // (Erosion: 대형 유닛일수록 벽 주변의 통과 가능 격자가 줄어듦)
-                field.costMap[idx] = this.engine.tileMap.isPassableArea(x, y, sizeClass) ? 1 : 255;
+                costMap[idx] = this.engine.tileMap.isPassableArea(x, y, sizeClass) ? 1 : 255;
             }
         }
     }
 
     updateAllCostMaps() {
         [1, 2, 3].forEach(sc => this.updateCostMap(sc));
+        // 지형이 변하면 기존 모든 유동장은 무효화됨
+        this.fields.clear();
     }
 
     /**
-     * 월드 좌표(목적지)를 입력받아 해당 체급의 플로우 필드 생성
+     * 월드 좌표(목적지)를 입력받아 해당 체급의 플로우 필드 생성 및 키 반환
      */
     generate(worldX, worldY, sizeClass = 1) {
-        this.ensureField(sizeClass);
-        const field = this.fields[sizeClass];
-
-        // 1. 월드 중심 좌표를 해당 체급의 "참조 격자(좌상단)" 좌표로 변환
-        // 공식: floor(worldCenter / tileSize - (sizeClass - 1) / 2)
+        this.ensureCostMap(sizeClass);
+        
         const ts = this.engine.tileMap.tileSize;
         let gx = Math.floor(worldX / ts - (sizeClass - 1) / 2);
         let gy = Math.floor(worldY / ts - (sizeClass - 1) / 2);
 
-        // 2. 맵 범위 제한
         gx = Math.max(0, Math.min(this.cols - sizeClass, gx));
         gy = Math.max(0, Math.min(this.rows - sizeClass, gy));
 
-        // 3. 목적지가 통과 불가능한 곳이라면 가장 가까운 빈 곳 찾기
-        if (field.costMap[gy * this.cols + gx] === 255) {
+        if (this.costMaps[sizeClass][gy * this.cols + gx] === 255) {
             const nearest = this.findNearestWalkable(gx, gy, sizeClass);
             if (nearest) {
                 gx = nearest.x;
                 gy = nearest.y;
             } else {
-                return; // 갈 수 있는 곳이 없음
+                return null;
             }
         }
 
-        // 동일 목적지 연산 스킵
-        if (this.calculatingClasses.has(sizeClass) || 
-           (this.targetGrids[sizeClass] && this.targetGrids[sizeClass].x === gx && this.targetGrids[sizeClass].y === gy)) {
-            return;
+        const key = `${gx}_${gy}_${sizeClass}`;
+        if (this.fields.has(key)) {
+            const field = this.fields.get(key);
+            field.lastUsed = Date.now();
+            return key;
         }
 
-        if (!field.integrationMap || field.integrationMap.byteLength === 0) return;
+        // 캐시 용량 초과 시 가장 오래된 것 삭제
+        if (this.fields.size >= this.maxCachedFields) {
+            let oldestKey = null;
+            let oldestTime = Infinity;
+            for (const [k, v] of this.fields.entries()) {
+                if (v.lastUsed < oldestTime && !v.isCalculating) {
+                    oldestTime = v.lastUsed;
+                    oldestKey = k;
+                }
+            }
+            if (oldestKey) this.fields.delete(oldestKey);
+        }
 
-        this.targetGrids[sizeClass] = { x: gx, y: gy };
-        this.calculatingClasses.add(sizeClass);
+        const size = this.cols * this.rows;
+        const newField = {
+            integrationMap: new Float32Array(size),
+            flowFieldX: new Int8Array(size),
+            flowFieldY: new Int8Array(size),
+            isCalculating: true,
+            lastUsed: Date.now()
+        };
+        this.fields.set(key, newField);
 
         this.worker.postMessage({
             type: 'GENERATE_FLOW_FIELD',
@@ -119,23 +134,25 @@ export class FlowField {
                 cols: this.cols, rows: this.rows,
                 targetX: gx, targetY: gy,
                 sizeClass,
-                costMap: field.costMap,
-                integrationMap: field.integrationMap,
-                flowFieldX: field.flowFieldX,
-                flowFieldY: field.flowFieldY
+                costMap: this.costMaps[sizeClass],
+                integrationMap: newField.integrationMap,
+                flowFieldX: newField.flowFieldX,
+                flowFieldY: newField.flowFieldY
             }
-        }, [field.integrationMap.buffer, field.flowFieldX.buffer, field.flowFieldY.buffer]);
+        }, [newField.integrationMap.buffer, newField.flowFieldX.buffer, newField.flowFieldY.buffer]);
+
+        return key;
     }
 
     findNearestWalkable(tx, ty, sizeClass) {
-        const field = this.fields[sizeClass];
+        const costMap = this.costMaps[sizeClass];
         for (let r = 1; r <= 10; r++) {
             for (let dy = -r; dy <= r; dy++) {
                 for (let dx = -r; dx <= r; dx++) {
                     if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
                     const nx = tx + dx, ny = ty + dy;
                     if (nx >= 0 && nx <= this.cols - sizeClass && ny >= 0 && ny <= this.rows - sizeClass) {
-                        if (field.costMap[ny * this.cols + nx] !== 255) return { x: nx, y: ny };
+                        if (costMap[ny * this.cols + nx] !== 255) return { x: nx, y: ny };
                     }
                 }
             }
@@ -143,22 +160,42 @@ export class FlowField {
         return null;
     }
 
-    getFlowVector(worldX, worldY, sizeClass = 1) {
-        const field = this.fields[sizeClass];
-        if (!field || !field.flowFieldX || field.flowFieldX.byteLength === 0) return { x: 0, y: 0 };
-        
+    getFlowVector(worldX, worldY, targetX, targetY, sizeClass = 1) {
         const ts = this.engine.tileMap.tileSize;
+        
+        // 목적지의 격자 좌표 계산 (생성 시와 동일한 로직)
+        let tgx = Math.floor(targetX / ts - (sizeClass - 1) / 2);
+        let tgy = Math.floor(targetY / ts - (sizeClass - 1) / 2);
+        tgx = Math.max(0, Math.min(this.cols - sizeClass, tgx));
+        tgy = Math.max(0, Math.min(this.rows - sizeClass, tgy));
+
+        // 만약 목적지가 벽이라면 findNearestWalkable을 통해 보정된 좌표를 찾아야 함
+        // 하지만 매번 계산하는 것은 비효율적이므로 key를 유닛이 들고 있게 하는 것이 좋음
+        // 여기서는 일단 직접 키를 생성하여 찾음
+        const key = `${tgx}_${tgy}_${sizeClass}`;
+        let field = this.fields.get(key);
+
+        // 만약 필드가 없으면 생성 요청 (보통 destination setter에서 이미 생성됨)
+        if (!field) {
+            this.generate(targetX, targetY, sizeClass);
+            return { x: 0, y: 0 };
+        }
+
+        if (field.isCalculating || !field.flowFieldX || field.flowFieldX.byteLength === 0) {
+            return { x: 0, y: 0 };
+        }
+
         const gx = Math.floor(worldX / ts - (sizeClass - 1) / 2);
         const gy = Math.floor(worldY / ts - (sizeClass - 1) / 2);
 
         if (gx < 0 || gx >= this.cols || gy < 0 || gy >= this.rows) return { x: 0, y: 0 };
 
-        // 목적지에 도달했는지 확인 (targetGrids와 비교)
-        const target = this.targetGrids[sizeClass];
-        if (target && target.x === gx && target.y === gy) {
+        // 목적지 도달 확인
+        if (tgx === gx && tgy === gy) {
             return { x: 0, y: 0 };
         }
 
+        field.lastUsed = Date.now();
         const idx = gy * this.cols + gx;
         return { x: field.flowFieldX[idx], y: field.flowFieldY[idx] };
     }

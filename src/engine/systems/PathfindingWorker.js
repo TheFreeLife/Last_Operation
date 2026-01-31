@@ -87,7 +87,7 @@ self.onmessage = function(e) {
 
         self.postMessage({
             type: 'FLOW_FIELD_RESULT',
-            data: { integrationMap, flowFieldX, flowFieldY, sizeClass }
+            data: { integrationMap, flowFieldX, flowFieldY, sizeClass, targetX, targetY }
         }, [integrationMap.buffer, flowFieldX.buffer, flowFieldY.buffer]);
     }
 };
