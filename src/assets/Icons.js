@@ -16,6 +16,12 @@ export const ICONS = {
         <line x1="5" y1="20" x2="35" y2="20" stroke="#ff3131" stroke-width="1"/>
         <circle cx="20" cy="20" r="3" fill="#ff3131"/>
     </svg></div>`,
+    'skill:anti-tank': `<div class="btn-icon red"><svg viewBox="0 0 40 40">
+        <rect x="8" y="15" width="24" height="10" rx="2" fill="#2d3436" stroke="#ff3131" stroke-width="2"/>
+        <path d="M28 12 L35 20 L28 28 Z" fill="#ff3131"/>
+        <rect x="15" y="25" width="4" height="6" fill="#636e72"/>
+        <circle cx="20" cy="12" r="3" fill="#fff" opacity="0.4"/>
+    </svg></div>`,
     'skill:cargo': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
     'skill:cargo-plane': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M10 25 L30 25 L35 15 L5 15 Z" fill="#FFD700" stroke="#aaa" stroke-width="2"/><rect x="15" y="10" width="10" height="5" fill="#888"/><path d="M5 15 L20 5 L35 15" stroke="#aaa" stroke-width="2" fill="none"/></svg></div>`,
     'skill:scout-plane': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">

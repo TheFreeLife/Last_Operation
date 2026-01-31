@@ -44,6 +44,16 @@
                 { "id": "missile-launcher", "count": 1 },
                 { "id": "rifleman", "count": 2 }
             ]
+        },
+        {
+            "id": "anti_tank_squad",
+            "name": "대전차 분대",
+            "description": "중장갑 차량을 전문적으로 파괴하는 대전차 미사일 팀입니다.",
+            "icon": "🚀",
+            "cost": 4,
+            "units": [
+                { "id": "anti-tank", "count": 3 }
+            ]
         }
     ]
 }
