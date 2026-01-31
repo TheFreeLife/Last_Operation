@@ -431,7 +431,6 @@ export class GameEngine {
         
         // 랜덤 소환 및 선택 취소 버튼 리스너
         document.getElementById('random-spawn-btn')?.addEventListener('click', () => this.spawnRandomUnit());
-        document.getElementById('cancel-selection-btn')?.addEventListener('click', () => this.hideUnitSelection());
 
         this.updateBuildMenu();
     }

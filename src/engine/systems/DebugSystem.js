@@ -126,9 +126,13 @@ export class DebugSystem {
         });
 
         if (found) {
-            found.hp = 0;
-            found.active = false;
-            if (found.alive !== undefined) found.alive = false;
+            if (found.onDeath) {
+                found.onDeath();
+            } else {
+                found.hp = 0;
+                found.active = false;
+                if (found.alive !== undefined) found.alive = false;
+            }
 
             this.engine.addEffect?.('system', worldX, worldY, '#ff3131', '삭제됨');
         }

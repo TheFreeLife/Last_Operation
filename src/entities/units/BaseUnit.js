@@ -398,7 +398,9 @@ export class BaseUnit extends Entity {
         this.x = Math.max(this.size / 2, Math.min(mapW - this.size / 2, this.x));
         this.y = Math.max(this.size / 2, Math.min(mapH - this.size / 2, this.y));
 
-        if (this.hp <= 0) this.alive = false;
+        if (this.hp <= 0 && this.active) {
+            this.onDeath();
+        }
     }
 
     // [수송 유닛 공통] 하차 처리 로직

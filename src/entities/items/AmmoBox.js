@@ -45,8 +45,7 @@ export class AmmoBox extends PlayerUnit {
         this.chargingUnits = [];
         if (this.amount <= 0.0001) {
             this.amount = 0;
-            this.hp = 0; // 소진 시 파괴 처리 (제거 트리거)
-            this.active = false;
+            this.onDeath(); // 소진 시 파괴 처리 (중앙 집중화된 로직 사용)
             return;
         }
 

@@ -32,6 +32,20 @@ export class Entity {
      * 오브젝트 풀로 반환되기 전 호출되는 정리 메서드
      */
     onRelease() {
+        // [추가] 풀로 반환되기 전 선택 목록에서 확실히 제거
+        if (this.engine && this.engine.selectedEntities) {
+            const idx = this.engine.selectedEntities.indexOf(this);
+            if (idx !== -1) {
+                this.engine.selectedEntities.splice(idx, 1);
+                if (this.engine.selectedEntity === this) {
+                    this.engine.selectedEntity = this.engine.selectedEntities.length > 0 
+                        ? this.engine.selectedEntities[0] 
+                        : null;
+                }
+                if (this.engine.updateBuildMenu) this.engine.updateBuildMenu();
+                if (this.engine.updateCursor) this.engine.updateCursor();
+            }
+        }
         this.active = false;
         // 엔진 참조 해제 등으로 메모리 누수 방지 (선택적)
         // this.engine = null; 
@@ -46,11 +60,41 @@ export class Entity {
                 if (this.ownerId === 1) return; // 아군 무적
             }
     
-            this.hp -= amount;        this.hitTimer = 150; // 150ms 동안 피격 상태 유지 (깜빡임 효과용)
+            this.hp -= amount;
+        this.hitTimer = 150; // 150ms 동안 피격 상태 유지 (깜빡임 효과용)
 
         if (this.hp <= 0) {
-            this.active = false;
-            if (this.alive !== undefined) this.alive = false;
+            this.onDeath();
+        }
+    }
+
+    /**
+     * 유닛 사망 시 처리 로직 (파괴 효과, 선택 해제 등)
+     */
+    onDeath() {
+        this.active = false;
+        if (this.alive !== undefined) this.alive = false;
+        this.hp = 0;
+
+        // 사망 시 자동 선택 해제
+        if (this.engine) {
+            if (this.engine.selectedEntities) {
+                const idx = this.engine.selectedEntities.indexOf(this);
+                if (idx !== -1) {
+                    this.engine.selectedEntities.splice(idx, 1);
+                    
+                    // 현재 단일 선택된 개체였으면 해제
+                    if (this.engine.selectedEntity === this) {
+                        this.engine.selectedEntity = this.engine.selectedEntities.length > 0 
+                            ? this.engine.selectedEntities[0] 
+                            : null;
+                    }
+
+                    // UI 갱신
+                    if (this.engine.updateBuildMenu) this.engine.updateBuildMenu();
+                    if (this.engine.updateCursor) this.engine.updateCursor();
+                }
+            }
         }
     }
 
