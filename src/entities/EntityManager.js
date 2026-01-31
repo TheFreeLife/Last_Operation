@@ -40,6 +40,8 @@ export class EntityManager {
         this.ecsWorld.typeId[idx] = 1; // 1: Projectile
         this.ecsWorld.x[idx] = x;
         this.ecsWorld.y[idx] = y;
+        this.ecsWorld.startX[idx] = x;
+        this.ecsWorld.startY[idx] = y;
         this.ecsWorld.targetX[idx] = target.x;
         this.ecsWorld.targetY[idx] = target.y;
         this.ecsWorld.speed[idx] = options.speed || 8;

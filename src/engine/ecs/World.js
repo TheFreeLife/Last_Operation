@@ -25,6 +25,8 @@ export class World {
         // 투사체 전용 데이터
         this.targetX = new Float32Array(maxEntities);
         this.targetY = new Float32Array(maxEntities);
+        this.startX = new Float32Array(maxEntities);
+        this.startY = new Float32Array(maxEntities);
         this.explosionRadius = new Float32Array(maxEntities);
         this.isIndirect = new Uint8Array(maxEntities); // 0: 직사, 1: 곡사
     }
