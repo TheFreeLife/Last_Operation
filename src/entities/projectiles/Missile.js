@@ -13,6 +13,7 @@ export class Missile extends Entity {
         this.targetY = targetY;
         this.damage = damage;
         this.engine = engine;
+        this.domain = 'projectile'; // 타겟팅 및 충돌 제외를 위한 도메인 설정
 
         // 물리 설정 (긴장감을 위해 속도 하향: 8 -> 4)
         this.speed = 4; 

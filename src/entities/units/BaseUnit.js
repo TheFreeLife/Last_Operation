@@ -367,6 +367,8 @@ export class BaseUnit extends Entity {
             // 자신 제외, 비활성 제외, 탑승 중 제외, 다른 도메인(공중 vs 지상) 제외
             if (other === this || !other.active || other.hp <= 0 || other.isBoarded) continue;
             // 유닛이 아닌 것(건물 등)은 제외 (건물 충돌은 moveWithCollision에서 처리됨)
+            // [추가] 투사체(미사일, 폭탄 등)는 충돌 계산에서 제외
+            if (other.type === 'missile' || other.type === 'bomb' || other.type === 'projectile') continue;
             if (!other.speed && other.type !== 'wall') continue; 
             
             if (other.isFalling || this.isFalling) continue;

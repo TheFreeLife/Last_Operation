@@ -12,6 +12,7 @@ export class FallingBomb {
         this.radius = 120; // 폭발 범위 살짝 확장
         this.scale = 2.0;
         this.type = 'bomb';
+        this.domain = 'projectile'; // 타겟팅 제외를 위한 도메인 설정
 
         // 폭격기로부터 공격 가능 대상 목록 상속 (폭격기는 기본적으로 지상/해상 공격)
         this.attackTargets = source?.attackTargets || ['ground', 'sea'];
