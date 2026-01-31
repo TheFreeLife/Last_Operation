@@ -423,6 +423,10 @@ export class MapEditor {
                 tileMap.updateTile(x, y, data.id, data.r);
             } else if (this.currentLayer === 'wall') {
                 tileMap.layers.wall[y][x] = { id: data.id, r: data.r };
+                const maxHp = tileMap.getWallMaxHp(data.id);
+                gridCell.hp = maxHp;
+                gridCell.maxHp = maxHp;
+                
                 if (data.id !== 'spawn-point') {
                     gridCell.occupied = true;
                     gridCell.passable = false;

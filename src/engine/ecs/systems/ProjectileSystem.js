@@ -36,9 +36,12 @@ export function updateProjectiles(world, deltaTime, engine) {
                 if (tile && !tile.passable) {
                     if (explosionRadius[i] > 0) {
                         handleExplosion(world, i, engine);
-                    } else if (engine.addEffect) {
-                        // 일반 탄환은 벽에 불꽃 튐
-                        engine.addEffect('hit', x[i], y[i], '#ccc');
+                    } else {
+                        // 타일에 직접 데미지
+                        tileMap.damageTile(gridPos.x, gridPos.y, damage[i]);
+                        if (engine.addEffect) {
+                            engine.addEffect('hit', x[i], y[i], '#ccc');
+                        }
                     }
                     collided = true;
                 }
@@ -108,20 +111,42 @@ function handleExplosion(world, idx, engine) {
     const radius = world.explosionRadius[idx];
     const dmg = world.damage[idx];
     const ownerId = world.ownerId[idx];
+    const tileMap = engine.tileMap;
 
-    // 주변 범위 피해
+    // 1. 주변 유닛 범위 피해
     const targets = engine.entityManager.getNearby(ex, ey, radius);
     for (const target of targets) {
         if (!target.active || target.hp === undefined) continue;
-        
-        // [수정] 아군 사격(Friendly Fire) 허용
-        // 이제 관계(relation)를 체크하지 않고, 폭발 범위 내의 모든 유닛에게 피해를 줍니다.
-        // 단, 투사체 자체는 피해 대상에서 제외합니다.
         if (target.domain === 'projectile') continue;
 
         const dist = Math.hypot(target.x - ex, target.y - ey);
         if (dist <= radius) {
             target.takeDamage(dmg);
+        }
+    }
+
+    // 2. 주변 타일(벽) 범위 피해
+    if (tileMap) {
+        const gridRadius = Math.ceil(radius / tileMap.tileSize);
+        const center = tileMap.worldToGrid(ex, ey);
+        
+        for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+            for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                const gx = center.x + dx;
+                const gy = center.y + dy;
+                
+                if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
+                
+                const wall = tileMap.layers.wall[gy][gx];
+                if (wall && wall.id) {
+                    const worldPos = tileMap.gridToWorld(gx, gy);
+                    const dist = Math.hypot(worldPos.x - ex, worldPos.y - ey);
+                    
+                    if (dist <= radius + tileMap.tileSize / 2) {
+                        tileMap.damageTile(gx, gy, dmg);
+                    }
+                }
+            }
         }
     }
 

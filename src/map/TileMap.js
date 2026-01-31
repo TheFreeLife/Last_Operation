@@ -18,6 +18,7 @@ export class TileMap {
         this.initGrid();
         this.initChunks();
         this.initFogCanvas();
+        this.initWallRegistry();
     }
 
     initFogCanvas() {
@@ -49,13 +50,149 @@ export class TileMap {
                     buildable: true,
                     passable: true,
                     visible: false,
-                    inSight: false
+                    inSight: false,
+                    hp: 0,
+                    maxHp: 0
                 };
                 this.layers.floor[y][x] = { id: 'dirt', r: 0 };
                 this.layers.wall[y][x] = null;
                 this.layers.unit[y][x] = null;
             }
         }
+    }
+
+    initWallRegistry() {
+        this.wallRegistry = {
+            'tree': {
+                maxHp: 50,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#3d2b1f'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.6, ts*0.2, ts*0.3);
+                    ctx.fillStyle = '#2d4d1e'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.4, ts*0.35, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#3a5a2a'; ctx.beginPath(); ctx.arc(lpx+ts*0.4, lpy+ts*0.35, ts*0.15, 0, Math.PI*2); ctx.fill();
+                }
+            },
+            'stone-wall': {
+                maxHp: 250,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(lpx, lpy, ts, ts);
+                    const ds = (x, y, w, h, c) => { 
+                        ctx.fillStyle = c; ctx.fillRect(lpx+x, lpy+y, w-1, h-1);
+                        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.strokeRect(lpx+x+1, lpy+y+1, w-3, h-3);
+                    };
+                    ds(0, 0, ts*0.65, ts*0.45, '#4a4a48'); ds(ts*0.65, 0, ts*0.35, ts*0.45, '#525250');
+                    ds(0, ts*0.45, ts*0.35, ts*0.55, '#454543'); ds(ts*0.35, ts*0.45, ts*0.65, ts*0.55, '#4e4e4c');
+                }
+            },
+            'rock': {
+                maxHp: 500,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#777'; ctx.beginPath();
+                    ctx.moveTo(lpx+ts*0.2, lpy+ts*0.8); ctx.lineTo(lpx+ts*0.1, lpy+ts*0.4);
+                    ctx.lineTo(lpx+ts*0.4, lpy+ts*0.1); ctx.lineTo(lpx+ts*0.8, lpy+ts*0.2);
+                    ctx.lineTo(lpx+ts*0.9, lpy+ts*0.7); ctx.closePath(); ctx.fill();
+                }
+            },
+            'fence': {
+                maxHp: 30,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 4; ctx.beginPath();
+                    ctx.moveTo(lpx, lpy+ts*0.3); ctx.lineTo(lpx+ts, lpy+ts*0.3);
+                    ctx.moveTo(lpx, lpy+ts*0.7); ctx.lineTo(lpx+ts, lpy+ts*0.7); ctx.stroke();
+                    ctx.lineWidth = 2; ctx.beginPath();
+                    for(let i=1; i<=3; i++) { ctx.moveTo(lpx+ts*i/4, lpy+ts*0.1); ctx.lineTo(lpx+ts*i/4, lpy+ts*0.9); }
+                    ctx.stroke();
+                }
+            },
+            'concrete-wall': {
+                maxHp: 400,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#666'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.strokeStyle = '#444'; ctx.lineWidth = 2; ctx.strokeRect(lpx+2, lpy+2, ts-4, ts-4);
+                    ctx.fillStyle = '#333';
+                    [0.25, 0.75].forEach(ax => [0.25, 0.75].forEach(ay => {
+                        ctx.beginPath(); ctx.arc(lpx+ts*ax, lpy+ts*ay, 2, 0, Math.PI*2); ctx.fill();
+                    }));
+                }
+            },
+            'sandbag': {
+                maxHp: 100,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#c2b280'; const bw = ts*0.45, bh = ts*0.25;
+                    [[0.02, 0.6], [0.52, 0.6], [0.27, 0.3]].forEach(p => {
+                        ctx.fillRect(lpx+ts*p[0], lpy+ts*p[1], bw, bh);
+                        ctx.strokeStyle = '#a6956d'; ctx.strokeRect(lpx+ts*p[0], lpy+ts*p[1], bw, bh);
+                    });
+                }
+            },
+            'barricade': {
+                maxHp: 150,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.strokeStyle = '#333'; ctx.lineWidth = 5; ctx.beginPath();
+                    ctx.moveTo(lpx+5, lpy+5); ctx.lineTo(lpx+ts-5, lpy+ts-5);
+                    ctx.moveTo(lpx+ts-5, lpy+5); ctx.lineTo(lpx+5, lpy+ts-5); ctx.stroke();
+                    ctx.strokeStyle = '#fbc02d'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            'brick-wall': {
+                maxHp: 200,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#8d2d2d'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.strokeStyle = '#5d1d1d'; for(let i=1; i<4; i++) {
+                        ctx.beginPath(); ctx.moveTo(lpx, lpy+ts*i/4); ctx.lineTo(lpx+ts, lpy+ts*i/4); ctx.stroke();
+                    }
+                }
+            },
+            'street-lamp': {
+                maxHp: 20,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#333'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.1, ts*0.2, ts*0.8);
+                    ctx.fillStyle = '#fbc02d'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.2, ts*0.15, 0, Math.PI*2); ctx.fill();
+                }
+            },
+            'hydrant': {
+                maxHp: 50,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0, Math.PI*2); ctx.fill();
+                }
+            },
+            'trash-can': {
+                maxHp: 20,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5);
+                    ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15);
+                }
+            },
+            'spawn-point': {
+                maxHp: 999999,
+                isInvulnerable: true,
+                render: (ctx, ts, lpx, lpy) => {
+                    const size = ts * 3; const hSize = size / 2;
+                    ctx.fillStyle = '#444'; ctx.fillRect(-hSize, -hSize, size, size);
+                    ctx.globalAlpha = 0.1; ctx.fillStyle = '#000';
+                    for(let i=0; i<30; i++) ctx.fillRect(-hSize + Math.random()*size, -hSize + Math.random()*size, 2, 2);
+                    ctx.globalAlpha = 1.0;
+                    const stripeW = 10; ctx.save(); ctx.beginPath(); ctx.rect(-hSize, -hSize, size, size);
+                    ctx.rect(-hSize + stripeW, -hSize + stripeW, size - stripeW*2, size - stripeW*2);
+                    ctx.clip("evenodd"); ctx.fillStyle = '#fbc02d'; ctx.fillRect(-hSize, -hSize, size, size);
+                    ctx.strokeStyle = '#222'; ctx.lineWidth = 5;
+                    for(let i = -size; i < size; i += 15) { ctx.beginPath(); ctx.moveTo(i, -hSize); ctx.lineTo(i + size, hSize); ctx.stroke(); }
+                    ctx.restore();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.lineWidth = 2; ctx.strokeRect(-hSize + 15, -hSize + 15, size - 30, size - 30);
+                    const drawCrate = (x, y, s) => {
+                        ctx.fillStyle = '#4b5320'; ctx.fillRect(x, y, s, s); ctx.strokeStyle = '#2a2f10'; ctx.strokeRect(x+1, y+1, s-2, s-2);
+                        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+s, y+s); ctx.moveTo(x+s, y); ctx.lineTo(x, y+s); ctx.stroke();
+                    };
+                    drawCrate(hSize - 35, hSize - 35, 20); drawCrate(hSize - 55, hSize - 30, 15);
+                    ctx.fillStyle = '#7a2b2b'; ctx.beginPath(); ctx.arc(-hSize + 30, -hSize + 30, 8, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, -ts); ctx.lineTo(ts*0.4, -ts*0.6); ctx.lineTo(ts*0.15, -ts*0.6); ctx.lineTo(ts*0.15, -ts*0.2); ctx.lineTo(-ts*0.15, -ts*0.2); ctx.lineTo(-ts*0.15, -ts*0.6); ctx.lineTo(-ts*0.4, -ts*0.6); ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText("UNIT DEPLOYMENT ZONE", 0, ts*0.5);
+                }
+            }
+        };
+    }
+
+    getWallMaxHp(id) {
+        return this.wallRegistry[id]?.maxHp || 100;
     }
 
     loadFromData(data) {
@@ -89,6 +226,7 @@ export class TileMap {
                 
                 // 스폰 지점 블록은 통과 가능하도록 예외 처리
                 const isWallPassable = !w.id || w.id === 'spawn-point';
+                const maxHp = w.id ? this.getWallMaxHp(w.id) : 0;
 
                 this.grid[y][x] = {
                     terrain: f.id,
@@ -98,7 +236,9 @@ export class TileMap {
                     buildable: !w.id && f.id !== 'spawn-point',
                     passable: isWallPassable && f.id !== 'water',
                     visible: false,
-                    inSight: false
+                    inSight: false,
+                    hp: maxHp,
+                    maxHp: maxHp
                 };
             }
         }
@@ -106,6 +246,48 @@ export class TileMap {
         this.chunksY = Math.ceil(this.rows / this.chunkSize);
         this.initChunks();
         this.initFogCanvas();
+    }
+
+    damageTile(x, y, damage) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+        
+        const tile = this.grid[y][x];
+        const wall = this.layers.wall[y][x];
+        
+        if (!wall || !wall.id || wall.id === 'spawn-point') return;
+        
+        tile.hp -= damage;
+        
+        // 데미지 이펙트 (선택사항: 나중에 추가 가능)
+        if (this.engine.addEffect) {
+            this.engine.addEffect('hit', x * this.tileSize + this.tileSize / 2, y * this.tileSize + this.tileSize / 2, '#fff');
+        }
+
+        if (tile.hp <= 0) {
+            this.destroyWall(x, y);
+        }
+    }
+
+    destroyWall(x, y) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+        
+        const tile = this.grid[y][x];
+        const wallId = this.layers.wall[y][x]?.id;
+        
+        if (!wallId) return;
+
+        // 데이터 제거
+        this.layers.wall[y][x] = null;
+        tile.hp = 0;
+        tile.maxHp = 0;
+        tile.occupied = false;
+        tile.buildable = tile.terrain !== 'spawn-point';
+        tile.passable = tile.terrain !== 'water';
+
+        // 길찾기 업데이트가 필요한 경우를 위해 FlowField 등 갱신 알림 필요할 수 있음
+        if (this.engine.deploymentSystem) {
+            this.engine.deploymentSystem.shouldRebakeFlowField = true;
+        }
     }
 
     getTileColor(terrain) {
@@ -217,124 +399,44 @@ export class TileMap {
     drawWalls(ctx) {
         if (!this.layers || !this.layers.wall) return;
         for (let y = 0; y < this.rows; y++) {
-            if (!this.layers.wall[y]) continue; // 행 데이터 부재 시 스킵
+            if (!this.layers.wall[y]) continue; 
             for (let x = 0; x < this.cols; x++) {
                 const w = this.layers.wall[y][x];
                 if (w && w.id) {
                     if (!this.grid[y][x].visible && !(this.engine.debugSystem?.isFullVision)) continue;
-                    this.drawSingleWall(ctx, w.id, x*this.tileSize, y*this.tileSize, this.tileSize, w.r || 0);
+                    
+                    const px = x * this.tileSize;
+                    const py = y * this.tileSize;
+                    this.drawSingleWall(ctx, w.id, px, py, this.tileSize, w.r || 0);
+
+                    // 체력 바 표시 (데미지를 입었을 때만)
+                    const tile = this.grid[y][x];
+                    if (tile.hp > 0 && tile.hp < tile.maxHp && w.id !== 'spawn-point') {
+                        const barW = this.tileSize * 0.8;
+                        const barH = 4;
+                        const bx = px + (this.tileSize - barW) / 2;
+                        const by = py + 2;
+
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                        ctx.fillRect(bx, by, barW, barH);
+                        
+                        const hpRate = tile.hp / tile.maxHp;
+                        ctx.fillStyle = hpRate > 0.5 ? '#4caf50' : (hpRate > 0.2 ? '#ffeb3b' : '#f44336');
+                        ctx.fillRect(bx, by, barW * hpRate, barH);
+                    }
                 }
             }
         }
     }
 
     drawSingleWall(ctx, id, px, py, ts, r = 0) {
+        const config = this.wallRegistry[id];
+        if (!config) return;
+
         ctx.save();
         ctx.translate(px + ts/2, py + ts/2);
         ctx.rotate((r * 90) * Math.PI / 180);
-        const lpx = -ts/2, lpy = -ts/2;
-        if (id === 'tree') { ctx.fillStyle = '#3d2b1f'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.6, ts*0.2, ts*0.3); ctx.fillStyle = '#2d4d1e'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.4, ts*0.35, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#3a5a2a'; ctx.beginPath(); ctx.arc(lpx+ts*0.4, lpy+ts*0.35, ts*0.15, 0, Math.PI*2); ctx.fill(); }
-        else if (id === 'stone-wall') {
-            ctx.fillStyle = '#2a2a2a'; ctx.fillRect(lpx, lpy, ts, ts);
-            const ds = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(lpx+x, lpy+y, w-1, h-1); ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.strokeRect(lpx+x+1, lpy+y+1, w-3, h-3); ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.moveTo(lpx+x, lpy+y+h-1); ctx.lineTo(lpx+x+w-1, lpy+y+h-1); ctx.lineTo(lpx+x+w-1, lpy+y); ctx.stroke(); };
-            ds(0, 0, ts*0.65, ts*0.45, '#4a4a48'); ds(ts*0.65, 0, ts*0.35, ts*0.45, '#525250'); ds(0, ts*0.45, ts*0.35, ts*0.55, '#454543'); ds(ts*0.35, ts*0.45, ts*0.65, ts*0.55, '#4e4e4c');
-        }
-        else if (id === 'rock') { ctx.fillStyle = '#777'; ctx.beginPath(); ctx.moveTo(lpx+ts*0.2, lpy+ts*0.8); ctx.lineTo(lpx+ts*0.1, lpy+ts*0.4); ctx.lineTo(lpx+ts*0.4, lpy+ts*0.1); ctx.lineTo(lpx+ts*0.8, lpy+ts*0.2); ctx.lineTo(lpx+ts*0.9, lpy+ts*0.7); ctx.closePath(); ctx.fill(); }
-        else if (id === 'fence') { ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(lpx, lpy+ts*0.3); ctx.lineTo(lpx+ts, lpy+ts*0.3); ctx.moveTo(lpx, lpy+ts*0.7); ctx.lineTo(lpx+ts, lpy+ts*0.7); ctx.stroke(); ctx.lineWidth = 2; ctx.beginPath(); for(let i=1; i<=3; i++) { ctx.moveTo(lpx+ts*i/4, lpy+ts*0.1); ctx.lineTo(lpx+ts*i/4, lpy+ts*0.9); } ctx.stroke(); }
-        else if (id === 'concrete-wall') { ctx.fillStyle = '#666'; ctx.fillRect(lpx, lpy, ts, ts); ctx.strokeStyle = '#444'; ctx.lineWidth = 2; ctx.strokeRect(lpx+2, lpy+2, ts-4, ts-4); ctx.beginPath(); ctx.moveTo(0, lpy+2); ctx.lineTo(0, lpy+ts-2); ctx.stroke(); ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(lpx+ts*0.25, lpy+ts*0.25, 2, 0, Math.PI*2); ctx.arc(lpx+ts*0.75, lpy+ts*0.25, 2, 0, Math.PI*2); ctx.arc(lpx+ts*0.25, lpy+ts*0.75, 2, 0, Math.PI*2); ctx.arc(lpx+ts*0.75, lpy+ts*0.75, 2, 0, Math.PI*2); ctx.fill(); }
-        else if (id === 'sandbag') { ctx.fillStyle = '#c2b280'; const bw = ts*0.45, bh = ts*0.25; ctx.fillRect(lpx+ts*0.02, lpy+ts*0.6, bw, bh); ctx.fillRect(lpx+ts*0.52, lpy+ts*0.6, bw, bh); ctx.fillRect(lpx+ts*0.27, lpy+ts*0.3, bw, bh); ctx.strokeStyle = '#a6956d'; ctx.lineWidth = 1; ctx.strokeRect(lpx+ts*0.02, lpy+ts*0.6, bw, bh); ctx.strokeRect(lpx+ts*0.52, lpy+ts*0.6, bw, bh); ctx.strokeRect(lpx+ts*0.27, lpy+ts*0.3, bw, bh); }
-        else if (id === 'barricade') { ctx.strokeStyle = '#333'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(lpx+5, lpy+5); ctx.lineTo(lpx+ts-5, lpy+ts-5); ctx.moveTo(lpx+ts-5, lpy+5); ctx.lineTo(lpx+5, lpy+ts-5); ctx.stroke(); ctx.strokeStyle = '#fbc02d'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]); }
-        else if (id === 'brick-wall') { ctx.fillStyle = '#8d2d2d'; ctx.fillRect(lpx, lpy, ts, ts); ctx.strokeStyle = '#5d1d1d'; ctx.lineWidth = 1; for(let i=1; i<4; i++) { ctx.beginPath(); ctx.moveTo(lpx, lpy+ts*i/4); ctx.lineTo(lpx+ts, lpy+ts*i/4); ctx.stroke(); } }
-        else if (id === 'street-lamp') { ctx.fillStyle = '#333'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.1, ts*0.2, ts*0.8); ctx.fillStyle = '#fbc02d'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.2, ts*0.15, 0, Math.PI*2); ctx.fill(); }
-        else if (id === 'hydrant') { ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0, Math.PI*2); ctx.fill(); }
-        else if (id === 'trash-can') { ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5); ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15); }
-        else if (id === 'spawn-point') {
-            const size = ts * 3;
-            const hSize = size / 2;
-            
-            // 1. 강화 콘크리트 베이스
-            ctx.fillStyle = '#444'; // 어두운 콘크리트
-            ctx.fillRect(-hSize, -hSize, size, size);
-            
-            // 콘크리트 질감 (노이즈)
-            ctx.globalAlpha = 0.1;
-            ctx.fillStyle = '#000';
-            for(let i=0; i<30; i++) {
-                ctx.fillRect(-hSize + Math.random()*size, -hSize + Math.random()*size, 2, 2);
-            }
-            ctx.globalAlpha = 1.0;
-
-            // 2. 가장자리 안전 스트라이프 (Yellow/Black Hazard)
-            const stripeW = 10;
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(-hSize, -hSize, size, size);
-            ctx.rect(-hSize + stripeW, -hSize + stripeW, size - stripeW*2, size - stripeW*2);
-            ctx.clip("evenodd");
-            
-            ctx.fillStyle = '#fbc02d';
-            ctx.fillRect(-hSize, -hSize, size, size);
-            ctx.strokeStyle = '#222';
-            ctx.lineWidth = 5;
-            for(let i = -size; i < size; i += 15) {
-                ctx.beginPath();
-                ctx.moveTo(i, -hSize);
-                ctx.lineTo(i + size, hSize);
-                ctx.stroke();
-            }
-            ctx.restore();
-
-            // 3. 내부 베이스 라인
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-hSize + 15, -hSize + 15, size - 30, size - 30);
-
-            // 4. 보급 상자 및 장비 디테일 (모서리 장식)
-            const drawCrate = (x, y, s) => {
-                ctx.fillStyle = '#4b5320'; // Olive Drab
-                ctx.fillRect(x, y, s, s);
-                ctx.strokeStyle = '#2a2f10';
-                ctx.strokeRect(x+1, y+1, s-2, s-2);
-                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+s, y+s); ctx.moveTo(x+s, y); ctx.lineTo(x, y+s); ctx.stroke();
-            };
-            drawCrate(hSize - 35, hSize - 35, 20); // BR
-            drawCrate(hSize - 55, hSize - 30, 15);
-            
-            // 드럼통 (TL)
-            ctx.fillStyle = '#7a2b2b'; // 붉은 드럼통
-            ctx.beginPath(); ctx.arc(-hSize + 30, -hSize + 30, 8, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#444'; ctx.stroke();
-
-            // 5. 전술 배치 지시계 (Chevron)
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.moveTo(0, -ts * 1.0);
-            ctx.lineTo(ts * 0.4, -ts * 0.6);
-            ctx.lineTo(ts * 0.15, -ts * 0.6);
-            ctx.lineTo(ts * 0.15, -ts * 0.2);
-            ctx.lineTo(-ts * 0.15, -ts * 0.2);
-            ctx.lineTo(-ts * 0.15, -ts * 0.6);
-            ctx.lineTo(-ts * 0.4, -ts * 0.6);
-            ctx.closePath();
-            ctx.fill();
-
-            // 6. 군용 스텐실 텍스트
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.font = 'bold 12px "Courier New", monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText("UNIT DEPLOYMENT ZONE", 0, ts * 0.5);
-            ctx.font = '10px "Courier New", monospace';
-            ctx.fillText("SEC-ALPHA / L-ZONE", 0, ts * 0.8);
-            
-            // 중앙 십자 마크
-            ctx.strokeStyle = '#fff';
-            ctx.globalAlpha = 0.3;
-            ctx.beginPath();
-            ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
-            ctx.moveTo(0, -20); ctx.lineTo(0, 20);
-            ctx.stroke();
-            ctx.globalAlpha = 1.0;
-        }
+        config.render(ctx, ts, -ts/2, -ts/2);
         ctx.restore();
     }
 

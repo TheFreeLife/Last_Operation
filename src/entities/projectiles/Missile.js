@@ -102,6 +102,30 @@ export class Missile extends Entity {
             }
         });
 
+        // 타일(벽) 피해 추가
+        const tileMap = this.engine.tileMap;
+        if (tileMap) {
+            const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
+            const center = tileMap.worldToGrid(this.targetX, this.targetY);
+            
+            for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+                for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                    const gx = center.x + dx;
+                    const gy = center.y + dy;
+                    if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
+                    
+                    const wall = tileMap.layers.wall[gy][gx];
+                    if (wall && wall.id) {
+                        const worldPos = tileMap.gridToWorld(gx, gy);
+                        const dist = Math.hypot(worldPos.x - this.targetX, worldPos.y - this.targetY);
+                        if (dist <= this.explosionRadius + tileMap.tileSize / 2) {
+                            tileMap.damageTile(gx, gy, this.damage);
+                        }
+                    }
+                }
+            }
+        }
+
         const checkCleanup = () => {
             if (this.trail.length === 0) {
                 this.active = false;

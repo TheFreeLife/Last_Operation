@@ -52,6 +52,30 @@ export class FallingBomb {
             }
         });
 
+        // 타일(벽) 피해 추가
+        const tileMap = this.engine.tileMap;
+        if (tileMap) {
+            const gridRadius = Math.ceil(this.radius / tileMap.tileSize);
+            const center = tileMap.worldToGrid(this.x, this.y);
+            
+            for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+                for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                    const gx = center.x + dx;
+                    const gy = center.y + dy;
+                    if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
+                    
+                    const wall = tileMap.layers.wall[gy][gx];
+                    if (wall && wall.id) {
+                        const worldPos = tileMap.gridToWorld(gx, gy);
+                        const dist = Math.hypot(worldPos.x - this.x, worldPos.y - this.y);
+                        if (dist <= this.radius + tileMap.tileSize / 2) {
+                            tileMap.damageTile(gx, gy, this.damage);
+                        }
+                    }
+                }
+            }
+        }
+
         // 단일 대형 폭발 효과 발생
         if (this.engine.addEffect) {
             this.engine.addEffect('explosion', this.x, this.y);
