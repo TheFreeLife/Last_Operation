@@ -18,6 +18,7 @@ export class AmmoBox extends PlayerUnit {
         this.speed = 0.6;
         this.hp = 150;
         this.maxHp = 150;
+        this.population = 0; // 사람이 없음
         this.size = 30;
         this.attackRange = 150; // 사거리 150으로 축소
         this.damage = 0; // 공격 능력 없음

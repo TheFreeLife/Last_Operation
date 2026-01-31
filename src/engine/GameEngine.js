@@ -305,6 +305,15 @@ export class GameEngine {
     }
 
     spawnRandomUnit() {
+        const cost = 3;
+        const worldCenterX = -this.camera.x / this.camera.zoom + (this.canvas.width / 2) / this.camera.zoom;
+        const worldCenterY = -this.camera.y / this.camera.zoom + (this.canvas.height / 2) / this.camera.zoom;
+
+        if (this.publicSentiment < cost) {
+            this.addEffect('system', worldCenterX, worldCenterY, '#ff3131', '민심이 부족하여 추가 징집이 불가능합니다!');
+            return;
+        }
+
         // 1. 맵에서 스폰 지점 찾기
         let spawnPos = null;
         let spawnAngle = 0;
@@ -327,7 +336,8 @@ export class GameEngine {
             return;
         }
 
-        // 2. 랜덤 선택 및 유닛 생성
+        // 2. 민심 차감 및 랜덤 선택
+        this.updateSentiment(-cost);
         const pool = this.getRandomUnitPool();
         const unitId = pool[Math.floor(Math.random() * pool.length)];
 
@@ -1170,6 +1180,10 @@ export class GameEngine {
         let desc = '<div class="item-stats-box">';
         desc += `<div class="stat-row"><span>❤️ 체력:</span> <span class="highlight">${Math.floor(hovered.hp)} / ${hovered.maxHp}</span></div>`;
 
+        if (hovered.population !== undefined) {
+            desc += `<div class="stat-row"><span>👥 인원:</span> <span class="highlight">${hovered.population}명</span></div>`;
+        }
+
         if (hovered.damage > 0) {
             desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
         }
@@ -1291,8 +1305,8 @@ export class GameEngine {
                                             this.addEffect('system', obj.x, obj.y - 20, '#ff3131', `민심 하락 ${penalty}`);
                                         } else if (isEnemy) {
                                             // 적군 처치: 민심 상승 (승전보 효과)
-                                            this.updateSentiment(1);
-                                            this.addEffect('system', obj.x, obj.y - 20, '#39ff14', `민심 상승 +1`);
+                                            this.updateSentiment(2);
+                                            this.addEffect('system', obj.x, obj.y - 20, '#39ff14', `민심 상승 +2`);
                                         }
                                     }
                                 }
@@ -1454,7 +1468,9 @@ export class GameEngine {
 
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
-                grid[y][x].inSight = false;
+                if (grid[y] && grid[y][x]) {
+                    grid[y][x].inSight = false;
+                }
             }
         }
 

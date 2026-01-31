@@ -16,6 +16,7 @@ export class Tank extends PlayerUnit {
         this.explosionRadius = 40;
         this.size = 80;
         this.cargoSize = 10;
+        this.population = 4; // 전차장, 포수, 탄약수, 조종수
         this.hp = 1000;
         this.maxHp = 1000;
         this.attackType = 'hitscan';
@@ -84,7 +85,7 @@ export class MissileLauncher extends PlayerUnit {
         this.recoil = 0;
         this.size = 80;
         this.cargoSize = 10;
-
+        this.population = 3; // 운전수, 사격통제수 2명
         this.isSieged = false;
         this.isTransitioning = false;
         this.transitionTimer = 0;
@@ -322,6 +323,7 @@ export class Artillery extends PlayerUnit {
         this.explosionRadius = 60;
         this.size = 80;
         this.cargoSize = 5;
+        this.population = 5; // 승무원 5명
         this.attackType = 'projectile';
 
         this.ammoType = 'shell';
@@ -367,6 +369,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.lastBarrelSide = 1;
         this.size = 80;
         this.cargoSize = 5;
+        this.population = 3; // 운전수, 포수, 지휘관
         this.attackType = 'hitscan';
         this.hitEffectType = 'flak';
 

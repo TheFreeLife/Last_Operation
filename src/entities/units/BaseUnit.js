@@ -16,6 +16,7 @@ export class BaseUnit extends Entity {
         this.lastFireTime = 0;
         this.hp = 100;
         this.maxHp = 100;
+        this.population = 1; // 인구수 (현실적인 승무원/대원 수)
         this.alive = true;
         this.size = 40; // 20 -> 40
         this.damage = 0; // 하위 클래스에서 정의

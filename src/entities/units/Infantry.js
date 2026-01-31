@@ -14,6 +14,7 @@ export class Rifleman extends PlayerUnit {
         this.visionRange = 5;
         this.hp = 210;       // 3인 통합 체력 (70*3)
         this.maxHp = 210;
+        this.population = 3; // 분대원 3명
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 3;  // 분대이므로 적재 용량 증가
         this.attackType = 'hitscan';
@@ -112,6 +113,7 @@ export class Sniper extends PlayerUnit {
         this.visionRange = 10; // 시야가 매우 넓음
         this.hp = 40;
         this.maxHp = 40;
+        this.population = 2; // 사수 + 관측수
         this.attackTargets = ['ground', 'sea', 'air'];
         this.attackType = 'hitscan';
         this.hitEffectType = 'hit'; // 피격 이펙트 타입 설정

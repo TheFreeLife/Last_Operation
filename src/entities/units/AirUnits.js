@@ -17,6 +17,7 @@ export class ScoutPlane extends PlayerUnit {
         this.visionRange = 18; 
         this.hp = 250;       
         this.maxHp = 250;
+        this.population = 2; // 조종사 + 관측수 (현실적 운용 인원)
         this.size = 80;      
         this.cargoSize = 99; 
     }
@@ -99,6 +100,7 @@ export class Bomber extends PlayerUnit {
         this.visionRange = 12;
         this.hp = 1200;
         this.maxHp = 1200;
+        this.population = 4; // 조종사, 부조종사, 항법사, 폭격수
         this.size = 130; 
         this.damage = 0;
         this.attackTargets = ['ground', 'sea'];
@@ -386,6 +388,7 @@ export class CargoPlane extends PlayerUnit {
         this.speed = 0.3;       
         this.hp = 1500;
         this.maxHp = 1500;
+        this.population = 2; // 조종사 2명
         this.size = 130; 
         this.altitude = 0.0; 
         this.isLandingZoneSafe = false;

@@ -72,7 +72,8 @@ export class TileMap {
             this.layers.unit[y] = [];
 
             for (let x = 0; x < this.cols; x++) {
-                const cell = data.grid[y][x];
+                const cell = (data.grid[y] && data.grid[y][x]) ? data.grid[y][x] : null;
+                
                 const parse = (d) => {
                     if (!d) return { id: null, r: 0 };
                     if (typeof d === 'string') return { id: d, r: 0 };
@@ -80,11 +81,11 @@ export class TileMap {
                     return { id: d.id, r: d.r || 0 };
                 };
 
-                const f = parse(cell[0] || 'dirt');
-                const w = parse(cell[1]);
+                const f = cell ? parse(cell[0] || 'dirt') : { id: 'dirt', r: 0 };
+                const w = cell ? parse(cell[1]) : { id: null, r: 0 };
                 this.layers.floor[y][x] = f;
                 this.layers.wall[y][x] = w;
-                this.layers.unit[y][x] = cell[2];
+                this.layers.unit[y][x] = cell ? cell[2] : null;
                 
                 // 스폰 지점 블록은 통과 가능하도록 예외 처리
                 const isWallPassable = !w.id || w.id === 'spawn-point';
