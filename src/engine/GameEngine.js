@@ -74,11 +74,13 @@ export class GameEngine {
         this.isHoveringUI = false;
         this.effects = [];
 
-        // 마우스 상태 추적
+        // 마우스 및 더블 클릭 상태 추적
         this.isMouseDown = false;
         this.isRightMouseDown = false;
         this.lastMouseX = 0;
         this.lastMouseY = 0;
+        this.lastClickTime = 0;
+        this.lastClickedEntity = null;
 
         // Camera State
         const initialZoom = 0.8;
@@ -1044,9 +1046,30 @@ export class GameEngine {
             return worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom;
         });
 
+        const now = Date.now();
+        const isDoubleClick = (found && this.lastClickedEntity === found && (now - this.lastClickTime) < 300);
+        
+        this.lastClickTime = now;
+        this.lastClickedEntity = found;
+
         if (found) {
             const isEnemy = this.entities.enemies.includes(found);
-            if (isEnemy) {
+            const isPlayerUnit = found.ownerId === 1;
+
+            if (isDoubleClick && isPlayerUnit) {
+                // --- 더블 클릭: 화면 내 동일 타입 유닛 일괄 선택 ---
+                const viewL = -this.camera.x / this.camera.zoom;
+                const viewT = -this.camera.y / this.camera.zoom;
+                const viewR = viewL + this.canvas.width / this.camera.zoom;
+                const viewB = viewT + this.canvas.height / this.camera.zoom;
+
+                this.selectedEntities = this.entities.units.filter(u => {
+                    if (u.ownerId !== 1 || u.type !== found.type || !u.active || u.isBoarded) return false;
+                    // 화면 범위 내에 있는지 확인
+                    return u.x >= viewL && u.x <= viewR && u.y >= viewT && u.y <= viewB;
+                });
+                this.selectedEntity = found;
+            } else if (isEnemy) {
                 this.selectedEntities = [found];
                 this.selectedEntity = found;
             } else if (isShiftKey) {
