@@ -441,7 +441,7 @@ export class RenderSystem {
                 }
             }
 
-            if (['projectile', 'bullet', 'shell', 'missile'].includes(ent.type)) {
+            if (['projectile', 'bullet', 'shell', 'missile', 'bomb'].includes(ent.type)) {
                 this.layerBuckets[this.layers.PROJECTILES].push(ent);
             } else {
                 // 공중 유닛 판별: 도메인이 air이거나, 현재 떠 있는 상태(altitude > 0.1)인 경우

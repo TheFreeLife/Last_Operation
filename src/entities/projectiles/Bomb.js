@@ -6,24 +6,39 @@ export class FallingBomb {
         this.damage = damage;
         this.source = source;
         this.timer = 0;
-        this.duration = 1000; // 1초 후 폭발
+        this.duration = 800; // 낙하 시간을 0.8초로 단축
         this.active = true;
-        this.arrived = false; // GameEngine 필터 조건 대응
-        this.radius = 120; // 폭발 범위 살짝 확장
-        this.scale = 2.0;
+        this.arrived = false;
+        this.radius = 120;
+        this.scale = 0.6;
         this.type = 'bomb';
-        this.domain = 'projectile'; // 타겟팅 제외를 위한 도메인 설정
+        this.domain = 'projectile';
+        
+        // 투하 고도 (폭격기 높이에 맞춰 60px로 조정)
+        this.startAltitude = 60; 
 
-        // 폭격기로부터 공격 가능 대상 목록 상속 (폭격기는 기본적으로 지상/해상 공격)
         this.attackTargets = source?.attackTargets || ['ground', 'sea'];
+    }
+
+    getCacheKey() {
+        return null; // 낙하 애니메이션을 위해 캐싱 방지
     }
 
     update(deltaTime) {
         if (!this.active) return;
         this.timer += deltaTime;
 
-        // 원근감: 2.0(하늘) -> 1.0(지면)
-        this.scale = 2.0 - (this.timer / this.duration);
+        const progress = Math.min(1, this.timer / this.duration);
+        
+        // 중력 가속도 효과 (Ease-In Quadratic)
+        this.fallProgress = Math.pow(progress, 2);
+
+        // 원근감: 높은 고도(약간 크게) -> 지면(실제 크기)
+        // 1.2(하늘) -> 0.6(지면)
+        this.scale = 1.2 - (this.fallProgress * 0.6);
+
+        // 낙하 중 기류에 의한 흔들림 (크기가 작아졌으므로 흔들림 폭도 줄임)
+        this.jitterX = (Math.random() - 0.5) * (1 - progress) * 2;
 
         if (this.timer >= this.duration) {
             this.explode();
@@ -41,7 +56,6 @@ export class FallingBomb {
 
         potentialTargets.forEach(target => {
             if (!target || target.hp === undefined) return;
-
             const targetDomain = target.domain || 'ground';
             if (!this.attackTargets.includes(targetDomain)) return;
 
@@ -52,31 +66,24 @@ export class FallingBomb {
             }
         });
 
-        // 타일(벽) 피해 추가
         const tileMap = this.engine.tileMap;
         if (tileMap) {
             const gridRadius = Math.ceil(this.radius / tileMap.tileSize);
             const center = tileMap.worldToGrid(this.x, this.y);
-            
             for (let dy = -gridRadius; dy <= gridRadius; dy++) {
                 for (let dx = -gridRadius; dx <= gridRadius; dx++) {
                     const gx = center.x + dx;
                     const gy = center.y + dy;
                     if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
-                    
-                    const wall = tileMap.layers.wall[gy][gx];
-                    if (wall && wall.id) {
-                        const worldPos = tileMap.gridToWorld(gx, gy);
-                        const dist = Math.hypot(worldPos.x - this.x, worldPos.y - this.y);
-                        if (dist <= this.radius + tileMap.tileSize / 2) {
-                            tileMap.damageTile(gx, gy, this.damage);
-                        }
+                    const worldPos = tileMap.gridToWorld(gx, gy);
+                    const dist = Math.hypot(worldPos.x - this.x, worldPos.y - this.y);
+                    if (dist <= this.radius + tileMap.tileSize / 2) {
+                        tileMap.damageTile(gx, gy, this.damage);
                     }
                 }
             }
         }
 
-        // 단일 대형 폭발 효과 발생
         if (this.engine.addEffect) {
             this.engine.addEffect('explosion', this.x, this.y);
         }
@@ -85,35 +92,55 @@ export class FallingBomb {
     draw(ctx) {
         if (!this.active) return;
 
-        ctx.save();
-        // 1. 지면 낙하 예상 지점 가이드
         const progress = this.timer / this.duration;
-        ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + progress * 0.4})`;
-        ctx.lineWidth = 2;
+        const currentAltitude = this.startAltitude * (1 - this.fallProgress);
+        
+        ctx.save();
+        
+        // RenderSystem에서 이미 (this.x, this.y)로 translate 되어 있으므로
+        // 여기서는 (0, 0)을 기준으로 그림
+        
+        // 1. 지면 낙하 지점 표시
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + progress * 0.3})`;
+        ctx.setLineDash([5, 5]);
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius * (0.2 + progress * 0.8), 0, Math.PI * 2);
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.setLineDash([]);
 
-        // 2. 떨어지는 포탄 본체
-        ctx.translate(this.x, this.y);
+        // 2. 지면 그림자 (목표 지점인 0,0에 고정)
+        const shadowAlpha = 0.1 + progress * 0.3;
+        ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 15 * (1.5 - progress), 7 * (1.5 - progress), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. 떨어지는 포탄 본체 (고도만큼 Y축 위로 오프셋)
+        ctx.translate(this.jitterX || 0, -currentAltitude);
         ctx.scale(this.scale, this.scale);
 
-        // 포탄 본체
+        // 포탄 몸통
         ctx.fillStyle = '#2d3436';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 8, 16, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 8, 18, 0, 0, Math.PI * 2);
         ctx.fill();
         
-        // 금속 광택 하이라이트
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        // 하이라이트
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
         ctx.beginPath();
-        ctx.ellipse(-3, -4, 2, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(-3, -4, 2, 8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // 꼬리 날개 (X자 형태 표현)
+        // 꼬리 날개
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-10, -16, 20, 3);
+        ctx.fillRect(-2, -20, 4, 12);
+        
+        // 뇌관 (빨간색 노즈콘)
         ctx.fillStyle = '#c0392b';
-        ctx.fillRect(-8, -14, 16, 2); // 가로 핀
-        ctx.fillRect(-2, -18, 4, 10); // 세로 핀
+        ctx.beginPath();
+        ctx.arc(0, 15, 5, 0, Math.PI, true);
+        ctx.fill();
 
         ctx.restore();
     }
