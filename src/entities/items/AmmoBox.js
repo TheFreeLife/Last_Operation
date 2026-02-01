@@ -93,27 +93,34 @@ export class AmmoBox extends PlayerUnit {
 
         // 사거리 내 탄약 보충이 필요한 아군 유닛 검색
         const units = this.engine.entities.units;
+        let targetUnit = null;
+        let minDist = this.attackRange;
+
         for (const unit of units) {
             // 조건: 살아있음, 아군, 탄종 일치, 탄약 부족
             if (unit === this || unit.ownerId !== 1 || !unit.active || unit.hp <= 0) continue;
             if (unit.ammoType !== this.ammoType || unit.ammo >= unit.maxAmmo) continue;
 
             const dist = Math.hypot(this.x - unit.x, this.y - unit.y);
-            if (dist <= this.attackRange && this.amount > 0) {
-                // 충전량 계산 (상자 잔량, 유닛 필요량, 프레임당 속도 중 최소값)
-                let toRefill = Math.min(frameRefill, unit.maxAmmo - unit.ammo, this.amount);
+            if (dist <= minDist) {
+                minDist = dist;
+                targetUnit = unit;
+            }
+        }
 
-                // 실제로 충전할 양이 있는 경우에만 유닛 등록 및 차감
-                if (toRefill > 0.0001) {
-                    this.chargingUnits.push(unit);
-                    unit.ammo += toRefill;
-                    this.amount -= toRefill;
-                }
+        if (targetUnit && this.amount > 0) {
+            // 충전량 계산 (상자 잔량, 유닛 필요량, 프레임당 속도 중 최소값)
+            let toRefill = Math.min(frameRefill, targetUnit.maxAmmo - targetUnit.ammo, this.amount);
 
-                if (this.amount <= 0.0001) {
-                    this.amount = 0;
-                    break;
-                }
+            // 실제로 충전할 양이 있는 경우에만 유닛 등록 및 차감
+            if (toRefill > 0.0001) {
+                this.chargingUnits.push(targetUnit);
+                targetUnit.ammo += toRefill;
+                this.amount -= toRefill;
+            }
+
+            if (this.amount <= 0.0001) {
+                this.amount = 0;
             }
         }
     }
