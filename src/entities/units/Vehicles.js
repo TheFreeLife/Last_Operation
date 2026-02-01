@@ -363,27 +363,73 @@ export class AntiAirVehicle extends PlayerUnit {
         this.type = 'anti-air';
         this.name = '자주 대공포';
         this.speed = 1.3;
-        this.fireRate = 150;
+        this.fireRate = 100; // 연사 속도 상향 (150 -> 100)
         this.damage = 8;
         this.attackRange = 600;
         this.visionRange = 10;
         this.attackTargets = ['air'];
-        this.lastBarrelSide = 1;
         this.size = 80;
         this.cargoSize = 5;
-        this.population = 3; // 운전수, 포수, 지휘관
+        this.population = 3; 
         this.muzzleOffset = 50;
-        this.projectileSpeed = 20; // 대공탄은 빠름
+        this.projectileSpeed = 22; // 탄속 소폭 상향
         this.hitEffectType = 'flak';
 
         this.ammoType = 'bullet';
-        this.maxAmmo = 200;
-        this.ammo = 200;
-        this.ammoConsumption = 2;
+        this.maxAmmo = 400; // 탄약 용량 상향 (연사력 대응)
+        this.ammo = 400;
+        this.ammoConsumption = 2; // 한 번에 2발씩 소모
     }
 
     attack() {
-        this.performAttack();
+        const now = Date.now();
+        if (now - this.lastFireTime < this.fireRate || !this.target) return;
+
+        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+        if (dist > this.attackRange) return;
+
+        // 탄약 체크 (2발 동시 발사)
+        if (this.ammo < this.ammoConsumption) {
+            if (now - (this._lastAmmoMsgTime || 0) > 2000) {
+                this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
+                this._lastAmmoMsgTime = now;
+            }
+            return;
+        }
+        this.ammo -= this.ammoConsumption;
+
+        // --- 이중 총구 발사 로직 ---
+        const lateralOffset = 18; // 총구 간 간격
+        const angles = [this.angle, this.angle];
+        const barrelOffsets = [lateralOffset, -lateralOffset];
+
+        barrelOffsets.forEach(sideOffset => {
+            // 각 총구의 월드 좌표 계산 (중심선에서 좌우로 오프셋)
+            const spawnX = this.x + Math.cos(this.angle) * this.muzzleOffset + Math.cos(this.angle + Math.PI/2) * sideOffset;
+            const spawnY = this.y + Math.sin(this.angle) * this.muzzleOffset + Math.sin(this.angle + Math.PI/2) * sideOffset;
+
+            // 총구 화염 및 사운드 (전용 muzzle 사용)
+            if (this.engine.addEffect) {
+                this.engine.addEffect('muzzle', spawnX, spawnY, '#fff');
+            }
+
+            // 투사체 생성
+            const options = {
+                speed: this.projectileSpeed,
+                ownerId: this.ownerId,
+                isIndirect: false
+            };
+
+            this.engine.entityManager.spawnProjectileECS(
+                spawnX, 
+                spawnY, 
+                this.target, 
+                this.damage, 
+                options
+            );
+        });
+
+        this.lastFireTime = now;
     }
 
     draw(ctx) {
