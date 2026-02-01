@@ -29,6 +29,8 @@ export class AmmoBox extends PlayerUnit {
         this.maxAmount = amountMap[ammoType] || 0;
         this.amount = this.maxAmount;
         this.chargingUnits = []; // 현재 충전 중인 유닛 목록 (시각 효과용)
+        this.chargingTarget = null; // [추가] 현재 충전 중인 대상 유닛
+        this.chargingProgress = 0; // [추가] 현재 충전 진행 상황 (0.0 ~ 1.0)
 
         // 핵탄두 상자 전용 대형 사이즈 설정
         if (this.ammoType === 'nuclear-missile') {
@@ -65,6 +67,8 @@ export class AmmoBox extends PlayerUnit {
         }
         
         this.chargingUnits = [];
+        this.chargingTarget = null;
+        this.chargingProgress = 0;
     }
 
     attack() { /* 탄약 상자는 공격하지 않음 */ }
@@ -93,7 +97,7 @@ export class AmmoBox extends PlayerUnit {
 
         // 사거리 내 탄약 보충이 필요한 아군 유닛 검색
         const units = this.engine.entities.units;
-        let targetUnit = null;
+        let bestUnit = null;
         let minDist = this.attackRange;
 
         for (const unit of units) {
@@ -104,24 +108,47 @@ export class AmmoBox extends PlayerUnit {
             const dist = Math.hypot(this.x - unit.x, this.y - unit.y);
             if (dist <= minDist) {
                 minDist = dist;
-                targetUnit = unit;
+                bestUnit = unit;
             }
         }
 
-        if (targetUnit && this.amount > 0) {
-            // 충전량 계산 (상자 잔량, 유닛 필요량, 프레임당 속도 중 최소값)
-            let toRefill = Math.min(frameRefill, targetUnit.maxAmmo - targetUnit.ammo, this.amount);
-
-            // 실제로 충전할 양이 있는 경우에만 유닛 등록 및 차감
-            if (toRefill > 0.0001) {
-                this.chargingUnits.push(targetUnit);
-                targetUnit.ammo += toRefill;
-                this.amount -= toRefill;
+        // 충전 로직 (정수 단위 충전 및 연결 끊김 시 초기화)
+        if (bestUnit && this.amount >= 1) {
+            // 대상이 바뀌면 진행 상황 초기화
+            if (this.chargingTarget !== bestUnit) {
+                this.chargingTarget = bestUnit;
+                this.chargingProgress = 0;
             }
 
-            if (this.amount <= 0.0001) {
-                this.amount = 0;
+            this.chargingUnits = [bestUnit];
+            this.chargingProgress += frameRefill;
+
+            // 1발 이상 충전되었을 때 처리
+            if (this.chargingProgress >= 1.0) {
+                const rounds = Math.floor(this.chargingProgress);
+                // 실제로 줄 수 있는 양 계산 (상자 잔량, 유닛 부족분 중 최소값)
+                // 기존의 소수점 탄약은 버리고 정수 단위로 보충 (9.5 -> 10)
+                const needed = Math.max(0, Math.ceil(bestUnit.maxAmmo - bestUnit.ammo));
+                const actualRounds = Math.min(rounds, Math.floor(this.amount), needed);
+
+                if (actualRounds >= 1) {
+                    bestUnit.ammo = Math.min(bestUnit.maxAmmo, Math.floor(bestUnit.ammo) + actualRounds);
+                    this.amount = Math.max(0, Math.floor(this.amount) - actualRounds);
+                    this.chargingProgress -= rounds; // 소수점 잔량은 유지 (부드러운 연속 충전)
+                } else if (needed <= 0) {
+                    // 유닛이 이미 가득 찼으면 초기화
+                    this.chargingTarget = null;
+                    this.chargingProgress = 0;
+                }
             }
+        } else {
+            // 사거리 내에 유닛이 없거나 상자가 비었으면 진행 상황 초기화
+            this.chargingTarget = null;
+            this.chargingProgress = 0;
+        }
+
+        if (this.amount <= 0.0001) {
+            this.amount = 0;
         }
     }
 
