@@ -490,6 +490,10 @@ export class MortarTeam extends PlayerUnit {
 
     toggleSiege() {
         if (this.isTransitioning) return;
+
+        // 시즈 모드 사운드 즉시 시작
+        this.siegeSoundInstance = this.engine.audioSystem.play('siege_mode', { volume: 0.15, loop: true, cooldown: 0 });
+
         this.isTransitioning = true;
         this.transitionTimer = 0;
         this.destination = null;
@@ -504,6 +508,12 @@ export class MortarTeam extends PlayerUnit {
                 this.isTransitioning = false;
                 this.isSieged = !this.isSieged;
                 this.speed = this.isSieged ? 0 : this.baseSpeed;
+                
+                // 시즈 모드 사운드 중단
+                if (this.siegeSoundInstance) {
+                    this.siegeSoundInstance.pause();
+                    this.siegeSoundInstance = null;
+                }
             }
         }
 

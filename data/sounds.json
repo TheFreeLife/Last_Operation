@@ -3,5 +3,7 @@
   "sniper_rifle": "data/sound/sniper-rifle.mp3",
   "cannon_shot": "data/sound/cannon-shot.mp3",
   "explosion": "data/sound/explosion-fx.mp3",
-  "missile_flight": "data/sound/misile-flight.mp3"
+  "missile_flight": "data/sound/misile-flight.mp3",
+  "nuke_explosion": "data/sound/nuclear-explosion.mp3",
+  "siege_mode": "data/sound/siege-mode.mp3"
 }

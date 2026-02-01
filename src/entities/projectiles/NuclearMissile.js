@@ -80,19 +80,19 @@ export class NuclearMissile extends Entity {
     explode() {
         this.arrived = true;
         if (this.engine.addEffect) {
-            // 거대한 중앙 폭발
-            this.engine.addEffect('explosion', this.targetX, this.targetY);
+            // 핵폭발 전용 효과 (강화된 시각효과 및 전용 사운드)
+            this.engine.addEffect('nuke_explosion', this.targetX, this.targetY);
             
-            // 주변 연쇄 대형 폭발 (버섯구름 형상화)
-            for(let i=0; i<12; i++) {
+            // 주변 추가 폭발 (여전히 남겨두어 웅장함 유지)
+            for(let i=0; i<8; i++) {
                 setTimeout(() => {
-                    const angle = (i / 12) * Math.PI * 2;
-                    const dist = Math.random() * 150;
+                    const angle = (i / 8) * Math.PI * 2;
+                    const dist = Math.random() * 100;
                     this.engine.addEffect('explosion', 
                         this.targetX + Math.cos(angle) * dist, 
                         this.targetY + Math.sin(angle) * dist
                     );
-                }, i * 40);
+                }, i * 100);
             }
 
             // 섬광 효과 (시스템 메시지로 대체 표현)

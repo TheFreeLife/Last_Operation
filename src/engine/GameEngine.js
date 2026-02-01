@@ -408,6 +408,15 @@ export class GameEngine {
                 const speed = 5 + Math.random() * 10;
                 this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 1 + Math.random() * 2, '#ffd700', 500, 'spark');
             }
+        } else if (type === 'nuke_explosion') {
+            // 핵폭발 전용 사운드 및 강화된 시각 효과
+            this.audioSystem.play('nuke_explosion', { volume: 0.5, cooldown: 1000 });
+            this.renderSystem.addParticle(x, y, 0, 0, 150, '#fff', 300, 'smoke'); // 거대 연기
+            for (let i = 0; i < 50; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2.0 + Math.random() * 12.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 20 + Math.random() * 30, '#ff4500', 1500, 'fire');
+            }
         } else if (type === 'muzzle_large') {
             // 전차/자주포용 포구 화염 (강하지만 짧게)
             this.audioSystem.play('cannon_shot', { volume: 0.2 });
