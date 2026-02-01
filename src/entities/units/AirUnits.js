@@ -214,6 +214,7 @@ export class Bomber extends PlayerUnit {
                 if (this.ammo > 0) {
                     this.bombTimer = 0;
                     this.ammo--; // 포탄 1발 소모
+                    this.engine.audioSystem.play('missile_flight', { volume: 0.1 });
                     const bomb = new FallingBomb(this.x, this.y, this.engine, 300, this);
                     this.engine.entities.projectiles.push(bomb);
                 } else {

@@ -182,8 +182,13 @@ export class MissileLauncher extends PlayerUnit {
         }
 
         if (this.isFiring) {
+            // 발사 15프레임(약 0.25초) 전에 사운드를 미리 재생하여 씽크를 맞춤
+            if (this.fireDelayTimer === this.maxFireDelay - 15) {
+                this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
+            }
+
             if (this.fireDelayTimer >= this.maxFireDelay) {
-                this.executeFire();
+                this.executeFire({ skipSound: true });
                 this.isFiring = false;
                 this.fireDelayTimer = 0;
             }
@@ -218,7 +223,7 @@ export class MissileLauncher extends PlayerUnit {
         }
     }
 
-    executeFire() {
+    executeFire(options = {}) {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
         const totalAngle = this.angle + this.turretAngle;
@@ -226,6 +231,9 @@ export class MissileLauncher extends PlayerUnit {
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
 
+        if (!options.skipSound) {
+            this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
+        }
         const missile = new Missile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
         this.engine.entities.projectiles.push(missile);
 
@@ -502,10 +510,13 @@ export class MobileICBMLauncher extends PlayerUnit {
             if (this.fireDelayTimer === 1) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '3');
             if (this.fireDelayTimer === 60) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '2');
             if (this.fireDelayTimer === 120) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '1');
+            if (this.fireDelayTimer === 165) { // LAUNCH! 텍스트 및 실제 발사보다 15프레임 빠르게
+                this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
+            }
             if (this.fireDelayTimer === 175) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', 'LAUNCH!');
 
             if (this.fireDelayTimer >= this.maxFireDelay) {
-                this.executeFire();
+                this.executeFire({ skipSound: true });
                 this.isFiring = false;
                 this.fireDelayTimer = 0;
             }
@@ -540,7 +551,7 @@ export class MobileICBMLauncher extends PlayerUnit {
         }
     }
 
-    executeFire() {
+    executeFire(options = {}) {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
         
@@ -549,6 +560,9 @@ export class MobileICBMLauncher extends PlayerUnit {
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
 
+        if (!options.skipSound) {
+            this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
+        }
         const missile = new NuclearMissile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
         this.engine.entities.projectiles.push(missile);
 

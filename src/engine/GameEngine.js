@@ -8,6 +8,7 @@ import { FlowField } from './systems/FlowField.js';
 import { DebugSystem } from './systems/DebugSystem.js';
 import { MapEditor } from './systems/MapEditor.js';
 import { DeploymentSystem } from './systems/DeploymentSystem.js';
+import { audioSystem } from './systems/AudioSystem.js';
 
 import { renderECS } from './ecs/systems/RenderSystem.js';
 
@@ -106,6 +107,10 @@ export class GameEngine {
         this.minimapCacheCtx = this.minimapCacheCanvas.getContext('2d');
 
         this.debugSystem = new DebugSystem(this);
+
+        // 오디오 시스템 초기화
+        this.audioSystem = audioSystem;
+        this.audioSystem.init('./data/sounds.json');
 
         // 민심 시스템 추가 (라이프 역할)
         this.publicSentiment = 100; // 초기 민심 100%
@@ -391,6 +396,7 @@ export class GameEngine {
 
         if (type === 'explosion') {
             // 명중 시 대형 폭발 ( cinematic )
+            this.audioSystem.play('explosion', { volume: 0.15 });
             this.renderSystem.addParticle(x, y, 0, 0, 50, '#fff', 150, 'smoke'); 
             for (let i = 0; i < 15; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -404,12 +410,18 @@ export class GameEngine {
             }
         } else if (type === 'muzzle_large') {
             // 전차/자주포용 포구 화염 (강하지만 짧게)
+            this.audioSystem.play('cannon_shot', { volume: 0.2 });
             for (let i = 0; i < 5; i++) {
                 const angle = (Math.random() - 0.5) * 0.5; // 전방으로 집중
                 this.renderSystem.addParticle(x, y, Math.cos(angle) * 2, Math.sin(angle) * 2, 15 + Math.random() * 10, '#ffd700', 100, 'fire');
             }
+        } else if (type === 'muzzle_sniper') {
+            // 저격총 총구 화염 및 사운드
+            this.audioSystem.play('sniper_rifle', { volume: 0.15 });
+            this.renderSystem.addParticle(x, y, 0, 0, 10 + Math.random() * 5, '#fff', 120, 'fire');
         } else if (type === 'muzzle') {
             // 일반 보병용 총구 화염 (간결하게)
+            this.audioSystem.play('rifle', { volume: 0.05 });
             this.renderSystem.addParticle(x, y, 0, 0, 6 + Math.random() * 6, '#fff', 80, 'fire');
         } else if (type === 'hit' || type === 'flak') {
             // 일반 피격 스파크

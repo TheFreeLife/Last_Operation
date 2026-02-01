@@ -110,6 +110,7 @@ export class Sniper extends PlayerUnit {
         this.muzzleOffset = 40;
         this.projectileSpeed = 22; // 저격탄은 매우 빠름
         this.hitEffectType = 'hit';
+        this.muzzleEffectType = 'muzzle_sniper';
 
         this.ammoType = 'bullet';
         this.maxAmmo = 10;

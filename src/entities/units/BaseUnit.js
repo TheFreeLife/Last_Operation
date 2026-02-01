@@ -154,12 +154,17 @@ export class BaseUnit extends Entity {
             const mx = this.x + Math.cos(this.angle) * this.muzzleOffset;
             const my = this.y + Math.sin(this.angle) * this.muzzleOffset;
             
-            // 전차나 자주포는 대형 포구 화염 (전용 효과)
-            if (this.explosionRadius > 20 || this.type === 'missile-launcher') {
-                this.engine.addEffect('muzzle_large', mx, my, '#ff8c00');
-            } else {
-                this.engine.addEffect('muzzle', mx, my, '#fff');
+            // 명시적 효과 타입이 지정되어 있으면 사용, 아니면 기본 로직 사용
+            let effectType = this.muzzleEffectType;
+            if (!effectType) {
+                if (this.explosionRadius > 20 || this.type === 'missile-launcher') {
+                    effectType = 'muzzle_large';
+                } else {
+                    effectType = 'muzzle';
+                }
             }
+            
+            this.engine.addEffect(effectType, mx, my, '#ff8c00');
         }
 
         // 모든 공격은 이제 투사체 방식

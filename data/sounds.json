@@ -1,0 +1,7 @@
+{
+  "rifle": "data/sound/rifle.mp3",
+  "sniper_rifle": "data/sound/sniper-rifle.mp3",
+  "cannon_shot": "data/sound/cannon-shot.mp3",
+  "explosion": "data/sound/explosion-fx.mp3",
+  "missile_flight": "data/sound/misile-flight.mp3"
+}
