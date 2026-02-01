@@ -433,3 +433,217 @@ export class Medic extends PlayerUnit {
     }
 }
 
+export class MortarTeam extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'mortar-team', name: '박격포병' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'mortar-team';
+        this.name = '박격포 분대';
+        this.isHuman = true;
+        this.speed = 0.8;    // 장비 무게로 인해 느림
+        this.baseSpeed = 0.8;
+        this.fireRate = 3500;
+        this.damage = 120;
+        this.attackRange = 700;
+        this.explosionRadius = 50;
+        this.size = 60;      // 크기 확대 (32 -> 60, Size Class 2)
+        this.visionRange = 8;
+        this.hp = 140;       // 2명분 체력 (70 * 2)
+        this.maxHp = 140;
+        this.population = 2; // 인구수 2명
+        this.attackTargets = ['ground', 'sea'];
+        this.isIndirect = true; // 박격포는 곡사 사격
+        this.hitEffectType = 'explosion';
+        
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.maxTransitionTime = 50; // 약 1초 정도의 방렬 시간
+        
+        this.ammoType = 'shell';
+        this.maxAmmo = 12;
+        this.ammo = 12;
+        this.muzzleOffset = 25; // 크기에 맞춰 오프셋 조정
+        this.projectileSpeed = 9; // 박격포 탄속은 느림
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.speed = this.baseSpeed || 0.8;
+    }
+
+    getSkillConfig(cmd) {
+        const skills = {
+            'siege': { type: 'state', handler: this.toggleSiege }
+        };
+        return skills[cmd];
+    }
+
+    getCacheKey() {
+        if (this.isTransitioning) return null;
+        return `${this.type}-${this.isSieged ? 'deployed' : 'moving'}`;
+    }
+
+    toggleSiege() {
+        if (this.isTransitioning) return;
+        this.isTransitioning = true;
+        this.transitionTimer = 0;
+        this.destination = null;
+        this.speed = 0;
+        this.engine.addEffect?.('system', this.x, this.y, '#fff', this.isSieged ? '방렬 해제...' : '박격포 방렬 중...');
+    }
+
+    update(deltaTime) {
+        if (this.isTransitioning) {
+            this.transitionTimer++;
+            if (this.transitionTimer >= this.maxTransitionTime) {
+                this.isTransitioning = false;
+                this.isSieged = !this.isSieged;
+                this.speed = this.isSieged ? 0 : this.baseSpeed;
+            }
+        }
+
+        // 시즈 모드 중에는 이동 불가하지만 타겟 방향으로는 회전 가능
+        if (this.isSieged) {
+            this.speed = 0;
+            if (this.target) {
+                const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
+                this.angle += angleDiff * 0.05; // 보병의 회전 속도
+            }
+            // 부모의 업데이트를 호출하되, 이동 관련 로직은 speed=0으로 차단됨
+            super.update(deltaTime);
+        } else {
+            super.update(deltaTime);
+        }
+    }
+
+    attack() {
+        if (this.isSieged && !this.isTransitioning) {
+            this.performAttack();
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        
+        ctx.save();
+        const breathing = Math.sin(Date.now() / 400) * 0.5;
+        const isShooting = (this.target && (Date.now() - this.lastFireTime < 200));
+
+        if (!this.isSieged && !this.isTransitioning) {
+            // --- 평시: 이동 및 휴대 상태 ---
+            // 1번 병사 (포신 운반 - 리더)
+            ctx.save();
+            ctx.translate(-10, 0);
+            this.drawSoldier(ctx, 1);
+            // 등에 포신 짊어짐 (디테일: 금속 질감, 고정 끈)
+            ctx.fillStyle = '#1e272e';
+            ctx.save(); 
+            ctx.rotate(Math.PI/4); 
+            ctx.fillRect(-2.5, -12, 5, 24); // 포신 본체
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-3, -12, 6, 4); // 포구 끝단
+            ctx.restore();
+            ctx.restore();
+
+            // 2번 병사 (포판/탄약 운반)
+            ctx.save();
+            ctx.translate(10, 0);
+            this.drawSoldier(ctx, 2);
+            // 등에 포판 짊어짐 (디테일: 원형 판, 중앙 홈)
+            ctx.fillStyle = '#2d3436';
+            ctx.beginPath(); ctx.arc(-6, 0, 9, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath(); ctx.arc(-6, 0, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        } else {
+            // --- 방렬 상태: 고정 및 사격 상태 ---
+            // 1. 박격포 본체 (중앙 하단 배치)
+            ctx.save();
+            ctx.translate(8, 0);
+            
+            // 포판 (강철판 디테일)
+            ctx.fillStyle = '#2d3436';
+            ctx.beginPath(); 
+            for(let i=0; i<6; i++) { // 육각형 포판
+                const a = (i * Math.PI * 2) / 6;
+                const r = 14;
+                ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+            }
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#1e272e'; ctx.lineWidth = 2; ctx.stroke();
+
+            // 포신 거치대 (양각대)
+            ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(10, 0); ctx.lineTo(0, 10); ctx.stroke();
+
+            // 포신 (곡사 각도 및 반동 표현)
+            const recoil = isShooting ? -8 : 0;
+            ctx.save();
+            ctx.translate(recoil, 0);
+            ctx.fillStyle = '#1e272e';
+            ctx.fillRect(-4, -4, 28, 8); // 굵어진 포신
+            // 방열 핀 및 포구
+            ctx.fillStyle = '#111';
+            ctx.fillRect(20, -5, 4, 10);
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, -4.5, 12, 1); // 상단 레일
+            ctx.restore();
+            ctx.restore();
+
+            // 2. 사수 및 부사수 (전술적 배치)
+            // 사수 (조준기 확인 중)
+            ctx.save();
+            ctx.translate(-12, -12);
+            ctx.rotate(Math.PI/4);
+            this.drawSoldier(ctx, 1, true);
+            ctx.restore();
+
+            // 부사수 (포탄 장전 준비 중)
+            ctx.save();
+            ctx.translate(-12, 12);
+            ctx.rotate(-Math.PI/4);
+            this.drawSoldier(ctx, 2, true);
+            // 손에 든 포탄 (디테일)
+            if (!isShooting) {
+                ctx.fillStyle = '#4b5320';
+                ctx.beginPath();
+                ctx.ellipse(8, 0, 5, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    drawSoldier(ctx, id, isSeated = false) {
+        ctx.save();
+        ctx.scale(1.8, 1.8);
+        // 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(0, 2.5, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+        
+        // 전투복 레이어
+        ctx.fillStyle = (id === 1) ? '#556644' : '#4b5320';
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+        
+        // 전술 조끼 (Plate Carrier)
+        ctx.fillStyle = (id === 1) ? '#4b5320' : '#2d3310';
+        ctx.fillRect(-2, -4, 5, 8);
+
+        // 헬멧
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath(); ctx.arc(1.5, 0, 5, 0, Math.PI * 2); ctx.fill();
+        // 헬멧 턱끈/디테일
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.arc(1.5, 0, 5, 0, Math.PI * 2); ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
