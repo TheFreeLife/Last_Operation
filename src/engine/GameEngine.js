@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -32,7 +32,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -346,6 +346,7 @@ export class GameEngine {
         em.register('cargo-plane', CargoPlane, 'units');
         em.register('scout-plane', ScoutPlane, 'units');
         em.register('bomber', Bomber, 'units');
+        em.register('helicopter', Helicopter, 'units');
         em.register('suicide-drone', SuicideDrone, 'units');
 
         // 자원 및 아이템
@@ -497,7 +498,7 @@ export class GameEngine {
                         if (unitType === 'missile-launcher') {
                             items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' };
                         }
-                    } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'military-truck' || unitType === 'medical-truck') {
+                    } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
                         const isFlying = firstEnt.altitude > 0.8;
                         const isLanded = firstEnt.altitude < 0.1 || unitType === 'military-truck' || unitType === 'medical-truck';
 
@@ -510,7 +511,7 @@ export class GameEngine {
                                 locked: !isFlying,
                                 active: firstEnt.isBombingActive
                             };
-                        } else if (unitType === 'cargo-plane' || unitType === 'military-truck' || unitType === 'medical-truck') {
+                        } else if (unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
                             items[6] = {
                                 id: 'unload_all',
                                 name: isLanded ? '전체 하차 (U)' : '하차 (지상 시 가능)',
@@ -531,15 +532,15 @@ export class GameEngine {
                         }
 
                         // 이착륙 버튼 동적 구성 (항공기 전용)
-                        if (unitType !== 'military-truck') {
+                        if (unitType !== 'military-truck' && unitType !== 'medical-truck') {
                             let actionName = '이륙 (T)';
                             let actionIcon = 'unit:takeoff';
-                            if (isFlying || firstEnt.isManualLanding) {
+                            if (isFlying || firstEnt.isManualLanding || (unitType === 'helicopter' && firstEnt.altitude > 0.5)) {
                                 actionName = '착륙 (T)';
                                 actionIcon = 'unit:landing';
                             }
-                            if (firstEnt.isTakeoffStarting || firstEnt.isManualLanding) {
-                                actionName = firstEnt.isTakeoffStarting ? '이륙 중...' : '착륙 중...';
+                            if (firstEnt.isTakeoffStarting || firstEnt.isManualLanding || firstEnt.isTransitioning) {
+                                actionName = (firstEnt.isTakeoffStarting || (firstEnt.isTransitioning && firstEnt.altitude < 0.5)) ? '이륙 중...' : '착륙 중...';
                             }
 
                             items[8] = {
@@ -829,7 +830,7 @@ export class GameEngine {
 
                     const transport = [
                         ...this.entities.cargoPlanes, 
-                        ...this.entities.units.filter(u => u.type === 'military-truck' || u.type === 'medical-truck' || u.type === 'cargo-plane')
+                        ...this.entities.units.filter(u => u.type === 'military-truck' || u.type === 'medical-truck' || u.type === 'cargo-plane' || u.type === 'helicopter')
                     ].find(t => {
                         if (!t || !t.active || t.hp <= 0 || t.ownerId !== 1) return false;
                         const b = t.getSelectionBounds ? t.getSelectionBounds() : {
@@ -1549,10 +1550,10 @@ export class GameEngine {
     }
 
     refreshFlyerUI() {
-        const selectedFlyer = this.selectedEntities.find(ent => ent.type === 'bomber' || ent.type === 'cargo-plane');
+        const selectedFlyer = this.selectedEntities.find(ent => ent.type === 'bomber' || ent.type === 'cargo-plane' || ent.type === 'helicopter');
         if (selectedFlyer) {
             const isFlying = selectedFlyer.altitude > 0.8;
-            const isManeuvering = selectedFlyer.isTakeoffStarting || selectedFlyer.isManualLanding;
+            const isManeuvering = selectedFlyer.isTakeoffStarting || selectedFlyer.isManualLanding || selectedFlyer.isTransitioning;
             const isBombing = selectedFlyer.isBombingActive || false;
             if (this._lastFlyerFlying !== isFlying || this._lastFlyerManeuvering !== isManeuvering || this._lastFlyerBombing !== isBombing) {
                 this.updateBuildMenu();

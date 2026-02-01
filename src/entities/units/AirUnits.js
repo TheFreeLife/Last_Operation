@@ -775,6 +775,220 @@ export class CargoPlane extends PlayerUnit {
     }
 }
 
+export class Helicopter extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'helicopter', name: '공중강습 헬기' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.init(x, y, engine);
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.type = 'helicopter';
+        this.name = '공중강습 헬기';
+        this.domain = 'ground';
+        this.baseSpeed = 1.0; 
+        this.airSpeed = 3.5;  
+        this.speed = 1.0;
+        this.visionRange = 10;
+        this.hp = 700;
+        this.maxHp = 700;
+        this.population = 2; // 조종사, 부조종사/사수
+        this.size = 90;
+        this.altitude = 0.0;
+        
+        // 무장 설정: 기관총 (지상/공중 모두 타격)
+        this.attackRange = 280;
+        this.fireRate = 200; 
+        this.damage = 12;
+        this.attackTargets = ['ground', 'air', 'sea'];
+        this.ammoType = 'bullet';
+        this.maxAmmo = 400;
+        this.ammo = 400;
+
+        // 수송 설정
+        this.cargo = [];
+        this.cargoCapacity = 4;
+        this.cargoSize = 99; // 헬기는 다른 기체에 탈 수 없음
+        this.isUnloading = false;
+        this.unloadTimer = 0;
+        this.unloadInterval = 400;
+
+        this.isTransitioning = false; // 이착륙 전환 중
+    }
+
+    getSelectionBounds() {
+        const bounds = super.getSelectionBounds();
+        const offset = (this.altitude || 0) * 10;
+        return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top - offset,
+            bottom: bounds.bottom - offset
+        };
+    }
+
+    getSkillConfig(cmd) {
+        const skills = {
+            'takeoff_landing': { type: 'state', handler: this.toggleTakeoff },
+            'unload_all': { type: 'instant', handler: this.startUnloading }
+        };
+        return skills[cmd];
+    }
+
+    getCacheKey() {
+        // 로터 애니메이션을 위해 비행 중에는 캐싱 방지
+        if (this.altitude > 0.05 || this.isTransitioning) return null;
+        return `${this.type}-landed`;
+    }
+
+    toggleTakeoff() {
+        if (this.isTransitioning) return;
+        this.isTransitioning = true;
+        this.command = 'stop';
+        this.destination = null;
+    }
+
+    loadUnit(unit) {
+        if (this.isUnloading || this.altitude > 0.1) return false;
+        const uSize = unit.cargoSize || 1;
+        if (this.cargo.length + uSize > this.cargoCapacity) return false;
+
+        unit.isBoarded = true;
+        unit.command = 'stop';
+        this.cargo.push(unit);
+
+        if (this.engine.selectedEntities) {
+            this.engine.selectedEntities = this.engine.selectedEntities.filter(e => e !== unit);
+        }
+        this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', '헬기 탑승');
+        if (this.engine.updateBuildMenu) this.engine.updateBuildMenu();
+        return true;
+    }
+
+    startUnloading() {
+        if (this.altitude > 0.1 || this.cargo.length === 0) return;
+        this.isUnloading = true;
+        this.unloadTimer = 0;
+    }
+
+    processUnloading(deltaTime) {
+        if (!this.isUnloading || this.cargo.length === 0) {
+            this.isUnloading = false;
+            return;
+        }
+        this.unloadTimer += deltaTime;
+        if (this.unloadTimer >= this.unloadInterval) {
+            this.unloadTimer = 0;
+            const unit = this.cargo.shift();
+            unit.isBoarded = false;
+            unit.active = true;
+            unit.x = this.x + (Math.random() - 0.5) * 40;
+            unit.y = this.y + (Math.random() - 0.5) * 40;
+            if (this.cargo.length === 0) this.isUnloading = false;
+        }
+    }
+
+    update(deltaTime) {
+        // 1. 이착륙 전환 로직 (VTOL)
+        if (this.isTransitioning) {
+            if (this.altitude < 1.0 && this.domain === 'ground') {
+                this.altitude = Math.min(1.0, this.altitude + 0.01);
+                if (this.altitude >= 1.0) {
+                    this.isTransitioning = false;
+                    this.domain = 'air';
+                }
+            } else {
+                this.altitude = Math.max(0.0, this.altitude - 0.01);
+                if (this.altitude <= 0.0) {
+                    this.isTransitioning = false;
+                    this.domain = 'ground';
+                }
+            }
+            this.speed = 0; // 전환 중 정지
+        } else {
+            this.speed = this.altitude > 0.8 ? this.airSpeed : this.baseSpeed;
+        }
+
+        // 2. 수송 하차 처리
+        if (this.isUnloading) this.processUnloading(deltaTime);
+
+        super.update(deltaTime);
+    }
+
+    attack() {
+        // 공중에서도 사격 가능
+        this.performAttack();
+    }
+
+    draw(ctx) {
+        const alt = this.altitude || 0;
+        const shadowOffset = alt * 10;
+        const rotorRotation = (Date.now() / 20) % (Math.PI * 2);
+
+        // 0. 그림자
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.translate(shadowOffset, shadowOffset);
+        this.drawHelicopterShape(ctx, true, rotorRotation);
+        ctx.restore();
+
+        // 1. 본체
+        ctx.save();
+        ctx.translate(0, -alt * 15);
+        this.drawHelicopterShape(ctx, false, rotorRotation);
+        ctx.restore();
+    }
+
+    drawHelicopterShape(ctx, isShadow, rotorRot) {
+        // 동체 (Fuselage)
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : '#34495e';
+        ctx.beginPath();
+        ctx.ellipse(5, 0, 35, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 꼬리 (Tail Boom)
+        ctx.beginPath();
+        ctx.moveTo(-25, 0);
+        ctx.lineTo(-65, -4);
+        ctx.lineTo(-65, 4);
+        ctx.closePath();
+        ctx.fill();
+
+        // 꼬리 날개
+        ctx.fillRect(-68, -12, 4, 24);
+
+        if (!isShadow) {
+            // 조종석 (Cockpit)
+            ctx.fillStyle = '#2980b9';
+            ctx.beginPath();
+            ctx.ellipse(25, 0, 12, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 메인 로터 (Main Rotor) - 애니메이션
+        ctx.save();
+        ctx.translate(0, 0);
+        ctx.rotate(rotorRot);
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : '#2c3e50';
+        for (let i = 0; i < 4; i++) {
+            ctx.rotate(Math.PI / 2);
+            ctx.fillRect(-2, -50, 4, 100);
+        }
+        ctx.restore();
+
+        // 랜딩 기어 (Skids)
+        if (!isShadow) {
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-15, -15); ctx.lineTo(25, -15);
+            ctx.moveTo(-15, 15); ctx.lineTo(25, 15);
+            ctx.stroke();
+        }
+    }
+}
+
 export class SuicideDrone extends PlayerUnit {
     static editorConfig = { category: 'unit', icon: 'drone', name: '자폭 드론' };
     constructor(x, y, engine) {

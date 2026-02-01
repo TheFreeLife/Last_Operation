@@ -105,11 +105,22 @@
         {
             "id": "bombing_formation",
             "name": "폭격 편대",
-            "description": "전략 폭격기 3대로 구성된 중전략 타격대입니다. 대규모 폭격으로 지상의 적을 무력화합니다.",
+            "description": "전략 폭격기 2대로 구성된 중전략 타격대입니다. 대규모 폭격으로 지상의 적을 무력화합니다.",
             "icon": "🛫",
             "cost": 10,
             "units": [
-                { "id": "bomber", "count": 3 }
+                { "id": "bomber", "count": 2 }
+            ]
+        },
+        {
+            "id": "helicopter_assault",
+            "name": "헬기 강습반",
+            "description": "다목적 헬기 2대와 강습 보병들로 구성된 팀입니다. 신속한 전개와 전천후 지원이 가능합니다.",
+            "icon": "🚁",
+            "cost": 7,
+            "units": [
+                { "id": "helicopter", "count": 2 },
+                { "id": "rifleman", "count": 4 }
             ]
         }
     ]
