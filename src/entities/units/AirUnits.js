@@ -1043,6 +1043,7 @@ export class SuicideDrone extends PlayerUnit {
             const hasFriendlyOperator = operators.some(op => 
                 op.type === 'drone-operator' && 
                 op.ownerId === 1 && 
+                !op.isBoarded && // [수정] 탑승 중인 운용병은 제어 불가
                 Math.hypot(this.x - op.x, this.y - op.y) <= op.attackRange
             );
 

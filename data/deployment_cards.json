@@ -134,6 +134,18 @@
             ]
         },
         {
+            "id": "air_maneuver_wing",
+            "name": "기동 비행단",
+            "description": "전략 수송기 1대와 이를 호위하는 정찰기, 그리고 공중 강습을 위한 특전사들이 포함된 항공 기동 부대입니다.",
+            "icon": "✈️",
+            "cost": 12,
+            "units": [
+                { "id": "cargo-plane", "count": 1 },
+                { "id": "scout-plane", "count": 2 },
+                { "id": "special-forces", "count": 4 }
+            ]
+        },
+        {
             "id": "strategic_strike",
             "name": "전략 핵 타격대",
             "description": "이동식 ICBM 발사대 1대와 이를 호위하는 정예 기갑 부대입니다. 국가의 마지막 수단입니다.",
