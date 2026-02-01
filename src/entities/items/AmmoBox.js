@@ -7,14 +7,15 @@ export class AmmoBox extends PlayerUnit {
         variants: [
             { id: 'ammo-bullet', name: '탄약 (소총탄)', icon: 'ammo-box', options: { ammoType: 'bullet' } },
             { id: 'ammo-shell', name: '탄약 (포탄)', icon: 'ammo-box', options: { ammoType: 'shell' } },
-            { id: 'ammo-missile', name: '탄약 (미사일)', icon: 'ammo-box', options: { ammoType: 'missile' } }
+            { id: 'ammo-missile', name: '탄약 (미사일)', icon: 'ammo-box', options: { ammoType: 'missile' } },
+            { id: 'ammo-nuclear', name: '탄약 (핵미사일)', icon: 'ammo-box', options: { ammoType: 'nuclear-missile' } }
         ]
     };
     constructor(x, y, engine, ammoType = 'bullet') {
         super(x, y, engine);
         this.type = `ammo-${ammoType}`;
         this.ammoType = ammoType;
-        this.name = ammoType === 'bullet' ? '총알 상자' : (ammoType === 'shell' ? '포탄 상자' : '미사일 상자');
+        this.name = this.getAmmoName(ammoType);
         this.speed = 0.6;
         this.hp = 150;
         this.maxHp = 150;
@@ -24,22 +25,25 @@ export class AmmoBox extends PlayerUnit {
         this.damage = 0; // 공격 능력 없음
 
         // 탄약 총계 수치 추가
-        const amountMap = { bullet: 200, shell: 6, missile: 2 };
+        const amountMap = { bullet: 200, shell: 6, missile: 2, 'nuclear-missile': 1 };
         this.maxAmount = amountMap[ammoType] || 0;
         this.amount = this.maxAmount;
         this.chargingUnits = []; // 현재 충전 중인 유닛 목록 (시각 효과용)
     }
 
+    getAmmoName(type) {
+        const names = { bullet: '총알 상자', shell: '포탄 상자', missile: '미사일 상자', 'nuclear-missile': '핵탄두 상자' };
+        return names[type] || '탄약 상자';
+    }
+
     init(x, y, engine) {
         super.init(x, y, engine);
         
-        // EntityManager가 Object.assign(this, options)를 수행한 후 
-        // 바뀐 ammoType에 맞춰 이름과 속성들을 동기화함
         const ammoType = this.ammoType || 'bullet';
         this.type = `ammo-${ammoType}`;
-        this.name = ammoType === 'bullet' ? '총알 상자' : (ammoType === 'shell' ? '포탄 상자' : '미사일 상자');
+        this.name = this.getAmmoName(ammoType);
         
-        const amountMap = { bullet: 200, shell: 6, missile: 2 };
+        const amountMap = { bullet: 200, shell: 6, missile: 2, 'nuclear-missile': 1 };
         this.maxAmount = this.maxAmount || amountMap[ammoType] || 0;
         if (this.amount === undefined || this.amount <= 0) {
             this.amount = this.maxAmount;
@@ -68,7 +72,7 @@ export class AmmoBox extends PlayerUnit {
         }
 
         // 초당 충전 속도 설정
-        const refillRates = { bullet: 50, shell: 1.5, missile: 0.5 };
+        const refillRates = { bullet: 50, shell: 1.5, missile: 0.5, 'nuclear-missile': 0.05 };
         const rate = refillRates[this.ammoType] || 0;
         const frameRefill = rate * deltaTime / 1000;
 
@@ -151,6 +155,8 @@ export class AmmoBox extends PlayerUnit {
             ctx.fillStyle = '#f1c40f'; ctx.fillText('SHL', 0, 4);
         } else if (this.ammoType === 'missile') {
             ctx.fillStyle = '#e74c3c'; ctx.fillText('MSL', 0, 4);
+        } else if (this.ammoType === 'nuclear-missile') {
+            ctx.fillStyle = '#f1c40f'; ctx.fillText('NUK', 0, 4);
         }
 
         ctx.strokeStyle = '#3e2723';

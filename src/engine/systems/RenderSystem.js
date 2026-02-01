@@ -331,7 +331,7 @@ export class RenderSystem {
                 cacheKey = entity.getCacheKey();
             } else {
                 // 발사체 등 인터페이스가 없는 경우 기본 타입 캐싱 (null이면 실시간)
-                cacheKey = (['missile', 'projectile'].includes(entity.type)) ? null : entity.type;
+                cacheKey = (['missile', 'nuclear-missile', 'projectile'].includes(entity.type)) ? null : entity.type;
             }
 
             let img = cacheKey ? this.entityCache[cacheKey] : null;
@@ -441,7 +441,7 @@ export class RenderSystem {
                 }
             }
 
-            if (['projectile', 'bullet', 'shell', 'missile', 'bomb'].includes(ent.type)) {
+            if (['projectile', 'bullet', 'shell', 'missile', 'nuclear-missile', 'bomb'].includes(ent.type)) {
                 this.layerBuckets[this.layers.PROJECTILES].push(ent);
             } else {
                 // 공중 유닛 판별: 도메인이 air이거나, 현재 떠 있는 상태(altitude > 0.1)인 경우

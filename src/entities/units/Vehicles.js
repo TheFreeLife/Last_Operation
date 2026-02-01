@@ -1,5 +1,6 @@
 import { PlayerUnit } from './BaseUnit.js';
 import { Missile } from '../projectiles/Missile.js';
+import { NuclearMissile } from '../projectiles/NuclearMissile.js';
 
 export class Tank extends PlayerUnit {
     static editorConfig = { category: 'unit', icon: 'tank', name: '전차' };
@@ -418,6 +419,281 @@ export class AntiAirVehicle extends PlayerUnit {
         ctx.fillStyle = '#1e272e';
         ctx.fillRect(2, -10, 20, 2);
         ctx.fillRect(2, 8, 20, 2);
+        ctx.restore();
+    }
+}
+
+export class MobileICBMLauncher extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'icbm-launcher', name: '이동식 ICBM 발사대' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'icbm-launcher';
+        this.name = '이동식 ICBM 발사대';
+        this.speed = 1.0; // 매우 느림
+        this.baseSpeed = 1.0;
+        this.fireRate = 8000; // 매우 긴 재장전 시간
+        this.damage = 5000; // 압도적인 데미지
+        this.attackRange = 3000; // 맵 전체 수준의 사거리
+        this.visionRange = 10;
+        this.recoil = 0;
+        this.size = 110; // 더 거대함
+        this.cargoSize = 15;
+        this.population = 6; // 다수의 운용 인원
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.maxTransitionTime = 120; // 시즈 모드 전환에 긴 시간 소요
+        this.raiseAngle = 0;
+        this.turretAngle = 0;
+
+        this.isFiring = false;
+        this.fireDelayTimer = 0;
+        this.maxFireDelay = 150; // 발사 전 최종 점검 시간
+        this.pendingFirePos = { x: 0, y: 0 };
+        this.attackTargets = ['ground', 'sea'];
+
+        this.ammoType = 'nuclear-missile';
+        this.maxAmmo = 2; // 탄약 제한적
+        this.ammo = 2;
+        this.hp = 1500;
+        this.maxHp = 1500;
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.isSieged = false;
+        this.isTransitioning = false;
+        this.transitionTimer = 0;
+        this.raiseAngle = 0;
+        this.turretAngle = 0;
+        this.isFiring = false;
+        this.fireDelayTimer = 0;
+        this.speed = this.baseSpeed || 1.0;
+    }
+
+    getSkillConfig(cmd) {
+        const skills = {
+            'siege': { type: 'state', handler: this.toggleSiege },
+            'manual_fire': { type: 'targeted', handler: this.fireAt }
+        };
+        return skills[cmd];
+    }
+
+    getCacheKey() {
+        if (this.isTransitioning || this.isSieged || this.turretAngle !== 0) return null;
+        return `${this.type}-idle`;
+    }
+
+    toggleSiege() {
+        if (this.isTransitioning || this.isFiring) return;
+        this.isTransitioning = true;
+        this.transitionTimer = 0;
+        this.destination = null;
+        this.speed = 0;
+        this.engine.addEffect?.('system', this.x, this.y, '#fff', this.isSieged ? '발사대 수평 전환 중...' : '전략 미사일 기립 중...');
+    }
+
+    update(deltaTime) {
+        const prevAngle = this.angle;
+        super.update(deltaTime);
+
+        if (this.isSieged) {
+            this.angle = prevAngle;
+        }
+
+        if (this.isSieged && !this.isTransitioning) {
+            if (this.isFiring) {
+                const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
+                let relativeTargetAngle = targetAngle - this.angle;
+                let diff = relativeTargetAngle - this.turretAngle;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                
+                this.turretAngle += diff * 0.008; // 매우 느리고 신중한 회전
+
+                if (Math.abs(diff) < 0.05) {
+                    this.fireDelayTimer++;
+                }
+            }
+        } else if (!this.isSieged) {
+            this.turretAngle *= 0.95;
+            if (Math.abs(this.turretAngle) < 0.01) this.turretAngle = 0;
+        }
+
+        if (this.isTransitioning) {
+            this.transitionTimer++;
+            if (this.isSieged) {
+                this.raiseAngle = 1 - (this.transitionTimer / this.maxTransitionTime);
+            } else {
+                this.raiseAngle = this.transitionTimer / this.maxTransitionTime;
+            }
+
+            if (this.transitionTimer >= this.maxTransitionTime) {
+                this.isTransitioning = false;
+                this.isSieged = !this.isSieged;
+                this.raiseAngle = this.isSieged ? 1 : 0;
+                this.speed = this.isSieged ? 0 : this.baseSpeed;
+            }
+        }
+
+        if (this.isFiring) {
+            if (this.fireDelayTimer >= this.maxFireDelay) {
+                this.executeFire();
+                this.isFiring = false;
+                this.fireDelayTimer = 0;
+            }
+        }
+    }
+
+    attack() {
+        if (this.isSieged && !this.isTransitioning && !this.isFiring) {
+            const now = Date.now();
+            if (now - this.lastFireTime > this.fireRate && this.target) {
+                this.pendingFirePos = { x: this.target.x, y: this.target.y };
+                this.executeFire();
+            }
+        }
+    }
+
+    fireAt(targetX, targetY) {
+        if (!this.isSieged || this.isTransitioning || this.isFiring) return;
+        if (this.ammo <= 0) {
+            this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '핵탄두 고갈!');
+            return;
+        }
+        const dist = Math.hypot(targetX - this.x, targetY - this.y);
+        if (dist > this.attackRange) return;
+
+        const now = Date.now();
+        if (now - this.lastFireTime > this.fireRate) {
+            this.isFiring = true;
+            this.fireDelayTimer = 0;
+            this.pendingFirePos = { x: targetX, y: targetY };
+            this.engine.addEffect?.('system', this.x, this.y - 60, '#f1c40f', '전략 핵 미사일 발사 시퀀스 개시');
+        }
+    }
+
+    executeFire() {
+        if (this.ammo <= 0) return;
+        const { x: targetX, y: targetY } = this.pendingFirePos;
+        
+        const totalAngle = this.angle + this.turretAngle;
+        const launchDist = 40;
+        const spawnX = this.x + Math.cos(totalAngle) * launchDist;
+        const spawnY = this.y + Math.sin(totalAngle) * launchDist;
+
+        const missile = new NuclearMissile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
+        this.engine.entities.projectiles.push(missile);
+
+        this.ammo--;
+        this.lastFireTime = Date.now();
+        this.recoil = 25;
+        
+        // 발사 시 주변에 강력한 먼지 폭풍 효과
+        for(let i=0; i<8; i++) {
+            this.engine.addEffect?.('smoke', spawnX, spawnY);
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+        ctx.save();
+        ctx.scale(2.5, 2.5); // 크기 확대
+
+        // --- 1. 거대한 8륜 차체 ---
+        // 아웃리거 (4개에서 6개로 증가)
+        if (this.raiseAngle > 0) {
+            const outDist = this.raiseAngle * 12;
+            ctx.fillStyle = '#1e272e';
+            const outriggers = [
+                { x: -25, y: -12, dx: -1, dy: -1 }, { x: 0, y: -12, dx: 0, dy: -1 }, { x: 25, y: -12, dx: 1, dy: -1 },
+                { x: -25, y: 12, dx: -1, dy: 1 }, { x: 0, y: 12, dx: 0, dy: 1 }, { x: 25, y: 12, dx: 1, dy: 1 }
+            ];
+            outriggers.forEach(o => {
+                ctx.save();
+                ctx.translate(o.x + o.dx * outDist, o.y + o.dy * outDist);
+                ctx.fillRect(-3, -3, 6, 6);
+                ctx.strokeStyle = '#95a5a6';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(-o.dx * outDist, -o.dy * outDist); ctx.lineTo(0, 0); ctx.stroke();
+                ctx.restore();
+            });
+        }
+
+        // 차체 프레임
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-35, -12, 70, 24);
+        
+        // 8개의 바퀴
+        ctx.fillStyle = '#000';
+        for(let i=0; i<4; i++) {
+            ctx.fillRect(-30 + i*20, -14, 12, 4);
+            ctx.fillRect(-30 + i*20, 10, 12, 4);
+        }
+
+        // 대형 운전석 (앞쪽)
+        ctx.fillStyle = '#34495e';
+        ctx.fillRect(20, -12, 15, 24);
+        ctx.fillStyle = '#2980b9'; // 창문
+        ctx.fillRect(30, -10, 3, 20);
+
+        // --- 2. 전략 발사관 ---
+        ctx.save();
+        ctx.translate(-10, 0);
+        ctx.rotate(this.turretAngle);
+
+        // 거대한 회전 플랫폼
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+
+        // 발사관 (매우 길고 굵음)
+        const canisterLen = 50 - (this.raiseAngle * 15);
+        const canisterWidth = 20;
+
+        // 거대 유압 시스템
+        if (this.raiseAngle > 0.1) {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(5, -4, 15 * this.raiseAngle, 3);
+            ctx.fillRect(5, 1, 15 * this.raiseAngle, 3);
+        }
+
+        // 전략 미사일 캐니스터
+        const mslGrd = ctx.createLinearGradient(0, -10, 0, 10);
+        mslGrd.addColorStop(0, '#34495e');
+        mslGrd.addColorStop(0.5, '#2d3436');
+        mslGrd.addColorStop(1, '#1e272e');
+        ctx.fillStyle = mslGrd;
+        ctx.fillRect(-5, -10, canisterLen, 20);
+        
+        // 노란색/검은색 경고 스트라이프
+        ctx.fillStyle = '#f1c40f';
+        for(let i=0; i<3; i++) {
+            ctx.fillRect(5 + i*12, -10, 3, 20);
+        }
+
+        // 사출구 해치 디테일
+        if (this.raiseAngle > 0.8) {
+            ctx.fillStyle = '#c0392b';
+            ctx.beginPath(); ctx.arc(canisterLen - 10, 0, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(canisterLen - 10, 0, 6, 0, Math.PI * 2); ctx.fill();
+        } else {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(canisterLen - 8, -8, 4, 16);
+        }
+        ctx.restore();
+
+        // 긴급 점멸등
+        if (this.isSieged) {
+            const pulse = Math.sin(Date.now() / 100) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(241, 196, 15, ${0.3 + pulse * 0.7})`;
+            ctx.beginPath(); ctx.arc(-30, -8, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-30, 8, 3, 0, Math.PI * 2); ctx.fill();
+        }
+
         ctx.restore();
     }
 }

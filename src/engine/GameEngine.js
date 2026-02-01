@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -32,7 +32,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -333,6 +333,7 @@ export class GameEngine {
         // 유닛
         em.register('tank', Tank, 'units');
         em.register('missile-launcher', MissileLauncher, 'units');
+        em.register('icbm-launcher', MobileICBMLauncher, 'units');
         em.register('anti-air', AntiAirVehicle, 'units');
         em.register('artillery', Artillery, 'units');
         em.register('rifleman', Rifleman, 'units');
@@ -493,10 +494,10 @@ export class GameEngine {
 
                 if (allSameType) {
                     const unitType = firstEnt.type;
-                    if (unitType === 'missile-launcher' || unitType === 'mortar-team') {
+                    if (unitType === 'missile-launcher' || unitType === 'icbm-launcher' || unitType === 'mortar-team') {
                         items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege', skillType: 'state' };
-                        if (unitType === 'missile-launcher') {
-                            items[7] = { id: 'manual_fire', name: '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' };
+                        if (unitType === 'missile-launcher' || unitType === 'icbm-launcher') {
+                            items[7] = { id: 'manual_fire', name: unitType === 'icbm-launcher' ? '핵 미사일 발사 (F)' : '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' };
                         }
                     } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
                         const isFlying = firstEnt.altitude > 0.8;
@@ -1004,7 +1005,7 @@ export class GameEngine {
 
             let finalCmd = cmd;
             if (cmd === 'attack') {
-                const canAttack = (unit.type === 'missile-launcher' ? unit.isSieged : (typeof unit.attack === 'function'));
+                const canAttack = ((unit.type === 'missile-launcher' || unit.type === 'icbm-launcher') ? unit.isSieged : (typeof unit.attack === 'function'));
                 if (!canAttack) {
                     finalCmd = 'move';
                     unit.manualTarget = null;
@@ -1038,7 +1039,7 @@ export class GameEngine {
             
             const dbBtns = ['db-eraser', 
                            'db-spawn-tank', 'db-spawn-rifleman', 'db-spawn-sniper', 
-                           'db-spawn-engineer', 'db-spawn-missile'];
+                           'db-spawn-engineer', 'db-spawn-missile', 'db-spawn-icbm'];
             
             dbBtns.forEach(id => {
                 const btn = document.getElementById(id);
@@ -1223,7 +1224,7 @@ export class GameEngine {
             }
         }
         if (hovered.maxAmmo > 0) {
-            const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일' };
+            const ammoNames = { bullet: '총알', shell: '포탄', missile: '미사일', 'nuclear-missile': '핵미사일' };
             const name = ammoNames[hovered.ammoType] || '탄약';
             const colorClass = (hovered.ammo <= 0) ? 'text-red' : 'highlight';
             desc += `<div class="stat-row"><span>🔋 ${name}:</span> <span class="${colorClass}">${Math.floor(hovered.ammo)} / ${hovered.maxAmmo}</span></div>`;
@@ -1661,7 +1662,7 @@ export class GameEngine {
                 if (mTarget && mTarget.active && mTarget.hp > 0) {
                     targetsToHighlight.add(mTarget);
                 }
-                if (selUnit.type === 'missile-launcher' && selUnit.isFiring && selUnit.pendingFirePos) {
+                if ((selUnit.type === 'missile-launcher' || selUnit.type === 'icbm-launcher') && selUnit.isFiring && selUnit.pendingFirePos) {
                     const fireTarget = [...this.entities.enemies, ...this.entities.neutral].find(ent =>
                         ent.active && Math.hypot(ent.x - selUnit.pendingFirePos.x, ent.y - selUnit.pendingFirePos.y) < 60
                     );

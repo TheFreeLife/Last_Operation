@@ -21,6 +21,7 @@ export class DebugSystem {
             'db-spawn-artillery': { type: 'artillery' },
             'db-spawn-anti-air': { type: 'anti-air' },
             'db-spawn-missile': { type: 'missile-launcher' },
+            'db-spawn-icbm': { type: 'icbm-launcher' },
             'db-spawn-rifleman': { type: 'rifleman' },
             'db-spawn-sniper': { type: 'sniper' },
             'db-spawn-truck': { type: 'military-truck' },
@@ -29,7 +30,8 @@ export class DebugSystem {
             'db-spawn-scout-plane': { type: 'scout-plane' },
             'db-spawn-ammo-bullet': { type: 'ammo-box', options: { ammoType: 'bullet' } },
             'db-spawn-ammo-shell': { type: 'ammo-box', options: { ammoType: 'shell' } },
-            'db-spawn-ammo-missile': { type: 'ammo-box', options: { ammoType: 'missile' } }
+            'db-spawn-ammo-missile': { type: 'ammo-box', options: { ammoType: 'missile' } },
+            'db-spawn-ammo-nuclear': { type: 'ammo-box', options: { ammoType: 'nuclear-missile' } }
         };
 
         for (const id in this.unitTypeMap) {

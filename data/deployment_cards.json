@@ -122,6 +122,18 @@
                 { "id": "helicopter", "count": 2 },
                 { "id": "rifleman", "count": 4 }
             ]
+        },
+        {
+            "id": "strategic_strike",
+            "name": "전략 핵 타격대",
+            "description": "이동식 ICBM 발사대 1대와 이를 호위하는 정예 기갑 부대입니다. 국가의 마지막 수단입니다.",
+            "icon": "☢️",
+            "cost": 15,
+            "units": [
+                { "id": "icbm-launcher", "count": 1 },
+                { "id": "tank", "count": 1 },
+                { "id": "rifleman", "count": 2 }
+            ]
         }
     ]
 }
