@@ -179,6 +179,7 @@ export class MapEditor {
         document.getElementById('config-speed').value = (data.speed !== undefined) ? data.speed : 0;
         document.getElementById('config-ammo').value = (data.ammo !== undefined) ? data.ammo : 0;
         document.getElementById('config-rotation').value = (data.r !== undefined) ? data.r : 0;
+        document.getElementById('config-ai-state').value = data.aiState || 'guard';
         document.getElementById('config-options').value = data.options ? JSON.stringify(data.options) : '';
 
         this.configModal.classList.remove('hidden');
@@ -193,6 +194,7 @@ export class MapEditor {
         const speed = parseFloat(document.getElementById('config-speed').value);
         const ammo = parseInt(document.getElementById('config-ammo').value);
         const rotation = parseInt(document.getElementById('config-rotation').value);
+        const aiState = document.getElementById('config-ai-state').value;
         const optionsStr = document.getElementById('config-options').value;
         
         let options = null;
@@ -213,6 +215,7 @@ export class MapEditor {
             unitData.speed = speed;
             unitData.ammo = ammo;
             unitData.r = rotation;
+            unitData.aiState = aiState;
             unitData.options = options;
         }
 
@@ -593,7 +596,7 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, options: u.options } : null
                 ];
             }
         }
@@ -647,7 +650,7 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, options: u.options } : null
                 ];
             }
         }

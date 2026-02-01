@@ -46,6 +46,13 @@ export class BaseUnit extends Entity {
 
         // [최적화] 타겟팅 연산 부하 분산을 위한 타이머
         this.targetingTimer = Math.random() * 500;
+
+        // --- AI 시스템 속성 ---
+        this.aiState = 'guard'; // 'guard', 'patrol', 'search', 'chase'
+        this.aiRadius = 300;     // 순찰 반경
+        this.aiOrigin = { x, y }; // AI 초기 위치 (순찰 기준점)
+        this.aiWanderTimer = 0;   // 탐색/순찰 시 무작위 이동 타이머
+        this.isAiControlled = false; // 적군(ownerId=2)일 경우 true로 설정됨
     }
 
     init(x, y, engine) {
@@ -70,6 +77,20 @@ export class BaseUnit extends Entity {
         this.isTransitioning = false;
         this.isInitialExit = false;
         this._lastAmmoMsgTime = 0;
+
+        // AI 초기화
+        this.aiOrigin = { x, y };
+        this.aiWanderTimer = 0;
+        this.isAiControlled = (this.ownerId === 2);
+        
+        // [추가] 시야를 사거리와 일치시킴 (픽셀 -> 타일 변환, 기본 타일 48px)
+        // 미사일 발사대 등 예외 처리는 하위 클래스의 init이나 생성자에서 수행 가능
+        if (this.attackRange > 0 && this.type !== 'missile-launcher') {
+            this.visionRange = Math.ceil(this.attackRange / 48);
+        }
+
+        // [추가] 옵션으로 전달된 AI 상태 적용 및 기본 상태로 저장
+        this.baseAiState = this.aiState || 'guard';
     }
 
     get destination() { return this._destination; }
@@ -85,8 +106,9 @@ export class BaseUnit extends Entity {
                 // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
                 this.path = [{ x: value.x, y: value.y }];
             } else {
-                // [수정] worldToGrid를 거치지 않고 직접 월드 좌표를 전달
-                this.engine.flowField.generate(value.x, value.y, this.sizeClass);
+                // 소유주에 따른 유동장 선택
+                const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
+                ff.generate(value.x, value.y, this.sizeClass);
                 this.path = []; 
             }
             this.pathRecalculateTimer = 1000;
@@ -115,6 +137,10 @@ export class BaseUnit extends Entity {
     performAttack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
+
+        // [추가] 사거리 체크: 타겟이 실제 사거리 내에 있을 때만 발사
+        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+        if (dist > this.attackRange) return;
 
         // --- 탄약 체크 로직 ---
         if (this.maxAmmo > 0) {
@@ -239,8 +265,11 @@ export class BaseUnit extends Entity {
                 const isTargetDead = (this.manualTarget.active === false) || (this.manualTarget.hp <= 0);
                 const targetDomain = this.manualTarget.domain || 'ground';
                 const canHit = this.attackTargets.includes(targetDomain);
+                
+                // [추가] 시야 상실 체크 (플레이어 유닛 전용)
+                const isTargetHidden = this.ownerId === 1 && !this.engine.tileMap.isInSight(this.manualTarget.x, this.manualTarget.y) && !(this.engine.debugSystem?.isFullVision);
 
-                if (isTargetDead) {
+                if (isTargetDead || isTargetHidden) {
                     this.manualTarget = null;
                     this.command = 'stop';
                     this.destination = null;
@@ -259,8 +288,13 @@ export class BaseUnit extends Entity {
 
             if (!bestTarget && !this.manualTarget && this.targetingTimer <= 0) {
                 this.targetingTimer = 200 + Math.random() * 100;
+
+                // [수정] 발견 반경: 시야(타일) * 48(px) * 1.5
+                // 적 유닛은 자신의 탐지 반경 내에 있는 아군만 발견할 수 있음
+                const detectionRange = (this.visionRange || 5) * 48 * 1.5;
+
                 const potentialTargets = this.engine.entityManager && this.engine.entityManager.getNearby
-                    ? this.engine.entityManager.getNearby(this.x, this.y, this.attackRange)
+                    ? this.engine.entityManager.getNearby(this.x, this.y, detectionRange)
                     : [
                         ...this.engine.entities.enemies,
                         ...this.engine.entities.neutral,
@@ -273,11 +307,20 @@ export class BaseUnit extends Entity {
                     const relation = this.engine.getRelation(this.ownerId, e.ownerId);
                     if (relation !== 'enemy') continue;
 
+                    // [추가] 시야(Fog of War) 체크
+                    if (this.ownerId === 1) {
+                        // 플레이어 유닛: 아군 공유 시야 내에 있는 적만 타겟팅 가능
+                        if (!this.engine.tileMap.isInSight(e.x, e.y) && !(this.engine.debugSystem?.isFullVision)) {
+                            continue;
+                        }
+                    }
+
                     const enemyDomain = e.domain || 'ground';
                     if (!this.attackTargets.includes(enemyDomain)) continue;
 
                     const distToMe = Math.hypot(e.x - this.x, e.y - this.y);
-                    if (distToMe <= this.attackRange && distToMe < minDistToMe) {
+                    // 사거리가 아닌 탐지 반경(시야 1.5배) 내에 있는지 확인
+                    if (distToMe <= detectionRange && distToMe < minDistToMe) {
                         minDistToMe = distToMe;
                         bestTarget = e;
                     }
@@ -286,12 +329,31 @@ export class BaseUnit extends Entity {
         }
         this.target = bestTarget;
 
+        // --- 적군 AI 행동 로직 ---
+        if (this.isAiControlled) {
+            this.updateAIBehavior(deltaTime);
+        }
+
         if (this.target) {
             this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            this.attack();
-            if (this.command === 'attack') {
-                this._destination = null;
-                this.path = [];
+            
+            const distToTarget = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            const inRange = distToTarget <= this.attackRange;
+
+            if (inRange) {
+                this.attack();
+                // 사거리 내에 들어오면 공격을 위해 정지 (어택땅 또는 추격 중일 때)
+                if (this.command === 'attack' || (this.isAiControlled && this.aiState === 'chase')) {
+                    this._destination = null;
+                    this.path = [];
+                }
+            } else {
+                // 사거리 밖이면 타겟 방향으로 이동 (어택땅 또는 추격 중일 때)
+                if (this.command === 'attack' || (this.isAiControlled && this.aiState === 'chase')) {
+                    if (!this._destination || Math.hypot(this._destination.x - this.target.x, this._destination.y - this.target.y) > 40) {
+                        this.destination = { x: this.target.x, y: this.target.y };
+                    }
+                }
             }
         } else if (this._destination) {
             const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
@@ -312,7 +374,8 @@ export class BaseUnit extends Entity {
                 if (this.domain === 'air') {
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                 } else {
-                    const vector = this.engine.flowField.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
+                    const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
+                    const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
                     if (vector.x !== 0 || vector.y !== 0) {
                         // 유동장 벡터 방향으로 부드럽게 회전
                         const targetAngle = Math.atan2(vector.y, vector.x);
@@ -513,6 +576,71 @@ export class BaseUnit extends Entity {
     }
 
     attack() { }
+
+    updateAIBehavior(deltaTime) {
+        // 타겟이 있으면 추격 모드로 자동 전환 및 수동 타겟으로 고정 (끝까지 추적)
+        if (this.target) {
+            if (this.aiState !== 'chase') {
+                this.aiState = 'chase';
+                this.manualTarget = this.target; // 수동 타겟으로 설정하여 끝까지 추적하게 함
+            }
+            this.command = 'attack';
+            return;
+        }
+
+        // 수동 타겟이 살아있다면 계속 추격 상태 유지
+        if (this.manualTarget && this.manualTarget.active && this.manualTarget.hp > 0) {
+            this.aiState = 'chase';
+            this.command = 'attack';
+            return;
+        }
+
+        // 타겟이 없는 상태에서의 행동
+        switch (this.aiState) {
+            case 'chase':
+                // 추격 중이었는데 타겟이 사라짐(처치) -> 원래의 기본 행동으로 복귀
+                this.aiState = this.baseAiState;
+                this.manualTarget = null;
+                this.destination = null;
+                break;
+
+            case 'guard':
+                // 가만히 대기 (타겟 발견은 update()의 메인 타겟팅 로직에서 처리됨)
+                break;
+
+            case 'patrol':
+                this.updateWanderBehavior(deltaTime, this.aiRadius);
+                break;
+
+            case 'search':
+                // 맵 전체 탐색 (반경을 매우 크게 설정)
+                this.updateWanderBehavior(deltaTime, 10000);
+                break;
+        }
+    }
+
+    updateWanderBehavior(deltaTime, radius) {
+        if (this._destination) return; // 이미 이동 중이면 대기
+
+        this.aiWanderTimer -= deltaTime;
+        if (this.aiWanderTimer <= 0) {
+            // 무작위 목적지 생성
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * radius;
+            const tx = this.aiOrigin.x + Math.cos(angle) * dist;
+            const ty = this.aiOrigin.y + Math.sin(angle) * dist;
+
+            // 맵 경계 체크
+            const mapW = this.engine.tileMap.cols * this.engine.tileMap.tileSize;
+            const mapH = this.engine.tileMap.rows * this.engine.tileMap.tileSize;
+            
+            const finalX = Math.max(100, Math.min(mapW - 100, tx));
+            const finalY = Math.max(100, Math.min(mapH - 100, ty));
+
+            this.destination = { x: finalX, y: finalY };
+            this.aiWanderTimer = 2000 + Math.random() * 4000; // 2~6초 후 다음 이동 결정
+        }
+    }
 }
 
 // 하위 호환성을 위해 별칭 제공

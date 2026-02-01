@@ -39,6 +39,7 @@ export class GameEngine {
         this.entityManager = new EntityManager(this);
         this.renderSystem = new RenderSystem(this);
         this.flowField = new FlowField(this);
+        this.enemyFlowField = new FlowField(this); // 적군 전용 유동장 추가
         this.mapEditor = new MapEditor(this);
         this.deploymentSystem = new DeploymentSystem(this);
 
@@ -222,6 +223,7 @@ export class GameEngine {
             // 2. 타일맵 데이터 로드 및 렌더링 준비
             this.tileMap.loadFromData(mapData);
             this.flowField.init(this.tileMap.cols, this.tileMap.rows);
+            this.enemyFlowField.init(this.tileMap.cols, this.tileMap.rows);
             
             // 3. 미니맵 캐시 갱신
             if (this.minimapCacheCanvas) {
@@ -259,6 +261,7 @@ export class GameEngine {
                         if (unitInfo.damage !== undefined) spawnOptions.damage = unitInfo.damage;
                         if (unitInfo.speed !== undefined) spawnOptions.speed = unitInfo.speed;
                         if (unitInfo.ammo !== undefined) spawnOptions.ammo = unitInfo.ammo;
+                        if (unitInfo.aiState !== undefined) spawnOptions.aiState = unitInfo.aiState;
                         
                         if (unitInfo.options) Object.assign(spawnOptions, unitInfo.options);
 
@@ -1147,6 +1150,9 @@ export class GameEngine {
         const displayRange = hovered.attackRange || hovered.range;
         if (displayRange > 0) {
             desc += `<div class="stat-row"><span>🔭 사거리:</span> <span class="highlight">${displayRange}</span></div>`;
+        }
+        if (hovered.visionRange !== undefined) {
+            desc += `<div class="stat-row"><span>👁️ 시야:</span> <span class="highlight">${hovered.visionRange}</span></div>`;
         }
         if (hovered.sizeCategoryName) {
             desc += `<div class="stat-row"><span>📏 체급:</span> <span class="highlight">${hovered.sizeCategoryName}</span></div>`;
