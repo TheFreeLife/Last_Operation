@@ -2,7 +2,7 @@ import { PlayerUnit } from '../units/BaseUnit.js';
 
 export class AmmoBox extends PlayerUnit {
     static editorConfig = { 
-        category: 'unit', 
+        category: 'item', 
         name: '탄약 상자',
         variants: [
             { id: 'ammo-bullet', name: '탄약 (소총탄)', icon: 'ammo-box', options: { ammoType: 'bullet' } },

@@ -2,7 +2,7 @@ import { PlayerUnit } from './BaseUnit.js';
 import { FallingBomb } from '../projectiles/Bomb.js';
 
 export class ScoutPlane extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'scout-plane', name: '정찰기' };
+    static editorConfig = { category: 'air', icon: 'scout-plane', name: '정찰기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.init(x, y, engine);
@@ -83,7 +83,7 @@ export class ScoutPlane extends PlayerUnit {
 }
 
 export class Bomber extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'bomber', name: '폭격기' };
+    static editorConfig = { category: 'air', icon: 'bomber', name: '폭격기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.init(x, y, engine);
@@ -372,7 +372,7 @@ export class Bomber extends PlayerUnit {
 }
 
 export class CargoPlane extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'cargo-plane', name: '수송기' };
+    static editorConfig = { category: 'air', icon: 'cargo-plane', name: '수송기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.init(x, y, engine);
@@ -779,7 +779,7 @@ export class CargoPlane extends PlayerUnit {
 }
 
 export class Helicopter extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'helicopter', name: '공중강습 헬기' };
+    static editorConfig = { category: 'air', icon: 'helicopter', name: '공중강습 헬기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.init(x, y, engine);
@@ -997,7 +997,7 @@ export class Helicopter extends PlayerUnit {
 }
 
 export class SuicideDrone extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'drone', name: '자폭 드론' };
+    static editorConfig = { category: 'air', icon: 'drone', name: '자폭 드론' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'suicide-drone';

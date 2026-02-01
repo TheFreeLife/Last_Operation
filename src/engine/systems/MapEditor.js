@@ -21,48 +21,62 @@ export class MapEditor {
         this.endPos = { x: 0, y: 0 };
 
         this.palette = {
-            floor: [
-                { id: 'dirt', name: '흙', rotatable: false },
-                { id: 'grass', name: '풀', rotatable: false },
-                { id: 'sand', name: '모래', rotatable: false },
-                { id: 'water', name: '물', rotatable: false },
-                { id: 'asphalt', name: '아스팔트', rotatable: false },
-                { id: 'concrete', name: '콘크리트', rotatable: false },
-                { id: 'metal-plate', name: '금속판', rotatable: true },
-                { id: 'sidewalk', name: '인도', rotatable: true },
-                { id: 'tactile-paving', name: '유도 블록', rotatable: true },
-                { id: 'brick-floor', name: '벽돌 바닥', rotatable: true },
-                { id: 'curb-edge', name: '경계석', rotatable: true },
-                { id: 'curb-h', name: '가로 경계석', rotatable: true },
-                { id: 'curb-v', name: '세로 경계석', rotatable: true },
-                { id: 'road-line-white', name: '도로 흰선', rotatable: true },
-                { id: 'road-line-yellow', name: '도로 황선', rotatable: true },
-                { id: 'crosswalk', name: '횡단보도', rotatable: true },
-                { id: 'runway', name: '활주로', rotatable: true },
-                { id: 'runway-edge', name: '활주로 경계', rotatable: true },
-                { id: 'taxiway', name: '유도로', rotatable: true }
-            ],
-            wall: [
-                { id: 'stone-wall', name: '석재 벽', rotatable: true },
-                { id: 'brick-wall', name: '벽돌 벽', rotatable: true },
-                { id: 'concrete-wall', name: '콘크리트 벽', rotatable: true },
-                { id: 'tree', name: '나무', rotatable: false },
-                { id: 'rock', name: '바위', rotatable: true },
-                { id: 'fence', name: '울타리', rotatable: true },
-                { id: 'fence-corner', name: '울타리 모서리', rotatable: true },
-                { id: 'sandbag', name: '모래주머니', rotatable: true },
-                { id: 'barricade', name: '바리케이드', rotatable: true },
-                { id: 'street-lamp', name: '가로등', rotatable: false },
-                { id: 'hydrant', name: '소화전', rotatable: false },
-                { id: 'trash-can', name: '쓰레기통', rotatable: true },
-                { id: 'hangar', name: '격납고', rotatable: true },
-                { id: 'control-tower', name: '관제탑', rotatable: false },
-                { id: 'airport-fence', name: '보안 펜스', rotatable: true },
-                { id: 'airport-fence-corner', name: '보안 펜스 모서리', rotatable: true },
-                { id: 'radar', name: '레이더', rotatable: false },
-                { id: 'spawn-point', name: '스폰 지점', rotatable: true }
-            ],
-            unit: []
+            floor: {
+                '자연': [
+                    { id: 'dirt', name: '흙', rotatable: false },
+                    { id: 'grass', name: '풀', rotatable: false },
+                    { id: 'sand', name: '모래', rotatable: false },
+                    { id: 'water', name: '물', rotatable: false }
+                ],
+                '인프라': [
+                    { id: 'asphalt', name: '아스팔트', rotatable: false },
+                    { id: 'concrete', name: '콘크리트', rotatable: false },
+                    { id: 'metal-plate', name: '금속판', rotatable: true },
+                    { id: 'sidewalk', name: '인도', rotatable: true },
+                    { id: 'tactile-paving', name: '유도 블록', rotatable: true },
+                    { id: 'brick-floor', name: '벽돌 바닥', rotatable: true }
+                ],
+                '도로': [
+                    { id: 'curb-edge', name: '경계석', rotatable: true },
+                    { id: 'curb-h', name: '가로 경계석', rotatable: true },
+                    { id: 'curb-v', name: '세로 경계석', rotatable: true },
+                    { id: 'road-line-white', name: '도로 흰선', rotatable: true },
+                    { id: 'road-line-yellow', name: '도로 황선', rotatable: true },
+                    { id: 'crosswalk', name: '횡단보도', rotatable: true }
+                ],
+                '공항': [
+                    { id: 'runway', name: '활주로', rotatable: true },
+                    { id: 'runway-edge', name: '활주로 경계', rotatable: true },
+                    { id: 'taxiway', name: '유도로', rotatable: true }
+                ]
+            },
+            wall: {
+                '건물': [
+                    { id: 'stone-wall', name: '석재 벽', rotatable: true },
+                    { id: 'brick-wall', name: '벽돌 벽', rotatable: true },
+                    { id: 'concrete-wall', name: '콘크리트 벽', rotatable: true },
+                    { id: 'hangar', name: '격납고', rotatable: true },
+                    { id: 'control-tower', name: '관제탑', rotatable: false }
+                ],
+                '자연물': [
+                    { id: 'tree', name: '나무', rotatable: false },
+                    { id: 'rock', name: '바위', rotatable: true }
+                ],
+                '방어/시설': [
+                    { id: 'fence', name: '울타리', rotatable: true },
+                    { id: 'fence-corner', name: '울타리 모서리', rotatable: true },
+                    { id: 'sandbag', name: '모래주머니', rotatable: true },
+                    { id: 'barricade', name: '바리케이드', rotatable: true },
+                    { id: 'airport-fence', name: '보안 펜스', rotatable: true },
+                    { id: 'airport-fence-corner', name: '보안 펜스 모서리', rotatable: true },
+                    { id: 'street-lamp', name: '가로등', rotatable: false },
+                    { id: 'hydrant', name: '소화전', rotatable: false },
+                    { id: 'trash-can', name: '쓰레기통', rotatable: true },
+                    { id: 'radar', name: '레이더', rotatable: false },
+                    { id: 'spawn-point', name: '스폰 지점', rotatable: true }
+                ]
+            },
+            unit: {}
         };
 
         this.initUI();
@@ -85,10 +99,24 @@ export class MapEditor {
     syncPaletteWithEngine() {
         if (!this.engine.entityManager) return;
         const engineItems = this.engine.entityManager.getPlaceableItems();
-        this.palette.unit = engineItems.filter(item => item.category === 'unit');
+        
+        // 유닛 카테고리별 그룹화
+        this.palette.unit = {
+            '보병': engineItems.filter(item => item.category === 'infantry'),
+            '차량': engineItems.filter(item => item.category === 'vehicle'),
+            '항공': engineItems.filter(item => item.category === 'air'),
+            '아이템': engineItems.filter(item => item.category === 'item')
+        };
         
         // 더미 유닛 인스턴스 생성 (드로잉용)
-        this.palette.unit.forEach(item => {
+        const allUnits = [
+            ...this.palette.unit['보병'],
+            ...this.palette.unit['차량'],
+            ...this.palette.unit['항공'],
+            ...this.palette.unit['아이템']
+        ];
+
+        allUnits.forEach(item => {
             if (!this.dummyUnits.has(item.id)) {
                 const registration = this.engine.entityManager.registry.get(item.id);
                 if (registration) {
@@ -294,32 +322,48 @@ export class MapEditor {
         if (!grid) return;
         grid.innerHTML = '';
         
-        const items = this.palette[this.currentLayer];
-        items.forEach(item => {
-            const el = document.createElement('div');
-            el.className = 'palette-item-container';
-            
-            const preview = document.createElement('canvas');
-            preview.width = 60;
-            preview.height = 60;
-            el.appendChild(preview);
-            
-            const label = document.createElement('div');
-            label.className = 'palette-label';
-            label.textContent = item.name;
-            el.appendChild(label);
+        const categories = this.palette[this.currentLayer];
+        
+        for (const [categoryName, items] of Object.entries(categories)) {
+            if (items.length === 0) continue;
 
-            this.renderPalettePreview(preview, item);
+            // 카테고리 헤더 추가
+            const header = document.createElement('div');
+            header.className = 'palette-category-header';
+            header.textContent = categoryName;
+            grid.appendChild(header);
 
-            el.onclick = () => this.selectItem(item, el);
-            grid.appendChild(el);
-            
-            if (this.selectedItem && this.selectedItem.id === item.id) {
-                if (!item.options || (this.selectedItem.options && item.options.ammoType === this.selectedItem.options.ammoType)) {
-                    el.classList.add('active');
+            // 아이템 그리드 컨테이너 (그리드 내부의 그리드 느낌)
+            const subGrid = document.createElement('div');
+            subGrid.className = 'palette-subgrid';
+
+            items.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'palette-item-container';
+                
+                const preview = document.createElement('canvas');
+                preview.width = 60;
+                preview.height = 60;
+                el.appendChild(preview);
+                
+                const label = document.createElement('div');
+                label.className = 'palette-label';
+                label.textContent = item.name;
+                el.appendChild(label);
+
+                this.renderPalettePreview(preview, item);
+
+                el.onclick = () => this.selectItem(item, el);
+                subGrid.appendChild(el);
+                
+                if (this.selectedItem && this.selectedItem.id === item.id) {
+                    if (!item.options || (this.selectedItem.options && item.options.ammoType === this.selectedItem.options.ammoType)) {
+                        el.classList.add('active');
+                    }
                 }
-            }
-        });
+            });
+            grid.appendChild(subGrid);
+        }
     }
 
     renderPalettePreview(canvas, item) {

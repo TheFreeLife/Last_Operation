@@ -1,7 +1,7 @@
 import { PlayerUnit } from './BaseUnit.js';
 
 export class Rifleman extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'rifleman', name: '보병' };
+    static editorConfig = { category: 'infantry', icon: 'rifleman', name: '보병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'rifleman';
@@ -91,7 +91,7 @@ export class Rifleman extends PlayerUnit {
 }
 
 export class Sniper extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'sniper', name: '저격수' };
+    static editorConfig = { category: 'infantry', icon: 'sniper', name: '저격수' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'sniper';
@@ -166,7 +166,7 @@ export class Sniper extends PlayerUnit {
 }
 
 export class AntiTankInfantry extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'anti-tank', name: '대전차 보병' };
+    static editorConfig = { category: 'infantry', icon: 'anti-tank', name: '대전차 보병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'anti-tank';
@@ -261,7 +261,7 @@ export class AntiTankInfantry extends PlayerUnit {
 }
 
 export class Medic extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'medic', name: '의무병' };
+    static editorConfig = { category: 'infantry', icon: 'medic', name: '의무병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'medic';
@@ -434,7 +434,7 @@ export class Medic extends PlayerUnit {
 }
 
 export class MortarTeam extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'mortar-team', name: '박격포병' };
+    static editorConfig = { category: 'infantry', icon: 'mortar-team', name: '박격포병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'mortar-team';
@@ -648,7 +648,7 @@ export class MortarTeam extends PlayerUnit {
 }
 
 export class DroneOperator extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'operator', name: '드론 운용병' };
+    static editorConfig = { category: 'infantry', icon: 'operator', name: '드론 운용병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'drone-operator';
@@ -708,7 +708,7 @@ export class DroneOperator extends PlayerUnit {
 }
 
 export class SpecialForces extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'special-forces', name: '특전사' };
+    static editorConfig = { category: 'infantry', icon: 'special-forces', name: '특전사' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'special-forces';

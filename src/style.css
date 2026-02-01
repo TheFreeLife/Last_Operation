@@ -589,11 +589,29 @@ button,
 }
 
 .palette-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 3열로 밀집 */
-    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     overflow-y: auto;
     padding-right: 5px;
+}
+
+.palette-category-header {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #00d2ff;
+    padding: 2px 8px;
+    background: rgba(0, 210, 255, 0.05);
+    border-left: 2px solid #00d2ff;
+    margin-top: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.palette-subgrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
 }
 
 .palette-item-container {
