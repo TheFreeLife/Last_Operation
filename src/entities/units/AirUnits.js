@@ -774,3 +774,182 @@ export class CargoPlane extends PlayerUnit {
         ctx.restore();
     }
 }
+
+export class SuicideDrone extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'drone', name: '자폭 드론' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'suicide-drone';
+        this.name = '자폭 드론';
+        this.domain = 'air';
+        this.baseSpeed = 3.5;
+        this.dashSpeed = 9.0;
+        this.speed = 3.5;
+        this.attackRange = 20; // 거의 붙어야 터짐
+        this.visionRange = 10;
+        this.damage = 450;
+        this.explosionRadius = 120;
+        this.hp = 40;
+        this.maxHp = 40;
+        this.population = 0; // 무인기이므로 인구수 0
+        this.attackTargets = ['ground', 'air', 'sea'];
+        this.size = 24;
+        this.altitude = 1.0;
+        this.isDashing = false;
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.speed = this.baseSpeed || 3.5;
+        this.isDashing = false;
+        this.ammo = 0; // 탄약 미사용
+        this.maxAmmo = 0;
+    }
+
+    update(deltaTime) {
+        if (!this.alive) return;
+
+        // 타겟이 있으면 돌진 상태로 전환
+        if (this.target) {
+            const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            if (dist < 400) { // 인지 범위 내에 들어오면 가속
+                this.isDashing = true;
+                this.speed = this.dashSpeed;
+            }
+            
+            // 실제 충돌 판정 (사거리보다 약간 넉넉하게)
+            if (dist < this.attackRange + 10) {
+                this.explode();
+                return;
+            }
+        } else {
+            this.isDashing = false;
+            this.speed = this.baseSpeed;
+        }
+
+        super.update(deltaTime);
+    }
+
+    attack() {
+        // BaseUnit의 performAttack(투사체 발사)을 무시하고 직접 충돌 체크
+        if (this.target) {
+            const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            if (dist < this.attackRange + 10) {
+                this.explode();
+            }
+        }
+    }
+
+    explode() {
+        if (!this.active || this.hp <= 0) return;
+        
+        this.hp = 0;
+        this.active = false;
+        this.alive = false;
+
+        // 시각 효과: 대형 폭발 생성
+        if (this.engine.addEffect) {
+            this.engine.addEffect('explosion', this.x, this.y);
+        }
+
+        // 1. 엔티티 광역 피해 적용 (피아 구분 없는 범위 피해)
+        const nearby = this.engine.entityManager.getNearby(this.x, this.y, this.explosionRadius);
+        nearby.forEach(ent => {
+            if (ent && ent.active && ent.hp > 0 && ent !== this) {
+                // [수정] 피아 식별 제거: 적군뿐만 아니라 아군 유닛도 반경 내에 있으면 피해를 입음
+                ent.hp -= this.damage;
+                if (this.engine.addEffect) {
+                    this.engine.addEffect('hit', ent.x, ent.y, '#ff4500');
+                }
+            }
+        });
+
+        // 2. 지형(TileMap) 광역 피해 적용
+        const ts = this.engine.tileMap.tileSize;
+        const radiusInTiles = Math.ceil(this.explosionRadius / ts);
+        const centerG = this.engine.tileMap.worldToGrid(this.x, this.y);
+
+        for (let dy = -radiusInTiles; dy <= radiusInTiles; dy++) {
+            for (let dx = -radiusInTiles; dx <= radiusInTiles; dx++) {
+                const gx = centerG.x + dx;
+                const gy = centerG.y + dy;
+                
+                if (gx >= 0 && gx < this.engine.tileMap.cols && gy >= 0 && gy < this.engine.tileMap.rows) {
+                    const worldPos = this.engine.tileMap.gridToWorld(gx, gy);
+                    const dist = Math.hypot(this.x - worldPos.x, this.y - worldPos.y);
+                    
+                    if (dist <= this.explosionRadius) {
+                        // 지형에 데미지 전달 (벽 파괴 등)
+                        this.engine.tileMap.damageTile(gx, gy, this.damage);
+                    }
+                }
+            }
+        }
+
+        // 자신 제거
+        this.engine.entityManager.remove(this);
+    }
+
+    draw(ctx) {
+        const alt = 1.0;
+        const shadowOffset = alt * 6;
+        
+        // 0. 그림자
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.translate(shadowOffset, shadowOffset);
+        this.drawDroneShape(ctx, true);
+        ctx.restore();
+
+        // 1. 본체
+        ctx.save();
+        ctx.translate(0, -alt * 10);
+        if (this.isDashing) {
+            // 돌진 시 흔들림 효과
+            ctx.translate((Math.random()-0.5)*2, (Math.random()-0.5)*2);
+        }
+        this.drawDroneShape(ctx, false);
+        ctx.restore();
+    }
+
+    drawDroneShape(ctx, isShadow) {
+        ctx.save();
+        ctx.scale(1.5, 1.5);
+
+        // X자형 프레임
+        ctx.strokeStyle = isShadow ? 'rgba(0,0,0,1)' : '#2d3436';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-8, -8); ctx.lineTo(8, 8);
+        ctx.moveTo(8, -8); ctx.lineTo(-8, 8);
+        ctx.stroke();
+
+        // 중앙 몸체 (폭약 뭉치)
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : (this.isDashing ? '#d63031' : '#636e72');
+        ctx.fillRect(-4, -4, 8, 8);
+        
+        if (!isShadow) {
+            // 경고등
+            const pulse = Math.sin(Date.now() / (this.isDashing ? 50 : 200)) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(255, 0, 0, ${pulse})`;
+            ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 4개의 로터
+        const rot = (Date.now() / (this.isDashing ? 20 : 50)) % (Math.PI * 2);
+        [[-8,-8], [8,-8], [-8,8], [8,8]].forEach(pos => {
+            ctx.save();
+            ctx.translate(pos[0], pos[1]);
+            if (!isShadow) {
+                ctx.rotate(rot);
+                ctx.fillStyle = '#1e272e';
+                ctx.fillRect(-6, -1, 12, 2);
+            } else {
+                ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+        });
+
+        ctx.restore();
+    }
+}

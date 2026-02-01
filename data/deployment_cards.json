@@ -90,6 +90,16 @@
                 { "id": "ammo-box", "count": 1, "options": { "ammoType": "shell", "amount": 30 } },
                 { "id": "ammo-box", "count": 1, "options": { "ammoType": "missile", "amount": 10 } }
             ]
+        },
+        {
+            "id": "drone_swarm",
+            "name": "드론 벌떼",
+            "description": "저렴하고 치명적인 자폭 드론 8기로 구성된 정밀 타격 부대입니다.",
+            "icon": "🐝",
+            "cost": 4,
+            "units": [
+                { "id": "suicide-drone", "count": 8 }
+            ]
         }
     ]
 }
