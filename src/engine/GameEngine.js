@@ -450,11 +450,23 @@ export class GameEngine {
     }
 
     initUI() {
-        document.getElementById('start-game-btn')?.addEventListener('click', () => this.setGameState(GameState.MAP_SELECT));
-        document.getElementById('map-select-back-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
-        document.getElementById('map-editor-btn')?.addEventListener('click', () => this.setGameState(GameState.EDITOR));
+        const playBtnSound = () => this.audioSystem.play('button_click', { volume: 0.15 });
+
+        document.getElementById('start-game-btn')?.addEventListener('click', () => {
+            playBtnSound();
+            this.setGameState(GameState.MAP_SELECT);
+        });
+        document.getElementById('map-select-back-btn')?.addEventListener('click', () => {
+            playBtnSound();
+            this.setGameState(GameState.MENU);
+        });
+        document.getElementById('map-editor-btn')?.addEventListener('click', () => {
+            playBtnSound();
+            this.setGameState(GameState.EDITOR);
+        });
         
         document.getElementById('in-game-exit-btn')?.addEventListener('click', () => {
+            playBtnSound();
             if (this.isTestMode) {
                 this.setGameState(GameState.EDITOR);
             } else {
@@ -462,11 +474,20 @@ export class GameEngine {
             }
         });
 
-        document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.setGameState(GameState.MENU));
-        document.getElementById('restart-btn')?.addEventListener('click', () => location.reload());
+        document.getElementById('editor-exit-btn')?.addEventListener('click', () => {
+            playBtnSound();
+            this.setGameState(GameState.MENU);
+        });
+        document.getElementById('restart-btn')?.addEventListener('click', () => {
+            playBtnSound();
+            location.reload();
+        });
         
         // 랜덤 소환 및 선택 취소 버튼 리스너
-        document.getElementById('random-spawn-btn')?.addEventListener('click', () => this.spawnRandomUnit());
+        document.getElementById('random-spawn-btn')?.addEventListener('click', () => {
+            playBtnSound();
+            this.spawnRandomUnit();
+        });
 
         this.updateBuildMenu();
     }
@@ -642,6 +663,7 @@ export class GameEngine {
     }
 
     handleMenuAction(action, item) {
+        this.audioSystem.play('button_click', { volume: 0.15 });
         if (action.startsWith('unit:')) {
             const cmd = action.split(':')[1];
             const skillType = item.skillType || 'state';

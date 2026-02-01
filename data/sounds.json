@@ -5,5 +5,6 @@
   "explosion": "data/sound/explosion-fx.mp3",
   "missile_flight": "data/sound/misile-flight.mp3",
   "nuke_explosion": "data/sound/nuclear-explosion.mp3",
-  "siege_mode": "data/sound/siege-mode.mp3"
+  "siege_mode": "data/sound/siege-mode.mp3",
+  "button_click": "data/sound/select-button.mp3"
 }
