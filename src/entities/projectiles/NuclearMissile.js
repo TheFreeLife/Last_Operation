@@ -102,7 +102,7 @@ export class NuclearMissile extends Entity {
         // 광범위 피해 적용
         const targets = [...this.engine.entities.enemies, ...this.engine.entities.neutral, ...this.engine.entities.units];
         targets.forEach(target => {
-            if (!target || !target.active || target.hp === undefined || target.domain === 'air') return;
+            if (!target || !target.active || target.hp === undefined) return;
             const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
             if (dist <= this.explosionRadius) {
                 // 핵은 거리에 따른 위력 감소가 적음 (더 치명적)

@@ -127,7 +127,6 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     getCacheKey() {
-        // 독립 회전 및 변신 애니메이션이 있으므로 시즈 관련 상태일 땐 실시간
         if (this.isTransitioning || this.isSieged || this.turretAngle !== 0) return null;
         return `${this.type}-idle`;
     }
@@ -142,37 +141,26 @@ export class MissileLauncher extends PlayerUnit {
     }
 
     update(deltaTime) {
-        // [수정] 시즈 모드 중에는 차체(하단부) 회전 고정
         const prevAngle = this.angle;
-
-        // 부모의 업데이트를 호출하여 충돌 및 상태 관리를 유지함
         super.update(deltaTime);
 
         if (this.isSieged) {
-            this.angle = prevAngle; // 시즈 중이면 차체 각도를 이전 상태로 고정
+            this.angle = prevAngle;
         }
 
-        // 시즈 모드 중 상부 독립 회전 로직
         if (this.isSieged && !this.isTransitioning) {
             if (this.isFiring) {
-                // 발사 중일 때만 타겟 방향으로 회전
                 const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
                 let relativeTargetAngle = targetAngle - this.angle;
-                
                 let diff = relativeTargetAngle - this.turretAngle;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 while (diff < -Math.PI) diff += Math.PI * 2;
-                
-                // 포탑 회전 속도 극도로 하향 (0.025 -> 0.0125)
                 this.turretAngle += diff * 0.0125;
-
-                // 포탑이 어느 정도 정렬되었을 때만 발사 타이머 가동 (차이 < 0.05 라디안)
                 if (Math.abs(diff) < 0.05) {
                     this.fireDelayTimer++;
                 }
             }
         } else if (!this.isSieged) {
-            // 시즈 모드가 완전히 해제된 상태에서만 정면 정렬
             this.turretAngle *= 0.9;
             if (Math.abs(this.turretAngle) < 0.01) this.turretAngle = 0;
         }
@@ -204,7 +192,6 @@ export class MissileLauncher extends PlayerUnit {
 
     attack() {
         if (this.isSieged && !this.isTransitioning && !this.isFiring) {
-            // [수정] ECS 기반 performAttack 대신 객체 기반 executeFire 호출
             const now = Date.now();
             if (now - this.lastFireTime > this.fireRate && this.target) {
                 this.pendingFirePos = { x: this.target.x, y: this.target.y };
@@ -227,7 +214,6 @@ export class MissileLauncher extends PlayerUnit {
             this.isFiring = true;
             this.fireDelayTimer = 0;
             this.pendingFirePos = { x: targetX, y: targetY };
-            // 발사 예고 효과
             this.engine.addEffect?.('system', this.x, this.y - 50, '#ff3131', '미사일 포탑 정렬 중...');
         }
     }
@@ -235,8 +221,6 @@ export class MissileLauncher extends PlayerUnit {
     executeFire() {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
-        
-        // 발사 위치 계산 (회전된 상부 기준)
         const totalAngle = this.angle + this.turretAngle;
         const launchDist = 30;
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
@@ -257,9 +241,6 @@ export class MissileLauncher extends PlayerUnit {
         }
         ctx.save();
         ctx.scale(2, 2);
-
-        // --- 1. 고정 하부 (차체) ---
-        // 아웃리거 (지지대)
         if (this.raiseAngle > 0) {
             const outDist = this.raiseAngle * 8;
             ctx.fillStyle = '#2d3436';
@@ -277,39 +258,22 @@ export class MissileLauncher extends PlayerUnit {
                 ctx.restore();
             });
         }
-
-        // 기본 몸체
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-22, -10, 44, 20);
-        // 운전석
         ctx.fillStyle = '#34495e';
         ctx.fillRect(12, -10, 10, 20);
-
-        // --- 2. 회전 상부 (발사관) ---
         ctx.save();
-        // 포탑 회전축 (차체 뒤쪽)
         ctx.translate(-8, 0);
-        ctx.rotate(this.turretAngle); // 하부 기준 상대적 회전
-
-        // 회전 링
+        ctx.rotate(this.turretAngle);
         ctx.fillStyle = '#1e272e';
         ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
-
-        // 발사관
         const canisterLen = 32 - (this.raiseAngle * 12);
-        const canisterWidth = 14 + (this.raiseAngle * 2);
-
-        // 유압 실린더
         if (this.raiseAngle > 0.1) {
             ctx.fillStyle = '#bdc3c7';
             ctx.fillRect(2, -2, 8 * this.raiseAngle, 4);
         }
-
-        // 메인 캐니스터
         ctx.fillStyle = '#4b5320';
         ctx.fillRect(-4, -7, canisterLen, 14);
-        
-        // 탄두 사출구 디테일
         if (this.raiseAngle > 0.8) {
             ctx.fillStyle = '#1a1a1a';
             ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 5, 0, Math.PI * 2); ctx.fill();
@@ -318,14 +282,11 @@ export class MissileLauncher extends PlayerUnit {
             ctx.fillRect(canisterLen - 6, -5, 2, 10);
         }
         ctx.restore();
-
-        // 상태 지시등
         if (this.isSieged && !this.isTransitioning) {
             const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
             ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
             ctx.beginPath(); ctx.arc(-18, 0, 2, 0, Math.PI * 2); ctx.fill();
         }
-
         ctx.restore();
     }
 }
@@ -340,6 +301,7 @@ export class Artillery extends PlayerUnit {
         this.fireRate = 4000;
         this.damage = 100;
         this.attackRange = 600;
+        this.visionRange = 8;
         this.explosionRadius = 60;
         this.size = 80;
         this.cargoSize = 5;
@@ -448,7 +410,7 @@ export class MobileICBMLauncher extends PlayerUnit {
 
         this.isFiring = false;
         this.fireDelayTimer = 0;
-        this.maxFireDelay = 150; // 발사 전 최종 점검 시간
+        this.maxFireDelay = 180; // 3초 카운트다운 (60fps * 3)
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackTargets = ['ground', 'sea'];
 
@@ -537,6 +499,11 @@ export class MobileICBMLauncher extends PlayerUnit {
         }
 
         if (this.isFiring) {
+            if (this.fireDelayTimer === 1) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '3');
+            if (this.fireDelayTimer === 60) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '2');
+            if (this.fireDelayTimer === 120) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '1');
+            if (this.fireDelayTimer === 175) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', 'LAUNCH!');
+
             if (this.fireDelayTimer >= this.maxFireDelay) {
                 this.executeFire();
                 this.isFiring = false;
@@ -588,8 +555,6 @@ export class MobileICBMLauncher extends PlayerUnit {
         this.ammo--;
         this.lastFireTime = Date.now();
         this.recoil = 25;
-        
-        // 발사 시 주변에 강력한 먼지 폭풍 효과
         for(let i=0; i<8; i++) {
             this.engine.addEffect?.('smoke', spawnX, spawnY);
         }
@@ -601,10 +566,7 @@ export class MobileICBMLauncher extends PlayerUnit {
             return;
         }
         ctx.save();
-        ctx.scale(2.5, 2.5); // 크기 확대
-
-        // --- 1. 거대한 8륜 차체 ---
-        // 아웃리거 (4개에서 6개로 증가)
+        ctx.scale(2.5, 2.5);
         if (this.raiseAngle > 0) {
             const outDist = this.raiseAngle * 12;
             ctx.fillStyle = '#1e272e';
@@ -622,59 +584,38 @@ export class MobileICBMLauncher extends PlayerUnit {
                 ctx.restore();
             });
         }
-
-        // 차체 프레임
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-35, -12, 70, 24);
-        
-        // 8개의 바퀴
         ctx.fillStyle = '#000';
         for(let i=0; i<4; i++) {
             ctx.fillRect(-30 + i*20, -14, 12, 4);
             ctx.fillRect(-30 + i*20, 10, 12, 4);
         }
-
-        // 대형 운전석 (앞쪽)
         ctx.fillStyle = '#34495e';
         ctx.fillRect(20, -12, 15, 24);
-        ctx.fillStyle = '#2980b9'; // 창문
+        ctx.fillStyle = '#2980b9';
         ctx.fillRect(30, -10, 3, 20);
-
-        // --- 2. 전략 발사관 ---
         ctx.save();
         ctx.translate(-10, 0);
         ctx.rotate(this.turretAngle);
-
-        // 거대한 회전 플랫폼
         ctx.fillStyle = '#1a1a1a';
         ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
-
-        // 발사관 (매우 길고 굵음)
         const canisterLen = 50 - (this.raiseAngle * 15);
-        const canisterWidth = 20;
-
-        // 거대 유압 시스템
         if (this.raiseAngle > 0.1) {
             ctx.fillStyle = '#7f8c8d';
             ctx.fillRect(5, -4, 15 * this.raiseAngle, 3);
             ctx.fillRect(5, 1, 15 * this.raiseAngle, 3);
         }
-
-        // 전략 미사일 캐니스터
         const mslGrd = ctx.createLinearGradient(0, -10, 0, 10);
         mslGrd.addColorStop(0, '#34495e');
         mslGrd.addColorStop(0.5, '#2d3436');
         mslGrd.addColorStop(1, '#1e272e');
         ctx.fillStyle = mslGrd;
         ctx.fillRect(-5, -10, canisterLen, 20);
-        
-        // 노란색/검은색 경고 스트라이프
         ctx.fillStyle = '#f1c40f';
         for(let i=0; i<3; i++) {
             ctx.fillRect(5 + i*12, -10, 3, 20);
         }
-
-        // 사출구 해치 디테일
         if (this.raiseAngle > 0.8) {
             ctx.fillStyle = '#c0392b';
             ctx.beginPath(); ctx.arc(canisterLen - 10, 0, 8, 0, Math.PI * 2); ctx.fill();
@@ -685,15 +626,12 @@ export class MobileICBMLauncher extends PlayerUnit {
             ctx.fillRect(canisterLen - 8, -8, 4, 16);
         }
         ctx.restore();
-
-        // 긴급 점멸등
         if (this.isSieged) {
             const pulse = Math.sin(Date.now() / 100) * 0.5 + 0.5;
             ctx.fillStyle = `rgba(241, 196, 15, ${0.3 + pulse * 0.7})`;
             ctx.beginPath(); ctx.arc(-30, -8, 3, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(-30, 8, 3, 0, Math.PI * 2); ctx.fill();
         }
-
         ctx.restore();
     }
 }

@@ -132,7 +132,8 @@
             "units": [
                 { "id": "icbm-launcher", "count": 1 },
                 { "id": "tank", "count": 1 },
-                { "id": "rifleman", "count": 2 }
+                { "id": "rifleman", "count": 2 },
+                { "id": "ammo-box", "count": 1, "options": { "ammoType": "nuclear-missile" } }
             ]
         }
     ]
