@@ -704,9 +704,106 @@ export class DroneOperator extends PlayerUnit {
         ctx.globalAlpha = 1.0;
 
         ctx.restore();
+    }
+}
 
-        // 제어 범위 시각화 (선택 시에만 표시되도록 GameEngine에서 처리하지만, 
-        // 운용병 고유의 느낌을 위해 옅은 오라 추가 가능)
+export class SpecialForces extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'special-forces', name: '특전사' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'special-forces';
+        this.name = '특전사';
+        this.isHuman = true;
+        this.speed = 1.4;    // 일반 보병(1.0)보다 빠름
+        this.fireRate = 180; // 일반 보병(250)보다 빠름
+        this.damage = 12;    // 일반 보병(5)보다 2배 이상 강력
+        this.attackRange = 260; // 사거리 소폭 상향
+        this.size = 24;
+        this.visionRange = 10; // 시야 우수
+        this.hp = 120;       // 일반 보병(70)보다 튼튼함
+        this.maxHp = 120;
+        this.population = 1;
+        this.attackTargets = ['ground', 'sea', 'air'];
+        this.cargoSize = 1;  
+        this.muzzleOffset = 22;
+        this.projectileSpeed = 18; // 더 빠른 탄속
+        this.hitEffectType = 'bullet';
+
+        this.ammoType = 'bullet';
+        this.maxAmmo = 60;
+        this.ammo = 60;
+        this.ammoConsumption = 1;
+    }
+
+    attack() {
+        this.performAttack();
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+
+        ctx.save();
+        
+        // 숨쉬기 애니메이션 (정예병답게 절제됨)
+        const breathing = Math.sin(Date.now() / 600) * 0.3;
+        ctx.rotate(breathing * 0.03);
+        ctx.scale(1.9, 1.9); // 일반 보병(1.8)보다 아주 약간 큼
+
+        const isShooting = (this.target && (Date.now() - this.lastFireTime < 150));
+
+        // 0. 하부 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(0, 2, 5.5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 1. 전술 장비 (검정색/진회색)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-11, -5.5, 6, 11); // 대형 백팩
+
+        // 2. 바디 (흑색 전술복)
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.arc(0, 0, 6.2, 0, Math.PI * 2); ctx.fill();
+
+        // 플레이트 캐리어 (다크 그레이)
+        ctx.fillStyle = '#1e272e';
+        ctx.beginPath();
+        ctx.roundRect(-2.8, -5.5, 7.5, 11, 1.5);
+        ctx.fill();
+
+        // 3. 베레모 (검정색 또는 어두운 색)
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); 
+        ctx.ellipse(1.5, -1, 5.5, 4.5, -Math.PI / 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 야간 투시경/고글 느낌 (작은 포인트)
+        ctx.fillStyle = '#00d2ff';
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(4, -1, 2, 2);
+        ctx.globalAlpha = 1.0;
+
+        // 4. 소음기 장착형 카빈 (Suppressed Carbine)
+        ctx.save();
+        ctx.translate(4, 2.5);
+        if (isShooting) ctx.translate(-0.8, 0);
+
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(0, -1.8, 10, 4); // 본체
+        ctx.fillRect(10, -1.2, 14, 2.4); // 소음기 포함 총열
+
+        // 도트 사이트
+        ctx.fillStyle = '#2f3640';
+        ctx.fillRect(2, -3, 4, 1.5);
+
+        // 팔
+        ctx.fillStyle = '#2d3436';
+        ctx.beginPath(); ctx.arc(-0.5, 0, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(9, 2.5, 2.5, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+        ctx.restore();
     }
 }
 

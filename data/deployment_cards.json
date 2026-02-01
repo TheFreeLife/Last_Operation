@@ -22,6 +22,16 @@
             ]
         },
         {
+            "id": "special_forces_squad",
+            "name": "특전사 소조",
+            "description": "정예 특전사 4명으로 구성된 고도의 전투력을 가진 정예 유닛입니다.",
+            "icon": "🥷",
+            "cost": 6,
+            "units": [
+                { "id": "special-forces", "count": 4 }
+            ]
+        },
+        {
             "id": "special_ops",
             "name": "저격반",
             "description": "저격수 2명과 정찰 보병 2명으로 구성된 정밀 타격 부대입니다.",
@@ -115,12 +125,12 @@
         {
             "id": "helicopter_assault",
             "name": "헬기 강습반",
-            "description": "다목적 헬기 2대와 강습 보병들로 구성된 팀입니다. 신속한 전개와 전천후 지원이 가능합니다.",
+            "description": "다목적 헬기 2대와 정예 특전사들로 구성된 팀입니다. 신속한 전개와 전천후 지원이 가능합니다.",
             "icon": "🚁",
             "cost": 7,
             "units": [
                 { "id": "helicopter", "count": 2 },
-                { "id": "rifleman", "count": 4 }
+                { "id": "special-forces", "count": 4 }
             ]
         },
         {
@@ -128,7 +138,7 @@
             "name": "전략 핵 타격대",
             "description": "이동식 ICBM 발사대 1대와 이를 호위하는 정예 기갑 부대입니다. 국가의 마지막 수단입니다.",
             "icon": "☢️",
-            "cost": 15,
+            "cost": 30,
             "units": [
                 { "id": "icbm-launcher", "count": 1 },
                 { "id": "tank", "count": 1 },

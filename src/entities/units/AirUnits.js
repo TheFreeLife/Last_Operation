@@ -514,6 +514,8 @@ export class CargoPlane extends PlayerUnit {
             unit.x = rearX;
             unit.y = rearY;
             unit.angle = this.angle + Math.PI; // 반대 방향 바라보기
+            unit.path = [];
+            unit.command = 'stop';
 
             // 하차 후 약간 전진 시키기
             const exitDestX = rearX + Math.cos(this.angle + Math.PI) * 60;
@@ -570,6 +572,7 @@ export class CargoPlane extends PlayerUnit {
             unit.fallTimer = 0;
             unit.fallDuration = 2000; // 2초간 낙하
             unit.destination = null;
+            unit.path = [];
             unit.command = 'stop';
 
             // this.engine.entities.units.push(unit); // 제거: 이미 리스트에 있음
@@ -856,6 +859,8 @@ export class Helicopter extends PlayerUnit {
 
         unit.isBoarded = true;
         unit.command = 'stop';
+        unit.destination = null;
+        unit.path = [];
         this.cargo.push(unit);
 
         if (this.engine.selectedEntities) {
@@ -883,6 +888,8 @@ export class Helicopter extends PlayerUnit {
             const unit = this.cargo.shift();
             unit.isBoarded = false;
             unit.active = true;
+            unit.destination = null;
+            unit.path = [];
             unit.x = this.x + (Math.random() - 0.5) * 40;
             unit.y = this.y + (Math.random() - 0.5) * 40;
             if (this.cargo.length === 0) this.isUnloading = false;
