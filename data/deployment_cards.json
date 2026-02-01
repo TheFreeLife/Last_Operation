@@ -101,6 +101,16 @@
                 { "id": "suicide-drone", "count": 6 },
                 { "id": "drone-operator", "count": 1 }
             ]
+        },
+        {
+            "id": "bombing_formation",
+            "name": "폭격 편대",
+            "description": "전략 폭격기 3대로 구성된 중전략 타격대입니다. 대규모 폭격으로 지상의 적을 무력화합니다.",
+            "icon": "🛫",
+            "cost": 10,
+            "units": [
+                { "id": "bomber", "count": 3 }
+            ]
         }
     ]
 }

@@ -94,9 +94,9 @@ export class Bomber extends PlayerUnit {
         this.type = 'bomber';
         this.name = '전략 폭격기';
         this.domain = 'ground'; 
-        this.baseSpeed = 2.2;
+        this.baseSpeed = 1.1;  // 2.2 -> 1.1 (절반으로 하향)
         this.airSpeed = 5.0;   
-        this.speed = 0.5;      
+        this.speed = 0.25;     // 0.5 -> 0.25
         this.visionRange = 12;
         this.hp = 1200;
         this.maxHp = 1200;
@@ -164,7 +164,7 @@ export class Bomber extends PlayerUnit {
             this.isManualLanding = false;
             this.maneuverFrameCount = 0;
             this.takeoffDistance = 0;
-            this.speed = 0.5; // 이륙 시작 시 속도 초기화
+            this.speed = 0.25; // 0.5 -> 0.25
             this.command = 'move';
             this.destination = null;
         } else {
@@ -185,9 +185,9 @@ export class Bomber extends PlayerUnit {
         // 0. 속도 관리 로직 (이륙 가속 및 공중 고속 비행)
         if (this.isTakeoffStarting) {
             if (this.altitude <= 0) {
-                // 1) 활주 중 가속: 0.5에서 baseSpeed까지 (활주 거리 300px 기준)
+                // 1) 활주 중 가속: 0.25에서 baseSpeed까지 (활주 거리 300px 기준)
                 const takeoffProgress = Math.min(1.0, this.takeoffDistance / 300);
-                this.speed = 0.5 + (this.baseSpeed - 0.5) * takeoffProgress;
+                this.speed = 0.25 + (this.baseSpeed - 0.25) * takeoffProgress;
             } else {
                 // 2) 이륙 상승 중 가속: baseSpeed에서 airSpeed까지 (고도 기준)
                 this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
@@ -383,9 +383,9 @@ export class CargoPlane extends PlayerUnit {
         this.type = 'cargo-plane';
         this.name = '전략 수송기';
         this.domain = 'ground'; 
-        this.baseSpeed = 0.8;   
+        this.baseSpeed = 0.4;   // 0.8 -> 0.4
         this.airSpeed = 2.2;    
-        this.speed = 0.3;       
+        this.speed = 0.15;      // 0.3 -> 0.15
         this.hp = 1500;
         this.maxHp = 1500;
         this.population = 2; // 조종사 2명
@@ -588,7 +588,7 @@ export class CargoPlane extends PlayerUnit {
             this.isManualLanding = false;
             this.maneuverFrameCount = 0;
             this.takeoffDistance = 0;
-            this.speed = 0.5;
+            this.speed = 0.15; // 0.3 -> 0.15
             this.command = 'move';
             this.destination = null;
         } else {
@@ -619,7 +619,7 @@ export class CargoPlane extends PlayerUnit {
         if (this.isTakeoffStarting) {
             if (this.altitude <= 0) {
                 const takeoffProgress = Math.min(1.0, this.takeoffDistance / 350); // 수송기는 더 긴 활주 거리 필요
-                this.speed = 0.3 + (this.baseSpeed - 0.3) * takeoffProgress;
+                this.speed = 0.15 + (this.baseSpeed - 0.15) * takeoffProgress; // 0.3 -> 0.15
             } else {
                 this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
             }
