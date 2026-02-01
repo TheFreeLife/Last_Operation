@@ -370,6 +370,14 @@ export class BaseUnit extends Entity {
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                 } else {
                     const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
+                    
+                    // [추가] 주기적으로 유동장 재생성 요청 (장애물 파괴 시 반영을 위함)
+                    this.pathRecalculateTimer -= deltaTime;
+                    if (this.pathRecalculateTimer <= 0) {
+                        ff.generate(this._destination.x, this._destination.y, this.sizeClass);
+                        this.pathRecalculateTimer = 2000; // 2초마다 갱신
+                    }
+
                     const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
                     if (vector.x !== 0 || vector.y !== 0) {
                         // 유동장 벡터 방향으로 부드럽게 회전
@@ -619,20 +627,38 @@ export class BaseUnit extends Entity {
 
         this.aiWanderTimer -= deltaTime;
         if (this.aiWanderTimer <= 0) {
-            // 무작위 목적지 생성
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * radius;
-            const tx = this.aiOrigin.x + Math.cos(angle) * dist;
-            const ty = this.aiOrigin.y + Math.sin(angle) * dist;
+            let foundValidPoint = false;
+            let finalX = 0;
+            let finalY = 0;
+            let attempts = 0;
+            const maxAttempts = 10;
 
-            // 맵 경계 체크
             const mapW = this.engine.tileMap.cols * this.engine.tileMap.tileSize;
             const mapH = this.engine.tileMap.rows * this.engine.tileMap.tileSize;
-            
-            const finalX = Math.max(100, Math.min(mapW - 100, tx));
-            const finalY = Math.max(100, Math.min(mapH - 100, ty));
 
-            this.destination = { x: finalX, y: finalY };
+            while (!foundValidPoint && attempts < maxAttempts) {
+                // 무작위 목적지 생성
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * radius;
+                const tx = this.aiOrigin.x + Math.cos(angle) * dist;
+                const ty = this.aiOrigin.y + Math.sin(angle) * dist;
+
+                finalX = Math.max(100, Math.min(mapW - 100, tx));
+                finalY = Math.max(100, Math.min(mapH - 100, ty));
+
+                // 목적지 타일이 통과 가능한지 확인
+                const gx = Math.floor(finalX / this.engine.tileMap.tileSize);
+                const gy = Math.floor(finalY / this.engine.tileMap.tileSize);
+                
+                if (this.engine.tileMap.isPassableArea(gx, gy, this.sizeClass)) {
+                    foundValidPoint = true;
+                }
+                attempts++;
+            }
+
+            if (foundValidPoint) {
+                this.destination = { x: finalX, y: finalY };
+            }
             this.aiWanderTimer = 2000 + Math.random() * 4000; // 2~6초 후 다음 이동 결정
         }
     }

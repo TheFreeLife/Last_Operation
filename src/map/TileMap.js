@@ -284,7 +284,10 @@ export class TileMap {
         tile.buildable = tile.terrain !== 'spawn-point';
         tile.passable = tile.terrain !== 'water';
 
-        // 길찾기 업데이트가 필요한 경우를 위해 FlowField 등 갱신 알림 필요할 수 있음
+        // [수정] 벽 파괴 시 즉시 모든 유동장 비용 맵 갱신
+        if (this.engine.flowField) this.engine.flowField.updateAllCostMaps();
+        if (this.engine.enemyFlowField) this.engine.enemyFlowField.updateAllCostMaps();
+
         if (this.engine.deploymentSystem) {
             this.engine.deploymentSystem.shouldRebakeFlowField = true;
         }
