@@ -37,7 +37,10 @@ export class MapEditor {
                 { id: 'curb-v', name: '세로 경계석', rotatable: true },
                 { id: 'road-line-white', name: '도로 흰선', rotatable: true },
                 { id: 'road-line-yellow', name: '도로 황선', rotatable: true },
-                { id: 'crosswalk', name: '횡단보도', rotatable: true }
+                { id: 'crosswalk', name: '횡단보도', rotatable: true },
+                { id: 'runway', name: '활주로', rotatable: true },
+                { id: 'runway-edge', name: '활주로 경계', rotatable: true },
+                { id: 'taxiway', name: '유도로', rotatable: true }
             ],
             wall: [
                 { id: 'stone-wall', name: '석재 벽', rotatable: true },
@@ -46,11 +49,17 @@ export class MapEditor {
                 { id: 'tree', name: '나무', rotatable: false },
                 { id: 'rock', name: '바위', rotatable: true },
                 { id: 'fence', name: '울타리', rotatable: true },
+                { id: 'fence-corner', name: '울타리 모서리', rotatable: true },
                 { id: 'sandbag', name: '모래주머니', rotatable: true },
                 { id: 'barricade', name: '바리케이드', rotatable: true },
                 { id: 'street-lamp', name: '가로등', rotatable: false },
                 { id: 'hydrant', name: '소화전', rotatable: false },
                 { id: 'trash-can', name: '쓰레기통', rotatable: true },
+                { id: 'hangar', name: '격납고', rotatable: true },
+                { id: 'control-tower', name: '관제탑', rotatable: false },
+                { id: 'airport-fence', name: '보안 펜스', rotatable: true },
+                { id: 'airport-fence-corner', name: '보안 펜스 모서리', rotatable: true },
+                { id: 'radar', name: '레이더', rotatable: false },
                 { id: 'spawn-point', name: '스폰 지점', rotatable: true }
             ],
             unit: []

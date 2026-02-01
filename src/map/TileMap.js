@@ -103,6 +103,18 @@ export class TileMap {
                     ctx.stroke();
                 }
             },
+            'fence-corner': {
+                maxHp: 30,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 4; ctx.beginPath();
+                    ctx.moveTo(lpx+ts*0.3, lpy+ts); ctx.lineTo(lpx+ts*0.3, lpy+ts*0.3); ctx.lineTo(lpx+ts, lpy+ts*0.3);
+                    ctx.moveTo(lpx+ts*0.7, lpy+ts); ctx.lineTo(lpx+ts*0.7, lpy+ts*0.7); ctx.lineTo(lpx+ts, lpy+ts*0.7); ctx.stroke();
+                    ctx.lineWidth = 2; ctx.beginPath();
+                    ctx.moveTo(lpx+ts*0.1, lpy+ts*0.7); ctx.lineTo(lpx+ts*0.9, lpy+ts*0.7);
+                    ctx.moveTo(lpx+ts*0.3, lpy+ts*0.3); ctx.lineTo(lpx+ts*0.3, lpy+ts*0.9);
+                    ctx.stroke();
+                }
+            },
             'concrete-wall': {
                 maxHp: 400,
                 render: (ctx, ts, lpx, lpy) => {
@@ -160,6 +172,66 @@ export class TileMap {
                 render: (ctx, ts, lpx, lpy) => {
                     ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5);
                     ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15);
+                }
+            },
+            'hangar': {
+                maxHp: 2000,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 대형 격납고 (ts x ts 크기지만 시각적으로는 꽉 참)
+                    ctx.fillStyle = '#5a5a5a'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.fillStyle = '#444'; ctx.fillRect(lpx+2, lpy+2, ts-4, ts-4);
+                    // 지붕 둥근 표현
+                    ctx.fillStyle = '#666'; ctx.fillRect(lpx+ts*0.1, lpy+ts*0.1, ts*0.8, ts*0.8);
+                    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+                    for(let i=1; i<5; i++) { ctx.beginPath(); ctx.moveTo(lpx+ts*i/5, lpy+ts*0.1); ctx.lineTo(lpx+ts*i/5, lpy+ts*0.9); ctx.stroke(); }
+                }
+            },
+            'control-tower': {
+                maxHp: 1200,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 관제탑
+                    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.75);
+                    ctx.fillStyle = '#2c3e50'; ctx.fillRect(lpx+ts*0.15, lpy+ts*0.1, ts*0.7, ts*0.25);
+                    ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1; ctx.strokeRect(lpx+ts*0.15, lpy+ts*0.1, ts*0.7, ts*0.25);
+                    // 상단 안테나
+                    ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.moveTo(lpx+ts*0.5, lpy+ts*0.1); ctx.lineTo(lpx+ts*0.5, lpy); ctx.stroke();
+                }
+            },
+            'airport-fence': {
+                maxHp: 150,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(lpx, lpy+ts*0.5); ctx.lineTo(lpx+ts, lpy+ts*0.5); ctx.stroke();
+                    for(let i=0; i<=ts; i+=ts/4) { ctx.beginPath(); ctx.moveTo(lpx+i, lpy+ts*0.2); ctx.lineTo(lpx+i, lpy+ts*0.8); ctx.stroke(); }
+                    // 철조망 X자 표시
+                    ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
+                    for(let i=0; i<ts; i+=ts/4) {
+                        ctx.beginPath(); ctx.moveTo(lpx+i, lpy+ts*0.3); ctx.lineTo(lpx+i+ts/4, lpy+ts*0.7);
+                        ctx.moveTo(lpx+i+ts/4, lpy+ts*0.3); ctx.lineTo(lpx+i, lpy+ts*0.7); ctx.stroke();
+                    }
+                    ctx.globalAlpha = 1.0;
+                }
+            },
+            'airport-fence-corner': {
+                maxHp: 150,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(lpx+ts*0.5, lpy+ts); ctx.lineTo(lpx+ts*0.5, lpy+ts*0.5); ctx.lineTo(lpx+ts, lpy+ts*0.5); ctx.stroke();
+                    // 수직 지지대
+                    for(let i=ts; i>=ts*0.5; i-=ts/4) { ctx.beginPath(); ctx.moveTo(lpx+ts*0.2, lpy+i); ctx.lineTo(lpx+ts*0.8, lpy+i); ctx.stroke(); }
+                    // 수평 지지대
+                    for(let i=ts; i>=ts*0.5; i-=ts/4) { ctx.beginPath(); ctx.moveTo(lpx+i, lpy+ts*0.2); ctx.lineTo(lpx+i, lpy+ts*0.8); ctx.stroke(); }
+                }
+            },
+            'radar': {
+                maxHp: 500,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#34495e'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.6, ts*0.2, ts*0.4);
+                    const angle = (Date.now() / 500) % (Math.PI * 2);
+                    ctx.save(); ctx.translate(lpx+ts*0.5, lpy+ts*0.4); ctx.rotate(angle);
+                    ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0.2, Math.PI-0.2); ctx.fill();
+                    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.restore();
                 }
             },
             'spawn-point': {
@@ -307,6 +379,9 @@ export class TileMap {
             case 'tactile-paving': return '#a68010';
             case 'brick-floor': return '#5d4037';
             case 'curb-edge': return '#666666';
+            case 'runway': return '#222222';
+            case 'runway-edge': return '#333333';
+            case 'taxiway': return '#2c2c2c';
             case 'road-line-white':
             case 'road-line-yellow':
             case 'crosswalk':
@@ -353,7 +428,7 @@ export class TileMap {
         ctx.fillRect(lpx, lpy, ts, ts);
 
         ctx.globalAlpha = 0.15;
-        if (['asphalt', 'road-line-white', 'road-line-yellow', 'crosswalk', 'curb-h', 'curb-v'].includes(terrain)) {
+        if (['asphalt', 'road-line-white', 'road-line-yellow', 'crosswalk', 'curb-h', 'curb-v', 'runway', 'runway-edge', 'taxiway'].includes(terrain)) {
             ctx.fillStyle = '#fff';
             for(let i=0; i<8; i++) ctx.fillRect(lpx + Math.abs(Math.sin(px+i))*ts, lpy + Math.abs(Math.cos(py+i))*ts, 1, 1);
             ctx.globalAlpha = 0.6;
@@ -362,6 +437,16 @@ export class TileMap {
             else if (terrain === 'crosswalk') { ctx.fillStyle = '#b0b0b0'; for(let i=0; i<2; i++) ctx.fillRect(lpx, lpy + ts*(0.125 + i*0.5), ts, ts*0.25); }
             else if (terrain === 'curb-h') { ctx.fillStyle = '#555'; ctx.fillRect(lpx, lpy, ts, ts*0.4); ctx.fillStyle = '#777'; ctx.fillRect(lpx, lpy+ts*0.4, ts, ts*0.1); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(lpx, lpy+ts*0.5, ts, ts*0.05); }
             else if (terrain === 'curb-v') { ctx.fillStyle = '#555'; ctx.fillRect(lpx, lpy, ts*0.4, ts); ctx.fillStyle = '#777'; ctx.fillRect(lpx+ts*0.4, lpy, ts*0.1, ts); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(lpx+ts*0.5, lpy, ts*0.05, ts); }
+            else if (terrain === 'runway') { 
+                ctx.fillStyle = '#fff'; ctx.fillRect(lpx + ts*0.4, lpy + ts*0.1, ts*0.2, ts*0.8); 
+            }
+            else if (terrain === 'runway-edge') {
+                ctx.fillStyle = '#fbc02d'; ctx.fillRect(lpx, lpy, ts*0.1, ts);
+            }
+            else if (terrain === 'taxiway') {
+                ctx.setLineDash([10, 10]); ctx.strokeStyle = '#fbc02d'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(lpx + ts*0.5, lpy); ctx.lineTo(lpx + ts*0.5, lpy + ts); ctx.stroke(); ctx.setLineDash([]);
+            }
         } else if (['sidewalk', 'concrete', 'tactile-paving', 'brick-floor', 'metal-plate'].includes(terrain)) {
             ctx.globalAlpha = 0.2;
             if (terrain === 'sidewalk') { ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.strokeRect(lpx+1, lpy+1, ts-2, ts-2); ctx.beginPath(); ctx.moveTo(lpx+ts/2, lpy); ctx.lineTo(lpx+ts/2, lpy+ts); ctx.moveTo(lpx, lpy+ts/2); ctx.lineTo(lpx+ts, lpy+ts/2); ctx.stroke(); }
