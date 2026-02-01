@@ -809,6 +809,43 @@ export class SuicideDrone extends PlayerUnit {
     update(deltaTime) {
         if (!this.alive) return;
 
+        // --- 드론 원격 제어 시스템 ---
+        // 0.5초마다 아군 운용병 체크 (최적화)
+        if (!this._controlCheckTimer) this._controlCheckTimer = 0;
+        this._controlCheckTimer += deltaTime;
+
+        if (this._controlCheckTimer >= 500) {
+            this._controlCheckTimer = 0;
+            
+            // 주변의 플레이어(1) 소유 드론 운용병 검색
+            const operators = this.engine.entityManager.getNearby(this.x, this.y, 600); // 넉넉한 범위로 검색
+            const hasFriendlyOperator = operators.some(op => 
+                op.type === 'drone-operator' && 
+                op.ownerId === 1 && 
+                Math.hypot(this.x - op.x, this.y - op.y) <= op.attackRange
+            );
+
+            if (this.ownerId === 1 && !hasFriendlyOperator) {
+                // 제어권 상실: 플레이어 -> 중립
+                this.ownerId = 3;
+                this.command = 'stop';
+                this.destination = null;
+                this.target = null;
+                this.engine.addEffect?.('system', this.x, this.y - 20, '#ff3131', 'Signal Lost');
+            } else if (this.ownerId === 3 && hasFriendlyOperator) {
+                // 제어권 획득: 중립 -> 플레이어
+                this.ownerId = 1;
+                this.engine.addEffect?.('system', this.x, this.y - 20, '#39ff14', 'Signal Linked');
+            }
+        }
+
+        // 중립 상태면 더 이상 업데이트(이동/공격) 안 함
+        if (this.ownerId === 3) {
+            // 중립 드론은 제자리 부유만 함
+            this.angle += 0.01; 
+            return;
+        }
+
         // 타겟이 있으면 돌진 상태로 전환
         if (this.target) {
             const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);

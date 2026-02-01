@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -32,7 +32,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Artillery, AntiAirVehicle, Tank, MissileLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -339,6 +339,7 @@ export class GameEngine {
         em.register('sniper', Sniper, 'units');
         em.register('anti-tank', AntiTankInfantry, 'units');
         em.register('mortar-team', MortarTeam, 'units');
+        em.register('drone-operator', DroneOperator, 'units');
         em.register('medic', Medic, 'units');
         em.register('military-truck', MilitaryTruck, 'units');
         em.register('medical-truck', MedicalTruck, 'units');

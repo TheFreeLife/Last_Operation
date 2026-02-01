@@ -647,3 +647,66 @@ export class MortarTeam extends PlayerUnit {
     }
 }
 
+export class DroneOperator extends PlayerUnit {
+    static editorConfig = { category: 'unit', icon: 'operator', name: '드론 운용병' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'drone-operator';
+        this.name = '드론 운용병';
+        this.isHuman = true;
+        this.speed = 1.1; 
+        this.fireRate = 1000; 
+        this.damage = 0;
+        this.attackRange = 400; // 제어 가능 사거리 (400px)
+        this.size = 24;
+        this.visionRange = 8;
+        this.hp = 80;
+        this.maxHp = 80;
+        this.population = 1;
+    }
+
+    attack() { /* 공격 수단 없음 */ }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        
+        // 애니메이션
+        const breathing = Math.sin(Date.now() / 400) * 0.5;
+        ctx.rotate(breathing * 0.05);
+        ctx.scale(1.8, 1.8);
+
+        // 0. 그림자
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath(); ctx.ellipse(0, 2, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+
+        // 1. 바디 (감청색 전술복)
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+
+        // 전술 조끼 (밝은 회색)
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(-2.5, -5, 7, 10);
+
+        // 2. 헬멧 (안테나 추가)
+        ctx.fillStyle = '#34495e';
+        ctx.beginPath(); ctx.arc(1, 0, 4.8, 0, Math.PI * 2); ctx.fill();
+        // 안테나
+        ctx.strokeStyle = '#34495e'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(1, -4); ctx.lineTo(1, -8); ctx.stroke();
+
+        // 3. 제어 단말기 (태블릿)
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(3, -3, 6, 6);
+        ctx.fillStyle = '#00d2ff'; // 화면 빛
+        ctx.globalAlpha = 0.6 + Math.random() * 0.4;
+        ctx.fillRect(4, -2, 4, 4);
+        ctx.globalAlpha = 1.0;
+
+        ctx.restore();
+
+        // 제어 범위 시각화 (선택 시에만 표시되도록 GameEngine에서 처리하지만, 
+        // 운용병 고유의 느낌을 위해 옅은 오라 추가 가능)
+    }
+}
+
