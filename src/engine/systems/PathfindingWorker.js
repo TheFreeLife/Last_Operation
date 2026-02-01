@@ -72,6 +72,11 @@ self.onmessage = function(e) {
                         const ny = y + dy;
                         if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
 
+                        // 대각선 이동 시 코너 끼임 방지 (Flow Map 생성 시에도 적용)
+                        if (dx !== 0 && dy !== 0) {
+                            if (costMap[y * cols + nx] === 255 || costMap[ny * cols + x] === 255) continue;
+                        }
+
                         const nDist = integrationMap[ny * cols + nx];
                         if (nDist < minNeighborDist) {
                             minNeighborDist = nDist;

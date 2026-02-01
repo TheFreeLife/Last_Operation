@@ -83,14 +83,9 @@ export class BaseUnit extends Entity {
         this.aiWanderTimer = 0;
         this.isAiControlled = (this.ownerId === 2);
         
-        // [추가] 시야를 사거리와 일치시킴 (픽셀 -> 타일 변환, 기본 타일 48px)
-        // 미사일 발사대 등 예외 처리는 하위 클래스의 init이나 생성자에서 수행 가능
-        if (this.attackRange > 0 && this.type !== 'missile-launcher') {
-            this.visionRange = Math.ceil(this.attackRange / 48);
-        }
-
-        // [추가] 옵션으로 전달된 AI 상태 적용 및 기본 상태로 저장
+        // [추가] 옵션으로 전달된 AI 상태 및 반경 적용
         this.baseAiState = this.aiState || 'guard';
+        if (this.aiRadius === undefined) this.aiRadius = 300; // 기본값
     }
 
     get destination() { return this._destination; }

@@ -262,6 +262,7 @@ export class GameEngine {
                         if (unitInfo.speed !== undefined) spawnOptions.speed = unitInfo.speed;
                         if (unitInfo.ammo !== undefined) spawnOptions.ammo = unitInfo.ammo;
                         if (unitInfo.aiState !== undefined) spawnOptions.aiState = unitInfo.aiState;
+                        if (unitInfo.aiRadius !== undefined) spawnOptions.aiRadius = unitInfo.aiRadius;
                         
                         if (unitInfo.options) Object.assign(spawnOptions, unitInfo.options);
 

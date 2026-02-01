@@ -109,6 +109,14 @@ export class MapEditor {
         const toolBtns = document.querySelectorAll('.tool-btn, .sub-tool-btn');
         const mainShapeBtn = document.getElementById('shape-tool-main');
 
+        // AI 상태 변경 시 반경 입력 필드 가시성 제어
+        document.getElementById('config-ai-state')?.addEventListener('change', (e) => {
+            const radiusRow = document.getElementById('config-ai-radius-row');
+            if (radiusRow) {
+                radiusRow.style.display = (e.target.value === 'patrol') ? 'block' : 'none';
+            }
+        });
+
         toolBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const tool = btn.dataset.tool;
@@ -180,7 +188,14 @@ export class MapEditor {
         document.getElementById('config-ammo').value = (data.ammo !== undefined) ? data.ammo : 0;
         document.getElementById('config-rotation').value = (data.r !== undefined) ? data.r : 0;
         document.getElementById('config-ai-state').value = data.aiState || 'guard';
+        document.getElementById('config-ai-radius').value = (data.aiRadius !== undefined) ? data.aiRadius : 300;
         document.getElementById('config-options').value = data.options ? JSON.stringify(data.options) : '';
+
+        // 초기 가시성 설정
+        const radiusRow = document.getElementById('config-ai-radius-row');
+        if (radiusRow) {
+            radiusRow.style.display = (document.getElementById('config-ai-state').value === 'patrol') ? 'block' : 'none';
+        }
 
         this.configModal.classList.remove('hidden');
     }
@@ -195,6 +210,7 @@ export class MapEditor {
         const ammo = parseInt(document.getElementById('config-ammo').value);
         const rotation = parseInt(document.getElementById('config-rotation').value);
         const aiState = document.getElementById('config-ai-state').value;
+        const aiRadius = parseInt(document.getElementById('config-ai-radius').value);
         const optionsStr = document.getElementById('config-options').value;
         
         let options = null;
@@ -216,6 +232,7 @@ export class MapEditor {
             unitData.ammo = ammo;
             unitData.r = rotation;
             unitData.aiState = aiState;
+            unitData.aiRadius = aiRadius;
             unitData.options = options;
         }
 
@@ -361,7 +378,20 @@ export class MapEditor {
             }
             this.endPos = { x: gridX, y: gridY };
             if (this.currentTool === 'pencil') this.applyToTile(gridX, gridY);
-            else if (this.currentTool === 'eraser') this.layers[this.currentLayer].delete(key);
+            else if (this.currentTool === 'eraser') {
+                this.layers[this.currentLayer].delete(key);
+                // [추가] 삭제 시에도 유동장 갱신
+                if (this.currentLayer === 'wall') {
+                    const gridCell = this.engine.tileMap.grid[gridY]?.[gridX];
+                    if (gridCell) {
+                        gridCell.occupied = false;
+                        gridCell.passable = true;
+                        this.engine.tileMap.layers.wall[gridY][gridX] = null;
+                    }
+                    this.engine.flowField.updateAllCostMaps();
+                    this.engine.enemyFlowField.updateAllCostMaps();
+                }
+            }
         } else {
             if (this.isDrawing) {
                 if (['rect', 'circle', 'triangle'].includes(this.currentTool)) this.commitShape();
@@ -434,6 +464,10 @@ export class MapEditor {
                     gridCell.occupied = true;
                     gridCell.passable = false;
                 }
+                
+                // [추가] 장애물 배치 시 모든 유동장 비용 맵 갱신
+                this.engine.flowField.updateAllCostMaps();
+                this.engine.enemyFlowField.updateAllCostMaps();
             }
         }
     }
@@ -596,7 +630,7 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null
                 ];
             }
         }
@@ -650,7 +684,7 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null
                 ];
             }
         }
