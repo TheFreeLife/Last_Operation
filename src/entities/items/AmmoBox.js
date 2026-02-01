@@ -29,10 +29,18 @@ export class AmmoBox extends PlayerUnit {
         this.maxAmount = amountMap[ammoType] || 0;
         this.amount = this.maxAmount;
         this.chargingUnits = []; // 현재 충전 중인 유닛 목록 (시각 효과용)
+
+        // 핵탄두 상자 전용 대형 사이즈 설정
+        if (this.ammoType === 'nuclear-missile') {
+            this.size = 60;
+            this.hp = 500;
+            this.maxHp = 500;
+            this.name = '전략 핵탄두 수송 컨테이너';
+        }
     }
 
     getAmmoName(type) {
-        const names = { bullet: '총알 상자', shell: '포탄 상자', missile: '미사일 상자', 'nuclear-missile': '핵탄두 상자' };
+        const names = { bullet: '총알 상자', shell: '포탄 상자', missile: '미사일 상자', 'nuclear-missile': '핵탄두 컨테이너' };
         return names[type] || '탄약 상자';
     }
 
@@ -43,10 +51,17 @@ export class AmmoBox extends PlayerUnit {
         this.type = `ammo-${ammoType}`;
         this.name = this.getAmmoName(ammoType);
         
+        // [수정] 생성자에서 기본값(bullet=200)으로 설정된 수치를 실제 ammoType에 맞춰 강제 재설정
         const amountMap = { bullet: 200, shell: 6, missile: 2, 'nuclear-missile': 1 };
-        this.maxAmount = this.maxAmount || amountMap[ammoType] || 0;
-        if (this.amount === undefined || this.amount <= 0) {
-            this.amount = this.maxAmount;
+        
+        // 전달된 options에 별도의 amount가 없다면 타입별 기본값 적용
+        this.maxAmount = (this.options && this.options.amount) || amountMap[ammoType] || 0;
+        this.amount = this.maxAmount;
+
+        if (this.ammoType === 'nuclear-missile') {
+            this.size = 60;
+            this.maxHp = 500;
+            this.hp = 500; // 타입을 확인한 즉시 체력을 500으로 강제 설정
         }
         
         this.chargingUnits = [];
@@ -126,42 +141,111 @@ export class AmmoBox extends PlayerUnit {
 
         // 2. 상자 본체 (회전된 상태로 그림)
         ctx.save();
-        // 2.1 바퀴 (4개)
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-12, -14, 6, 4); // 전좌
-        ctx.fillRect(6, -14, 6, 4);  // 전우
-        ctx.fillRect(-12, 10, 6, 4); // 후좌
-        ctx.fillRect(6, 10, 6, 4);  // 후우
 
-        // 2.2 나무 상자
-        const woodColor = this.ammoType === 'bullet' ? '#8d6e63' : (this.ammoType === 'shell' ? '#795548' : '#5d4037');
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.fillRect(-13, -11, 28, 22);
-        ctx.fillStyle = woodColor;
-        ctx.fillRect(-15, -12, 30, 24);
+        if (this.ammoType === 'nuclear-missile') {
+            // --- 전략 핵탄두 컨테이너 디자인 ---
+            // 2.1 대형 강화 바퀴 (6개)
+            ctx.fillStyle = '#0a0a0a';
+            for(let i=0; i<3; i++) {
+                ctx.fillRect(-22 + i*18, -20, 10, 5);
+                ctx.fillRect(-22 + i*18, 15, 10, 5);
+            }
 
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(-15, -4); ctx.lineTo(15, -4);
-        ctx.moveTo(-15, 4); ctx.lineTo(15, 4);
-        ctx.stroke();
+            // 2.2 메탈릭 본체
+            const metalGrd = ctx.createLinearGradient(-25, -15, 25, 15);
+            metalGrd.addColorStop(0, '#4b4b4b');
+            metalGrd.addColorStop(0.5, '#7f8c8d');
+            metalGrd.addColorStop(1, '#2c3e50');
+            ctx.fillStyle = metalGrd;
+            ctx.fillRect(-25, -18, 50, 36);
 
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 10px Arial';
-        if (this.ammoType === 'bullet') {
-            ctx.fillStyle = '#333'; ctx.fillText('BUL', 0, 4);
-        } else if (this.ammoType === 'shell') {
-            ctx.fillStyle = '#f1c40f'; ctx.fillText('SHL', 0, 4);
-        } else if (this.ammoType === 'missile') {
-            ctx.fillStyle = '#e74c3c'; ctx.fillText('MSL', 0, 4);
-        } else if (this.ammoType === 'nuclear-missile') {
-            ctx.fillStyle = '#f1c40f'; ctx.fillText('NUK', 0, 4);
+            // 2.3 노란색/검은색 위험 스트라이프 (전면/후면)
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(-25, -18, 5, 36);
+            ctx.fillRect(20, -18, 5, 36);
+            ctx.fillStyle = '#000';
+            for(let i=0; i<4; i++) {
+                ctx.fillRect(-25, -18 + i*9, 5, 4);
+                ctx.fillRect(20, -18 + i*9, 5, 4);
+            }
+
+            // 2.4 중앙 방사능 경고 마크
+            ctx.save();
+            ctx.translate(0, 0);
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            // 방사능 심볼 부채꼴 (3개)
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, 7, (i * 120 - 30) * Math.PI / 180, (i * 120 + 30) * Math.PI / 180);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // 2.5 상태 지시등 (깜빡임)
+            const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
+            ctx.beginPath(); ctx.arc(-15, -12, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = `rgba(57, 255, 20, ${0.4 + (1-pulse) * 0.6})`;
+            ctx.beginPath(); ctx.arc(-15, 12, 2, 0, Math.PI * 2); ctx.fill();
+
+            // 2.6 강화 프레임 및 볼트
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-25, -18, 50, 36);
+            ctx.fillStyle = '#95a5a6';
+            const bolts = [
+                {x:-22, y:-15}, {x:22, y:-15}, {x:-22, y:15}, {x:22, y:15}
+            ];
+            bolts.forEach(b => {
+                ctx.beginPath(); ctx.arc(b.x, b.y, 1, 0, Math.PI * 2); ctx.fill();
+            });
+
+        } else {
+            // --- 일반 나무 상자 디자인 (기존) ---
+            // 2.1 바퀴 (4개)
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-12, -14, 6, 4); // 전좌
+            ctx.fillRect(6, -14, 6, 4);  // 전우
+            ctx.fillRect(-12, 10, 6, 4); // 후좌
+            ctx.fillRect(6, 10, 6, 4);  // 후우
+
+            // 2.2 나무 상자
+            const woodColor = this.ammoType === 'bullet' ? '#8d6e63' : (this.ammoType === 'shell' ? '#795548' : '#5d4037');
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(-13, -11, 28, 22);
+            ctx.fillStyle = woodColor;
+            ctx.fillRect(-15, -12, 30, 24);
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-15, -4); ctx.lineTo(15, -4);
+            ctx.moveTo(-15, 4); ctx.lineTo(15, 4);
+            ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 10px Arial';
+            if (this.ammoType === 'bullet') {
+                ctx.fillStyle = '#333'; ctx.fillText('BUL', 0, 4);
+            } else if (this.ammoType === 'shell') {
+                ctx.fillStyle = '#f1c40f'; ctx.fillText('SHL', 0, 4);
+            } else if (this.ammoType === 'missile') {
+                ctx.fillStyle = '#e74c3c'; ctx.fillText('MSL', 0, 4);
+            }
+
+            ctx.strokeStyle = '#3e2723';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-15, -12, 30, 24);
         }
-
-        ctx.strokeStyle = '#3e2723';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-15, -12, 30, 24);
         ctx.restore();
 
         // 3. 강화된 충전 빔 효과 (역회전하여 월드 좌표계 정렬 후 계산)

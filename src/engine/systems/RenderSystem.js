@@ -355,7 +355,9 @@ export class RenderSystem {
             this.ctx.restore();
 
             // 3. 부가 정보 (체력바 등)
-            if (entity.hp !== undefined && entity.hp < entity.maxHp) {
+            // [수정] 탄약 상자 계열은 체력바를 숨기고, 일반 유닛도 체력이 98% 이상이면 숨김
+            const isAmmoBox = entity.type && entity.type.startsWith('ammo-');
+            if (entity.hp !== undefined && entity.hp < entity.maxHp * 0.98 && !isAmmoBox) {
                 const isSelected = this.engine.selectedEntities.includes(entity);
                 if (!isSelected) this.drawMiniHealthBar(entity);
             }
