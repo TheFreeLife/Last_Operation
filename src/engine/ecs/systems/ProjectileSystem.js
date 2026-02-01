@@ -93,10 +93,20 @@ export function updateProjectiles(world, deltaTime, engine) {
                 handleExplosion(world, i, engine);
             }
             
-            // 일반 탄환이 목표에 도달하면 히트 이펙트
+            // 일반 탄환이 목표에 도달하면 히트 이펙트 및 타일 데미지 처리
             if (reachedTarget && explosionRadius[i] <= 0 && !collided) {
                 if (engine.addEffect) {
                     engine.addEffect('hit', targetX[i], targetY[i], '#ffff00');
+                }
+
+                // [추가] 목표 지점이 타일 블록인 경우 직접 데미지 전달
+                const tileMap = engine.tileMap;
+                if (tileMap) {
+                    const gridPos = tileMap.worldToGrid(targetX[i], targetY[i]);
+                    const wall = tileMap.layers.wall[gridPos.y]?.[gridPos.x];
+                    if (wall && wall.id && wall.id !== 'spawn-point') {
+                        tileMap.damageTile(gridPos.x, gridPos.y, damage[i]);
+                    }
                 }
             }
 

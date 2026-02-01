@@ -257,6 +257,13 @@ export class BaseUnit extends Entity {
 
         if (canActuallyAttack && this.command !== 'move') {
             if (this.manualTarget) {
+                // [추가] 타일 타겟 HP 동기화
+                if (this.manualTarget.type === 'tile') {
+                    const tile = this.engine.tileMap.grid[this.manualTarget.gy]?.[this.manualTarget.gx];
+                    if (tile) this.manualTarget.hp = tile.hp;
+                    else this.manualTarget.hp = 0;
+                }
+
                 const isTargetDead = (this.manualTarget.active === false) || (this.manualTarget.hp <= 0);
                 const targetDomain = this.manualTarget.domain || 'ground';
                 const canHit = this.attackTargets.includes(targetDomain);

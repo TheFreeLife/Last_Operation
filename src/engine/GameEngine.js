@@ -769,7 +769,28 @@ export class GameEngine {
                     }
 
                     const finalTarget = canTarget ? clickedTarget : null;
-                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, finalTarget);
+
+                    // [추가] 유닛 타겟이 없으면 타일맵 블록 확인
+                    let tileTarget = null;
+                    if (!finalTarget && this.unitCommandMode === 'attack') {
+                        const grid = this.tileMap.worldToGrid(worldX, worldY);
+                        const wall = this.tileMap.layers.wall[grid.y]?.[grid.x];
+                        if (wall && wall.id && wall.id !== 'spawn-point') {
+                            const worldPos = this.tileMap.gridToWorld(grid.x, grid.y);
+                            tileTarget = {
+                                type: 'tile',
+                                x: worldPos.x,
+                                y: worldPos.y,
+                                gx: grid.x,
+                                gy: grid.y,
+                                ownerId: 0, // 중립 판정
+                                active: true,
+                                hp: this.tileMap.grid[grid.y][grid.x].hp
+                            };
+                        }
+                    }
+
+                    this.executeUnitCommand(this.unitCommandMode, worldX, worldY, finalTarget || tileTarget);
                 } else if (this.debugSystem && this.debugSystem.spawnUnitType) {
                     this.debugSystem.executeSpawnUnit(worldX, worldY);
                 } else if (this.debugSystem && this.debugSystem.isEraserMode) {
