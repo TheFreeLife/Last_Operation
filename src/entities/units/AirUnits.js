@@ -996,9 +996,9 @@ export class SuicideDrone extends PlayerUnit {
         this.type = 'suicide-drone';
         this.name = '자폭 드론';
         this.domain = 'air';
-        this.baseSpeed = 3.5;
-        this.dashSpeed = 9.0;
-        this.speed = 3.5;
+        this.baseSpeed = 2.1;
+        this.dashSpeed = 5.4;
+        this.speed = 2.1;
         this.attackRange = 20; // 거의 붙어야 터짐
         this.visionRange = 10;
         this.damage = 450;
@@ -1014,7 +1014,7 @@ export class SuicideDrone extends PlayerUnit {
 
     init(x, y, engine) {
         super.init(x, y, engine);
-        this.speed = this.baseSpeed || 3.5;
+        this.speed = this.baseSpeed || 2.1;
         this.isDashing = false;
         this.ammo = 0; // 탄약 미사용
         this.maxAmmo = 0;
