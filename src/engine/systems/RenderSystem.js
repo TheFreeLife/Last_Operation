@@ -125,24 +125,99 @@ export class RenderSystem {
 
         // 정렬 대상 통합
         const ySortedElements = [
-            ...groundUnits.map(u => ({ 
-                y: u.y, 
-                render: () => {
-                    this.ctx.save();
-                    this.ctx.translate(u.x, u.y);
-                    if (u.angle) this.ctx.rotate(u.angle);
-                    u.draw(this.ctx);
-                    this.ctx.restore();
-                } 
-            })),
-            ...tallStructures
+            ...groundUnits.map(u => {
+                // 유닛이 위치한 타일의 시야 및 천장 상태 확인
+                const gx = Math.floor(u.x / this.engine.tileMap.tileSize);
+                const gy = Math.floor(u.y / this.engine.tileMap.tileSize);
+                const tile = this.engine.tileMap.grid[gy]?.[gx];
+                const inSight = tile?.inSight || (this.engine.debugSystem?.isFullVision);
+                
+                // 천장 및 투명화 상태 확인
+                const hasCeiling = this.engine.tileMap.layers.ceiling[gy]?.[gx]?.id && tile?.ceilingHp > 0;
+                let opacity = 1.0;
+                let shouldHide = false;
+
+                if (hasCeiling) {
+                    const roomId = tile.roomId;
+                    // 아군 유닛이 해당 방에 있는지 확인 (공중 유닛 제외)
+                    const isRoomRevealed = this.engine.entities.units.some(au => {
+                        if (au.ownerId !== 1 || !au.active || au.hp <= 0 || au.domain === 'air' || au.altitude > 0.1) return false;
+                        const aug = this.engine.tileMap.worldToGrid(au.x, au.y);
+                        return this.engine.tileMap.grid[aug.y]?.[aug.x]?.roomId === roomId;
+                    });
+
+                    if (!isRoomRevealed) {
+                        // 방이 밝혀지지 않았으면 천장 아래 유닛은 완전히 숨김
+                        shouldHide = true;
+                    } else if (!inSight) {
+                        // 방은 밝혀졌지만 현재 시야 밖이면 투명하게 표시
+                        opacity = 0.3;
+                    }
+                } else if (!inSight && (u.ownerId !== 1 && u.ownerId !== 3)) {
+                    // 천장이 없더라도 시야 밖의 적군은 숨김 (이미 sortEntitiesByLayer에서 걸러지지만 이중 확인)
+                    shouldHide = true;
+                }
+
+                return { 
+                    y: u.y, 
+                    shouldHide,
+                    render: () => {
+                        this.ctx.save();
+                        this.ctx.globalAlpha *= opacity;
+                        this.ctx.translate(u.x, u.y);
+                        if (u.angle) this.ctx.rotate(u.angle);
+                        u.draw(this.ctx);
+                        this.ctx.restore();
+                    } 
+                };
+            }),
+            ...tallStructures.map(s => {
+                const gx = s.gridX;
+                const gy = s.gridY;
+                const tile = this.engine.tileMap.grid[gy]?.[gx];
+                const inSight = tile?.inSight || (this.engine.debugSystem?.isFullVision);
+
+                // 고층 구조물은 '시야가 없으면' 삐져나온 부분도 보이지 않아야 함
+                let opacity = inSight ? 1.0 : 0.0;
+                let shouldHide = !inSight;
+                
+                // 천장 아래에 있는 구조물인지 확인
+                const hasCeiling = this.engine.tileMap.layers.ceiling[gy]?.[gx]?.id && tile?.ceilingHp > 0;
+                if (hasCeiling) {
+                    const roomId = tile.roomId;
+                    const isRoomRevealed = this.engine.entities.units.some(au => {
+                        if (au.ownerId !== 1 || !au.active || au.hp <= 0 || au.domain === 'air' || au.altitude > 0.1) return false;
+                        const aug = this.engine.tileMap.worldToGrid(au.x, au.y);
+                        return this.engine.tileMap.grid[aug.y]?.[aug.x]?.roomId === roomId;
+                    });
+                    
+                    if (!isRoomRevealed) {
+                        shouldHide = true;
+                    } else if (!inSight) {
+                        opacity = 0.3; // 방은 밝혀졌지만 시야 밖이면 투명하게
+                    }
+                }
+
+                return {
+                    y: s.y,
+                    shouldHide,
+                    render: () => {
+                        this.ctx.save();
+                        this.ctx.globalAlpha *= opacity;
+                        s.render();
+                        this.ctx.restore();
+                    }
+                };
+            })
         ];
 
         // Y좌표 기준 오름차순 정렬
         ySortedElements.sort((a, b) => a.y - b.y);
 
         // 순서대로 렌더링
-        ySortedElements.forEach(el => el.render());
+        ySortedElements.forEach(el => {
+            if (!el.shouldHide) el.render();
+        });
         
         // 4-A. 직사 투사체 (천장 아래)
         const directProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => !p.isIndirect && p.type !== 'missile' && p.type !== 'nuclear-missile');

@@ -115,11 +115,29 @@ export class TileMap {
     initWallRegistry() {
         this.wallRegistry = {
             'tree': {
-                maxHp: 50,
+                maxHp: 150,
+                isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    ctx.fillStyle = '#3d2b1f'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.6, ts*0.2, ts*0.3);
-                    ctx.fillStyle = '#2d4d1e'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.4, ts*0.35, 0, Math.PI*2); ctx.fill();
-                    ctx.fillStyle = '#3a5a2a'; ctx.beginPath(); ctx.arc(lpx+ts*0.4, lpy+ts*0.35, ts*0.15, 0, Math.PI*2); ctx.fill();
+                    // 나무 기둥 (세로로 길게)
+                    ctx.fillStyle = '#3d2b1f';
+                    ctx.fillRect(lpx + ts * 0.4, lpy - ts * 0.2, ts * 0.2, ts * 1.2);
+                    
+                    // 풍성한 나뭇잎 (3단 레이어로 높게 표현)
+                    // 1단 (하단, 가장 어두움)
+                    ctx.fillStyle = '#1e3a1a';
+                    ctx.beginPath(); ctx.arc(lpx + ts * 0.5, lpy + ts * 0.2, ts * 0.55, 0, Math.PI * 2); ctx.fill();
+                    
+                    // 2단 (중단)
+                    ctx.fillStyle = '#2d4d1e';
+                    ctx.beginPath(); ctx.arc(lpx + ts * 0.5, lpy - ts * 0.4, ts * 0.5, 0, Math.PI * 2); ctx.fill();
+                    
+                    // 3단 (상단, 가장 밝음)
+                    ctx.fillStyle = '#3a5a2a';
+                    ctx.beginPath(); ctx.arc(lpx + ts * 0.5, lpy - ts * 0.9, ts * 0.4, 0, Math.PI * 2); ctx.fill();
+                    
+                    // 하이라이트 (빛이 위에서 비치는 느낌)
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                    ctx.beginPath(); ctx.arc(lpx + ts * 0.35, lpy - ts * 1.0, ts * 0.15, 0, Math.PI * 2); ctx.fill();
                 }
             },
             'stone-wall': {
@@ -841,7 +859,10 @@ export class TileMap {
                         const py = y * this.tileSize;
 
                         tallObjects.push({
+                            x: px + this.tileSize / 2, // 월드 중심 X
                             y: (y + 1) * this.tileSize, // Y-sorting 기준점 (발 밑)
+                            gridX: x,
+                            gridY: y,
                             render: () => {
                                 config.render(ctx, this.tileSize, px, py);
                                 
