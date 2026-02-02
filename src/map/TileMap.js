@@ -530,6 +530,54 @@ export class TileMap {
         }
     }
 
+    /**
+     * 특정 지점 주변 지면 타일(벽)에 범위 피해를 입힙니다.
+     */
+    applyAreaDamage(cx, cy, radius, damage) {
+        const gridRadius = Math.ceil(radius / this.tileSize);
+        const center = this.worldToGrid(cx, cy);
+        
+        for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+            for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                const gx = center.x + dx, gy = center.y + dy;
+                if (gx < 0 || gx >= this.cols || gy < 0 || gy >= this.rows) continue;
+                
+                const wall = this.layers.wall[gy][gx];
+                if (wall && wall.id) {
+                    const worldPos = this.gridToWorld(gx, gy);
+                    const dist = Math.hypot(worldPos.x - cx, worldPos.y - cy);
+                    if (dist <= radius + this.tileSize / 2) {
+                        this.damageTile(gx, gy, damage);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 특정 지점 주변 천장 타일에 범위 피해를 입힙니다.
+     */
+    applyAreaDamageToCeiling(cx, cy, radius, damage) {
+        const gridRadius = Math.ceil(radius / this.tileSize);
+        const center = this.worldToGrid(cx, cy);
+        
+        for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+            for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                const gx = center.x + dx, gy = center.y + dy;
+                if (gx < 0 || gx >= this.cols || gy < 0 || gy >= this.rows) continue;
+                
+                const ceiling = this.layers.ceiling[gy][gx];
+                if (ceiling && ceiling.id) {
+                    const worldPos = this.gridToWorld(gx, gy);
+                    const dist = Math.hypot(worldPos.x - cx, worldPos.y - cy);
+                    if (dist <= radius + this.tileSize / 2) {
+                        this.damageCeiling(gx, gy, damage);
+                    }
+                }
+            }
+        }
+    }
+
     destroyWall(x, y) {
         if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
         

@@ -1,4 +1,5 @@
 import { Entity } from '../BaseEntity.js';
+import { CombatLogic } from '../../engine/systems/CombatLogic.js';
 
 export class Missile extends Entity {
     constructor(startX, startY, targetX, targetY, damage, engine, source = null) {
@@ -81,88 +82,23 @@ export class Missile extends Entity {
 
     explode() {
         this.arrived = true;
-        const tileMap = this.engine.tileMap;
-
-        // --- [천장 레이어 판정] ---
-        let hitCeiling = false;
-        if (tileMap) {
-            const gridPos = tileMap.worldToGrid(this.targetX, this.targetY);
-            const ceiling = tileMap.layers.ceiling[gridPos.y]?.[gridPos.x];
-            if (ceiling && ceiling.id && tileMap.grid[gridPos.y][gridPos.x].ceilingHp > 0) {
-                hitCeiling = true;
-            }
-        }
-
-        if (hitCeiling) {
-            if (tileMap) {
-                const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
-                const center = tileMap.worldToGrid(this.targetX, this.targetY);
-                for (let dy = -gridRadius; dy <= gridRadius; dy++) {
-                    for (let dx = -gridRadius; dx <= gridRadius; dx++) {
-                        const gx = center.x + dx, gy = center.y + dy;
-                        if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
-                        const ceiling = tileMap.layers.ceiling[gy][gx];
-                        if (ceiling && ceiling.id) {
-                            const worldPos = tileMap.gridToWorld(gx, gy);
-                            const dist = Math.hypot(worldPos.x - this.targetX, worldPos.y - this.targetY);
-                            if (dist <= this.explosionRadius + tileMap.tileSize / 2) {
-                                tileMap.damageCeiling(gx, gy, this.damage);
-                            }
-                        }
-                    }
-                }
-            }
-            if (this.engine.addEffect) {
-                this.engine.addEffect('explosion', this.targetX, this.targetY, '#00bcd4');
-            }
-            this.finalizeExplosion();
-            return; // 유닛 대미지 건너뜀
-        }
-
-        // --- [기본 지면 폭발] ---
-        if (this.engine.addEffect) {
-            this.engine.addEffect('explosion', this.targetX, this.targetY);
-            for(let i=0; i<5; i++) {
-                setTimeout(() => {
-                    this.engine.addEffect('explosion', 
-                        this.targetX + (Math.random()-0.5)*80, 
-                        this.targetY + (Math.random()-0.5)*80
-                    );
-                }, i * 60);
-            }
-        }
-
-        const targets = [...this.engine.entities.enemies, ...this.engine.entities.neutral, ...this.engine.entities.units];
-        targets.forEach(target => {
-            if (!target || !target.active || target.hp === undefined || target.domain === 'air') return;
-            const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
-            if (dist <= this.explosionRadius) {
-                const damageMult = 1 - (dist / this.explosionRadius) * 0.5;
-                target.takeDamage(this.damage * damageMult);
-            }
+        
+        CombatLogic.handleImpact(this.engine, this.targetX, this.targetY, {
+            radius: this.explosionRadius,
+            damage: this.damage,
+            isIndirect: true,
+            useFalloff: true,
+            effectType: 'explosion'
         });
 
-        // 타일(벽) 피해 추가
-        if (tileMap) {
-            const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
-            const center = tileMap.worldToGrid(this.targetX, this.targetY);
-            
-            for (let dy = -gridRadius; dy <= gridRadius; dy++) {
-                for (let dx = -gridRadius; dx <= gridRadius; dx++) {
-                    const gx = center.x + dx;
-                    const gy = center.y + dy;
-                    if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
-                    
-                    const wall = tileMap.layers.wall[gy][gx];
-                    if (wall && wall.id) {
-                        const worldPos = tileMap.gridToWorld(gx, gy);
-                        const dist = Math.hypot(worldPos.x - this.targetX, worldPos.y - this.targetY);
-                        if (dist <= this.explosionRadius + tileMap.tileSize / 2) {
-                            tileMap.damageTile(gx, gy, this.damage);
-                        }
-                    }
-                }
-            }
+        // 미사일 특유의 추가 폭발 연출 (시각적 효과만 유지)
+        for(let i=0; i<4; i++) {
+            setTimeout(() => {
+                this.engine.addEffect?.('explosion', 
+                    this.targetX + (Math.random()-0.5)*80, 
+                    this.targetY + (Math.random()-0.5)*80
+                );
+            }, (i + 1) * 80);
         }
 
         this.finalizeExplosion();

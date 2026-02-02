@@ -1,4 +1,5 @@
 import { Entity } from '../BaseEntity.js';
+import { CombatLogic } from '../../engine/systems/CombatLogic.js';
 
 export class NuclearMissile extends Entity {
     constructor(startX, startY, targetX, targetY, damage, engine, source = null) {
@@ -80,96 +81,29 @@ export class NuclearMissile extends Entity {
 
     explode() {
         this.arrived = true;
-        const tileMap = this.engine.tileMap;
 
-        // --- [천장 레이어 판정] ---
-        let hitCeiling = false;
-        if (tileMap) {
-            const gridPos = tileMap.worldToGrid(this.targetX, this.targetY);
-            const ceiling = tileMap.layers.ceiling[gridPos.y]?.[gridPos.x];
-            if (ceiling && ceiling.id && tileMap.grid[gridPos.y][gridPos.x].ceilingHp > 0) {
-                hitCeiling = true;
-            }
-        }
-
-        if (hitCeiling) {
-            if (tileMap) {
-                const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
-                const center = tileMap.worldToGrid(this.targetX, this.targetY);
-                for (let dy = -gridRadius; dy <= gridRadius; dy++) {
-                    for (let dx = -gridRadius; dx <= gridRadius; dx++) {
-                        const gx = center.x + dx, gy = center.y + dy;
-                        if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
-                        const ceiling = tileMap.layers.ceiling[gy][gx];
-                        if (ceiling && ceiling.id) {
-                            const worldPos = tileMap.gridToWorld(gx, gy);
-                            const dist = Math.hypot(worldPos.x - this.targetX, worldPos.y - this.targetY);
-                            if (dist <= this.explosionRadius) {
-                                tileMap.damageCeiling(gx, gy, this.damage);
-                            }
-                        }
-                    }
-                }
-            }
-            if (this.engine.addEffect) {
-                this.engine.addEffect('nuke_explosion', this.targetX, this.targetY, '#00bcd4');
-                this.engine.addEffect?.('system', this.targetX, this.targetY - 100, '#00bcd4', 'NUCLEAR INTERCEPTED BY CEILING');
-            }
-            this.finalizeExplosion();
-            return;
-        }
-
-        // --- [기본 지면 폭발] ---
-        if (this.engine.addEffect) {
-            // 핵폭발 전용 효과 (강화된 시각효과 및 전용 사운드)
-            this.engine.addEffect('nuke_explosion', this.targetX, this.targetY);
-            
-            // 주변 추가 폭발 (여전히 남겨두어 웅장함 유지)
-            for(let i=0; i<8; i++) {
-                setTimeout(() => {
-                    const angle = (i / 8) * Math.PI * 2;
-                    const dist = Math.random() * 100;
-                    this.engine.addEffect('explosion', 
-                        this.targetX + Math.cos(angle) * dist, 
-                        this.targetY + Math.sin(angle) * dist
-                    );
-                }, i * 100);
-            }
-
-            // 섬광 효과 (시스템 메시지로 대체 표현)
-            this.engine.addEffect?.('system', this.targetX, this.targetY - 100, '#ffcc00', 'NUCLEAR IMPACT');
-        }
-
-        // 광범위 피해 적용
-        const targets = [...this.engine.entities.enemies, ...this.engine.entities.neutral, ...this.engine.entities.units];
-        targets.forEach(target => {
-            if (!target || !target.active || target.hp === undefined) return;
-            const dist = Math.hypot(target.x - this.targetX, target.y - this.targetY);
-            if (dist <= this.explosionRadius) {
-                // 핵은 거리에 따른 위력 감소가 적음 (더 치명적)
-                const damageMult = 1 - (dist / this.explosionRadius) * 0.3;
-                target.takeDamage(this.damage * damageMult);
-            }
+        const isIntercepted = CombatLogic.handleImpact(this.engine, this.targetX, this.targetY, {
+            radius: this.explosionRadius,
+            damage: this.damage,
+            isIndirect: true,
+            useFalloff: true,
+            effectType: 'nuke_explosion'
         });
 
-        // 지형 파괴 (벽)
-        if (tileMap) {
-            const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
-            const center = tileMap.worldToGrid(this.targetX, this.targetY);
-            
-            for (let dy = -gridRadius; dy <= gridRadius; dy++) {
-                for (let dx = -gridRadius; dx <= gridRadius; dx++) {
-                    const gx = center.x + dx;
-                    const gy = center.y + dy;
-                    if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
-                    
-                    const worldPos = tileMap.gridToWorld(gx, gy);
-                    const dist = Math.hypot(worldPos.x - this.targetX, worldPos.y - this.targetY);
-                    if (dist <= this.explosionRadius) {
-                        tileMap.damageTile(gx, gy, this.damage);
-                    }
-                }
+        if (isIntercepted) {
+            this.engine.addEffect?.('system', this.targetX, this.targetY - 100, '#00bcd4', 'NUCLEAR INTERCEPTED BY CEILING');
+        } else {
+            // 핵 미사일 특유의 추가 폭발 및 메시지 (지면 충돌 시에만)
+            for(let i=0; i<6; i++) {
+                setTimeout(() => {
+                    const angle = (i / 6) * Math.PI * 2;
+                    this.engine.addEffect?.('explosion', 
+                        this.targetX + Math.cos(angle) * 100, 
+                        this.targetY + Math.sin(angle) * 100
+                    );
+                }, (i + 1) * 120);
             }
+            this.engine.addEffect?.('system', this.targetX, this.targetY - 100, '#ffcc00', 'NUCLEAR IMPACT');
         }
 
         this.finalizeExplosion();
