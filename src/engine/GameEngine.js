@@ -849,6 +849,30 @@ export class GameEngine {
 
                     const clickedTarget = potentialTargets.find(ent => {
                         if (!ent || !ent.active || ent.hp <= 0) return false;
+
+                        // [추가] 천장 가림 판정
+                        if (this.tileMap && !(this.debugSystem?.isFullVision)) {
+                            if (!this.tileMap.isInSight(ent.x, ent.y)) return false;
+
+                            const g = this.tileMap.worldToGrid(ent.x, ent.y);
+                            const tile = this.tileMap.grid[g.y]?.[g.x];
+                            const hasCeiling = tile && this.tileMap.layers.ceiling[g.y]?.[g.x]?.id && tile.ceilingHp > 0;
+
+                            if (hasCeiling) {
+                                // 아군이 있는 방인지 확인
+                                const activeRoomIds = new Set();
+                                this.entities.units.forEach(u => {
+                                    const isFlying = (u.domain === 'air' || (u.altitude !== undefined && u.altitude > 0.01));
+                                    if (u.ownerId === 1 && u.active && u.hp > 0 && !isFlying && !u.isBoarded) {
+                                        const ug = this.tileMap.worldToGrid(u.x, u.y);
+                                        const rid = this.tileMap.grid[ug.y]?.[ug.x]?.roomId;
+                                        if (rid) activeRoomIds.add(rid);
+                                    }
+                                });
+                                if (!activeRoomIds.has(tile.roomId)) return false;
+                            }
+                        }
+
                         const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                             left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                         };
@@ -913,6 +937,30 @@ export class GameEngine {
 
                     const clickedTarget = potentialTargets.find(ent => {
                         if (!ent || !ent.active || ent.hp <= 0) return false;
+
+                        // [추가] 천장 가림 판정
+                        if (this.tileMap && !(this.debugSystem?.isFullVision)) {
+                            if (!this.tileMap.isInSight(ent.x, ent.y)) return false;
+
+                            const g = this.tileMap.worldToGrid(ent.x, ent.y);
+                            const tile = this.tileMap.grid[g.y]?.[g.x];
+                            const hasCeiling = tile && this.tileMap.layers.ceiling[g.y]?.[g.x]?.id && tile.ceilingHp > 0;
+
+                            if (hasCeiling) {
+                                // 아군이 있는 방인지 확인
+                                const activeRoomIds = new Set();
+                                this.entities.units.forEach(u => {
+                                    const isFlying = (u.domain === 'air' || (u.altitude !== undefined && u.altitude > 0.01));
+                                    if (u.ownerId === 1 && u.active && u.hp > 0 && !isFlying && !u.isBoarded) {
+                                        const ug = this.tileMap.worldToGrid(u.x, u.y);
+                                        const rid = this.tileMap.grid[ug.y]?.[ug.x]?.roomId;
+                                        if (rid) activeRoomIds.add(rid);
+                                    }
+                                });
+                                if (!activeRoomIds.has(tile.roomId)) return false;
+                            }
+                        }
+
                         const bounds = ent.getSelectionBounds ? ent.getSelectionBounds() : {
                             left: ent.x - 20, right: ent.x + 20, top: ent.y - 20, bottom: ent.y + 20
                         };
@@ -1274,9 +1322,36 @@ export class GameEngine {
     updateTooltip(hovered, x, y) {
         if (!hovered) return;
 
-        if (this.tileMap && !this.tileMap.isInSight(hovered.x, hovered.y)) {
-            this.hideUITooltip();
-            return;
+        if (this.tileMap) {
+            // 1. 기본 시야(Fog of War) 체크
+            if (!this.tileMap.isInSight(hovered.x, hovered.y) && !(this.debugSystem?.isFullVision)) {
+                this.hideUITooltip();
+                return;
+            }
+
+            // 2. 천장(실내) 가림 판정
+            const g = this.tileMap.worldToGrid(hovered.x, hovered.y);
+            const tile = this.tileMap.grid[g.y]?.[g.x];
+            const hasCeiling = tile && this.tileMap.layers.ceiling[g.y]?.[g.x]?.id && tile.ceilingHp > 0;
+
+            if (hasCeiling && !(this.debugSystem?.isFullVision)) {
+                // 해당 방에 아군 지상 유닛이 있는지 확인 (실시간 투명화 여부와 동일한 로직)
+                const activeRoomIds = new Set();
+                this.entities.units.forEach(u => {
+                    const isFlying = (u.domain === 'air' || (u.altitude !== undefined && u.altitude > 0.01));
+                    if (u.ownerId === 1 && u.active && u.hp > 0 && !isFlying && !u.isBoarded) {
+                        const ug = this.tileMap.worldToGrid(u.x, u.y);
+                        const rid = this.tileMap.grid[ug.y]?.[ug.x]?.roomId;
+                        if (rid) activeRoomIds.add(rid);
+                    }
+                });
+
+                // 아군이 없는 방의 내부는 정보를 표시하지 않음
+                if (!activeRoomIds.has(tile.roomId)) {
+                    this.hideUITooltip();
+                    return;
+                }
+            }
         }
 
         let title = hovered.name || hovered.type;
