@@ -234,6 +234,55 @@ export class TileMap {
                     ctx.restore();
                 }
             },
+            'rail-straight': {
+                maxHp: 1000,
+                isPassable: true,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 배경 투명 (fillRect 없음)
+                    // 자갈(Ballast)
+                    ctx.fillStyle = 'rgba(60, 60, 60, 0.7)'; ctx.fillRect(lpx + ts*0.1, lpy, ts*0.8, ts);
+                    // 침목(Sleeper)
+                    ctx.fillStyle = '#3d2b1f';
+                    for(let i=0; i<5; i++) ctx.fillRect(lpx + ts*0.15, lpy + ts*(0.05 + i*0.2), ts*0.7, ts*0.1);
+                    // 레일(Rail) - 정중앙 대칭 (0.3, 0.7 지점)
+                    ctx.lineWidth = ts * 0.08;
+                    ctx.strokeStyle = '#7f8c8d';
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.3, lpy); ctx.lineTo(lpx + ts*0.3, lpy + ts); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.7, lpy); ctx.lineTo(lpx + ts*0.7, lpy + ts); ctx.stroke();
+                    // 레일 광택
+                    ctx.lineWidth = ts * 0.02; ctx.strokeStyle = '#bdc3c7';
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.3, lpy); ctx.lineTo(lpx + ts*0.3, lpy + ts); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.7, lpy); ctx.lineTo(lpx + ts*0.7, lpy + ts); ctx.stroke();
+                }
+            },
+            'rail-corner': {
+                maxHp: 1000,
+                isPassable: true,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 배경 투명
+                    // 자갈
+                    ctx.fillStyle = 'rgba(60, 60, 60, 0.7)'; ctx.beginPath(); 
+                    ctx.arc(lpx+ts, lpy+ts, ts*0.9, Math.PI, Math.PI*1.5); 
+                    ctx.arc(lpx+ts, lpy+ts, ts*0.1, Math.PI*1.5, Math.PI, true); ctx.fill();
+                    // 침목
+                    ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = ts*0.1;
+                    for(let i=0; i<=6; i++) {
+                        const ang = Math.PI + (i/6) * (Math.PI/2);
+                        ctx.beginPath(); ctx.moveTo(lpx+ts + Math.cos(ang)*ts*0.2, lpy+ts + Math.sin(ang)*ts*0.2);
+                        ctx.lineTo(lpx+ts + Math.cos(ang)*ts*0.8, lpy+ts + Math.sin(ang)*ts*0.8); ctx.stroke();
+                    }
+                    // 레일 (Radii: 0.7ts, 0.3ts로 직선 레일의 0.3, 0.7 위치와 완벽 일치)
+                    ctx.strokeStyle = '#7f8c8d';
+                    ctx.lineWidth = ts * 0.08;
+                    ctx.beginPath(); ctx.arc(lpx+ts, lpy+ts, ts*0.7, Math.PI, Math.PI*1.5); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(lpx+ts, lpy+ts, ts*0.3, Math.PI, Math.PI*1.5); ctx.stroke();
+                    // 레일 광택
+                    ctx.strokeStyle = '#bdc3c7';
+                    ctx.lineWidth = ts * 0.02;
+                    ctx.beginPath(); ctx.arc(lpx+ts, lpy+ts, ts*0.7, Math.PI, Math.PI*1.5); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(lpx+ts, lpy+ts, ts*0.3, Math.PI, Math.PI*1.5); ctx.stroke();
+                }
+            },
             'spawn-point': {
                 maxHp: 999999,
                 isInvulnerable: true,
@@ -296,15 +345,16 @@ export class TileMap {
                 this.layers.wall[y][x] = w;
                 this.layers.unit[y][x] = cell ? cell[2] : null;
                 
-                // 스폰 지점 블록은 통과 가능하도록 예외 처리
-                const isWallPassable = !w.id || w.id === 'spawn-point';
+                // 스폰 지점 블록 및 철도 블록은 통과 가능하도록 예외 처리
+                const wallConfig = this.wallRegistry[w.id];
+                const isWallPassable = !w.id || w.id === 'spawn-point' || wallConfig?.isPassable;
                 const maxHp = w.id ? this.getWallMaxHp(w.id) : 0;
 
                 this.grid[y][x] = {
                     terrain: f.id,
                     floorRotation: f.r,
                     wallRotation: w.r,
-                    occupied: !!w.id && w.id !== 'spawn-point',
+                    occupied: !!w.id && w.id !== 'spawn-point' && !wallConfig?.isPassable,
                     buildable: !w.id && f.id !== 'spawn-point',
                     passable: isWallPassable && f.id !== 'water',
                     visible: false,
@@ -382,6 +432,8 @@ export class TileMap {
             case 'runway': return '#222222';
             case 'runway-edge': return '#333333';
             case 'taxiway': return '#2c2c2c';
+            case 'rail-straight':
+            case 'rail-corner': return '#3d352e'; // 기본 흙 색상 베이스
             case 'road-line-white':
             case 'road-line-yellow':
             case 'crosswalk':

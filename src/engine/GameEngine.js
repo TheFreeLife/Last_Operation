@@ -304,6 +304,7 @@ export class GameEngine {
             this.updateVisibility();
             if (this.tileMap.updateFogCanvas) this.tileMap.updateFogCanvas();
             this.updateMinimapCache();
+            this.updateDeploymentButtonState(); // 스폰 지점 유무에 따른 버튼 활성화
             
             return true; // 로드 성공
         } catch (error) {
@@ -314,7 +315,37 @@ export class GameEngine {
 
     // 유닛 소환 위임
     spawnRandomUnit() {
+        if (!this.checkSpawnPointExists()) {
+            this.addEffect('system', this.canvas.width/2, this.canvas.height/2, '#ff3131', "배치 가능한 스폰 지점이 없습니다!");
+            return;
+        }
         this.deploymentSystem.presentOptions();
+    }
+
+    checkSpawnPointExists() {
+        if (!this.tileMap || !this.tileMap.layers.wall) return false;
+        for (let y = 0; y < this.tileMap.rows; y++) {
+            for (let x = 0; x < this.tileMap.cols; x++) {
+                if (this.tileMap.layers.wall[y][x]?.id === 'spawn-point') return true;
+            }
+        }
+        return false;
+    }
+
+    updateDeploymentButtonState() {
+        const btn = document.getElementById('random-spawn-btn');
+        if (!btn) return;
+        
+        const exists = this.checkSpawnPointExists();
+        btn.disabled = !exists;
+        btn.classList.toggle('locked', !exists);
+        
+        // 툴팁 힌트 제공 (선택 사항)
+        if (!exists) {
+            btn.title = "맵에 스폰 지점이 없어 병력을 소환할 수 없습니다.";
+        } else {
+            btn.title = "";
+        }
     }
 
     updateSentiment(amount) {

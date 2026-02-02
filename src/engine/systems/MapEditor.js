@@ -62,6 +62,10 @@ export class MapEditor {
                     { id: 'tree', name: '나무', rotatable: false },
                     { id: 'rock', name: '바위', rotatable: true }
                 ],
+                '철도': [
+                    { id: 'rail-straight', name: '직선 철도', rotatable: true },
+                    { id: 'rail-corner', name: '모서리 철도', rotatable: true }
+                ],
                 '방어/시설': [
                     { id: 'fence', name: '울타리', rotatable: true },
                     { id: 'fence-corner', name: '울타리 모서리', rotatable: true },
@@ -510,12 +514,16 @@ export class MapEditor {
             } else if (this.currentLayer === 'wall') {
                 tileMap.layers.wall[y][x] = { id: data.id, r: data.r };
                 const maxHp = tileMap.getWallMaxHp(data.id);
+                const wallConfig = tileMap.wallRegistry[data.id];
                 gridCell.hp = maxHp;
                 gridCell.maxHp = maxHp;
                 
-                if (data.id !== 'spawn-point') {
+                if (data.id !== 'spawn-point' && !wallConfig?.isPassable) {
                     gridCell.occupied = true;
                     gridCell.passable = false;
+                } else {
+                    gridCell.occupied = false;
+                    gridCell.passable = true;
                 }
                 
                 // [추가] 장애물 배치 시 모든 유동장 비용 맵 갱신

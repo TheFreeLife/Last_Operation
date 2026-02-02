@@ -1039,7 +1039,29 @@ canvas {
     text-align: center;
     color: #666;
     padding: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-exit-btn {
+    width: calc(100% - 24px);
+    margin: 12px;
+    margin-top: 0;
+    padding: 12px;
+    background: rgba(255, 49, 49, 0.1);
+    border: 1px solid rgba(255, 49, 49, 0.3);
+    border-radius: 4px;
+    color: #ff3131;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.sidebar-exit-btn:hover {
+    background: #ff3131;
+    color: #fff;
+    box-shadow: 0 0 15px rgba(255, 49, 49, 0.4);
 }
 
 .build-btn {
@@ -1330,6 +1352,14 @@ canvas {
 
 .deployment-btn:active {
     transform: translateY(0) scale(0.98);
+}
+
+.deployment-btn.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(0.8);
+    border-color: #444;
+    pointer-events: none; /* 클릭 방지 */
 }
 
 .deployment-btn .btn-icon {
