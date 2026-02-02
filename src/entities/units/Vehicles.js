@@ -715,3 +715,78 @@ export class MobileICBMLauncher extends PlayerUnit {
         ctx.restore();
     }
 }
+
+export class Train extends PlayerUnit {
+    static editorConfig = { category: 'vehicle', icon: 'train', name: '기차' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'train';
+        this.name = '기차';
+        this.speed = 0;
+        this.fireRate = 1000;
+        this.damage = 0;
+        this.color = '#7f8c8d';
+        this.attackRange = 0;
+        this.visionRange = 4;
+        this.size = 120; // 길쭉한 형태를 위해 크게 설정
+        this.population = 10; // 대규모 운송 수단 설정
+        this.hp = 2000;
+        this.maxHp = 2000;
+        this.attackTargets = []; // 공격 불가
+
+        this.ammoType = null;
+        this.maxAmmo = 0;
+        this.ammo = 0;
+    }
+
+    attack() {
+        // 공격 기능 없음
+    }
+
+    update(deltaTime) {
+        // BaseUnit의 update를 호출하여 충돌(밀어내기) 로직은 실행하되,
+        // 자체적인 이동 명령(destination)은 무시함
+        super.update(deltaTime);
+        if (this._destination) {
+            this._destination = null;
+            this.path = [];
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+        ctx.save();
+        ctx.scale(2, 2);
+
+        // 하부 프레임
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-35, -12, 70, 24);
+
+        // 바퀴들
+        ctx.fillStyle = '#1a1a1a';
+        for (let i = -30; i <= 30; i += 15) {
+            ctx.fillRect(i - 4, -14, 8, 3);
+            ctx.fillRect(i - 4, 11, 8, 3);
+        }
+
+        // 본체
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(-32, -10, 64, 20);
+
+        // 창문/디테일
+        ctx.fillStyle = '#34495e';
+        for (let i = -25; i <= 25; i += 12) {
+            ctx.fillRect(i - 3, -6, 6, 4);
+            ctx.fillRect(i - 3, 2, 6, 4);
+        }
+
+        // 지붕 구조물
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(-10, -4, 20, 8);
+
+        ctx.restore();
+    }
+}
