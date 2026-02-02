@@ -168,16 +168,6 @@
                 { "id": "rifleman", "count": 2 },
                 { "id": "ammo-box", "count": 1, "options": { "ammoType": "nuclear-missile" } }
             ]
-        },
-        {
-            "id": "train_deployment",
-            "name": "수송 열차",
-            "description": "이동과 공격 능력이 없는 빈 열차입니다. 주로 방어벽이나 장애물로 활용됩니다.",
-            "icon": "🚂",
-            "cost": 1,
-            "units": [
-                { "id": "train", "count": 1 }
-            ]
         }
     ]
 }

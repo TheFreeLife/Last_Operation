@@ -761,31 +761,87 @@ export class Train extends PlayerUnit {
         ctx.save();
         ctx.scale(2, 2);
 
-        // 하부 프레임
+        // --- 그림자 (Depth 효과) ---
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(-38, -8, 80, 26);
+
+        // 1. 하부 구동부 프레임
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-42, -13, 84, 26);
+
+        // 2. 바퀴 (심플한 현대식 보기 대차 느낌)
+        ctx.fillStyle = '#0a0a0a';
+        for (let i = -32; i <= 32; i += 16) {
+            ctx.fillRect(i - 6, -15, 12, 4);
+            ctx.fillRect(i - 6, 11, 12, 4);
+        }
+
+        // 3. 메인 바디 (박스형 기관차 본체)
+        // 측면 명암을 위한 그라데이션
+        const bodyGrd = ctx.createLinearGradient(0, -11, 0, 11);
+        bodyGrd.addColorStop(0, '#2c3e50'); // 상단 어두운 파랑
+        bodyGrd.addColorStop(0.3, '#34495e'); // 메인 컬러
+        bodyGrd.addColorStop(1, '#1a252f'); // 하단 쉐이딩
+        ctx.fillStyle = bodyGrd;
+        ctx.fillRect(-40, -11, 80, 22);
+
+        // 4. 전면부 (기관실 방향)
+        // 전면 유리창 및 경사면 표현
         ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-35, -12, 70, 24);
+        ctx.beginPath();
+        ctx.moveTo(30, -11);
+        ctx.lineTo(42, -9);
+        ctx.lineTo(42, 9);
+        ctx.lineTo(30, 11);
+        ctx.closePath();
+        ctx.fill();
 
-        // 바퀴들
+        // 전면 유리 (Light Blue)
+        ctx.fillStyle = '#85c1e9';
+        ctx.beginPath();
+        ctx.moveTo(34, -8);
+        ctx.lineTo(41, -7);
+        ctx.lineTo(41, 7);
+        ctx.lineTo(34, 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // 5. 상단 디테일 (루프 및 환풍구)
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-35, -12, 60, 2); // 루프 라인
+        ctx.fillRect(-35, 10, 60, 2);
+
+        // 환풍기/팬 디테일
         ctx.fillStyle = '#1a1a1a';
-        for (let i = -30; i <= 30; i += 15) {
-            ctx.fillRect(i - 4, -14, 8, 3);
-            ctx.fillRect(i - 4, 11, 8, 3);
+        for (let i = -20; i <= 10; i += 15) {
+            ctx.beginPath();
+            ctx.arc(i, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            // 팬 날개 느낌
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(i - 3, 0); ctx.lineTo(i + 3, 0);
+            ctx.moveTo(i, -3); ctx.lineTo(i, 3);
+            ctx.stroke();
         }
 
-        // 본체
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(-32, -10, 64, 20);
-
-        // 창문/디테일
+        // 6. 측면 도어 및 점검창
+        ctx.fillStyle = '#1a252f';
+        ctx.fillRect(-10, -11, 8, 22); // 중앙 출입문
         ctx.fillStyle = '#34495e';
-        for (let i = -25; i <= 25; i += 12) {
-            ctx.fillRect(i - 3, -6, 6, 4);
-            ctx.fillRect(i - 3, 2, 6, 4);
-        }
+        ctx.fillRect(-9, -10, 6, 20);
 
-        // 지붕 구조물
-        ctx.fillStyle = '#95a5a6';
-        ctx.fillRect(-10, -4, 20, 8);
+        // 7. 하이라이트 및 범퍼
+        ctx.fillStyle = '#f1c40f'; // 노란색 안전 경고선
+        ctx.fillRect(40, -11, 2, 22);
+        ctx.fillRect(-42, -11, 2, 22);
+
+        // 헤드라이트 (쌍등)
+        const pulse = Math.sin(Date.now() / 250) * 0.5 + 0.5;
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + pulse * 0.3})`;
+        ctx.beginPath(); ctx.arc(41, -5, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(41, 5, 2, 0, Math.PI * 2); ctx.fill();
 
         ctx.restore();
     }
