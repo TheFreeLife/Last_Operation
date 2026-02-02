@@ -428,12 +428,22 @@ export class MapEditor {
 
     renderPalettePreview(canvas, item) {
         const ctx = canvas.getContext('2d');
+        const ts = 50;
         if (this.currentLayer === 'floor') {
             this.engine.tileMap.drawTileTexture(ctx, 5, 5, item.id, 0);
         } else if (this.currentLayer === 'wall') {
-            this.engine.tileMap.drawSingleWall(ctx, item.id, 5, 5, 50, 0);
+            const config = this.engine.tileMap.wallRegistry[item.id];
+            if (config && config.isTall) {
+                ctx.save();
+                ctx.translate(30, 45); // 관제탑 상단이 보이도록 중심점을 아래로 이동
+                ctx.scale(0.4, 0.4);   // 전체 높이가 60px 안에 들어오도록 축소
+                config.render(ctx, ts, -ts/2, -ts/2);
+                ctx.restore();
+            } else {
+                this.engine.tileMap.drawSingleWall(ctx, item.id, 5, 5, ts, 0);
+            }
         } else if (this.currentLayer === 'ceiling') {
-            this.engine.tileMap.drawSingleCeiling(ctx, item.id, 5, 5, 50, 0);
+            this.engine.tileMap.drawSingleCeiling(ctx, item.id, 5, 5, ts, 0);
         } else {
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
             if (dummy) {

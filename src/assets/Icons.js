@@ -115,5 +115,12 @@ export const ICONS = {
         <path d="M10 15 L20 25 L30 15" stroke="#fff" stroke-width="1" opacity="0.5"/>
         <circle cx="20" cy="28" r="4" fill="#ff3131"/>
         <path d="M20 10 V25" stroke="#fff" stroke-width="1"/>
+    </svg></div>`,
+    'control-tower': `<div class="btn-icon blue"><svg viewBox="0 0 40 40">
+        <path d="M15 35 L18 15 L22 15 L25 35" fill="#2d3436" stroke="#fff" stroke-width="1"/>
+        <path d="M12 15 L28 15 L30 8 L10 8 Z" fill="#2c3e50" stroke="#00d2ff" stroke-width="1"/>
+        <rect x="14" y="10" width="12" height="3" fill="#87ceeb" opacity="0.6"/>
+        <path d="M20 8 V3 M17 3 H23" stroke="#fff" stroke-width="1.5" fill="none"/>
+        <circle cx="20" cy="3" r="1.5" fill="#ff3131"/>
     </svg></div>`
 };

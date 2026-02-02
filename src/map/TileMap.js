@@ -237,17 +237,6 @@ export class TileMap {
                     for(let i=1; i<5; i++) { ctx.beginPath(); ctx.moveTo(lpx+ts*i/5, lpy+ts*0.1); ctx.lineTo(lpx+ts*i/5, lpy+ts*0.9); ctx.stroke(); }
                 }
             },
-            'control-tower': {
-                maxHp: 1200,
-                render: (ctx, ts, lpx, lpy) => {
-                    // 관제탑
-                    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.75);
-                    ctx.fillStyle = '#2c3e50'; ctx.fillRect(lpx+ts*0.15, lpy+ts*0.1, ts*0.7, ts*0.25);
-                    ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1; ctx.strokeRect(lpx+ts*0.15, lpy+ts*0.1, ts*0.7, ts*0.25);
-                    // 상단 안테나
-                    ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.moveTo(lpx+ts*0.5, lpy+ts*0.1); ctx.lineTo(lpx+ts*0.5, lpy); ctx.stroke();
-                }
-            },
             'airport-fence': {
                 maxHp: 150,
                 render: (ctx, ts, lpx, lpy) => {
@@ -338,21 +327,70 @@ export class TileMap {
                 maxHp: 1500,
                 isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    // 하단 베이스
-                    ctx.fillStyle = '#2c3e50'; ctx.fillRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
-                    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 2; ctx.strokeRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
-                    // 중간 기둥
-                    ctx.fillStyle = '#34495e'; ctx.fillRect(lpx + ts*0.2, lpy - ts*0.9, ts*0.6, ts*1.0); ctx.strokeRect(lpx + ts*0.2, lpy - ts*0.9, ts*0.6, ts*1.0);
-                    // 상단 관제실
-                    const topY = lpy - ts * 1.8;
-                    ctx.fillStyle = '#5d6d7e'; ctx.beginPath();
-                    ctx.moveTo(lpx - ts*0.2, topY + ts*0.8); ctx.lineTo(lpx + ts*1.2, topY + ts*0.8);
-                    ctx.lineTo(lpx + ts, topY); ctx.lineTo(lpx, topY); ctx.closePath(); ctx.fill(); ctx.stroke();
-                    // 유리창
-                    ctx.fillStyle = 'rgba(135, 206, 235, 0.6)'; ctx.fillRect(lpx + ts*0.1, topY + ts*0.2, ts*0.8, ts*0.3);
-                    // 안테나
-                    ctx.strokeStyle = '#95a5a6'; ctx.beginPath(); ctx.moveTo(lpx + ts*0.5, topY); ctx.lineTo(lpx + ts*0.5, topY - ts*0.5); ctx.stroke();
-                    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(lpx + ts*0.5, topY - ts*0.5, 4, 0, Math.PI*2); ctx.fill();
+                    // [개선] 더 상세하고 입체적인 관제탑 렌더링
+                    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 1;
+                    
+                    // 1. 하단 베이스 (단단한 콘크리트 느낌)
+                    ctx.fillStyle = '#2c3e50'; 
+                    ctx.fillRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
+                    ctx.strokeRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
+                    
+                    // 2. 중간 기둥 (약간 좁아지는 실루엣)
+                    ctx.fillStyle = '#34495e';
+                    ctx.beginPath();
+                    ctx.moveTo(lpx + ts*0.25, lpy + ts*0.1);
+                    ctx.lineTo(lpx + ts*0.75, lpy + ts*0.1);
+                    ctx.lineTo(lpx + ts*0.7, lpy - ts*0.8);
+                    ctx.lineTo(lpx + ts*0.3, lpy - ts*0.8);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                    
+                    // 3. 상단 관제실 데크 (받침대)
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.fillRect(lpx + ts*0.1, lpy - ts*0.9, ts*0.8, ts*0.2);
+                    ctx.strokeRect(lpx + ts*0.1, lpy - ts*0.9, ts*0.8, ts*0.2);
+                    
+                    // 4. 관제실 (유리창이 있는 역사다리꼴)
+                    const topY = lpy - ts * 1.7;
+                    ctx.fillStyle = '#5d6d7e';
+                    ctx.beginPath();
+                    ctx.moveTo(lpx - ts*0.1, topY + ts*0.7);
+                    ctx.lineTo(lpx + ts*1.1, topY + ts*0.7);
+                    ctx.lineTo(lpx + ts*1.3, topY);
+                    ctx.lineTo(lpx - ts*0.3, topY);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                    
+                    // 5. 유리창 (푸른색 투명감 및 하이라이트)
+                    ctx.fillStyle = '#87ceeb';
+                    ctx.beginPath();
+                    ctx.moveTo(lpx - ts*0.05, topY + ts*0.5);
+                    ctx.lineTo(lpx + ts*1.05, topY + ts*0.5);
+                    ctx.lineTo(lpx + ts*1.15, topY + ts*0.2);
+                    ctx.lineTo(lpx - ts*0.15, topY + ts*0.2);
+                    ctx.closePath(); ctx.fill();
+                    
+                    // 유리창 광택
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(lpx + ts*0.1, topY + ts*0.45);
+                    ctx.lineTo(lpx + ts*0.3, topY + ts*0.25);
+                    ctx.stroke();
+                    
+                    // 6. 상단 지붕 및 안테나
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.fillRect(lpx - ts*0.3, topY - ts*0.1, ts*1.6, ts*0.15);
+                    
+                    ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.5, topY - ts*0.1); ctx.lineTo(lpx + ts*0.5, topY - ts*0.6); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.7, topY - ts*0.1); ctx.lineTo(lpx + ts*0.7, topY - ts*0.4); ctx.stroke();
+                    
+                    // 7. 항공 장애등 (깜빡이는 느낌의 붉은 점)
+                    const pulse = (Math.sin(Date.now() / 300) + 1) / 2;
+                    ctx.fillStyle = `rgba(231, 76, 60, ${0.5 + pulse * 0.5})`;
+                    ctx.beginPath(); ctx.arc(lpx + ts*0.5, topY - ts*0.6, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.beginPath(); ctx.arc(lpx - ts*0.3, topY - ts*0.05, 2, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(lpx + ts*1.3, topY - ts*0.05, 2, 0, Math.PI*2); ctx.fill();
                 }
             },
             'spawn-point': {
@@ -798,9 +836,29 @@ export class TileMap {
                     if (config && config.isTall) {
                         if (!this.grid[y][x].visible && !(this.engine.debugSystem?.isFullVision)) continue;
                         
+                        const tile = this.grid[y][x];
+                        const px = x * this.tileSize;
+                        const py = y * this.tileSize;
+
                         tallObjects.push({
                             y: (y + 1) * this.tileSize, // Y-sorting 기준점 (발 밑)
-                            render: () => config.render(ctx, this.tileSize, x * this.tileSize, y * this.tileSize)
+                            render: () => {
+                                config.render(ctx, this.tileSize, px, py);
+                                
+                                // 체력 바 표시 (데미지를 입었을 때만)
+                                if (tile.hp < tile.maxHp && tile.hp > 0) {
+                                    const hpRate = tile.hp / tile.maxHp;
+                                    const barW = this.tileSize * 0.8;
+                                    const barH = 4;
+                                    const bx = px + (this.tileSize - barW) / 2;
+                                    const by = py + 5; // 구조물 발치 근처에 표시
+
+                                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                                    ctx.fillRect(bx, by, barW, barH);
+                                    ctx.fillStyle = hpRate > 0.5 ? '#4caf50' : (hpRate > 0.2 ? '#ffeb3b' : '#f44336');
+                                    ctx.fillRect(bx, by, barW * hpRate, barH);
+                                }
+                            }
                         });
                     }
                 }

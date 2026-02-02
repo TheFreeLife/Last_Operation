@@ -362,9 +362,20 @@ export class BaseUnit extends Entity {
         }
 
         if (this.target) {
-            this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+            let tx = this.target.x;
+            let ty = this.target.y;
+
+            // [추가] 고층 구조물(관제탑 등) 조준점 보정
+            if (this.target.type === 'tile') {
+                const wall = this.engine.tileMap.layers.wall[this.target.gy]?.[this.target.gx];
+                if (wall && this.engine.tileMap.wallRegistry[wall.id]?.isTall) {
+                    ty -= 40; // 관제탑의 몸통 부분을 조준하도록 Y좌표 보정
+                }
+            }
+
+            this.angle = Math.atan2(ty - this.y, tx - this.x);
             
-            const distToTarget = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            const distToTarget = Math.hypot(ty - this.y, tx - this.x);
             const inRange = distToTarget <= this.attackRange;
 
             if (inRange) {
@@ -377,8 +388,8 @@ export class BaseUnit extends Entity {
             } else {
                 // 사거리 밖이면 타겟 방향으로 이동 (어택땅 또는 추격 중일 때)
                 if (this.command === 'attack' || (this.isAiControlled && this.aiState === 'chase')) {
-                    if (!this._destination || Math.hypot(this._destination.x - this.target.x, this._destination.y - this.target.y) > 40) {
-                        this.destination = { x: this.target.x, y: this.target.y };
+                    if (!this._destination || Math.hypot(this._destination.x - tx, this._destination.y - ty) > 40) {
+                        this.destination = { x: tx, y: ty };
                     }
                 }
             }

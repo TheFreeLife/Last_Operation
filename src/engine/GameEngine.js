@@ -972,6 +972,25 @@ export class GameEngine {
                         return;
                     }
 
+                    // [추가] 구조물(벽) 강제 공격 지원
+                    const grid = this.tileMap.worldToGrid(worldX, worldY);
+                    const wall = this.tileMap.layers.wall[grid.y]?.[grid.x];
+                    if (wall && wall.id && wall.id !== 'spawn-point') {
+                        const worldPos = this.tileMap.gridToWorld(grid.x, grid.y);
+                        const tileTarget = {
+                            type: 'tile',
+                            x: worldPos.x,
+                            y: worldPos.y,
+                            gx: grid.x,
+                            gy: grid.y,
+                            ownerId: 0,
+                            active: true,
+                            hp: this.tileMap.grid[grid.y][grid.x].hp
+                        };
+                        this.executeUnitCommand('attack', tileTarget.x, tileTarget.y, tileTarget);
+                        return;
+                    }
+
                     const transport = [
                         ...this.entities.cargoPlanes, 
                         ...this.entities.units.filter(u => u.type === 'military-truck' || u.type === 'medical-truck' || u.type === 'cargo-plane' || u.type === 'helicopter')
