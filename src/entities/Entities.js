@@ -5,6 +5,7 @@ export * from './units/Infantry.js';
 export * from './units/Vehicles.js';
 export * from './units/AirUnits.js';
 export * from './units/Logistics.js';
+export { Train, FreightCar } from './units/Vehicles.js';
 
 export * from './items/AmmoBox.js';
 

@@ -417,10 +417,9 @@ export class MapEditor {
                 const unit = this.layers.unit.get(key);
                 if (unit) {
                     this.openUnitConfig(key, unit);
-                    return;
                 }
             }
-            this.layers[this.currentLayer].delete(key);
+            // 일반 레이어에서 우클릭 시 즉시 삭제 로직 제거 (화면 이동 충돌 방지)
             return;
         }
 

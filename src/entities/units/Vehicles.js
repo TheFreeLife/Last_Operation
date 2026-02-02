@@ -846,3 +846,92 @@ export class Train extends PlayerUnit {
         ctx.restore();
     }
 }
+
+export class FreightCar extends PlayerUnit {
+    static editorConfig = { category: 'vehicle', icon: 'freight-car', name: '화물칸' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'freight-car';
+        this.name = '화물칸';
+        this.speed = 0;
+        this.fireRate = 1000;
+        this.damage = 0;
+        this.color = '#95a5a6';
+        this.attackRange = 0;
+        this.visionRange = 2;
+        this.size = 110; 
+        this.population = 0;
+        this.hp = 1500;
+        this.maxHp = 1500;
+        this.attackTargets = [];
+
+        this.ammoType = null;
+        this.maxAmmo = 0;
+        this.ammo = 0;
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (this._destination) {
+            this._destination = null;
+            this.path = [];
+        }
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            this.drawConstruction(ctx);
+            return;
+        }
+        ctx.save();
+        ctx.scale(2, 2);
+
+        // --- 그림자 ---
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(-38, -8, 76, 26);
+
+        // 1. 하부 프레임 및 연결부
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-42, -12, 84, 24);
+        // 커플러 (연결기) 표현
+        ctx.fillRect(-45, -3, 6, 6);
+        ctx.fillRect(39, -3, 6, 6);
+
+        // 2. 바퀴 (보기 대차)
+        ctx.fillStyle = '#0a0a0a';
+        for (let i = -30; i <= 30; i += 60) {
+            ctx.fillRect(i - 6, -14, 12, 4);
+            ctx.fillRect(i - 6, 10, 12, 4);
+        }
+
+        // 3. 컨테이너 본체
+        const bodyGrd = ctx.createLinearGradient(0, -10, 0, 10);
+        bodyGrd.addColorStop(0, '#7f8c8d');
+        bodyGrd.addColorStop(0.5, '#95a5a6');
+        bodyGrd.addColorStop(1, '#707b7c');
+        ctx.fillStyle = bodyGrd;
+        ctx.fillRect(-38, -10, 76, 20);
+
+        // 컨테이너 주름(수직선) 디테일
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        for (let i = -32; i <= 32; i += 8) {
+            ctx.beginPath();
+            ctx.moveTo(i, -10);
+            ctx.lineTo(i, 10);
+            ctx.stroke();
+        }
+
+        // 4. 상단 루프 디테일
+        ctx.fillStyle = '#707b7c';
+        ctx.fillRect(-35, -11, 70, 2);
+        ctx.fillRect(-35, 9, 70, 2);
+
+        // 6. 안전 반사판
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(-38, 6, 3, 2);
+        ctx.fillRect(35, 6, 3, 2);
+
+        ctx.restore();
+    }
+}

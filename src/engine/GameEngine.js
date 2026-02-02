@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train, FreightCar } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -33,7 +33,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train, FreightCar };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -387,6 +387,7 @@ export class GameEngine {
         em.register('helicopter', Helicopter, 'units');
         em.register('suicide-drone', SuicideDrone, 'units');
         em.register('train', Train, 'units');
+        em.register('freight-car', FreightCar, 'units');
 
         // 자원 및 아이템
         em.register('ammo-box', AmmoBox, 'units');
@@ -806,15 +807,15 @@ export class GameEngine {
 
             if (this.gameState === GameState.EDITOR) {
                 if (this.mapEditor.editingUnitKey) return; // 모달 열려있으면 차단
-                if (e.button === 0) this.isMouseDown = true;
-                if (e.button === 2) {
+                
+                if (e.button === 0) {
+                    this.isMouseDown = true;
+                    this.mapEditor.handleInput(worldX, worldY, true, false);
+                } else if (e.button === 2) {
                     this.isRightMouseDown = true;
                     this.lastMouseX = e.clientX;
                     this.lastMouseY = e.clientY;
-                }
-                
-                if (e.button === 0 || (e.button === 2 && !this.isRightMouseDown)) {
-                    this.mapEditor.handleInput(worldX, worldY, true, e.button === 2);
+                    // 우클릭은 화면 이동을 위해 예약 (즉시 삭제 방지)
                 }
                 return;
             }
