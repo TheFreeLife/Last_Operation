@@ -334,6 +334,27 @@ export class TileMap {
                     ctx.beginPath(); ctx.arc(lpx+ts, lpy+ts, ts*0.3, Math.PI, Math.PI*1.5); ctx.stroke();
                 }
             },
+            'control-tower': {
+                maxHp: 1500,
+                isTall: true,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 하단 베이스
+                    ctx.fillStyle = '#2c3e50'; ctx.fillRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
+                    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 2; ctx.strokeRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
+                    // 중간 기둥
+                    ctx.fillStyle = '#34495e'; ctx.fillRect(lpx + ts*0.2, lpy - ts*0.9, ts*0.6, ts*1.0); ctx.strokeRect(lpx + ts*0.2, lpy - ts*0.9, ts*0.6, ts*1.0);
+                    // 상단 관제실
+                    const topY = lpy - ts * 1.8;
+                    ctx.fillStyle = '#5d6d7e'; ctx.beginPath();
+                    ctx.moveTo(lpx - ts*0.2, topY + ts*0.8); ctx.lineTo(lpx + ts*1.2, topY + ts*0.8);
+                    ctx.lineTo(lpx + ts, topY); ctx.lineTo(lpx, topY); ctx.closePath(); ctx.fill(); ctx.stroke();
+                    // 유리창
+                    ctx.fillStyle = 'rgba(135, 206, 235, 0.6)'; ctx.fillRect(lpx + ts*0.1, topY + ts*0.2, ts*0.8, ts*0.3);
+                    // 안테나
+                    ctx.strokeStyle = '#95a5a6'; ctx.beginPath(); ctx.moveTo(lpx + ts*0.5, topY); ctx.lineTo(lpx + ts*0.5, topY - ts*0.5); ctx.stroke();
+                    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(lpx + ts*0.5, topY - ts*0.5, 4, 0, Math.PI*2); ctx.fill();
+                }
+            },
             'spawn-point': {
                 maxHp: 999999,
                 isInvulnerable: true,
@@ -737,6 +758,10 @@ export class TileMap {
             for (let x = 0; x < this.cols; x++) {
                 const w = this.layers.wall[y][x];
                 if (w && w.id) {
+                    const config = this.wallRegistry[w.id];
+                    // [수정] 높은 구조물은 여기서 그리지 않고 drawTallStructures에서 유닛과 섞어서 그림
+                    if (config && config.isTall) continue;
+
                     if (!this.grid[y][x].visible && !(this.engine.debugSystem?.isFullVision)) continue;
                     
                     const px = x * this.tileSize;
@@ -745,22 +770,43 @@ export class TileMap {
 
                     // 체력 바 표시 (데미지를 입었을 때만)
                     const tile = this.grid[y][x];
-                    if (tile.hp > 0 && tile.hp < tile.maxHp && w.id !== 'spawn-point') {
-                        const barW = this.tileSize * 0.8;
-                        const barH = 4;
-                        const bx = px + (this.tileSize - barW) / 2;
-                        const by = py + 2;
-
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                        ctx.fillRect(bx, by, barW, barH);
-                        
+                    if (tile.hp < tile.maxHp) {
                         const hpRate = tile.hp / tile.maxHp;
+                        ctx.fillStyle = '#444'; ctx.fillRect(px + 4, py + this.tileSize - 8, this.tileSize - 8, 4);
                         ctx.fillStyle = hpRate > 0.5 ? '#4caf50' : (hpRate > 0.2 ? '#ffeb3b' : '#f44336');
-                        ctx.fillRect(bx, by, barW * hpRate, barH);
+                        ctx.fillRect(px + 4, py + this.tileSize - 8, (this.tileSize - 8) * hpRate, 4);
                     }
                 }
             }
         }
+    }
+
+    drawTallStructures(ctx, viewport) {
+        if (!this.layers || !this.layers.wall) return [];
+        const tallObjects = [];
+        // 구조물이 위로 솟아있으므로 뷰포트 아래쪽을 더 넓게 탐색
+        const startY = Math.max(0, Math.floor(viewport.top / this.tileSize));
+        const endY = Math.min(this.rows - 1, Math.ceil(viewport.bottom / this.tileSize) + 2);
+        const startX = Math.max(0, Math.floor(viewport.left / this.tileSize));
+        const endX = Math.min(this.cols - 1, Math.ceil(viewport.right / this.tileSize));
+
+        for (let y = startY; y <= endY; y++) {
+            for (let x = startX; x <= endX; x++) {
+                const w = this.layers.wall[y]?.[x];
+                if (w && w.id) {
+                    const config = this.wallRegistry[w.id];
+                    if (config && config.isTall) {
+                        if (!this.grid[y][x].visible && !(this.engine.debugSystem?.isFullVision)) continue;
+                        
+                        tallObjects.push({
+                            y: (y + 1) * this.tileSize, // Y-sorting 기준점 (발 밑)
+                            render: () => config.render(ctx, this.tileSize, x * this.tileSize, y * this.tileSize)
+                        });
+                    }
+                }
+            }
+        }
+        return tallObjects;
     }
 
     drawCeiling(ctx) {

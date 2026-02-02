@@ -119,7 +119,30 @@ export class RenderSystem {
         const visibleEntities = this.getVisibleEntities(viewport);
         this.sortEntitiesByLayer(visibleEntities);
 
-        this.renderEntities(this.layerBuckets[this.layers.UNITS]);
+        // [수정] 지상 유닛과 높은 구조물(관제탑 등)을 Y좌표 기준으로 정렬하여 렌더링 (2.5D Y-Sorting)
+        const groundUnits = this.layerBuckets[this.layers.UNITS];
+        const tallStructures = this.engine.tileMap ? this.engine.tileMap.drawTallStructures(this.ctx, viewport) : [];
+
+        // 정렬 대상 통합
+        const ySortedElements = [
+            ...groundUnits.map(u => ({ 
+                y: u.y, 
+                render: () => {
+                    this.ctx.save();
+                    this.ctx.translate(u.x, u.y);
+                    if (u.angle) this.ctx.rotate(u.angle);
+                    u.draw(this.ctx);
+                    this.ctx.restore();
+                } 
+            })),
+            ...tallStructures
+        ];
+
+        // Y좌표 기준 오름차순 정렬
+        ySortedElements.sort((a, b) => a.y - b.y);
+
+        // 순서대로 렌더링
+        ySortedElements.forEach(el => el.render());
         
         // 4-A. 직사 투사체 (천장 아래)
         const directProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => !p.isIndirect && p.type !== 'missile' && p.type !== 'nuclear-missile');
