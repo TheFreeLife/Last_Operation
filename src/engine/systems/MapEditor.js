@@ -100,6 +100,12 @@ export class MapEditor {
     initKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!this.active) return;
+            
+            // [추가] 입력 창에 포커스가 있는 경우 단축키 무시
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
             if (e.key.toLowerCase() === 'r') {
                 if (this.selectedItem && this.selectedItem.rotatable !== false) {
                     this.currentRotation = (this.currentRotation + 1) % 4;
@@ -246,11 +252,14 @@ export class MapEditor {
         const nameDisplay = document.getElementById('config-unit-name');
         if (nameDisplay) nameDisplay.textContent = data.id.toUpperCase() + ' CONFIG';
 
+        // stats 객체가 있으면 거기서 기본값을 가져옴
+        const stats = data.stats || {};
+
         document.getElementById('config-owner').value = (data.ownerId !== undefined) ? data.ownerId : 1;
-        document.getElementById('config-hp').value = (data.hp !== undefined) ? data.hp : 100;
-        document.getElementById('config-damage').value = (data.damage !== undefined) ? data.damage : 0;
-        document.getElementById('config-speed').value = (data.speed !== undefined) ? data.speed : 0;
-        document.getElementById('config-ammo').value = (data.ammo !== undefined) ? data.ammo : 0;
+        document.getElementById('config-hp').value = (data.hp !== undefined) ? data.hp : (stats.hp !== undefined ? stats.hp : 100);
+        document.getElementById('config-damage').value = (data.damage !== undefined) ? data.damage : (stats.damage !== undefined ? stats.damage : 0);
+        document.getElementById('config-speed').value = (data.speed !== undefined) ? data.speed : (stats.speed !== undefined ? stats.speed : 0);
+        document.getElementById('config-ammo').value = (data.ammo !== undefined) ? data.ammo : (stats.ammo !== undefined ? stats.ammo : 0);
         document.getElementById('config-rotation').value = (data.r !== undefined) ? data.r : 0;
         document.getElementById('config-ai-state').value = data.aiState || 'guard';
         document.getElementById('config-ai-radius').value = (data.aiRadius !== undefined) ? data.aiRadius : 300;
@@ -263,6 +272,12 @@ export class MapEditor {
         }
 
         this.configModal.classList.remove('hidden');
+
+        // [추가] 숫자 입력 필드 포커스 시 전체 선택 (빠른 수정 용도)
+        const numInputs = this.configModal.querySelectorAll('input[type="number"]');
+        numInputs.forEach(input => {
+            input.addEventListener('focus', () => input.select());
+        });
     }
 
     saveUnitConfig() {
@@ -299,6 +314,14 @@ export class MapEditor {
             unitData.aiState = aiState;
             unitData.aiRadius = aiRadius;
             unitData.options = options;
+
+            // stats 객체도 업데이트하여 최신 상태 유지
+            if (!unitData.stats) unitData.stats = {};
+            unitData.stats.hp = hp;
+            unitData.stats.maxHp = hp;
+            unitData.stats.damage = damage;
+            unitData.stats.speed = speed;
+            unitData.stats.ammo = ammo;
         }
 
         this.closeUnitConfig();
@@ -500,6 +523,28 @@ export class MapEditor {
         }
     }
 
+    getUnitDefaults(type) {
+        const registration = this.engine.entityManager.registry.get(type);
+        if (!registration) return {};
+        
+        const { EntityClass } = registration;
+        // 임시 인스턴스 생성하여 기본값 추출
+        const temp = new EntityClass(0, 0, this.engine);
+        
+        return {
+            hp: temp.hp || 100,
+            maxHp: temp.maxHp || 100,
+            damage: temp.damage || 0,
+            attackRange: temp.attackRange || 0,
+            visionRange: temp.visionRange || 5,
+            speed: temp.speed || 1,
+            ammo: temp.ammo || 0,
+            maxAmmo: temp.maxAmmo || 0,
+            population: temp.population || 1,
+            name: temp.name || type
+        };
+    }
+
     applyToTile(x, y) {
         if (!this.selectedItem) return;
         const tileMap = this.engine.tileMap;
@@ -546,6 +591,12 @@ export class MapEditor {
             options: this.selectedItem.options,
             ownerId: (this.currentLayer === 'unit') ? 2 : undefined
         };
+
+        // [추가] 유닛인 경우 기본 스탯 포함
+        if (this.currentLayer === 'unit') {
+            const defaults = this.getUnitDefaults(this.selectedItem.id);
+            data.stats = defaults;
+        }
         
         this.layers[this.currentLayer].set(`${x},${y}`, data);
 
@@ -744,7 +795,15 @@ export class MapEditor {
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null,
+                    u ? { 
+                        id: u.id, 
+                        ownerId: u.ownerId, 
+                        r: u.r || 0, 
+                        stats: u.stats,
+                        aiState: u.aiState, 
+                        aiRadius: u.aiRadius, 
+                        options: u.options 
+                    } : null,
                     c ? [c.id, c.r || 0] : null
                 ];
             }

@@ -713,7 +713,17 @@ button,
 #close-export-btn { background: rgba(255, 255, 255, 0.1); color: #fff; }
 
 /* --- Unit Config Modal --- */
-.unit-config-content {
+/* 숫자 입력 필드 스피너 제거 (직접 입력 최적화) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+.config-modal-content {
     width: 400px;
     padding: 30px !important;
     text-align: left !important;

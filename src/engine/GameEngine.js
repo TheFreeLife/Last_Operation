@@ -260,7 +260,12 @@ export class GameEngine {
                         const ownerId = (unitInfo.ownerId !== undefined) ? unitInfo.ownerId : 1;
                         const spawnOptions = { ownerId };
                         
-                        // 에디터에서 설정한 추가 속성 적용
+                        // [추가] 에디터에서 저장된 기본 스탯 적용
+                        if (unitInfo.stats) {
+                            Object.assign(spawnOptions, unitInfo.stats);
+                        }
+                        
+                        // 개별 속성이 직접 설정된 경우 (레거시 또는 수동 편집)
                         if (unitInfo.hp !== undefined) {
                             spawnOptions.hp = unitInfo.hp;
                             spawnOptions.maxHp = unitInfo.hp;
@@ -721,6 +726,11 @@ export class GameEngine {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
         window.addEventListener('keydown', (e) => {
+            // [추가] 입력 창에 포커스가 있는 경우 게임 단축키 무시 (부대 지정 등 방지)
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
             // 에디터 모드 시 브라우저 기본 단축키 차단 (저장, 인쇄 등)
             if (this.gameState === GameState.EDITOR) {
                 if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'f', 'g'].includes(e.key.toLowerCase())) {
