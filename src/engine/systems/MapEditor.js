@@ -26,6 +26,7 @@ export class MapEditor {
                     { id: 'dirt', name: '흙', rotatable: false },
                     { id: 'grass', name: '풀', rotatable: false },
                     { id: 'sand', name: '모래', rotatable: false },
+                    { id: 'snow', name: '눈', rotatable: false },
                     { id: 'water', name: '물', rotatable: false }
                 ],
                 '인프라': [

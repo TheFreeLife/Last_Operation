@@ -421,6 +421,7 @@ export class TileMap {
             case 'grass': return '#344521';
             case 'sand': return '#a6956d';
             case 'water': return '#1a2a35';
+            case 'snow': return '#eceff1';
             case 'fertile-soil': return '#2b241c';
             case 'asphalt': return '#282828';
             case 'concrete': return '#5a5a5a';
@@ -520,6 +521,7 @@ export class TileMap {
         else if (terrain === 'dirt') { ctx.fillStyle = '#000'; for(let i=0; i<5; i++) ctx.fillRect(lpx+s(px+i, py)*ts, lpy+s(px, py+i)*ts, 1, 1); }
         else if (terrain === 'sand') { ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(lpx, lpy+ts/2); ctx.quadraticCurveTo(lpx+ts/4, lpy+ts/4, lpx+ts/2, lpy+ts/2); ctx.stroke(); }
         else if (terrain === 'water') { ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(lpx+ts*0.1, lpy+ts*0.1, ts*0.8, ts*0.1); ctx.fillRect(lpx+ts*0.2, lpy+ts*0.5, ts*0.6, ts*0.1); }
+        else if (terrain === 'snow') { ctx.fillStyle = '#fff'; for(let i=0; i<4; i++) { ctx.beginPath(); ctx.arc(lpx+s(px+i, py)*ts, lpy+s(px, py+i)*ts, 1.5, 0, Math.PI*2); ctx.fill(); } }
         else if (terrain === 'fertile-soil') { ctx.fillStyle = '#1a140d'; for(let i=1; i<4; i++) ctx.fillRect(lpx+2, lpy+(ts/4)*i, ts-4, 1); }
         ctx.restore();
     }
