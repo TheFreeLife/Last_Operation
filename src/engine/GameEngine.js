@@ -521,106 +521,94 @@ export class GameEngine {
                 ent instanceof PlayerUnit || (ent.speed !== undefined && ent.hp !== 99999999)
             );
 
-            if (isUserOwned && allUnits) {                // [아군 유닛 메뉴]
+            if (isUserOwned && allUnits) {
                 const sizeInfo = (this.selectedEntities.length === 1) ? ` [${firstEnt.sizeCategoryName}]` : '';
-                header.textContent = (this.selectedEntities.length > 1 ? `부대 (${this.selectedEntities.length})` : firstEnt.name) + sizeInfo;
+                header.textContent = (this.selectedEntities.length > 1 ? `GROUPS (${this.selectedEntities.length})` : firstEnt.name.toUpperCase()) + sizeInfo;
 
+                // 유동적 배열: 필요한 명령만 담음
                 items = [
-                    { id: 'move', name: '이동 (M)', icon: '🏃', action: 'unit:move', skillType: 'targeted' },
-                    { id: 'stop', name: '정지 (S)', icon: '🛑', action: 'unit:stop' },
-                    null,
-                    { id: 'hold', name: '홀드 (H)', icon: '🛡️', action: 'unit:hold' },
-                    { id: 'patrol', name: '패트롤 (P)', icon: '🔄', action: 'unit:patrol', skillType: 'targeted' },
-                    { id: 'attack', name: '어택 (A)', icon: '⚔️', action: 'unit:attack', skillType: 'targeted' },
-                    null, null, null
+                    { id: 'patrol', name: 'PATROL (P)', icon: '🔄', action: 'unit:patrol', skillType: 'targeted' }
                 ];
 
                 if (allSameType) {
                     const unitType = firstEnt.type;
                     if (unitType === 'missile-launcher' || unitType === 'icbm-launcher' || unitType === 'mortar-team') {
-                        items[6] = { id: 'siege', name: '시즈 모드 (O)', icon: '🏗️', action: 'unit:siege', skillType: 'state' };
+                        items.push({ id: 'siege', name: 'SIEGE (O)', icon: '🏗️', action: 'unit:siege', skillType: 'state' });
                         if (unitType === 'missile-launcher' || unitType === 'icbm-launcher') {
-                            items[7] = { id: 'manual_fire', name: unitType === 'icbm-launcher' ? '핵 미사일 발사 (F)' : '미사일 발사 (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' };
+                            items.push({ id: 'manual_fire', name: 'FIRE (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' });
                         }
                     } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
                         const isFlying = firstEnt.altitude > 0.8;
                         const isLanded = firstEnt.altitude < 0.1 || unitType === 'military-truck' || unitType === 'medical-truck';
 
                         if (unitType === 'bomber') {
-                            items[6] = {
+                            items.push({
                                 id: 'bombing',
-                                name: isFlying ? '폭격 (B)' : '폭격 (비행 시 가능)',
+                                name: 'BOMB (B)',
                                 action: 'unit:bombing',
                                 skillType: 'toggle',
                                 locked: !isFlying,
                                 active: firstEnt.isBombingActive
-                            };
+                            });
                         } else if (unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
-                            items[6] = {
+                            items.push({
                                 id: 'unload_all',
-                                name: isLanded ? '전체 하차 (U)' : '하차 (지상 시 가능)',
+                                name: 'UNLOAD (U)',
                                 action: 'unit:unload_all',
                                 skillType: 'instant',
                                 locked: !isLanded || firstEnt.cargo.length === 0
-                            };
+                            });
 
                             if (unitType === 'cargo-plane') {
-                                items[7] = {
+                                items.push({
                                     id: 'combat_drop',
-                                    name: isFlying ? '전투 강하 (D)' : '전투 강하 (비행 시 가능)',
+                                    name: 'DROP (D)',
                                     action: 'unit:combat_drop',
                                     skillType: 'instant',
                                     locked: !isFlying || firstEnt.cargo.length === 0
-                                };
+                                });
                             }
                         }
 
-                        // 이착륙 버튼 동적 구성 (항공기 전용)
+                        // 이착륙 버튼
                         if (unitType !== 'military-truck' && unitType !== 'medical-truck') {
-                            let actionName = '이륙 (T)';
+                            let actionName = 'FLY (T)';
                             let actionIcon = 'unit:takeoff';
                             if (isFlying || firstEnt.isManualLanding || (unitType === 'helicopter' && firstEnt.altitude > 0.5)) {
-                                actionName = '착륙 (T)';
+                                actionName = 'LAND (T)';
                                 actionIcon = 'unit:landing';
                             }
-                            if (firstEnt.isTakeoffStarting || firstEnt.isManualLanding || firstEnt.isTransitioning) {
-                                actionName = (firstEnt.isTakeoffStarting || (firstEnt.isTransitioning && firstEnt.altitude < 0.5)) ? '이륙 중...' : '착륙 중...';
-                            }
-
-                            items[8] = {
+                            items.push({
                                 id: 'takeoff_landing',
                                 name: actionName,
                                 action: 'unit:takeoff_landing',
                                 skillType: 'state',
                                 iconKey: actionIcon
-                            };
+                            });
                         }
                     }
                 }
             } else if (isEnemy) {
                 const sizeInfo = firstEnt.sizeCategoryName ? ` [${firstEnt.sizeCategoryName}]` : '';
-                header.textContent = `[적] ${firstEnt.name}${sizeInfo}`;
+                header.textContent = `[ENEMY] ${firstEnt.name}${sizeInfo}`;
             } else if (isNeutral) {
                 const sizeInfo = firstEnt.sizeCategoryName ? ` [${firstEnt.sizeCategoryName}]` : '';
-                header.textContent = `[중립] ${firstEnt.name}${sizeInfo}`;
+                header.textContent = `[NEUTRAL] ${firstEnt.name}${sizeInfo}`;
             }
         } else {
             // 아무것도 선택되지 않은 상태
-            header.textContent = '-';
-            items = [null, null, null, null, null, null, null, null, null];
+            header.textContent = 'COMMAND';
+            items = []; // 빈 배열로 초기화
         }
 
         this.isHoveringUI = false;
         this.hideUITooltip();
 
         items.forEach(item => {
+            if (!item) return;
+
             const btn = document.createElement('div');
             btn.className = 'build-btn';
-
-            if (!item) {
-                grid.appendChild(btn);
-                return;
-            }
 
             if (item.locked) {
                 btn.classList.add('locked');
@@ -636,11 +624,11 @@ export class GameEngine {
 
             if (!iconHtml) {
                 if (item.icon) {
-                    iconHtml = `<div class="btn-icon gray"><div style="font-size: 24px; display: flex; align-items: center; justify-content: center; height: 100%;">${item.icon}</div></div>`;
+                    iconHtml = `<div class="btn-icon gray"><div style="font-size: 20px; display: flex; align-items: center; justify-content: center; height: 100%;">${item.icon}</div></div>`;
                 }
             }
 
-            btn.innerHTML = iconHtml || `<div class="btn-icon gray">?</div>`;
+            btn.innerHTML = (iconHtml || `<div class="btn-icon gray">?</div>`) + `<div class="btn-name">${item.name}</div>`;
 
             btn.onclick = (e) => {
                 e.stopPropagation();

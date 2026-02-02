@@ -318,18 +318,18 @@
 
             <div id="top-right-area">
                 <button id="in-game-exit-btn" class="glass-panel exit-btn-mini">종료 (EXIT)</button>
-                <div id="minimap-container" class="glass-panel">
-                    <canvas id="minimapCanvas"></canvas>
-                </div>
             </div>
 
             <div id="right-panel" class="glass-panel">
-                <div class="panel-header">명 령</div>
+                <div id="minimap-container">
+                    <canvas id="minimapCanvas"></canvas>
+                </div>
+                <div class="panel-header">COMMAND</div>
                 
                 <div class="build-grid" id="build-grid">
                     <!-- Buttons will be injected by GameEngine.js -->
                 </div>
-                <div class="mode-info">ESC: 취소</div>
+                <div class="mode-info">ESC: CANCEL</div>
             </div>
 
             <div id="game-over-modal" class="modal-overlay hidden">
@@ -357,7 +357,6 @@
                     </span>
                     <div class="btn-text">
                         <span class="btn-label">추가 병력 요청</span>
-                        <span class="btn-cost" style="font-size: 0.85rem; font-weight: 700; color: #69f0ae; opacity: 0.9;">인원수에 따라 민심 소모</span>
                     </div>
                 </button>
             </div>
