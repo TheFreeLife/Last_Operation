@@ -14,6 +14,7 @@ export class NuclearMissile extends Entity {
         this.damage = damage;
         this.engine = engine;
         this.domain = 'projectile';
+        this.isIndirect = true; // 곡사 판정 추가
 
         this.speed = 3.5; // ICBM은 약간 더 무겁고 웅장하게 이동
         this.moveAngle = Math.atan2(targetY - startY, targetX - startX);
@@ -79,6 +80,46 @@ export class NuclearMissile extends Entity {
 
     explode() {
         this.arrived = true;
+        const tileMap = this.engine.tileMap;
+
+        // --- [천장 레이어 판정] ---
+        let hitCeiling = false;
+        if (tileMap) {
+            const gridPos = tileMap.worldToGrid(this.targetX, this.targetY);
+            const ceiling = tileMap.layers.ceiling[gridPos.y]?.[gridPos.x];
+            if (ceiling && ceiling.id && tileMap.grid[gridPos.y][gridPos.x].ceilingHp > 0) {
+                hitCeiling = true;
+            }
+        }
+
+        if (hitCeiling) {
+            if (tileMap) {
+                const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
+                const center = tileMap.worldToGrid(this.targetX, this.targetY);
+                for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+                    for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                        const gx = center.x + dx, gy = center.y + dy;
+                        if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
+                        const ceiling = tileMap.layers.ceiling[gy][gx];
+                        if (ceiling && ceiling.id) {
+                            const worldPos = tileMap.gridToWorld(gx, gy);
+                            const dist = Math.hypot(worldPos.x - this.targetX, worldPos.y - this.targetY);
+                            if (dist <= this.explosionRadius) {
+                                tileMap.damageCeiling(gx, gy, this.damage);
+                            }
+                        }
+                    }
+                }
+            }
+            if (this.engine.addEffect) {
+                this.engine.addEffect('nuke_explosion', this.targetX, this.targetY, '#00bcd4');
+                this.engine.addEffect?.('system', this.targetX, this.targetY - 100, '#00bcd4', 'NUCLEAR INTERCEPTED BY CEILING');
+            }
+            this.finalizeExplosion();
+            return;
+        }
+
+        // --- [기본 지면 폭발] ---
         if (this.engine.addEffect) {
             // 핵폭발 전용 효과 (강화된 시각효과 및 전용 사운드)
             this.engine.addEffect('nuke_explosion', this.targetX, this.targetY);
@@ -112,7 +153,6 @@ export class NuclearMissile extends Entity {
         });
 
         // 지형 파괴 (벽)
-        const tileMap = this.engine.tileMap;
         if (tileMap) {
             const gridRadius = Math.ceil(this.explosionRadius / tileMap.tileSize);
             const center = tileMap.worldToGrid(this.targetX, this.targetY);
@@ -132,6 +172,10 @@ export class NuclearMissile extends Entity {
             }
         }
 
+        this.finalizeExplosion();
+    }
+
+    finalizeExplosion() {
         const checkCleanup = () => {
             if (this.trail.length === 0) {
                 this.active = false;

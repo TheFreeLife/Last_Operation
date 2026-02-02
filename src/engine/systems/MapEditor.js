@@ -6,6 +6,7 @@ export class MapEditor {
         this.currentTool = 'pencil'; 
         this.selectedItem = null;
         this.currentRotation = 0; // 0, 1, 2, 3 (90도 단위)
+        this.showCeiling = true; // 천장 표시 여부 토글
         
         // 유닛 드로잉을 위한 임시 인스턴스 저장소 (캐시)
         this.dummyUnits = new Map();
@@ -13,7 +14,8 @@ export class MapEditor {
         this.layers = {
             floor: new Map(),
             wall: new Map(),
-            unit: new Map()
+            unit: new Map(),
+            ceiling: new Map()
         };
 
         this.isDrawing = false;
@@ -81,7 +83,14 @@ export class MapEditor {
                     { id: 'spawn-point', name: '스폰 지점', rotatable: true }
                 ]
             },
-            unit: {}
+            unit: {},
+            ceiling: {
+                '천장/지붕': [
+                    { id: 'concrete-roof', name: '콘크리트 지붕', rotatable: true },
+                    { id: 'metal-roof', name: '금속 지붕', rotatable: true },
+                    { id: 'wooden-roof', name: '목재 지붕', rotatable: true }
+                ]
+            }
         };
 
         this.initUI();
@@ -97,6 +106,9 @@ export class MapEditor {
                 } else {
                     this.currentRotation = 0;
                 }
+            }
+            if (e.key.toLowerCase() === 'h') {
+                this.toggleCeilingVisibility();
             }
         });
     }
@@ -162,6 +174,8 @@ export class MapEditor {
         toolBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const tool = btn.dataset.tool;
+                if (!tool) return; // tool 데이터가 없는 버튼(토글 버튼 등)은 무시
+
                 this.currentTool = tool;
                 this.isDrawing = false;
                 this.updateStatusUI();
@@ -174,6 +188,15 @@ export class MapEditor {
                 }
             });
         });
+
+        // 천장 토글 버튼 초기 상태 설정
+        const toggleCeilingBtn = document.getElementById('toggle-ceiling-btn');
+        if (toggleCeilingBtn) {
+            toggleCeilingBtn.classList.toggle('active', this.showCeiling);
+            toggleCeilingBtn.addEventListener('click', (e) => {
+                this.toggleCeilingVisibility();
+            });
+        }
 
         const tabs = document.querySelectorAll('.palette-tab');
         tabs.forEach(tab => {
@@ -286,6 +309,15 @@ export class MapEditor {
         this.editingUnitKey = null;
     }
 
+    toggleCeilingVisibility() {
+        this.showCeiling = !this.showCeiling;
+        const btn = document.getElementById('toggle-ceiling-btn');
+        if (btn) {
+            btn.classList.toggle('active', this.showCeiling);
+        }
+        console.log(`[MapEditor] Show Ceiling: ${this.showCeiling}`);
+    }
+
     clearCanvas() {
         if (!confirm('정말 맵을 초기화하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
         
@@ -377,6 +409,8 @@ export class MapEditor {
             this.engine.tileMap.drawTileTexture(ctx, 5, 5, item.id, 0);
         } else if (this.currentLayer === 'wall') {
             this.engine.tileMap.drawSingleWall(ctx, item.id, 5, 5, 50, 0);
+        } else if (this.currentLayer === 'ceiling') {
+            this.engine.tileMap.drawSingleCeiling(ctx, item.id, 5, 5, 50, 0);
         } else {
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
             if (dummy) {
@@ -436,6 +470,7 @@ export class MapEditor {
             this.endPos = { x: gridX, y: gridY };
             if (this.currentTool === 'pencil') this.applyToTile(gridX, gridY);
             else if (this.currentTool === 'eraser') {
+                const wasCeiling = this.layers.ceiling.has(key);
                 this.layers[this.currentLayer].delete(key);
                 // [추가] 삭제 시에도 유동장 갱신
                 if (this.currentLayer === 'wall') {
@@ -447,6 +482,14 @@ export class MapEditor {
                     }
                     this.engine.flowField.updateAllCostMaps();
                     this.engine.enemyFlowField.updateAllCostMaps();
+                } else if (this.currentLayer === 'ceiling') {
+                    const gridCell = this.engine.tileMap.grid[gridY]?.[gridX];
+                    if (gridCell) {
+                        gridCell.ceilingHp = 0;
+                        gridCell.ceilingMaxHp = 0;
+                        this.engine.tileMap.layers.ceiling[gridY][gridX] = null;
+                    }
+                    this.engine.tileMap.updateRoomIds();
                 }
             }
         } else {
@@ -529,6 +572,12 @@ export class MapEditor {
                 // [추가] 장애물 배치 시 모든 유동장 비용 맵 갱신
                 this.engine.flowField.updateAllCostMaps();
                 this.engine.enemyFlowField.updateAllCostMaps();
+            } else if (this.currentLayer === 'ceiling') {
+                tileMap.layers.ceiling[y][x] = { id: data.id, r: data.r };
+                const maxHp = tileMap.ceilingRegistry[data.id]?.maxHp || 100;
+                gridCell.ceilingHp = maxHp;
+                gridCell.ceilingMaxHp = maxHp;
+                tileMap.updateRoomIds(); // 룸 ID 즉시 갱신
             }
         }
     }
@@ -601,7 +650,9 @@ export class MapEditor {
         ctx.stroke();
 
         // 실물 렌더링
-        ['floor', 'wall', 'unit'].forEach(layerName => {
+        ['floor', 'wall', 'ceiling', 'unit'].forEach(layerName => {
+            if (layerName === 'ceiling' && !this.showCeiling) return;
+
             this.layers[layerName].forEach((item, key) => {
                 const [x, y] = key.split(',').map(Number);
                 if (x >= sX && x <= eX && y >= sY && y <= eY) {
@@ -647,6 +698,8 @@ export class MapEditor {
             this.engine.tileMap.drawTileTexture(ctx, wx, wy, item.id || item, r);
         } else if (layer === 'wall') {
             this.engine.tileMap.drawSingleWall(ctx, item.id || item, wx, wy, tileSize, r);
+        } else if (layer === 'ceiling') {
+            this.engine.tileMap.drawSingleCeiling(ctx, item.id || item, wx, wy, tileSize, r);
         } else {
             const dummy = this.dummyUnits.get(`${item.id}_${JSON.stringify(item.options || {})}`);
             if (dummy) {
@@ -686,12 +739,13 @@ export class MapEditor {
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
-                const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k);
-                // [ [id, rotation], [id, rotation], unitData ]
+                const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k), c = this.layers.ceiling.get(k);
+                // [ [id, rotation], [id, rotation], unitData, [id, rotation] ]
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null,
+                    c ? [c.id, c.r || 0] : null
                 ];
             }
         }
@@ -707,7 +761,7 @@ export class MapEditor {
             this.layers.floor.clear(); this.layers.wall.clear(); this.layers.unit.clear();
             data.grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
-                    const k = `${x},${y}`, [f, wl, u] = cell;
+                    const k = `${x},${y}`, [f, wl, u, c] = cell;
                     const parse = (d) => {
                         if (!d) return null;
                         if (typeof d === 'string') return { id: d, r: 0 };
@@ -717,6 +771,7 @@ export class MapEditor {
                     if (f) this.layers.floor.set(k, parse(f));
                     if (wl) this.layers.wall.set(k, parse(wl));
                     if (u) this.layers.unit.set(k, u);
+                    if (c) this.layers.ceiling.set(k, parse(c));
                 });
             });
             this.syncPaletteWithEngine();
@@ -741,11 +796,12 @@ export class MapEditor {
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 const k = `${x},${y}`, lx = x - minX, ly = y - minY;
-                const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k);
+                const f = this.layers.floor.get(k), wl = this.layers.wall.get(k), u = this.layers.unit.get(k), c = this.layers.ceiling.get(k);
                 grid[ly][lx] = [
                     f ? [f.id, f.r || 0] : 'dirt',
                     wl ? [wl.id, wl.r || 0] : null,
-                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null
+                    u ? { id: u.id, ownerId: u.ownerId, r: u.r || 0, hp: u.hp || 100, aiState: u.aiState, aiRadius: u.aiRadius, options: u.options } : null,
+                    c ? [c.id, c.r || 0] : null
                 ];
             }
         }

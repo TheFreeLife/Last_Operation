@@ -1600,7 +1600,15 @@ export class GameEngine {
             if (unit.alive) {
                 const relation = this.getRelation(1, unit.ownerId);
                 if (relation === 'self' || relation === 'ally') {
+                    // 1. 일반 시야 반경 확보
                     this._revealArea(unit.x, unit.y, unit.visionRange || 5);
+
+                    // 2. 구역(Room) 시야 확보: 천장 아래에 있으면 구역 전체 공개
+                    const g = this.tileMap.worldToGrid(unit.x, unit.y);
+                    const roomId = this.tileMap.grid[g.y]?.[g.x]?.roomId;
+                    if (roomId) {
+                        this.tileMap.revealRoom(roomId);
+                    }
                 }
             }
         });

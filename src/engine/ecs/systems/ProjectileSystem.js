@@ -85,9 +85,28 @@ export function updateProjectiles(world, deltaTime, engine) {
         }
 
         // 3. 목표 도달 또는 충돌 시 제거
-        const reachedTarget = distToTarget < 15; // 곡사는 오차 범위를 약간 더 줌 (10 -> 15)
+        const reachedTarget = distToTarget < 15; 
         
         if (collided || reachedTarget) {
+            const isIndirect = world.isIndirect[i] === 1;
+            const tileMap = engine.tileMap;
+
+            // [추가] 곡사 무기가 목표에 도달했을 때 천장 충돌 처리 (폭발 반경 유무 상관없이)
+            if (reachedTarget && isIndirect && tileMap) {
+                const gridPos = tileMap.worldToGrid(targetX[i], targetY[i]);
+                const ceiling = tileMap.layers.ceiling[gridPos.y]?.[gridPos.x];
+                if (ceiling && ceiling.id && tileMap.grid[gridPos.y][gridPos.x].ceilingHp > 0) {
+                    if (explosionRadius[i] > 0) {
+                        handleExplosion(world, i, engine);
+                    } else {
+                        tileMap.damageCeiling(gridPos.x, gridPos.y, damage[i]);
+                        if (engine.addEffect) engine.addEffect('hit', targetX[i], targetY[i], '#00bcd4');
+                    }
+                    world.destroyEntity(i);
+                    continue; // 처리 완료
+                }
+            }
+
             // 목표에 도달했을 때 (곡사 탄환 포함) 폭발 처리
             if (reachedTarget && explosionRadius[i] > 0 && !collided) {
                 handleExplosion(world, i, engine);
@@ -121,8 +140,51 @@ function handleExplosion(world, idx, engine) {
     const radius = world.explosionRadius[idx];
     const dmg = world.damage[idx];
     const ownerId = world.ownerId[idx];
+    const isIndirect = world.isIndirect[idx] === 1;
     const tileMap = engine.tileMap;
 
+    // --- [천장 레이어 판정] ---
+    // 곡사 무기인 경우 목표 지점에 천장이 있는지 먼저 확인
+    let hitCeiling = false;
+    if (isIndirect && tileMap) {
+        const gridPos = tileMap.worldToGrid(ex, ey);
+        const ceiling = tileMap.layers.ceiling[gridPos.y]?.[gridPos.x];
+        if (ceiling && ceiling.id && tileMap.grid[gridPos.y][gridPos.x].ceilingHp > 0) {
+            hitCeiling = true;
+        }
+    }
+
+    if (hitCeiling) {
+        // 1. 천장에 맞은 경우: 주변 천장 타일에만 피해를 주고 종료
+        if (tileMap) {
+            const gridRadius = Math.ceil(radius / tileMap.tileSize);
+            const center = tileMap.worldToGrid(ex, ey);
+            
+            for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+                for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                    const gx = center.x + dx;
+                    const gy = center.y + dy;
+                    if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
+                    
+                    const ceiling = tileMap.layers.ceiling[gy][gx];
+                    if (ceiling && ceiling.id) {
+                        const worldPos = tileMap.gridToWorld(gx, gy);
+                        const dist = Math.hypot(worldPos.x - ex, worldPos.y - ey);
+                        if (dist <= radius + tileMap.tileSize / 2) {
+                            tileMap.damageCeiling(gx, gy, dmg);
+                        }
+                    }
+                }
+            }
+        }
+        // 이펙트 발생 (천장 폭발임을 나타내기 위해 위쪽으로 살짝 오프셋)
+        if (engine.addEffect) {
+            engine.addEffect('explosion', ex, ey, '#00bcd4'); // 천장 타격은 푸른색 계열 이펙트
+        }
+        return; // 아래의 유닛 대미지 연산을 건너뜀 (수직적 차단)
+    }
+
+    // --- [기존 지면 폭발 로직] ---
     // 1. 주변 유닛 범위 피해
     const targets = engine.entityManager.getNearby(ex, ey, radius);
     for (const target of targets) {

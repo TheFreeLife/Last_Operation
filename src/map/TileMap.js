@@ -13,12 +13,56 @@ export class TileMap {
         this.chunks = [];
 
         this.grid = [];
-        this.layers = { floor: [], wall: [], unit: [] };
+        this.layers = { floor: [], wall: [], unit: [], ceiling: [] };
         
         this.initGrid();
         this.initChunks();
         this.initFogCanvas();
         this.initWallRegistry();
+        this.initCeilingRegistry();
+    }
+
+    initCeilingRegistry() {
+        this.ceilingRegistry = {
+            'concrete-roof': {
+                maxHp: 500,
+                color: '#444',
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#444'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.strokeRect(lpx+2, lpy+2, ts-4, ts-4);
+                    // 콘크리트 질감 (작은 점들)
+                    ctx.fillStyle = '#333';
+                    for(let i=0; i<4; i++) ctx.fillRect(lpx + (i*10)%ts, lpy + (i*13)%ts, 1, 1);
+                }
+            },
+            'metal-roof': {
+                maxHp: 350,
+                color: '#2c3e50',
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#2c3e50'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.strokeStyle = '#34495e'; ctx.lineWidth = 2;
+                    // 금속판 이음새
+                    ctx.beginPath(); ctx.moveTo(lpx, lpy+ts/2); ctx.lineTo(lpx+ts, lpy+ts/2); ctx.stroke();
+                    // 볼트 표현
+                    ctx.fillStyle = '#1a252f';
+                    [4, ts-6].forEach(x => [4, ts-6].forEach(y => {
+                        ctx.beginPath(); ctx.arc(lpx+x, lpy+y, 1.5, 0, Math.PI*2); ctx.fill();
+                    }));
+                }
+            },
+            'wooden-roof': {
+                maxHp: 150,
+                color: '#5d4037',
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#5d4037'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 1;
+                    // 나무 판자 패턴
+                    for(let i=1; i<4; i++) {
+                        ctx.beginPath(); ctx.moveTo(lpx, lpy+ts*i/4); ctx.lineTo(lpx+ts, lpy+ts*i/4); ctx.stroke();
+                    }
+                }
+            }
+        };
     }
 
     initFogCanvas() {
@@ -35,28 +79,34 @@ export class TileMap {
 
     initGrid() {
         this.grid = [];
-        this.layers = { floor: [], wall: [], unit: [] };
+        this.layers = { floor: [], wall: [], unit: [], ceiling: [] };
         for (let y = 0; y < this.rows; y++) {
             this.grid[y] = [];
             this.layers.floor[y] = [];
             this.layers.wall[y] = [];
             this.layers.unit[y] = [];
+            this.layers.ceiling[y] = [];
             for (let x = 0; x < this.cols; x++) {
                 this.grid[y][x] = {
                     terrain: 'dirt',
                     floorRotation: 0,
                     wallRotation: 0,
+                    ceilingRotation: 0,
                     occupied: false,
                     buildable: true,
                     passable: true,
                     visible: false,
                     inSight: false,
                     hp: 0,
-                    maxHp: 0
+                    maxHp: 0,
+                    ceilingHp: 0,
+                    ceilingMaxHp: 0,
+                    roomId: null // 구역 ID 추가
                 };
                 this.layers.floor[y][x] = { id: 'dirt', r: 0 };
                 this.layers.wall[y][x] = null;
                 this.layers.unit[y][x] = null;
+                this.layers.ceiling[y][x] = null;
             }
         }
     }
@@ -320,7 +370,7 @@ export class TileMap {
         this.cols = data.width || 64;
         this.rows = data.height || 64;
         this.tileSize = data.tileSize || 48;
-        this.layers = { floor: [], wall: [], unit: [] };
+        this.layers = { floor: [], wall: [], unit: [], ceiling: [] };
         this.grid = [];
 
         for (let y = 0; y < this.rows; y++) {
@@ -328,6 +378,7 @@ export class TileMap {
             this.layers.floor[y] = [];
             this.layers.wall[y] = [];
             this.layers.unit[y] = [];
+            this.layers.ceiling[y] = [];
 
             for (let x = 0; x < this.cols; x++) {
                 const cell = (data.grid[y] && data.grid[y][x]) ? data.grid[y][x] : null;
@@ -341,33 +392,89 @@ export class TileMap {
 
                 const f = cell ? parse(cell[0] || 'dirt') : { id: 'dirt', r: 0 };
                 const w = cell ? parse(cell[1]) : { id: null, r: 0 };
+                const c = cell ? parse(cell[3]) : { id: null, r: 0 }; // cell[3]은 천장
+
                 this.layers.floor[y][x] = f;
                 this.layers.wall[y][x] = w;
                 this.layers.unit[y][x] = cell ? cell[2] : null;
+                this.layers.ceiling[y][x] = c;
                 
                 // 스폰 지점 블록 및 철도 블록은 통과 가능하도록 예외 처리
                 const wallConfig = this.wallRegistry[w.id];
                 const isWallPassable = !w.id || w.id === 'spawn-point' || wallConfig?.isPassable;
                 const maxHp = w.id ? this.getWallMaxHp(w.id) : 0;
+                
+                const ceilingMaxHp = c.id ? (this.ceilingRegistry[c.id]?.maxHp || 100) : 0;
 
                 this.grid[y][x] = {
                     terrain: f.id,
                     floorRotation: f.r,
                     wallRotation: w.r,
+                    ceilingRotation: c.r,
                     occupied: !!w.id && w.id !== 'spawn-point' && !wallConfig?.isPassable,
                     buildable: !w.id && f.id !== 'spawn-point',
                     passable: isWallPassable && f.id !== 'water',
                     visible: false,
                     inSight: false,
                     hp: maxHp,
-                    maxHp: maxHp
+                    maxHp: maxHp,
+                    ceilingHp: ceilingMaxHp,
+                    ceilingMaxHp: ceilingMaxHp,
+                    roomId: null
                 };
             }
         }
         this.chunksX = Math.ceil(this.cols / this.chunkSize);
         this.chunksY = Math.ceil(this.rows / this.chunkSize);
+        this.updateRoomIds(); // 룸 ID 계산 추가
         this.initChunks();
         this.initFogCanvas();
+    }
+
+    /**
+     * 연결된 천장 타일들을 그룹화하여 고유한 Room ID를 부여합니다. (Flood Fill)
+     */
+    updateRoomIds() {
+        const visited = new Array(this.rows).fill(0).map(() => new Array(this.cols).fill(false));
+        let nextRoomId = 1;
+
+        // 기존 룸 ID 초기화
+        for (let y = 0; y < this.rows; y++) {
+            for (let x = 0; x < this.cols; x++) {
+                this.grid[y][x].roomId = null;
+            }
+        }
+
+        for (let y = 0; y < this.rows; y++) {
+            for (let x = 0; x < this.cols; x++) {
+                const ceiling = this.layers.ceiling[y][x];
+                if (ceiling && ceiling.id && !visited[y][x]) {
+                    // 새로운 구역 발견, Flood Fill 시작
+                    const roomId = nextRoomId++;
+                    const queue = [[x, y]];
+                    visited[y][x] = true;
+
+                    while (queue.length > 0) {
+                        const [cx, cy] = queue.shift();
+                        this.grid[cy][cx].roomId = roomId;
+
+                        // 인접 4방향 검사
+                        const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+                        for (const [dx, dy] of dirs) {
+                            const nx = cx + dx, ny = cy + dy;
+                            if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                                const nCeiling = this.layers.ceiling[ny][nx];
+                                if (nCeiling && nCeiling.id && !visited[ny][nx]) {
+                                    visited[ny][nx] = true;
+                                    queue.push([nx, ny]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        console.log(`[TileMap] Generated ${nextRoomId - 1} rooms.`);
     }
 
     damageTile(x, y, damage) {
@@ -387,6 +494,39 @@ export class TileMap {
 
         if (tile.hp <= 0) {
             this.destroyWall(x, y);
+        }
+    }
+
+    damageCeiling(x, y, damage) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+        
+        const tile = this.grid[y][x];
+        const ceiling = this.layers.ceiling[y][x];
+        
+        if (!ceiling || !ceiling.id) return;
+        
+        tile.ceilingHp -= damage;
+        
+        if (this.engine.addEffect) {
+            this.engine.addEffect('hit', x * this.tileSize + this.tileSize / 2, y * this.tileSize + this.tileSize / 2, '#00bcd4');
+        }
+
+        if (tile.ceilingHp <= 0) {
+            this.destroyCeiling(x, y);
+        }
+    }
+
+    destroyCeiling(x, y) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+        
+        const tile = this.grid[y][x];
+        this.layers.ceiling[y][x] = null;
+        tile.ceilingHp = 0;
+        tile.ceilingMaxHp = 0;
+
+        // 천장 파괴 시 시야 업데이트 (뚫린 곳으로 빛이 들어옴)
+        if (this.engine.updateVisibility) {
+            this.engine.updateVisibility();
         }
     }
 
@@ -571,6 +711,81 @@ export class TileMap {
         }
     }
 
+    drawCeiling(ctx) {
+        if (!this.layers || !this.layers.ceiling) return;
+
+        // 플레이어 유닛들이 현재 어떤 구역(천장 아래)에 있는지 확인
+        const activeRoomIds = new Set();
+        if (this.engine.gameState === 'PLAYING') {
+            this.engine.entities.units.forEach(u => {
+                if (u.ownerId === 1 && u.active && u.hp > 0) {
+                    const g = this.worldToGrid(u.x, u.y);
+                    const roomId = this.grid[g.y]?.[g.x]?.roomId;
+                    if (roomId) {
+                        activeRoomIds.add(roomId);
+                    }
+                }
+            });
+        }
+
+        for (let y = 0; y < this.rows; y++) {
+            const ceilingRow = this.layers.ceiling[y];
+            if (!ceilingRow) continue;
+
+            for (let x = 0; x < this.cols; x++) {
+                const c = ceilingRow[x];
+                if (c && c.id) {
+                    const isEditor = (this.engine.gameState === 'EDITOR');
+                    const isVisible = this.grid[y][x].visible || (this.engine.debugSystem?.isFullVision);
+                    
+                    if (!isEditor && !isVisible) continue;
+
+                    const px = x * this.tileSize;
+                    const py = y * this.tileSize;
+                    
+                    ctx.save();
+                    // 해당 타일이 속한 구역 전체가 활성화 상태면 투명화
+                    const roomId = this.grid[y][x].roomId;
+                    if (roomId && activeRoomIds.has(roomId)) {
+                        ctx.globalAlpha = 0.3;
+                    }
+                    this.drawSingleCeiling(ctx, c.id, px, py, this.tileSize, c.r || 0);
+                    
+                    // 천장 체력 바 표시 (에디터가 아닐 때만)
+                    if (!isEditor) {
+                        const tile = this.grid[y][x];
+                        if (tile.ceilingHp > 0 && tile.ceilingHp < tile.ceilingMaxHp) {
+                            const barW = this.tileSize * 0.8;
+                            const barH = 4;
+                            const bx = px + (this.tileSize - barW) / 2;
+                            const by = py + 10;
+
+                            ctx.globalAlpha = 1.0;
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                            ctx.fillRect(bx, by, barW, barH);
+                            
+                            const hpRate = tile.ceilingHp / tile.ceilingMaxHp;
+                            ctx.fillStyle = '#00bcd4';
+                            ctx.fillRect(bx, by, barW * hpRate, barH);
+                        }
+                    }
+                    ctx.restore();
+                }
+            }
+        }
+    }
+
+    drawSingleCeiling(ctx, id, px, py, ts, r = 0) {
+        const config = this.ceilingRegistry[id];
+        if (!config) return;
+
+        ctx.save();
+        ctx.translate(px + ts/2, py + ts/2);
+        ctx.rotate((r * 90) * Math.PI / 180);
+        config.render(ctx, ts, -ts/2, -ts/2);
+        ctx.restore();
+    }
+
     drawSingleWall(ctx, id, px, py, ts, r = 0) {
         const config = this.wallRegistry[id];
         if (!config) return;
@@ -665,6 +880,40 @@ export class TileMap {
         return true;
     }
 
-    isVisible(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.visible || false; }
-    isInSight(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.inSight || false; }
-}
+        isVisible(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.visible || false; }
+
+        isInSight(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.inSight || false; }
+
+    
+
+        /**
+
+         * 특정 구역 ID를 가진 모든 타일의 시야를 확보합니다.
+
+         */
+
+        revealRoom(roomId) {
+
+            if (!roomId) return;
+
+            for (let y = 0; y < this.rows; y++) {
+
+                for (let x = 0; x < this.cols; x++) {
+
+                    if (this.grid[y][x].roomId === roomId) {
+
+                        this.grid[y][x].visible = true;
+
+                        this.grid[y][x].inSight = true;
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+
+    

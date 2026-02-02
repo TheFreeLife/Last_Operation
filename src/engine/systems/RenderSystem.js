@@ -120,10 +120,23 @@ export class RenderSystem {
         this.sortEntitiesByLayer(visibleEntities);
 
         this.renderEntities(this.layerBuckets[this.layers.UNITS]);
-        this.renderEntities(this.layerBuckets[this.layers.PROJECTILES]);
+        
+        // 4-A. 직사 투사체 (천장 아래)
+        const directProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => !p.isIndirect && p.type !== 'missile' && p.type !== 'nuclear-missile');
+        this.renderEntities(directProjectiles);
+
         this.renderEntities(this.layerBuckets[this.layers.AIR_UNITS]);
         
-        // 5. 파티클 및 이펙트 (최상단)
+        // 4.5 천장 레이어
+        if (this.engine.tileMap) {
+            this.engine.tileMap.drawCeiling(this.ctx);
+        }
+
+        // 4.6 곡사 투사체 (천장 위)
+        const indirectProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => p.isIndirect || p.type === 'missile' || p.type === 'nuclear-missile');
+        this.renderEntities(indirectProjectiles);
+        
+        // 5. 파티클 및 이펙트
         this.updateParticles(16);
         this.renderParticles();
         this.renderEffects();
@@ -438,8 +451,27 @@ export class RenderSystem {
             // [안개 시스템] 아군 외 유닛은 시야 내에 있을 때만 렌더링
             const isAlly = (ent.ownerId === 1 || ent.ownerId === 3); // 1: Player, 3: Ally
             if (!isAlly && this.engine.tileMap) {
-                if (!this.engine.tileMap.isInSight(ent.x, ent.y) && !(this.engine.debugSystem?.isFullVision)) {
-                    continue;
+                const gx = Math.floor(ent.x / this.engine.tileMap.tileSize);
+                const gy = Math.floor(ent.y / this.engine.tileMap.tileSize);
+                const hasCeiling = this.engine.tileMap.layers.ceiling[gy]?.[gx]?.id;
+
+                // 1. 기본 시야(안개) 체크
+                const inSight = this.engine.tileMap.isInSight(ent.x, ent.y) || (this.engine.debugSystem?.isFullVision);
+                
+                if (!inSight) continue;
+
+                // 2. [천장 은폐 체크] 적 유닛이 천장 아래에 있는 경우
+                if (hasCeiling) {
+                    // 주변에 아군 유닛이 천장 아래로 들어왔는지 확인
+                    const alliedUnitsUnderCeiling = this.engine.entities.units.some(u => {
+                        if (u.ownerId !== 1 || !u.active || u.hp <= 0) return false;
+                        const ugx = Math.floor(u.x / this.engine.tileMap.tileSize);
+                        const ugy = Math.floor(u.y / this.engine.tileMap.tileSize);
+                        // 단순화: 같은 타일 또는 인접한 천장 타일에 아군이 있으면 보임 (나중에 Room ID로 고도화 가능)
+                        return (ugx === gx && ugy === gy);
+                    });
+
+                    if (!alliedUnitsUnderCeiling) continue;
                 }
             }
 
