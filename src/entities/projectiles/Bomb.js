@@ -1,3 +1,5 @@
+import { CombatLogic } from '../../engine/systems/CombatLogic.js';
+
 export class FallingBomb {
     constructor(x, y, engine, damage = 300, source) {
         this.x = x;
@@ -48,45 +50,12 @@ export class FallingBomb {
     }
 
     explode() {
-        const potentialTargets = [
-            ...this.engine.entities.enemies,
-            ...this.engine.entities.neutral,
-            ...this.engine.entities.units
-        ];
-
-        potentialTargets.forEach(target => {
-            if (!target || target.hp === undefined) return;
-            const targetDomain = target.domain || 'ground';
-            if (!this.attackTargets.includes(targetDomain)) return;
-
-            const dist = Math.hypot(this.x - target.x, this.y - target.y);
-            const targetSize = target.size || 40;
-            if (dist <= this.radius + targetSize / 2) {
-                target.takeDamage(this.damage);
-            }
+        CombatLogic.handleImpact(this.engine, this.x, this.y, {
+            radius: this.radius,
+            damage: this.damage,
+            isIndirect: true, // 지붕 판정 활성화
+            effectType: 'explosion'
         });
-
-        const tileMap = this.engine.tileMap;
-        if (tileMap) {
-            const gridRadius = Math.ceil(this.radius / tileMap.tileSize);
-            const center = tileMap.worldToGrid(this.x, this.y);
-            for (let dy = -gridRadius; dy <= gridRadius; dy++) {
-                for (let dx = -gridRadius; dx <= gridRadius; dx++) {
-                    const gx = center.x + dx;
-                    const gy = center.y + dy;
-                    if (gx < 0 || gx >= tileMap.cols || gy < 0 || gy >= tileMap.rows) continue;
-                    const worldPos = tileMap.gridToWorld(gx, gy);
-                    const dist = Math.hypot(worldPos.x - this.x, worldPos.y - this.y);
-                    if (dist <= this.radius + tileMap.tileSize / 2) {
-                        tileMap.damageTile(gx, gy, this.damage);
-                    }
-                }
-            }
-        }
-
-        if (this.engine.addEffect) {
-            this.engine.addEffect('explosion', this.x, this.y);
-        }
     }
 
     draw(ctx) {

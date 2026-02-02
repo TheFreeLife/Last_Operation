@@ -105,6 +105,7 @@ export class Bomber extends PlayerUnit {
         this.size = 130; 
         this.damage = 0;
         this.attackTargets = ['ground', 'sea'];
+        this.isIndirect = true; // [추가] 곡사 판정 (지붕 우선 공격을 위함)
         this.cargoSize = 99; 
 
         this.bombTimer = 0;
