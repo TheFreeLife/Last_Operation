@@ -409,13 +409,33 @@ export class GameEngine {
                 this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 1 + Math.random() * 2, '#ffd700', 500, 'spark');
             }
         } else if (type === 'nuke_explosion') {
-            // 핵폭발 전용 사운드 및 강화된 시각 효과
+            // 핵폭발 전용 사운드 및 강화된 시각 효과 (웅장한 잔상 연기)
             this.audioSystem.play('nuke_explosion', { volume: 0.5, cooldown: 1000 });
-            this.renderSystem.addParticle(x, y, 0, 0, 150, '#fff', 300, 'smoke'); // 거대 연기
-            for (let i = 0; i < 50; i++) {
+            
+            // 1. 거대 중심 연기 (매우 오래 지속, 회색빛)
+            for (let i = 0; i < 5; i++) {
+                this.renderSystem.addParticle(x, y, 0, 0, 150 + i * 20, '#555', 8000 + Math.random() * 4000, 'smoke');
+            }
+
+            // 2. 주변으로 퍼지는 잔상 연기들 (짙은 회색)
+            for (let i = 0; i < 15; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 2.0 + Math.random() * 12.0;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 20 + Math.random() * 30, '#ff4500', 1500, 'fire');
+                const dist = Math.random() * 100;
+                const px = x + Math.cos(angle) * dist;
+                const py = y + Math.sin(angle) * dist;
+                this.renderSystem.addParticle(px, py, 0, 0, 80 + Math.random() * 60, '#444', 6000 + Math.random() * 3000, 'smoke');
+            }
+
+            // 3. 폭발 화염 파티클 (빠르게 타오름)
+            for (let i = 0; i < 60; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2.0 + Math.random() * 15.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 30 + Math.random() * 40, '#ff4500', 1500 + Math.random() * 1000, 'fire');
+            }
+
+            // 4. 고온 광휘 효과 (중앙 화염)
+            for (let i = 0; i < 20; i++) {
+                this.renderSystem.addParticle(x, y, (Math.random()-0.5)*2, (Math.random()-0.5)*2, 50 + Math.random() * 50, '#ffcc00', 800, 'fire');
             }
         } else if (type === 'muzzle_large') {
             // 전차/자주포용 포구 화염 (강하지만 짧게)
