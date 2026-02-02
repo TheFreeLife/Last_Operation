@@ -1371,6 +1371,13 @@ export class GameEngine {
 
         this.frameCount = (this.frameCount || 0) + 1;
 
+        // --- 천장 구역 예약 갱신 처리 ---
+        if (this.tileMap && this.tileMap.shouldUpdateRooms) {
+            this.tileMap.updateRoomIds();
+            this.tileMap.shouldUpdateRooms = false;
+            this.updateVisibility(); // 구역이 변했으므로 시야도 즉시 갱신
+        }
+
         for (let i = this.effects.length - 1; i >= 0; i--) {
             const fx = this.effects[i];
             fx.timer += deltaTime;

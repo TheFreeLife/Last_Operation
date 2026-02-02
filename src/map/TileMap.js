@@ -14,6 +14,7 @@ export class TileMap {
 
         this.grid = [];
         this.layers = { floor: [], wall: [], unit: [], ceiling: [] };
+        this.shouldUpdateRooms = false; // 구역 갱신 예약 플래그
         
         this.initGrid();
         this.initChunks();
@@ -523,8 +524,11 @@ export class TileMap {
         this.layers.ceiling[y][x] = null;
         tile.ceilingHp = 0;
         tile.ceilingMaxHp = 0;
+        tile.roomId = null;
 
-        // 천장 파괴 시 시야 업데이트 (뚫린 곳으로 빛이 들어옴)
+        // 즉시 계산 대신 플래그 설정 (다음 프레임에 한 번만 실행)
+        this.shouldUpdateRooms = true;
+
         if (this.engine.updateVisibility) {
             this.engine.updateVisibility();
         }
