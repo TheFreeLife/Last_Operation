@@ -1558,6 +1558,8 @@ export class GameEngine {
 
     _revealArea(worldX, worldY, radius, isAirUnit = false) {
         const grid = this.tileMap.worldToGrid(worldX, worldY);
+        const sourceTile = this.tileMap.grid[grid.y]?.[grid.x];
+        const sourceHasCeiling = sourceTile && this.tileMap.layers.ceiling[grid.y]?.[grid.x]?.id && sourceTile.ceilingHp > 0;
         const radiusSq = radius * radius;
         
         for (let dy = -radius; dy <= radius; dy++) {
@@ -1570,16 +1572,23 @@ export class GameEngine {
                 
                 if (dx * dx + dy * dy <= radiusSq) {
                     const tile = this.tileMap.grid[ny][nx];
-                    const hasCeiling = this.tileMap.layers.ceiling[ny][nx]?.id && tile.ceilingHp > 0;
+                    const targetHasCeiling = this.tileMap.layers.ceiling[ny][nx]?.id && tile.ceilingHp > 0;
 
                     // 1. 탐사 여부(visible)는 항상 true (지붕이라도 발견해야 하므로)
                     tile.visible = true;
 
                     // 2. 실시간 시야(inSight) 판정
-                    if (isAirUnit && hasCeiling) {
-                        // [핵심] 공중 유닛이 천장 위를 지날 때는 내부(지면)를 밝게 만들지 않음
-                        // 이미 다른 지상 유닛에 의해 inSight가 true가 된 경우를 위해 덮어쓰지는 않음
-                        continue; 
+                    
+                    // [수정] 천장 내부 판정 로직 강화
+                    if (targetHasCeiling) {
+                        // 공중 유닛은 천장 내부를 절대 볼 수 없음 (지붕 위를 비행)
+                        if (isAirUnit) continue;
+
+                        // 지상 유닛이 외부에 있다면 천장 내부를 볼 수 없음
+                        if (!sourceHasCeiling) continue;
+
+                        // 지상 유닛이 내부에 있더라도, 다른 방(roomId)인 경우 차단 (벽 투시 방지)
+                        if (sourceTile.roomId !== tile.roomId) continue;
                     }
                     
                     tile.inSight = true;

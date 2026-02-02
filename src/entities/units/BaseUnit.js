@@ -314,11 +314,31 @@ export class BaseUnit extends Entity {
                     const relation = this.engine.getRelation(this.ownerId, e.ownerId);
                     if (relation !== 'enemy') continue;
 
-                    // [추가] 시야(Fog of War) 체크
-                    if (this.ownerId === 1) {
-                        // 플레이어 유닛: 아군 공유 시야 내에 있는 적만 타겟팅 가능
-                        if (!this.engine.tileMap.isInSight(e.x, e.y) && !(this.engine.debugSystem?.isFullVision)) {
-                            continue;
+                    // [수정] 시야 및 천장 판정 체크 (플레이어/적 공통)
+                    if (!(this.engine.debugSystem?.isFullVision)) {
+                        // 1. 플레이어 유닛은 아군 공유 시야(Fog of War) 내에 있는 적만 타겟팅 가능
+                        if (this.ownerId === 1) {
+                            if (!this.engine.tileMap.isInSight(e.x, e.y)) continue;
+                        }
+
+                        // 2. 천장(실내) 판정: 외부에 있는 유닛은 내부를 볼 수 없음
+                        const targetGrid = this.engine.tileMap.worldToGrid(e.x, e.y);
+                        const targetTile = this.engine.tileMap.grid[targetGrid.y]?.[targetGrid.x];
+                        const targetHasCeiling = targetTile && this.engine.tileMap.layers.ceiling[targetGrid.y]?.[targetGrid.x]?.id && targetTile.ceilingHp > 0;
+
+                        if (targetHasCeiling) {
+                            // 공중 유닛은 내부를 볼 수 없음
+                            const isAir = (this.domain === 'air' || (this.altitude !== undefined && this.altitude > 0.1));
+                            if (isAir) continue;
+
+                            // 지상 유닛은 동일한 방(roomId)에 있을 때만 내부 유닛을 볼 수 있음
+                            const myGrid = this.engine.tileMap.worldToGrid(this.x, this.y);
+                            const myTile = this.engine.tileMap.grid[myGrid.y]?.[myGrid.x];
+                            const myHasCeiling = myTile && this.engine.tileMap.layers.ceiling[myGrid.y]?.[myGrid.x]?.id && myTile.ceilingHp > 0;
+
+                            if (!myHasCeiling || myTile.roomId !== targetTile.roomId) {
+                                continue;
+                            }
                         }
                     }
 
