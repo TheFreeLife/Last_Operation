@@ -7,6 +7,7 @@ export class FallingBomb {
         this.engine = engine;
         this.damage = damage;
         this.source = source;
+        this.ownerId = source ? source.ownerId : 0;
         this.timer = 0;
         this.duration = 800; // 낙하 시간을 0.8초로 단축
         this.active = true;
@@ -15,6 +16,9 @@ export class FallingBomb {
         this.scale = 0.6;
         this.type = 'bomb';
         this.domain = 'projectile';
+        this.isIndirect = true;
+        this.visible = true; // 렌더링 필터 통과를 위해 명시적 설정
+        this.alive = true;   // 생존 상태 설정
         
         // 투하 고도 (폭격기 높이에 맞춰 60px로 조정)
         this.startAltitude = 60; 

@@ -115,6 +115,9 @@ export class RenderSystem {
             this.engine.tileMap.drawWalls(this.ctx);
         }
 
+        // [수정] 안개(Fog)를 지형 직후에 그려서 유닛과 투사체가 안개 위로 보이게 함
+        if (this.engine.tileMap) this.engine.tileMap.drawFog(camera);
+
         // 4. 엔티티 분류 및 렌더링
         const visibleEntities = this.getVisibleEntities(viewport);
         this.sortEntitiesByLayer(visibleEntities);
@@ -220,7 +223,7 @@ export class RenderSystem {
         });
         
         // 4-A. 직사 투사체 (천장 아래)
-        const directProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => !p.isIndirect && p.type !== 'missile' && p.type !== 'nuclear-missile');
+        const directProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => !p.isIndirect && p.type !== 'missile' && p.type !== 'nuclear-missile' && p.type !== 'bomb');
         this.renderEntities(directProjectiles);
 
         // 4.5 천장 레이어
@@ -231,15 +234,13 @@ export class RenderSystem {
         this.renderEntities(this.layerBuckets[this.layers.AIR_UNITS]);
         
         // 4.6 곡사 투사체 (천장 위)
-        const indirectProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => p.isIndirect || p.type === 'missile' || p.type === 'nuclear-missile');
+        const indirectProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => p.isIndirect || p.type === 'missile' || p.type === 'nuclear-missile' || p.type === 'bomb');
         this.renderEntities(indirectProjectiles);
         
         // 5. 파티클 및 이펙트
         this.updateParticles(16);
         this.renderParticles();
         this.renderEffects();
-
-        if (this.engine.tileMap) this.engine.tileMap.drawFog(camera);
 
         // 6. 선택 도구 및 오버레이 (GameEngine에서 중복 처리되는 부분 제외하고 필요한 것만 유지)
         this.renderOverlays(visibleEntities);
@@ -442,7 +443,7 @@ export class RenderSystem {
                 cacheKey = entity.getCacheKey();
             } else {
                 // 발사체 등 인터페이스가 없는 경우 기본 타입 캐싱 (null이면 실시간)
-                cacheKey = (['missile', 'nuclear-missile', 'projectile'].includes(entity.type)) ? null : entity.type;
+                cacheKey = (['missile', 'nuclear-missile', 'projectile', 'bomb'].includes(entity.type)) ? null : entity.type;
             }
 
             let img = cacheKey ? this.entityCache[cacheKey] : null;
@@ -559,7 +560,8 @@ export class RenderSystem {
                 if (!inSight) continue;
 
                 // 2. [천장 은폐 체크] 적 유닛이 천장 아래에 있는 경우
-                if (hasCeiling) {
+                // 곡사 투사체(isIndirect)는 지붕 위를 날아가거나 떨어지는 중이므로 은폐 체크 제외
+                if (hasCeiling && !ent.isIndirect) {
                     const roomId = this.engine.tileMap.grid[gy][gx].roomId;
                     
                     // 주변에 아군 유닛이 이 천장 구역(Room) 안에 있는지 확인 (공중 유닛은 제외)
