@@ -62,6 +62,23 @@ export class TileMap {
                         ctx.beginPath(); ctx.moveTo(lpx, lpy+ts*i/4); ctx.lineTo(lpx+ts, lpy+ts*i/4); ctx.stroke();
                     }
                 }
+            },
+            'container-roof': {
+                maxHp: 600,
+                color: '#2b5a82',
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#2b5a82'; ctx.fillRect(lpx, lpy, ts, ts);
+                    // 컨테이너 특유의 골판(Corrugated) 패턴
+                    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+                    for(let i=4; i<ts; i+=6) {
+                        ctx.beginPath(); ctx.moveTo(lpx+i, lpy+2); ctx.lineTo(lpx+i, lpy+ts-2); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                        ctx.beginPath(); ctx.moveTo(lpx+i+2, lpy+2); ctx.lineTo(lpx+i+2, lpy+ts-2); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                    }
+                    // 테두리 프레임
+                    ctx.strokeStyle = '#1a3a5a'; ctx.lineWidth = 2; ctx.strokeRect(lpx+1, lpy+1, ts-2, ts-2);
+                }
             }
         };
     }
@@ -241,6 +258,49 @@ export class TileMap {
                 render: (ctx, ts, lpx, lpy) => {
                     ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5);
                     ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15);
+                }
+            },
+            'container-wall': {
+                maxHp: 1000,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#2b5a82'; ctx.fillRect(lpx, lpy, ts, ts);
+                    // 수직 골판 패턴
+                    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1;
+                    for(let i=0; i<ts; i+=8) {
+                        ctx.beginPath(); ctx.moveTo(lpx+i, lpy); ctx.lineTo(lpx+i, lpy+ts); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                        ctx.beginPath(); ctx.moveTo(lpx+i+2, lpy); ctx.lineTo(lpx+i+2, lpy+ts); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                    }
+                    // 상하단 고정 프레임
+                    ctx.fillStyle = '#1a3a5a'; ctx.fillRect(lpx, lpy, ts, 4); ctx.fillRect(lpx, lpy+ts-4, ts, 4);
+                }
+            },
+            'container-wall-corner': {
+                maxHp: 1200,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 컨테이너 코너 캐스팅 (Corner Casting)
+                    ctx.fillStyle = '#1a3a5a'; ctx.fillRect(lpx, lpy, ts, ts);
+                    ctx.fillStyle = '#2b5a82'; ctx.fillRect(lpx+4, lpy+4, ts-8, ts-8);
+                    // 들어올리는 구멍 (Twist-lock hole)
+                    ctx.fillStyle = '#10253a';
+                    ctx.beginPath(); ctx.arc(lpx+ts/2, lpy+ts/2, ts*0.2, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = '#2b5a82'; ctx.lineWidth = 2; ctx.strokeRect(lpx+2, lpy+2, ts-4, ts-4);
+                }
+            },
+            'container-door': {
+                maxHp: 900,
+                render: (ctx, ts, lpx, lpy) => {
+                    ctx.fillStyle = '#2b5a82'; ctx.fillRect(lpx, lpy, ts, ts);
+                    // 수직 분할선 (두 개의 문)
+                    ctx.strokeStyle = '#1a3a5a'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(lpx+ts/2, lpy); ctx.lineTo(lpx+ts/2, lpy+ts); ctx.stroke();
+                    // 잠금 장치 (Locking Rods)
+                    ctx.fillStyle = '#bdc3c7';
+                    ctx.fillRect(lpx+ts*0.2, lpy, 4, ts); ctx.fillRect(lpx+ts*0.75, lpy, 4, ts);
+                    // 손잡이
+                    ctx.fillStyle = '#7f8c8d';
+                    ctx.fillRect(lpx+ts*0.15, lpy+ts*0.5, 10, 3); ctx.fillRect(lpx+ts*0.7, lpy+ts*0.5, 10, 3);
                 }
             },
             'hangar': {
@@ -702,6 +762,7 @@ export class TileMap {
             case 'runway': return '#222222';
             case 'runway-edge': return '#333333';
             case 'taxiway': return '#2c2c2c';
+            case 'container-floor': return '#1a3a5a';
             case 'rail-straight':
             case 'rail-corner': return '#3d352e'; // 기본 흙 색상 베이스
             case 'road-line-white':
@@ -776,6 +837,18 @@ export class TileMap {
             else if (terrain === 'brick-floor') { ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.moveTo(lpx, lpy+ts/2); ctx.lineTo(lpx+ts, lpy+ts/2); ctx.stroke(); }
             else if (terrain === 'metal-plate') { ctx.strokeStyle = '#222'; ctx.strokeRect(lpx+4, lpy+4, ts-8, ts-8); ctx.fillStyle = '#111'; ctx.fillRect(lpx+6, lpy+6, 2, 2); ctx.fillRect(lpx+ts-8, lpy+6, 2, 2); ctx.fillRect(lpx+6, lpy+ts-8, 2, 2); ctx.fillRect(lpx+ts-8, lpy+ts-8, 2, 2); }
             else if (terrain === 'concrete') { ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.strokeRect(lpx, lpy, ts, ts); }
+            else if (terrain === 'container-floor') {
+                // 컨테이너 내부 바닥
+                ctx.fillStyle = '#1a3a5a'; ctx.fillRect(lpx, lpy, ts, ts);
+                ctx.strokeStyle = '#10253a'; ctx.lineWidth = 1;
+                // 세로 판자 또는 금속판 무늬
+                for(let i=0; i<ts; i+=12) {
+                    ctx.beginPath(); ctx.moveTo(lpx+i, lpy); ctx.lineTo(lpx+i, lpy+ts); ctx.stroke();
+                }
+                // 약간의 질감 표현
+                ctx.fillStyle = 'rgba(255,255,255,0.03)';
+                for(let i=0; i<3; i++) ctx.fillRect(lpx + (i*17)%ts, lpy + (i*23)%ts, 8, 4);
+            }
         } else {
             this.drawNaturalTexture(ctx, lpx, lpy, terrain, ts, px, py);
         }

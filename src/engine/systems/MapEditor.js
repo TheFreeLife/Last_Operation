@@ -50,7 +50,8 @@ export class MapEditor {
                 '공항': [
                     { id: 'runway', name: '활주로', rotatable: true },
                     { id: 'runway-edge', name: '활주로 경계', rotatable: true },
-                    { id: 'taxiway', name: '유도로', rotatable: true }
+                    { id: 'taxiway', name: '유도로', rotatable: true },
+                    { id: 'container-floor', name: '컨테이너 바닥', rotatable: false }
                 ]
             },
             wall: {
@@ -58,7 +59,9 @@ export class MapEditor {
                     { id: 'stone-wall', name: '석재 벽', rotatable: true },
                     { id: 'brick-wall', name: '벽돌 벽', rotatable: true },
                     { id: 'concrete-wall', name: '콘크리트 벽', rotatable: true },
-                    { id: 'hangar', name: '격납고', rotatable: true },
+                    { id: 'container-wall', name: '컨테이너 벽', rotatable: true },
+                    { id: 'container-wall-corner', name: '컨테이너 모서리', rotatable: true },
+                    { id: 'container-door', name: '컨테이너 문', rotatable: true },
                     { id: 'control-tower', name: '관제탑', rotatable: false }
                 ],
                 '자연물': [
@@ -88,7 +91,8 @@ export class MapEditor {
                 '천장/지붕': [
                     { id: 'concrete-roof', name: '콘크리트 지붕', rotatable: true },
                     { id: 'metal-roof', name: '금속 지붕', rotatable: true },
-                    { id: 'wooden-roof', name: '목재 지붕', rotatable: true }
+                    { id: 'wooden-roof', name: '목재 지붕', rotatable: true },
+                    { id: 'container-roof', name: '컨테이너 지붕', rotatable: true }
                 ]
             }
         };
