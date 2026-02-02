@@ -770,7 +770,9 @@ export class TileMap {
         const activeRoomIds = new Set();
         if (this.engine.gameState === 'PLAYING') {
             this.engine.entities.units.forEach(u => {
-                if (u.ownerId === 1 && u.active && u.hp > 0) {
+                // [수정] 지상 유닛(공중 유닛 제외)이 천장 아래에 있을 때만 투명화 활성화
+                const isFlying = (u.domain === 'air' || (u.altitude !== undefined && u.altitude > 0.01));
+                if (u.ownerId === 1 && u.active && u.hp > 0 && !isFlying && !u.isBoarded) {
                     const g = this.worldToGrid(u.x, u.y);
                     const roomId = this.grid[g.y]?.[g.x]?.roomId;
                     if (roomId) {
@@ -796,11 +798,15 @@ export class TileMap {
                     const py = y * this.tileSize;
                     
                     ctx.save();
-                    // 해당 타일이 속한 구역 전체가 활성화 상태면 투명화
+                    
+                    // [최종 수정] 해당 타일이 속한 구역에 지상 아군이 있고, 
+                    // 현재 해당 타일이 실시간 시야(inSight)에 들어와 있을 때만 투명화
                     const roomId = this.grid[y][x].roomId;
-                    if (roomId && activeRoomIds.has(roomId)) {
+                    const tileInSight = this.grid[y][x].inSight;
+                    if (roomId && activeRoomIds.has(roomId) && tileInSight) {
                         ctx.globalAlpha = 0.3;
                     }
+                    
                     this.drawSingleCeiling(ctx, c.id, px, py, this.tileSize, c.r || 0);
                     
                     // 천장 체력 바 표시 (에디터가 아닐 때만)
@@ -856,7 +862,13 @@ export class TileMap {
             const off = y * this.cols;
             for (let x = 0; x < this.cols; x++) {
                 const t = this.grid[y][x];
-                this.fogBuffer[off + x] = !t.visible ? B : (!t.inSight ? G : C);
+                const hasCeiling = this.layers.ceiling[y][x]?.id && t.ceilingHp > 0;
+                
+                // [수정] 천장이 있는 타일은 탐사(visible)만 되어도 안개를 걷힘(Clear) 처리함. 
+                // 이렇게 하면 공중 유닛이 지나갈 때 지붕은 밝게 보이지만, 
+                // 내부 유닛 렌더링은 여전히 t.inSight 값에 따라 차단됨.
+                const showAsBright = t.inSight || (hasCeiling && t.visible);
+                this.fogBuffer[off + x] = !t.visible ? B : (!showAsBright ? G : C);
             }
         }
         this.fogCtx.putImageData(this.fogImageData, 0, 0);

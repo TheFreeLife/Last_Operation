@@ -125,13 +125,13 @@ export class RenderSystem {
         const directProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => !p.isIndirect && p.type !== 'missile' && p.type !== 'nuclear-missile');
         this.renderEntities(directProjectiles);
 
-        this.renderEntities(this.layerBuckets[this.layers.AIR_UNITS]);
-        
         // 4.5 천장 레이어
         if (this.engine.tileMap) {
             this.engine.tileMap.drawCeiling(this.ctx);
         }
 
+        this.renderEntities(this.layerBuckets[this.layers.AIR_UNITS]);
+        
         // 4.6 곡사 투사체 (천장 위)
         const indirectProjectiles = this.layerBuckets[this.layers.PROJECTILES].filter(p => p.isIndirect || p.type === 'missile' || p.type === 'nuclear-missile');
         this.renderEntities(indirectProjectiles);
@@ -462,16 +462,22 @@ export class RenderSystem {
 
                 // 2. [천장 은폐 체크] 적 유닛이 천장 아래에 있는 경우
                 if (hasCeiling) {
-                    // 주변에 아군 유닛이 천장 아래로 들어왔는지 확인
-                    const alliedUnitsUnderCeiling = this.engine.entities.units.some(u => {
-                        if (u.ownerId !== 1 || !u.active || u.hp <= 0) return false;
+                    const roomId = this.engine.tileMap.grid[gy][gx].roomId;
+                    
+                    // 주변에 아군 유닛이 이 천장 구역(Room) 안에 있는지 확인 (공중 유닛은 제외)
+                    const alliedUnitsInRoom = this.engine.entities.units.some(u => {
+                        const isFlying = (u.domain === 'air' || (u.altitude !== undefined && u.altitude > 0.01));
+                        if (u.ownerId !== 1 || !u.active || u.hp <= 0 || isFlying) return false;
+                        
                         const ugx = Math.floor(u.x / this.engine.tileMap.tileSize);
                         const ugy = Math.floor(u.y / this.engine.tileMap.tileSize);
-                        // 단순화: 같은 타일 또는 인접한 천장 타일에 아군이 있으면 보임 (나중에 Room ID로 고도화 가능)
-                        return (ugx === gx && ugy === gy);
+                        const uRoomId = this.engine.tileMap.grid[ugy]?.[ugx]?.roomId;
+                        
+                        // 아군 지상 유닛이 적과 같은 구역(Room)에 있거나, 바로 그 타일에 있으면 보임
+                        return (uRoomId === roomId && roomId !== null) || (ugx === gx && ugy === gy);
                     });
 
-                    if (!alliedUnitsUnderCeiling) continue;
+                    if (!alliedUnitsInRoom) continue;
                 }
             }
 

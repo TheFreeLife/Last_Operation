@@ -1556,7 +1556,7 @@ export class GameEngine {
         mCtx.restore();
     }
 
-    _revealArea(worldX, worldY, radius) {
+    _revealArea(worldX, worldY, radius, isAirUnit = false) {
         const grid = this.tileMap.worldToGrid(worldX, worldY);
         const radiusSq = radius * radius;
         
@@ -1569,8 +1569,20 @@ export class GameEngine {
                 if (nx < 0 || nx >= this.tileMap.cols) continue;
                 
                 if (dx * dx + dy * dy <= radiusSq) {
-                    this.tileMap.grid[ny][nx].visible = true;
-                    this.tileMap.grid[ny][nx].inSight = true;
+                    const tile = this.tileMap.grid[ny][nx];
+                    const hasCeiling = this.tileMap.layers.ceiling[ny][nx]?.id && tile.ceilingHp > 0;
+
+                    // 1. 탐사 여부(visible)는 항상 true (지붕이라도 발견해야 하므로)
+                    tile.visible = true;
+
+                    // 2. 실시간 시야(inSight) 판정
+                    if (isAirUnit && hasCeiling) {
+                        // [핵심] 공중 유닛이 천장 위를 지날 때는 내부(지면)를 밝게 만들지 않음
+                        // 이미 다른 지상 유닛에 의해 inSight가 true가 된 경우를 위해 덮어쓰지는 않음
+                        continue; 
+                    }
+                    
+                    tile.inSight = true;
                 }
             }
         }
@@ -1604,17 +1616,23 @@ export class GameEngine {
         }
 
         this.entities.units.forEach(unit => {
-            if (unit.alive) {
+            // [수정] 살아있고, 활성 상태이며, 탑승 중이 아닌 유닛만 시야를 밝힘
+            if (unit.alive && unit.active && !unit.isBoarded) {
                 const relation = this.getRelation(1, unit.ownerId);
                 if (relation === 'self' || relation === 'ally') {
-                    // 1. 일반 시야 반경 확보
-                    this._revealArea(unit.x, unit.y, unit.visionRange || 5);
+                    // [수정] 도메인이 air이거나 고도가 조금이라도 있으면 공중 유닛으로 판정
+                    const isAir = (unit.domain === 'air' || (unit.altitude !== undefined && unit.altitude > 0.01));
 
-                    // 2. 구역(Room) 시야 확보: 천장 아래에 있으면 구역 전체 공개
-                    const g = this.tileMap.worldToGrid(unit.x, unit.y);
-                    const roomId = this.tileMap.grid[g.y]?.[g.x]?.roomId;
-                    if (roomId) {
-                        this.tileMap.revealRoom(roomId);
+                    // 1. 일반 시야 반경 확보
+                    this._revealArea(unit.x, unit.y, unit.visionRange || 5, isAir);
+
+                    // 2. 구역(Room) 시야 확보: 천장 아래에 있으면 구역 전체 공개 (공중 유닛 제외)
+                    if (!isAir) {
+                        const g = this.tileMap.worldToGrid(unit.x, unit.y);
+                        const roomId = this.tileMap.grid[g.y]?.[g.x]?.roomId;
+                        if (roomId) {
+                            this.tileMap.revealRoom(roomId);
+                        }
                     }
                 }
             }

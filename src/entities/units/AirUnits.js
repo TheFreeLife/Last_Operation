@@ -13,6 +13,7 @@ export class ScoutPlane extends PlayerUnit {
         this.type = 'scout-plane';
         this.name = '고등 정찰 무인기';
         this.domain = 'air';
+        this.altitude = 1.0; // [추가] 항상 비행 상태
         this.speed = 4.5;    
         this.visionRange = 18; 
         this.hp = 250;       
