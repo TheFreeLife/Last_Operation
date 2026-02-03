@@ -33,7 +33,20 @@ export class DeploymentSystem {
     }
 
     _internalPresent() {
-        const shuffled = [...this.availableCards].sort(() => 0.5 - Math.random());
+        // [추가] 미션 데이터에 따른 카드 필터링
+        let pool = this.availableCards;
+        const enabledIds = this.engine.currentMission?.data?.enabledCards;
+        
+        if (enabledIds && Array.isArray(enabledIds) && enabledIds.length > 0) {
+            pool = this.availableCards.filter(card => enabledIds.includes(card.id));
+        }
+
+        if (pool.length === 0) {
+            this.engine.addEffect?.('system', this.engine.canvas.width/2, this.engine.canvas.height/2, '#ff3131', '사용 가능한 병력 카드가 없습니다!');
+            return;
+        }
+
+        const shuffled = [...pool].sort(() => 0.5 - Math.random());
         this.activeCards = shuffled.slice(0, 3);
         this.renderSelectionUI();
     }

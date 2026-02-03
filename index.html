@@ -119,6 +119,11 @@
                     </div>
                 </div>
 
+                <div class="sidebar-section">
+                    <div class="section-title">MISSION SETTINGS</div>
+                    <button id="editor-mission-cards-btn" class="sidebar-btn primary" style="width: 100%;">미션 카드 구성 (CARDS)</button>
+                </div>
+
                 <div class="sidebar-section palette-section">
                     <div class="section-title">PALETTE</div>
                     <div id="palette-items" class="palette-grid"></div>
@@ -224,6 +229,19 @@
                         <button id="config-save-btn" class="sidebar-btn success">저장 (SAVE)</button>
                         <button id="config-delete-btn" class="sidebar-btn danger">삭제 (DELETE)</button>
                         <button id="config-cancel-btn" class="sidebar-btn secondary">취소 (CANCEL)</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Mission Cards Modal -->
+            <div id="mission-cards-modal" class="modal-overlay hidden">
+                <div class="modal-content glass-panel mission-cards-modal-content">
+                    <h2>MISSION CARDS CONFIG</h2>
+                    <p style="color: #888; margin-bottom: 20px;">이 미션에서 등장할 병력 카드를 선택하세요.</p>
+                    <div id="mission-cards-list" class="mission-cards-grid-modal">
+                        <!-- Card checkboxes will be injected here -->
+                    </div>
+                    <div class="modal-btns" style="margin-top: 25px;">
+                        <button id="cards-save-btn" class="sidebar-btn success">확인 (CONFIRM)</button>
                     </div>
                 </div>
             </div>

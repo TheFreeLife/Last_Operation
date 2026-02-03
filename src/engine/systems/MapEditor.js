@@ -9,6 +9,10 @@ export class MapEditor {
         this.currentOwnerId = 2; // 기본 소유자 (Enemy)
         this.showCeiling = true; // 천장 표시 여부 토글
         
+        // 카드 시스템 관련
+        this.availableCards = [];
+        this.enabledCardIds = new Set(); // 선택된 카드 ID 저장
+        
         // 유닛 드로잉을 위한 임시 인스턴스 저장소 (캐시)
         this.dummyUnits = new Map();
 
@@ -240,6 +244,15 @@ export class MapEditor {
         });
         document.getElementById('editor-exit-btn')?.addEventListener('click', () => this.engine.setGameState('MENU'));
 
+        // Mission Cards Modal
+        this.missionCardsModal = document.getElementById('mission-cards-modal');
+        document.getElementById('editor-mission-cards-btn')?.addEventListener('click', () => {
+            this.missionCardsModal.classList.remove('hidden');
+        });
+        document.getElementById('cards-save-btn')?.addEventListener('click', () => {
+            this.missionCardsModal.classList.add('hidden');
+        });
+
         // Unit Config Modal
         this.configModal = document.getElementById('unit-config-modal');
         this.configSaveBtn = document.getElementById('config-save-btn');
@@ -253,6 +266,58 @@ export class MapEditor {
         // 모달창 클릭 시 캔버스 이벤트 전파 방지
         this.configModal?.addEventListener('mousedown', (e) => e.stopPropagation());
         this.configModal?.addEventListener('click', (e) => e.stopPropagation());
+        
+        // 미션 카드 모달 전파 방지
+        this.missionCardsModal?.addEventListener('mousedown', (e) => e.stopPropagation());
+        this.missionCardsModal?.addEventListener('click', (e) => e.stopPropagation());
+
+        // 미션 카드 리스트 초기화
+        this.initMissionCardsUI();
+    }
+
+    async initMissionCardsUI() {
+        const listEl = document.getElementById('mission-cards-list');
+        if (!listEl) return;
+
+        try {
+            const response = await fetch('./data/deployment_cards.json');
+            const data = await response.json();
+            this.availableCards = data.cards || [];
+
+            listEl.innerHTML = '';
+            this.availableCards.forEach(card => {
+                const item = document.createElement('label');
+                item.className = 'mission-card-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = card.id;
+                // 기본적으로 모든 카드를 활성화 상태로 시작 (편의성)
+                checkbox.checked = true;
+                this.enabledCardIds.add(card.id);
+
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        this.enabledCardIds.add(card.id);
+                        item.classList.add('active');
+                    } else {
+                        this.enabledCardIds.delete(card.id);
+                        item.classList.remove('active');
+                    }
+                });
+
+                item.appendChild(checkbox);
+                
+                const name = document.createElement('span');
+                name.textContent = `${card.icon} ${card.name}`;
+                item.appendChild(name);
+
+                if (checkbox.checked) item.classList.add('active');
+                listEl.appendChild(item);
+            });
+        } catch (e) {
+            console.error('Failed to load deployment cards for editor:', e);
+        }
     }
 
     deleteCurrentUnit() {
@@ -853,7 +918,7 @@ export class MapEditor {
                 ];
             }
         }
-        const header = `{\n  "width": ${w},\n  "height": ${h},\n  "tileSize": ${this.engine.tileMap.tileSize},\n  "grid": [\n`;
+        const header = `{\n  "width": ${w},\n  "height": ${h},\n  "tileSize": ${this.engine.tileMap.tileSize},\n  "enabledCards": ${JSON.stringify(Array.from(this.enabledCardIds))},\n  "grid": [\n`;
         const body = grid.map(row => `    ${JSON.stringify(row)}`).join(',\n');
         area.value = header + body + '\n  ]\n}';
     }
@@ -863,6 +928,20 @@ export class MapEditor {
         try {
             const data = JSON.parse(area.value);
             this.layers.floor.clear(); this.layers.wall.clear(); this.layers.unit.clear();
+            
+            // [추가] 활성화된 카드 정보 복구
+            if (data.enabledCards && Array.isArray(data.enabledCards)) {
+                this.enabledCardIds = new Set(data.enabledCards);
+                // UI 체크박스 갱신
+                const listEl = document.getElementById('mission-cards-list');
+                const checkboxes = listEl.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach(cb => {
+                    cb.checked = this.enabledCardIds.has(cb.value);
+                    const item = cb.closest('.mission-card-item');
+                    if (item) item.classList.toggle('active', cb.checked);
+                });
+            }
+
             data.grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
                     const k = `${x},${y}`, [f, wl, u, c] = cell;
@@ -910,7 +989,16 @@ export class MapEditor {
             }
         }
         this.engine.isMouseDown = false; this.engine.isRightMouseDown = false; this.engine.isTestMode = true;
-        const success = await this.engine.loadMission({ name: 'Test', data: { width: w, height: h, tileSize: this.engine.tileMap.tileSize, grid: grid } });
+        const success = await this.engine.loadMission({ 
+            name: 'Test', 
+            data: { 
+                width: w, 
+                height: h, 
+                tileSize: this.engine.tileMap.tileSize, 
+                enabledCards: Array.from(this.enabledCardIds),
+                grid: grid 
+            } 
+        });
         if (success) this.engine.setGameState('PLAYING');
     }
 }

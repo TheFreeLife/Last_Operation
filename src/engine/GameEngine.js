@@ -221,6 +221,8 @@ export class GameEngine {
         const mapData = missionData.data;
         if (!mapData) return;
 
+        this.currentMission = missionData; // 미션 정보 보관
+
         try {
             console.log(`[Game] Loading mission: ${missionData.name}...`);
             
