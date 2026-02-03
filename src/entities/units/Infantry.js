@@ -680,7 +680,7 @@ export class DroneOperator extends PlayerUnit {
         this.speed = 1.1; 
         this.fireRate = 1000; 
         this.damage = 0;
-        this.attackRange = 400; // 제어 가능 사거리 (400px)
+        this.attackRange = 800; // 제어 가능 사거리 확장 (400 -> 800px)
         this.size = 24;
         this.visionRange = 8;
         this.hp = 80;

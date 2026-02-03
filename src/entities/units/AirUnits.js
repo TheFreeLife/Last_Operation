@@ -1053,8 +1053,8 @@ export class SuicideDrone extends PlayerUnit {
         if (this._controlCheckTimer >= 500) {
             this._controlCheckTimer = 0;
             
-            // 주변의 플레이어(1) 소유 드론 운용병 검색
-            const operators = this.engine.entityManager.getNearby(this.x, this.y, 600); // 넉넉한 범위로 검색
+            // 주변의 플레이어(1) 소유 드론 운용병 검색 (조종 사거리 800px 반영)
+            const operators = this.engine.entityManager.getNearby(this.x, this.y, 800); 
             const hasFriendlyOperator = operators.some(op => 
                 op.type === 'drone-operator' && 
                 op.ownerId === 1 && 
@@ -1130,8 +1130,8 @@ export class SuicideDrone extends PlayerUnit {
         const nearby = this.engine.entityManager.getNearby(this.x, this.y, this.explosionRadius);
         nearby.forEach(ent => {
             if (ent && ent.active && ent.hp > 0 && ent !== this) {
-                // [수정] 피아 식별 제거: 적군뿐만 아니라 아군 유닛도 반경 내에 있으면 피해를 입음
-                ent.hp -= this.damage;
+                // [수정] 직접 체력을 깎지 않고 takeDamage를 호출하여 상성(Fire) 적용
+                ent.takeDamage(this.damage, 'fire');
                 if (this.engine.addEffect) {
                     this.engine.addEffect('hit', ent.x, ent.y, '#ff4500');
                 }

@@ -9,7 +9,7 @@ export const CombatLogic = {
         sniper:  { infantry: 2.5, light: 0.3,  heavy: 0.01 },
         shell:   { infantry: 1.2, light: 1.0,  heavy: 0.8  },
         missile: { infantry: 0.5, light: 1.2,  heavy: 1.5  },
-        fire:    { infantry: 1.5, light: 1.0,  heavy: 0.6  }
+        fire:    { infantry: 1.5, light: 1.0,  heavy: 0.8  }
     },
 
     calculateDamage(attackerWeaponType, targetArmorType, baseDamage) {
