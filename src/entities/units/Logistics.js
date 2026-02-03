@@ -349,67 +349,36 @@ export class DroneContainerTruck extends MilitaryTruck {
     }
 
         launchDrone() {
-
             if (this.droneCount <= 0) {
-
                 this.isSortieActive = false; // 사출 완료 시 문 닫기
-
                 return;
-
             }
 
-    
-
-            // 트럭 위치에서 드론 생성
-
-            const drone = this.engine.entityManager.create('suicide-drone', this.x, this.y, {
-
+            // 트럭 위치에서 드론 생성 (군집 드론)
+            const drone = this.engine.entityManager.create('carrier-drone', this.x, this.y, {
                 ownerId: this.ownerId,
-
                 parentTruck: this,
-
                 isAutoSuicide: true // 자동 자폭 AI 활성화
-
             });
 
-    
-
             if (drone) {
-
                 this.droneCount--;
-
                 this.launchedDrones.push(drone);
-
                 
-
                 // 살짝 밖으로 튀어나오는 연출
-
                 const angle = Math.random() * Math.PI * 2;
-
                 const dist = 40;
-
                 drone.destination = {
-
                     x: this.x + Math.cos(angle) * dist,
-
                     y: this.y + Math.sin(angle) * dist
-
                 };
 
-    
-
                 // 마지막 드론을 내보냈으면 즉시 사출 모드 종료
-
                 if (this.droneCount <= 0) {
-
                     this.isSortieActive = false;
-
                     this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '드론 전량 사출 완료');
-
                 }
-
             }
-
         }
 
     

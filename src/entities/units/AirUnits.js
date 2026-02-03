@@ -1032,10 +1032,6 @@ export class SuicideDrone extends PlayerUnit {
 
         this.armorType = 'infantry'; // 드론은 작으므로 보병 판정
         this.weaponType = 'fire';
-
-        // [추가] 트럭 사출 드론 전용 속성
-        this.parentTruck = null;
-        this.isAutoSuicide = false;
     }
 
     init(x, y, engine) {
@@ -1057,10 +1053,10 @@ export class SuicideDrone extends PlayerUnit {
         if (this._controlCheckTimer >= 500) {
             this._controlCheckTimer = 0;
             
-            // 주변의 플레이어(1) 소유 드론 운용병 또는 드론 트럭 검색
+            // 주변의 플레이어(1) 소유 드론 운용병 검색
             const operators = this.engine.entityManager.getNearby(this.x, this.y, 800); 
             const hasFriendlyOperator = operators.some(op => 
-                (op.type === 'drone-operator' || op.type === 'drone-truck') && 
+                op.type === 'drone-operator' && 
                 op.ownerId === 1 && 
                 !op.isBoarded && 
                 Math.hypot(this.x - op.x, this.y - op.y) <= op.attackRange
@@ -1072,45 +1068,11 @@ export class SuicideDrone extends PlayerUnit {
                 this.command = 'stop';
                 this.destination = null;
                 this.target = null;
-                this.parentTruck = null; // 트럭과의 연결도 끊김
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#ff3131', 'Signal Lost');
             } else if (this.ownerId === 0 && hasFriendlyOperator) {
                 // 제어권 획득
                 this.ownerId = 1;
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#39ff14', 'Signal Linked');
-            }
-        }
-
-        // --- [추가] 드론 트럭 전용 자동 타겟팅 AI ---
-        if (this.ownerId === 1 && this.isAutoSuicide && this.parentTruck && !this.target && !this.destination) {
-            const truckRange = this.parentTruck.attackRange;
-            const enemies = this.engine.entities.enemies;
-            let closestEnemy = null;
-            let minDist = truckRange;
-
-            for (const enemy of enemies) {
-                if (!enemy.active || enemy.hp <= 0) continue;
-                
-                // 트럭의 사거리 내에 있는지 확인
-                const distToTruck = Math.hypot(enemy.x - this.parentTruck.x, enemy.y - this.parentTruck.y);
-                if (distToTruck > truckRange) continue;
-
-                // [중복 방지] 이 트럭에서 나간 다른 드론이 이미 이 적을 조준하고 있는지 확인
-                const alreadyTargeted = this.parentTruck.launchedDrones.some(otherDrone => 
-                    otherDrone !== this && otherDrone.active && otherDrone.target === enemy
-                );
-                if (alreadyTargeted) continue;
-
-                const distToMe = Math.hypot(enemy.x - this.x, enemy.y - this.y);
-                if (distToMe < minDist) {
-                    minDist = distToMe;
-                    closestEnemy = enemy;
-                }
-            }
-
-            if (closestEnemy) {
-                this.target = closestEnemy;
-                this.command = 'attack';
             }
         }
 
@@ -1249,6 +1211,246 @@ export class SuicideDrone extends PlayerUnit {
 
         // 4개의 로터
         const rot = (Date.now() / (this.isDashing ? 20 : 50)) % (Math.PI * 2);
+        [[-8,-8], [8,-8], [-8,8], [8,8]].forEach(pos => {
+            ctx.save();
+            ctx.translate(pos[0], pos[1]);
+            if (!isShadow) {
+                ctx.rotate(rot);
+                ctx.fillStyle = '#1e272e';
+                ctx.fillRect(-6, -1, 12, 2);
+            } else {
+                ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+        });
+
+        ctx.restore();
+    }
+}
+
+export class CarrierDrone extends PlayerUnit {
+    static editorConfig = { category: 'air', icon: 'drone', name: '군집 드론' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'carrier-drone';
+        this.name = '군집 드론';
+        this.domain = 'air';
+        this.baseSpeed = 2.4; // 조금 더 빠름
+        this.dashSpeed = 6.0;
+        this.speed = 2.4;
+        this.attackRange = 20; 
+        this.visionRange = 10;
+        this.damage = 450;
+        this.explosionRadius = 120;
+        this.hp = 30; // 체력은 조금 더 낮음
+        this.maxHp = 30;
+        this.population = 0; 
+        this.attackTargets = ['ground', 'air', 'sea'];
+        this.size = 22;
+        this.altitude = 1.0;
+        this.isDashing = false;
+
+        this.armorType = 'infantry';
+        this.weaponType = 'fire';
+
+        // 트럭 사출 드론 전용 속성
+        this.parentTruck = null;
+        this.isAutoSuicide = true;
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.speed = this.baseSpeed || 2.4;
+        this.isDashing = false;
+        this.ammo = 0;
+        this.maxAmmo = 0;
+    }
+
+    update(deltaTime) {
+        if (!this.alive) return;
+
+        // --- 드론 트럭과의 연결 체크 ---
+        // 0.5초마다 체크
+        if (!this._controlCheckTimer) this._controlCheckTimer = 0;
+        this._controlCheckTimer += deltaTime;
+
+        if (this._controlCheckTimer >= 500) {
+            this._controlCheckTimer = 0;
+            
+            // 모함(트럭)이 파괴되었거나 멀어지면 제어권 상실 또는 자폭
+            if (this.parentTruck) {
+                if (!this.parentTruck.active || this.parentTruck.hp <= 0) {
+                    this.parentTruck = null; // 연결 끊김 -> 자유 자폭 모드 또는 정지
+                    // 여기서는 연결 끊기면 그냥 마지막 명령 수행하다가 죽게 둠
+                } else {
+                    const dist = Math.hypot(this.x - this.parentTruck.x, this.y - this.parentTruck.y);
+                    if (dist > this.parentTruck.attackRange * 1.5) {
+                        // 너무 멀어지면 복귀하거나 자폭
+                        // 일단은 연결 유지
+                    }
+                }
+            }
+        }
+
+        // --- 드론 트럭 전용 자동 타겟팅 AI ---
+        // 수동 타겟(manualTarget)을 설정하여 '강제 공격' 상태로 만듦 (BaseUnit이 다른 타겟으로 변경하지 못하게 함)
+        if (this.ownerId === 1 && this.isAutoSuicide && this.parentTruck && !this.manualTarget) {
+            const truckRange = this.parentTruck.attackRange;
+            const enemies = this.engine.entities.enemies;
+            
+            // 1. 트럭 사거리 내의 유효한 적 후보군 추출
+            const candidates = enemies.filter(e => 
+                e.active && e.hp > 0 && 
+                Math.hypot(e.x - this.parentTruck.x, e.y - this.parentTruck.y) <= truckRange
+            );
+
+            if (candidates.length > 0) {
+                // 2. 거리순 정렬 (가까운 순)
+                candidates.sort((a, b) => {
+                    const dA = Math.hypot(a.x - this.x, a.y - this.y);
+                    const dB = Math.hypot(b.x - this.x, b.y - this.y);
+                    return dA - dB;
+                });
+
+                // 3. 분산 타겟팅: 다른 드론이 노리지 않는 적 우선 선택
+                let selected = candidates.find(candidate => {
+                    // 내 형제 드론들 중 이 적을 manualTarget으로 잡은 놈이 있는지 확인
+                    return !this.parentTruck.launchedDrones.some(otherDrone => 
+                        otherDrone !== this && 
+                        otherDrone.active && 
+                        otherDrone.manualTarget === candidate
+                    );
+                });
+
+                // 4. 모든 적이 이미 타겟팅 되었다면, 가장 가까운 적 선택 (다구리)
+                if (!selected) {
+                    selected = candidates[0];
+                }
+
+                if (selected) {
+                    this.manualTarget = selected;
+                    this.command = 'attack';
+                }
+            }
+        }
+
+        // 타겟이 있으면 돌진 상태로 전환 (manualTarget 포함)
+        const activeTarget = this.target || this.manualTarget;
+        if (activeTarget) {
+            const dist = Math.hypot(activeTarget.x - this.x, activeTarget.y - this.y);
+            if (dist < 400) { 
+                this.isDashing = true;
+                this.speed = this.dashSpeed;
+            }
+            
+            if (dist < this.attackRange + 10) {
+                this.explode();
+                return;
+            }
+        } else {
+            this.isDashing = false;
+            this.speed = this.baseSpeed;
+        }
+
+        super.update(deltaTime);
+    }
+
+    attack() {
+        if (this.target) {
+            const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            if (dist < this.attackRange + 10) {
+                this.explode();
+            }
+        }
+    }
+
+    explode() {
+        if (!this.active || this.hp <= 0) return;
+        
+        this.hp = 0;
+        this.active = false;
+        this.alive = false;
+
+        if (this.engine.addEffect) {
+            this.engine.addEffect('explosion', this.x, this.y);
+        }
+
+        const nearby = this.engine.entityManager.getNearby(this.x, this.y, this.explosionRadius);
+        nearby.forEach(ent => {
+            if (ent && ent.active && ent.hp > 0 && ent !== this) {
+                ent.takeDamage(this.damage, 'fire');
+                if (this.engine.addEffect) {
+                    this.engine.addEffect('hit', ent.x, ent.y, '#ff4500');
+                }
+            }
+        });
+
+        const ts = this.engine.tileMap.tileSize;
+        const radiusInTiles = Math.ceil(this.explosionRadius / ts);
+        const centerG = this.engine.tileMap.worldToGrid(this.x, this.y);
+
+        for (let dy = -radiusInTiles; dy <= radiusInTiles; dy++) {
+            for (let dx = -radiusInTiles; dx <= radiusInTiles; dx++) {
+                const gx = centerG.x + dx;
+                const gy = centerG.y + dy;
+                
+                if (gx >= 0 && gx < this.engine.tileMap.cols && gy >= 0 && gy < this.engine.tileMap.rows) {
+                    const worldPos = this.engine.tileMap.gridToWorld(gx, gy);
+                    const dist = Math.hypot(this.x - worldPos.x, this.y - worldPos.y);
+                    
+                    if (dist <= this.explosionRadius) {
+                        this.engine.tileMap.damageTile(gx, gy, this.damage);
+                    }
+                }
+            }
+        }
+
+        this.engine.entityManager.remove(this);
+    }
+
+    draw(ctx) {
+        // 기존 드론과 약간 다르게 그리기 (예: 색상 변경)
+        const alt = 1.0;
+        const shadowOffset = alt * 6;
+        
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.translate(shadowOffset, shadowOffset);
+        this.drawDroneShape(ctx, true);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(0, -alt * 10);
+        if (this.isDashing) {
+            ctx.translate((Math.random()-0.5)*2, (Math.random()-0.5)*2);
+        }
+        this.drawDroneShape(ctx, false);
+        ctx.restore();
+    }
+
+    drawDroneShape(ctx, isShadow) {
+        ctx.save();
+        ctx.scale(1.4, 1.4); // 기존보다 약간 작게
+
+        // X자형 프레임
+        ctx.strokeStyle = isShadow ? 'rgba(0,0,0,1)' : '#2d3436';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-8, -8); ctx.lineTo(8, 8);
+        ctx.moveTo(8, -8); ctx.lineTo(-8, 8);
+        ctx.stroke();
+
+        // 중앙 몸체 (CarrierDrone은 파란색 계열 포인트)
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : (this.isDashing ? '#e74c3c' : '#3498db');
+        ctx.fillRect(-4, -4, 8, 8);
+        
+        if (!isShadow) {
+            const pulse = Math.sin(Date.now() / (this.isDashing ? 50 : 200)) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(50, 200, 255, ${pulse})`;
+            ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
+        }
+
+        const rot = (Date.now() / (this.isDashing ? 15 : 40)) % (Math.PI * 2);
         [[-8,-8], [8,-8], [-8,8], [8,8]].forEach(pos => {
             ctx.save();
             ctx.translate(pos[0], pos[1]);
