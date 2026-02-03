@@ -24,6 +24,9 @@ export class Tank extends PlayerUnit {
         this.projectileSpeed = 18; // 탄속 상향 (16 -> 18)
         this.hitEffectType = 'explosion';
 
+        this.armorType = 'heavy';
+        this.weaponType = 'shell';
+
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
@@ -100,6 +103,9 @@ export class MissileLauncher extends PlayerUnit {
         this.maxFireDelay = 90; // 정렬 후 대기 시간 (약 1.5초)
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackTargets = ['ground', 'sea'];
+
+        this.armorType = 'light';
+        this.weaponType = 'missile';
 
         this.ammoType = 'missile';
         this.maxAmmo = 6;
@@ -326,6 +332,9 @@ export class Artillery extends PlayerUnit {
         this.population = 5; // 승무원 5명
         this.isIndirect = true; // 자주포는 곡사 사격
 
+        this.armorType = 'heavy';
+        this.weaponType = 'shell';
+
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
@@ -374,6 +383,9 @@ export class AntiAirVehicle extends PlayerUnit {
         this.muzzleOffset = 50;
         this.projectileSpeed = 22; // 탄속 소폭 상향
         this.hitEffectType = 'flak';
+
+        this.armorType = 'light';
+        this.weaponType = 'bullet';
 
         this.ammoType = 'bullet';
         this.maxAmmo = 400; // 탄약 용량 상향 (연사력 대응)
@@ -477,6 +489,9 @@ export class MobileICBMLauncher extends PlayerUnit {
         this.maxFireDelay = 180; // 3초 카운트다운 (60fps * 3)
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackTargets = ['ground', 'sea'];
+
+        this.armorType = 'heavy';
+        this.weaponType = 'missile';
 
         this.ammoType = 'nuclear-missile';
         this.maxAmmo = 2; // 탄약 제한적

@@ -22,6 +22,9 @@ export class Rifleman extends PlayerUnit {
         this.projectileSpeed = 14; // 보병 탄속 소폭 상향
         this.hitEffectType = 'bullet';
 
+        this.armorType = 'infantry';
+        this.weaponType = 'bullet';
+
         this.ammoType = 'bullet';
         this.maxAmmo = 50;
         this.ammo = 50;
@@ -99,18 +102,21 @@ export class Sniper extends PlayerUnit {
         this.isHuman = true;
         this.speed = 1.0; 
         this.fireRate = 1500; // 공격 속도 상향 (2500 -> 1500)
-        this.damage = 80;
-        this.attackRange = 500;
+        this.damage = 40;     // 보병은 한두 방에 처치 (상성 배율 2.5 적용 시 100 데미지)
+        this.attackRange = 550;
         this.size = 24;      // 크기 축소
-        this.visionRange = 12; 
+        this.visionRange = 14; 
         this.hp = 50;
         this.maxHp = 50;
         this.population = 1; // 2인 1조에서 단일 유닛으로 변경
         this.attackTargets = ['ground', 'sea', 'air'];
         this.muzzleOffset = 40;
-        this.projectileSpeed = 22; // 저격탄은 매우 빠름
+        this.projectileSpeed = 24; // 저격탄은 매우 빠름
         this.hitEffectType = 'hit';
         this.muzzleEffectType = 'muzzle_sniper';
+
+        this.armorType = 'infantry';
+        this.weaponType = 'sniper';
 
         this.ammoType = 'bullet';
         this.maxAmmo = 10;
@@ -188,6 +194,9 @@ export class AntiTankInfantry extends PlayerUnit {
         this.explosionRadius = 25; // 히트탄(HEAT) 특성상 좁지만 강력한 폭발
         this.isIndirect = false;    // 직사 공격
         this.hitEffectType = 'explosion';
+
+        this.armorType = 'infantry';
+        this.weaponType = 'missile';
 
         this.ammoType = 'missile';
         this.maxAmmo = 4; // 휴대 미사일 수 제한
@@ -455,6 +464,9 @@ export class MortarTeam extends PlayerUnit {
         this.attackTargets = ['ground', 'sea'];
         this.isIndirect = true; // 박격포는 곡사 사격
         this.hitEffectType = 'explosion';
+        
+        this.armorType = 'infantry';
+        this.weaponType = 'shell';
         
         this.isSieged = false;
         this.isTransitioning = false;
@@ -739,6 +751,9 @@ export class SpecialForces extends PlayerUnit {
         this.muzzleOffset = 22;
         this.projectileSpeed = 18; // 더 빠른 탄속
         this.hitEffectType = 'bullet';
+
+        this.armorType = 'infantry';
+        this.weaponType = 'bullet';
 
         this.ammoType = 'bullet';
         this.maxAmmo = 60;

@@ -24,6 +24,10 @@ export function updateProjectiles(world, deltaTime, engine) {
         x[i] += Math.cos(angle[i]) * speed[i] * dt;
         y[i] += Math.sin(angle[i]) * speed[i] * dt;
 
+        // weaponType 역매핑 (0: bullet, 1: sniper, 2: shell, 3: missile, 4: fire)
+        const weaponTypes = ['bullet', 'sniper', 'shell', 'missile', 'fire'];
+        const currentWeaponType = weaponTypes[world.weaponType[i]] || 'bullet';
+
         // 2. 충돌 체크
         let collided = false;
         if (world.isIndirect[i] === 0) {
@@ -66,7 +70,7 @@ export function updateProjectiles(world, deltaTime, engine) {
                     const dist = Math.sqrt((target.x - x[i])**2 + (target.y - y[i])**2);
                     if (dist < (target.size || 20) / 2) {
                         collided = true;
-                        if (explosionRadius[i] === 0) target.takeDamage(damage[i]);
+                        if (explosionRadius[i] === 0) target.takeDamage(damage[i], currentWeaponType);
                         break;
                     }
                 }
@@ -79,6 +83,7 @@ export function updateProjectiles(world, deltaTime, engine) {
             CombatLogic.handleImpact(engine, collided ? x[i] : targetX[i], collided ? y[i] : targetY[i], {
                 radius: explosionRadius[i],
                 damage: damage[i],
+                weaponType: currentWeaponType,
                 isIndirect: world.isIndirect[i] === 1,
                 effectType: explosionRadius[i] > 0 ? 'explosion' : 'hit'
             });

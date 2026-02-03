@@ -9,6 +9,7 @@ import { DebugSystem } from './systems/DebugSystem.js';
 import { MapEditor } from './systems/MapEditor.js';
 import { DeploymentSystem } from './systems/DeploymentSystem.js';
 import { audioSystem } from './systems/AudioSystem.js';
+import { CombatLogic } from './systems/CombatLogic.js';
 
 import { renderECS } from './ecs/systems/RenderSystem.js';
 
@@ -43,6 +44,7 @@ export class GameEngine {
         this.enemyFlowField = new FlowField(this); // 적군 전용 유동장 추가
         this.mapEditor = new MapEditor(this);
         this.deploymentSystem = new DeploymentSystem(this);
+        this.combatLogic = CombatLogic;
 
         this.registerEntityTypes();
 
@@ -1201,9 +1203,17 @@ export class GameEngine {
             this.debugSystem.spawnUnitType = null;
             this.debugSystem.isEraserMode = false;
             
-            const dbBtns = ['db-eraser', 
-                           'db-spawn-tank', 'db-spawn-rifleman', 'db-spawn-sniper', 
-                           'db-spawn-engineer', 'db-spawn-missile', 'db-spawn-icbm'];
+            // 모든 디버그 소환 버튼 ID 리스트 (자동으로 unitTypeMap 기반으로 처리하면 좋으나 일단 명시적 유지)
+            const dbBtns = [
+                'db-eraser', 'db-spawn-tank', 'db-spawn-artillery', 'db-spawn-anti-air', 
+                'db-spawn-missile', 'db-spawn-icbm', 'db-spawn-rifleman', 'db-spawn-sniper',
+                'db-spawn-anti-tank', 'db-spawn-special-forces', 'db-spawn-medic', 'db-spawn-mortar',
+                'db-spawn-drone-op', 'db-spawn-suicide-drone', 'db-spawn-military-truck',
+                'db-spawn-medical-truck', 'db-spawn-bomber', 'db-spawn-cargo-plane',
+                'db-spawn-scout-plane', 'db-spawn-helicopter', 'db-spawn-ammo-bullet',
+                'db-spawn-ammo-shell', 'db-spawn-ammo-missile', 'db-spawn-ammo-nuclear',
+                'db-spawn-sentiment'
+            ];
             
             dbBtns.forEach(id => {
                 const btn = document.getElementById(id);
@@ -1365,6 +1375,17 @@ export class GameEngine {
             desc += `<div class="stat-row"><span>👥 인원:</span> <span class="highlight">${hovered.population}명</span></div>`;
         }
 
+        // [추가] 장갑 및 무기 상성 정보 표시
+        const armorNames = { infantry: '보병용', light: '경장갑', heavy: '중장갑' };
+        const weaponNames = { bullet: '소구경', sniper: '정밀저격', shell: '고폭포탄', missile: '대기갑/대전차', fire: '화염/자폭' };
+        
+        if (hovered.armorType) {
+            desc += `<div class="stat-row"><span>🛡️ 장갑:</span> <span class="highlight">${armorNames[hovered.armorType] || hovered.armorType}</span></div>`;
+        }
+        if (hovered.weaponType && hovered.damage > 0) {
+            desc += `<div class="stat-row"><span>🔫 무기:</span> <span class="highlight">${weaponNames[hovered.weaponType] || hovered.weaponType}</span></div>`;
+        }
+
         if (hovered.damage > 0) {
             desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
         }
@@ -1383,14 +1404,14 @@ export class GameEngine {
             desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
         }
         if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
-            desc += `<div class="stat-row"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
+            desc += `<div class="stat-row full-width"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
         }
         if (hovered.cargo !== undefined) {
             const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
             desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
             if (hovered.cargo.length > 0) {
                 const cargoNames = hovered.cargo.map(u => u.name).join(', ');
-                desc += `<div class="item-stats-box text-blue">탑승 중: ${cargoNames}</div>`;
+                desc += `<div class="stat-row full-width text-blue" style="font-size: 0.75rem;">탑승: ${cargoNames}</div>`;
             }
         }
         if (hovered.maxAmmo > 0) {

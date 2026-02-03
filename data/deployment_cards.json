@@ -3,7 +3,7 @@
         {
             "id": "infantry_squad",
             "name": "보병 분대",
-            "description": "표준 보병 5명으로 구성된 기본 전투 단위입니다.",
+            "description": "표준 보병 5명으로 구성된 기본 전투 단위입니다. 가성비가 뛰어나지만 중장갑 유닛에게는 무력합니다.",
             "icon": "🔫",
             "cost": 2,
             "weight": 100,
@@ -14,10 +14,10 @@
         {
             "id": "armored_platoon",
             "name": "기갑 소대",
-            "description": "전차 2대와 보병 3명으로 구성된 강력한 돌파 부대입니다.",
+            "description": "전차 2대와 보병 3명으로 구성된 강력한 돌파 부대입니다. 적의 소총 사격을 무시하며 전선을 압도합니다.",
             "icon": "🚜",
-            "cost": 6,
-            "weight": 40,
+            "cost": 8,
+            "weight": 30,
             "units": [
                 { "id": "tank", "count": 2 },
                 { "id": "rifleman", "count": 3 }
@@ -26,7 +26,7 @@
         {
             "id": "special_forces_squad",
             "name": "특전사 소조",
-            "description": "정예 특전사 4명으로 구성된 고도의 전투력을 가진 정예 유닛입니다.",
+            "description": "정예 특전사 4명으로 구성된 고도의 전투력을 가진 정예 유닛입니다. 보병전에서 압도적인 우위를 점합니다.",
             "icon": "🥷",
             "cost": 6,
             "weight": 30,
@@ -37,7 +37,7 @@
         {
             "id": "special_ops",
             "name": "저격반",
-            "description": "저격수 2명과 정찰 보병 2명으로 구성된 정밀 타격 부대입니다.",
+            "description": "저격수 2명과 정찰 보병 2명, 무인기 1대로 구성된 정밀 타격 부대입니다. 적 보병을 원거리에서 무력화합니다.",
             "icon": "🔭",
             "cost": 5,
             "weight": 40,
@@ -52,8 +52,8 @@
             "name": "대공 소대",
             "description": "적 항공 세력을 저지하기 위한 자주 대공포 2대와 호위 보병으로 구성된 부대입니다.",
             "icon": "📡",
-            "cost": 5,
-            "weight": 50,
+            "cost": 6,
+            "weight": 40,
             "units": [
                 { "id": "anti-air", "count": 2 },
                 { "id": "rifleman", "count": 3 }
@@ -62,9 +62,9 @@
         {
             "id": "artillery_battery",
             "name": "포병 포대",
-            "description": "자주포 1대와 미사일 발사대 1대, 호위 보병 2명입니다.",
+            "description": "자주포 1대와 미사일 발사대 1대, 호위 보병 2명입니다. 원거리 화력 지원의 핵심입니다.",
             "icon": "💥",
-            "cost": 8,
+            "cost": 9,
             "weight": 20,
             "units": [
                 { "id": "artillery", "count": 1 },
@@ -75,7 +75,7 @@
         {
             "id": "anti_tank_squad",
             "name": "대전차 분대",
-            "description": "중장갑 차량을 전문적으로 파괴하는 대전차 미사일 팀입니다.",
+            "description": "중장갑 차량을 전문적으로 파괴하는 대전차 미사일 팀입니다. 전차를 상대하는 가장 효율적인 방법입니다.",
             "icon": "🚀",
             "cost": 4,
             "weight": 60,
@@ -86,7 +86,7 @@
         {
             "id": "mortar_battery",
             "name": "박격포 반 (포반)",
-            "description": "박격포 2문과 호위 보병으로 구성된 보병 화력 지원 부대입니다.",
+            "description": "박격포 2문과 호위 보병으로 구성된 보병 화력 지원 부대입니다. 곡사 사격으로 엄폐물 뒤의 적을 공격합니다.",
             "icon": "🎯",
             "cost": 5,
             "weight": 80,
@@ -98,7 +98,7 @@
         {
             "id": "medical_support",
             "name": "의무 지원 분대",
-            "description": "의무병의 활력을 충전해주는 의무차량과 치료를 담당하는 의무병들로 구성된 전문 지원팀입니다.",
+            "description": "아군의 부상을 치료하고 전투력을 유지시키는 전문 지원팀입니다.",
             "icon": "🏥",
             "cost": 5,
             "weight": 50,
@@ -125,7 +125,7 @@
         {
             "id": "drone_swarm",
             "name": "드론 타격반",
-            "description": "자폭 드론 6기와 이를 원격 제어하는 운용병 1명으로 구성된 부대입니다.",
+            "description": "자폭 드론 6기와 이를 원격 제어하는 운용병 1명으로 구성된 부대입니다. 가성비 최고의 비대칭 전력입니다.",
             "icon": "🐝",
             "cost": 4,
             "weight": 60,
@@ -137,9 +137,9 @@
         {
             "id": "bombing_formation",
             "name": "폭격 편대",
-            "description": "전략 폭격기 2대로 구성된 중전략 타격대입니다. 대규모 폭격으로 지상의 적을 무력화합니다.",
+            "description": "전략 폭격기 2대로 구성된 중전략 타격대입니다. 광범위한 지역을 초토화합니다.",
             "icon": "🛫",
-            "cost": 10,
+            "cost": 12,
             "weight": 15,
             "units": [
                 { "id": "bomber", "count": 2 }
@@ -148,7 +148,7 @@
         {
             "id": "helicopter_assault",
             "name": "헬기 강습반",
-            "description": "다목적 헬기 2대와 정예 특전사들로 구성된 팀입니다. 신속한 전개와 전천후 지원이 가능합니다.",
+            "description": "다목적 헬기 2대와 정예 특전사들로 구성된 팀입니다. 신속한 전개와 화력 지원이 가능합니다.",
             "icon": "🚁",
             "cost": 7,
             "weight": 25,
@@ -160,7 +160,7 @@
         {
             "id": "air_maneuver_wing",
             "name": "기동 비행단",
-            "description": "전략 수송기 1대와 이를 호위하는 정찰기, 그리고 공중 강습을 위한 특전사들이 포함된 항공 기동 부대입니다.",
+            "description": "전략 수송기 1대와 이를 호위하는 정찰기, 공중 강습 대원들이 포함된 항공 기동 부대입니다.",
             "icon": "✈️",
             "cost": 12,
             "weight": 10,
@@ -173,7 +173,7 @@
         {
             "id": "strategic_strike",
             "name": "전략 핵 타격대",
-            "description": "이동식 ICBM 발사대 1대와 이를 호위하는 정예 기갑 부대입니다. 국가의 마지막 수단입니다.",
+            "description": "이동식 ICBM 발사대와 정예 호위 부대입니다. 국가의 최후 결전 수단입니다.",
             "icon": "☢️",
             "cost": 30,
             "weight": 5,

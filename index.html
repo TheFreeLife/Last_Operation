@@ -272,74 +272,43 @@
                                                             <div class="debug-sub-container">
                                                                 <button class="debug-btn">👥</button>
                                                                 <div class="debug-tooltip">유닛 소환 메뉴 (호버)</div>
-                                                                                                <div class="debug-sub-panel">
-                                                                                                    <!-- 지상 유닛 -->
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-tank">🚜</button>
-                                                                                                        <div class="debug-tooltip">전차</div>
-                                                                                                    </div>
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-artillery">💥</button>
-                                                                                                        <div class="debug-tooltip">자주포</div>
-                                                                                                    </div>
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-anti-air">🛡️</button>
-                                                                                                        <div class="debug-tooltip">대공포</div>
-                                                                                                    </div>
-                                                                                                                                                                        <div class="debug-group">
-                                                                                                                                                                            <button class="debug-btn" id="db-spawn-missile">🚀</button>
-                                                                                                                                                                            <div class="debug-tooltip">미사일 발사대</div>
-                                                                                                                                                                        </div>
-                                                                                                                                                                        <div class="debug-group">
-                                                                                                                                                                            <button class="debug-btn" id="db-spawn-icbm">☢️</button>
-                                                                                                                                                                            <div class="debug-tooltip">ICBM 발사대</div>
-                                                                                                                                                                        </div>
-                                                                                                                                                                        
-                                                                                                                                                                        <!-- 보병 및 지원 -->                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-rifleman">🔫</button>
-                                                                                                        <div class="debug-tooltip">보병 분대</div>
-                                                                                                    </div>
-                                                                                                                                                                        <div class="debug-group">
-                                                                                                                                                                            <button class="debug-btn" id="db-spawn-sniper">🔭</button>
-                                                                                                                                                                            <div class="debug-tooltip">저격수</div>
-                                                                                                                                                                        </div>
-                                                                                                                                                                        <div class="debug-group">
-                                                                                                                                                                            <button class="debug-btn" id="db-spawn-truck">🚚</button>
-                                                                                                                                                                            <div class="debug-tooltip">군용 트럭</div>
-                                                                                                                                                                        </div>                                                                                
-                                                                                                    <!-- 공중 유닛 -->
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-bomber">💣</button>
-                                                                                                        <div class="debug-tooltip">폭격기</div>
-                                                                                                    </div>
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-cargo-plane">✈️</button>
-                                                                                                        <div class="debug-tooltip">수송기</div>
-                                                                                                    </div>
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-scout-plane">🛰️</button>
-                                                                                                        <div class="debug-tooltip">정찰기</div>
-                                                                                                    </div>
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-ammo-bullet">📦</button>
-                                                                                                        <div class="debug-tooltip">탄약(총알)</div>
-                                                                                                    </div>
-                                                                                
-                                                                                                    <!-- 탄약 상자 -->
-                                                                                                    <div class="debug-group">
-                                                                                                        <button class="debug-btn" id="db-spawn-ammo-shell">📦</button>
-                                                                                                        <div class="debug-tooltip">탄약(포탄)</div>
-                                                                                                    </div>
-                                                                                                                                                                        <div class="debug-group">
-                                                                                                                                                                            <button class="debug-btn" id="db-spawn-ammo-missile">📦</button>
-                                                                                                                                                                            <div class="debug-tooltip">탄약(미사일)</div>
-                                                                                                                                                                        </div>
-                                                                                                                                                                        <div class="debug-group">
-                                                                                                                                                                            <button class="debug-btn" id="db-spawn-ammo-nuclear">☢️</button>
-                                                                                                                                                                            <div class="debug-tooltip">탄약(핵미사일)</div>
-                                                                                                                                                                        </div>
-                                                                                                                                                                    </div>
-                                                                                                                                                                </div>                                                                                                            <hr style="width: 100%; border: 0; border-top: 1px solid #c8aa6e; margin: 5px 0;">
+                                                                <div class="debug-sub-panel" style="grid-template-columns: repeat(5, 40px); width: 250px;">
+                                                                    <!-- 1행: 지상 기갑 -->
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-tank" title="전차">🚜</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-artillery" title="자주포">💥</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-anti-air" title="대공포">📡</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-missile" title="미사일">🚀</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-icbm" title="ICBM">☢️</button></div>
+                                                                    
+                                                                    <!-- 2행: 보병 -->
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-rifleman" title="보병">🔫</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-sniper" title="저격수">🔭</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-anti-tank" title="대전차병">🛡️</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-special-forces" title="특전사">🥷</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-medic" title="의무병">🏥</button></div>
+
+                                                                    <!-- 3행: 특수 보병/드론 -->
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-mortar" title="박격포">🎯</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-drone-op" title="드론운용병">📱</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-suicide-drone" title="자폭드론">🐝</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-military-truck" title="군용트럭">🚛</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-medical-truck" title="의무트럭">🚑</button></div>
+
+                                                                    <!-- 4행: 항공 -->
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-bomber" title="폭격기">💣</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-cargo-plane" title="수송기">✈️</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-scout-plane" title="정찰기">🛰️</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-helicopter" title="헬기">🚁</button></div>
+                                                                    <div class="debug-group" style="opacity: 0.3;"><button class="debug-btn" disabled>❓</button></div>
+
+                                                                    <!-- 5행: 탄약 및 보급 -->
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-ammo-bullet" title="탄약(총알)">📦</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-ammo-shell" title="탄약(포탄)">📦</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-ammo-missile" title="탄약(미사일)">📦</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-ammo-nuclear" title="탄약(핵)">☢️</button></div>
+                                                                    <div class="debug-group"><button class="debug-btn" id="db-spawn-sentiment" title="민심회복">📈</button></div>
+                                                                </div>
+                                                            </div>                                                                                                            <hr style="width: 100%; border: 0; border-top: 1px solid #c8aa6e; margin: 5px 0;">
                                                             <div class="debug-group">                    <button class="debug-btn" id="db-heal-all">💖</button>
                     <div class="debug-tooltip">아군 전원 회복</div>
                 </div>

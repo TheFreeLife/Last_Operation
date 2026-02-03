@@ -122,6 +122,9 @@ export class Bomber extends PlayerUnit {
         this.takeoffDistance = 0;       
         this.isBombingActive = false;   
 
+        this.armorType = 'heavy';
+        this.weaponType = 'shell';
+
         this.ammoType = 'shell';
         this.maxAmmo = 12;
         this.ammo = 12;
@@ -808,6 +811,10 @@ export class Helicopter extends PlayerUnit {
         this.fireRate = 200; 
         this.damage = 12;
         this.attackTargets = ['ground', 'air', 'sea'];
+        
+        this.armorType = 'light';
+        this.weaponType = 'bullet';
+        
         this.ammoType = 'bullet';
         this.maxAmmo = 400;
         this.ammo = 400;
@@ -1020,6 +1027,9 @@ export class SuicideDrone extends PlayerUnit {
         this.size = 24;
         this.altitude = 1.0;
         this.isDashing = false;
+
+        this.armorType = 'infantry'; // 드론은 작으므로 보병 판정
+        this.weaponType = 'fire';
     }
 
     init(x, y, engine) {

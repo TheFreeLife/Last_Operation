@@ -44,6 +44,10 @@ export class BaseUnit extends Entity {
         this.projectileSpeed = 12;   // 투사체 속도
         this.hitEffectType = 'bullet'; // 피격 효과 타입
 
+        // --- 상성 시스템 추가 ---
+        this.armorType = 'infantry'; // 'infantry', 'light', 'heavy'
+        this.weaponType = 'bullet';  // 'bullet', 'sniper', 'shell', 'missile'
+
         // [최적화] 타겟팅 연산 부하 분산을 위한 타이머
         this.targetingTimer = Math.random() * 500;
 
@@ -183,7 +187,8 @@ export class BaseUnit extends Entity {
             speed: this.projectileSpeed,
             explosionRadius: this.explosionRadius || 0,
             ownerId: this.ownerId,
-            isIndirect: this.isIndirect // 곡사 여부 전달
+            isIndirect: this.isIndirect, // 곡사 여부 전달
+            weaponType: this.weaponType  // 무기 상성 타입 전달
         };
 
         this.engine.entityManager.spawnProjectileECS(

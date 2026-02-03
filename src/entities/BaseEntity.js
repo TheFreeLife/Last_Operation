@@ -52,15 +52,18 @@ export class Entity {
     }
 
     // 피격 처리 공통 메서드
-    takeDamage(amount) {
+    takeDamage(amount, weaponType = 'bullet') {
             if (this.hp === undefined || !this.active) return;
     
             // [추가] 디버그 시스템 무적 모드 체크
             if (this.engine && this.engine.debugSystem && this.engine.debugSystem.isGodMode) {
                 if (this.ownerId === 1) return; // 아군 무적
             }
+
+            // 상성 시스템 적용
+            const finalDamage = this.engine.combatLogic.calculateDamage(weaponType, this.armorType, amount);
+            this.hp -= finalDamage;
     
-            this.hp -= amount;
         this.hitTimer = 150; // 150ms 동안 피격 상태 유지 (깜빡임 효과용)
 
         if (this.hp <= 0) {

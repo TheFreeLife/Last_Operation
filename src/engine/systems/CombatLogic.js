@@ -3,6 +3,21 @@
  */
 
 export const CombatLogic = {
+    // --- 상성 시스템 설정 ---
+    Multipliers: {
+        bullet:  { infantry: 1.0, light: 0.4,  heavy: 0.05 },
+        sniper:  { infantry: 2.5, light: 0.3,  heavy: 0.01 },
+        shell:   { infantry: 1.2, light: 1.0,  heavy: 0.8  },
+        missile: { infantry: 0.5, light: 1.2,  heavy: 1.5  },
+        fire:    { infantry: 1.5, light: 1.0,  heavy: 0.6  }
+    },
+
+    calculateDamage(attackerWeaponType, targetArmorType, baseDamage) {
+        const weaponMap = this.Multipliers[attackerWeaponType || 'bullet'] || this.Multipliers.bullet;
+        const multiplier = weaponMap[targetArmorType || 'infantry'] || 1.0;
+        return baseDamage * multiplier;
+    },
+
     /**
      * 투사체가 지면이나 천장에 충돌했을 때의 모든 처리를 담당합니다.
      * (천장 판정, 유닛 피해, 타일 파괴, 이펙트 생성 등)
@@ -11,6 +26,7 @@ export const CombatLogic = {
         const { 
             radius = 0, 
             damage = 0, 
+            weaponType = 'bullet',
             isIndirect = false, 
             effectType = 'explosion',
             hitCeilingColor = '#00bcd4'
@@ -53,7 +69,7 @@ export const CombatLogic = {
                 if (dist <= radius) {
                     // 미사일 등 일부 유닛은 거리에 따른 데미지 감쇄 적용
                     const falloff = options.useFalloff ? (1 - (dist / radius) * 0.5) : 1;
-                    target.takeDamage(damage * falloff);
+                    target.takeDamage(damage * falloff, weaponType);
                 }
             }
             // 3-B. 주변 타일(벽) 범위 피해

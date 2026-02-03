@@ -24,14 +24,23 @@ export class DebugSystem {
             'db-spawn-icbm': { type: 'icbm-launcher' },
             'db-spawn-rifleman': { type: 'rifleman' },
             'db-spawn-sniper': { type: 'sniper' },
-            'db-spawn-truck': { type: 'military-truck' },
+            'db-spawn-anti-tank': { type: 'anti-tank' },
+            'db-spawn-special-forces': { type: 'special-forces' },
+            'db-spawn-medic': { type: 'medic' },
+            'db-spawn-mortar': { type: 'mortar-team' },
+            'db-spawn-drone-op': { type: 'drone-operator' },
+            'db-spawn-suicide-drone': { type: 'suicide-drone' },
+            'db-spawn-military-truck': { type: 'military-truck' },
+            'db-spawn-medical-truck': { type: 'medical-truck' },
             'db-spawn-bomber': { type: 'bomber' },
             'db-spawn-cargo-plane': { type: 'cargo-plane' },
             'db-spawn-scout-plane': { type: 'scout-plane' },
+            'db-spawn-helicopter': { type: 'helicopter' },
             'db-spawn-ammo-bullet': { type: 'ammo-box', options: { ammoType: 'bullet' } },
             'db-spawn-ammo-shell': { type: 'ammo-box', options: { ammoType: 'shell' } },
             'db-spawn-ammo-missile': { type: 'ammo-box', options: { ammoType: 'missile' } },
-            'db-spawn-ammo-nuclear': { type: 'ammo-box', options: { ammoType: 'nuclear-missile' } }
+            'db-spawn-ammo-nuclear': { type: 'ammo-box', options: { ammoType: 'nuclear-missile' } },
+            'db-spawn-sentiment': { type: 'system:sentiment' }
         };
 
         for (const id in this.unitTypeMap) {
@@ -61,6 +70,13 @@ export class DebugSystem {
 
     executeSpawnUnit(worldX, worldY) {
         if (!this.spawnUnitType) return;
+
+        // 시스템 명령 처리 (예: 민심 회복)
+        if (this.spawnUnitType === 'system:sentiment') {
+            this.engine.publicSentiment = 100;
+            this.engine.addEffect?.('system', worldX, worldY - 40, '#39ff14', `국가 지지율 100% 회복`);
+            return;
+        }
 
         const baseOptions = { ownerId: 1 };
         const finalOptions = Object.assign({}, baseOptions, this.spawnUnitOptions);
