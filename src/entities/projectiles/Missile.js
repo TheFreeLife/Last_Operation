@@ -86,6 +86,7 @@ export class Missile extends Entity {
         CombatLogic.handleImpact(this.engine, this.targetX, this.targetY, {
             radius: this.explosionRadius,
             damage: this.damage,
+            weaponType: 'missile', // 상성 시스템 적용
             isIndirect: true,
             useFalloff: true,
             effectType: 'explosion'

@@ -1375,19 +1375,20 @@ export class GameEngine {
             desc += `<div class="stat-row"><span>👥 인원:</span> <span class="highlight">${hovered.population}명</span></div>`;
         }
 
-        // [추가] 장갑 및 무기 상성 정보 표시
         const armorNames = { infantry: '보병용', light: '경장갑', heavy: '중장갑' };
         const weaponNames = { bullet: '소구경', sniper: '정밀저격', shell: '고폭포탄', missile: '대기갑/대전차', fire: '화염/자폭' };
         
         if (hovered.armorType) {
             desc += `<div class="stat-row"><span>🛡️ 장갑:</span> <span class="highlight">${armorNames[hovered.armorType] || hovered.armorType}</span></div>`;
         }
-        if (hovered.weaponType && hovered.damage > 0) {
+        if (hovered.weaponType) {
             desc += `<div class="stat-row"><span>🔫 무기:</span> <span class="highlight">${weaponNames[hovered.weaponType] || hovered.weaponType}</span></div>`;
         }
 
-        if (hovered.damage > 0) {
-            desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${hovered.damage}</span></div>`;
+        // 데미지 표시: 기본 데미지가 있거나 폭격기인 경우
+        const displayDmg = (hovered.type === 'bomber') ? 300 : hovered.damage;
+        if (displayDmg > 0) {
+            desc += `<div class="stat-row"><span>⚔️ 공격력:</span> <span class="highlight">${displayDmg}</span></div>`;
         }
         
         const displayRange = hovered.attackRange || hovered.range;

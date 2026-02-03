@@ -57,6 +57,7 @@ export class FallingBomb {
         CombatLogic.handleImpact(this.engine, this.x, this.y, {
             radius: this.radius,
             damage: this.damage,
+            weaponType: 'shell', // 상성 시스템 적용
             isIndirect: true, // 지붕 판정 활성화
             effectType: 'explosion'
         });

@@ -13,6 +13,8 @@ export class MilitaryTruck extends PlayerUnit {
         this.size = 80;
         this.cargoSize = 15; // 다른 수송기에 탈 수는 있지만 큰 부피 차지
 
+        this.armorType = 'light';
+
         this.cargo = [];
         this.cargoCapacity = 5; // 수송량 5
         this.isUnloading = false;

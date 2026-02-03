@@ -21,6 +21,7 @@ export class ScoutPlane extends PlayerUnit {
         this.population = 2; // 조종사 + 관측수 (현실적 운용 인원)
         this.size = 80;      
         this.cargoSize = 99; 
+        this.armorType = 'light';
     }
 
     getSelectionBounds() {
@@ -103,7 +104,7 @@ export class Bomber extends PlayerUnit {
         this.maxHp = 1200;
         this.population = 4; // 조종사, 부조종사, 항법사, 폭격수
         this.size = 130; 
-        this.damage = 0;
+        this.damage = 300;
         this.attackTargets = ['ground', 'sea'];
         this.isIndirect = true; // [추가] 곡사 판정 (지붕 우선 공격을 위함)
         this.cargoSize = 99; 
@@ -122,7 +123,7 @@ export class Bomber extends PlayerUnit {
         this.takeoffDistance = 0;       
         this.isBombingActive = false;   
 
-        this.armorType = 'heavy';
+        this.armorType = 'light';
         this.weaponType = 'shell';
 
         this.ammoType = 'shell';
@@ -396,6 +397,7 @@ export class CargoPlane extends PlayerUnit {
         this.maxHp = 1500;
         this.population = 2; // 조종사 2명
         this.size = 130; 
+        this.armorType = 'light';
         this.altitude = 0.0; 
         this.isLandingZoneSafe = false;
         this.lastX = x;

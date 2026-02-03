@@ -4,6 +4,7 @@ export class DebugSystem {
         this.isGodMode = false;
         this.isFullVision = false;
         this.isEraserMode = false;
+        this.currentOwnerId = 1; // 기본 소유자: 플레이어
         this.spawnUnitType = null; // 현재 소환할 유닛 타입
         this.init();
     }
@@ -12,6 +13,7 @@ export class DebugSystem {
         // UI 버튼 이벤트 바인딩
         document.getElementById('db-god-mode')?.addEventListener('click', () => this.toggleGodMode());
         document.getElementById('db-eraser')?.addEventListener('click', () => this.toggleEraserMode());
+        document.getElementById('db-toggle-owner')?.addEventListener('click', () => this.toggleOwner());
         document.getElementById('db-heal-all')?.addEventListener('click', () => this.healAll());
         document.getElementById('db-clear-fog')?.addEventListener('click', () => this.toggleFullVision());
 
@@ -78,13 +80,19 @@ export class DebugSystem {
             return;
         }
 
-        const baseOptions = { ownerId: 1 };
+        const baseOptions = { ownerId: this.currentOwnerId };
         const finalOptions = Object.assign({}, baseOptions, this.spawnUnitOptions);
 
-        const entity = this.engine.entityManager?.create(this.spawnUnitType, worldX, worldY, finalOptions);
+        // 소유주에 따른 리스트 오버라이드 결정
+        let listOverride = undefined;
+        if (this.currentOwnerId === 2) listOverride = 'enemies';
+        else if (this.currentOwnerId === 0) listOverride = 'neutral';
+        else if (this.currentOwnerId === 1) listOverride = 'units';
+
+        const entity = this.engine.entityManager?.create(this.spawnUnitType, worldX, worldY, finalOptions, listOverride);
 
         if (entity) {
-            // [추가] 수송기의 경우 전용 리스트에도 등록 (생산 건물 로직과 동기화)
+            // [추가] 수송기의 경우 전용 리스트에도 등록
             if (this.spawnUnitType === 'cargo-plane' && this.engine.entities.cargoPlanes) {
                 if (!this.engine.entities.cargoPlanes.includes(entity)) {
                     this.engine.entities.cargoPlanes.push(entity);
@@ -93,7 +101,35 @@ export class DebugSystem {
 
             let label = entity.name || this.spawnUnitType;
             if (this.spawnUnitOptions?.ammoType) label += ` (${this.spawnUnitOptions.ammoType})`;
-            this.engine.addEffect?.('system', worldX, worldY - 40, '#39ff14', `${label} 생성`);
+            
+            const color = this.currentOwnerId === 1 ? '#39ff14' : (this.currentOwnerId === 2 ? '#ff3131' : '#ffff00');
+            this.engine.addEffect?.('system', worldX, worldY - 40, color, `${label} 생성 (${this.currentOwnerId === 1 ? '아군' : '적군'})`);
+        }
+    }
+
+    toggleOwner() {
+        // 1 (플레이어) -> 2 (적군) -> 0 (중립) 순환
+        if (this.currentOwnerId === 1) this.currentOwnerId = 2;
+        else if (this.currentOwnerId === 2) this.currentOwnerId = 0;
+        else this.currentOwnerId = 1;
+
+        const btn = document.getElementById('db-toggle-owner');
+        const tooltip = document.getElementById('db-owner-tooltip');
+        
+        if (btn && tooltip) {
+            if (this.currentOwnerId === 1) {
+                btn.textContent = '👤';
+                tooltip.textContent = '소환 소유자: 플레이어';
+                btn.style.borderColor = '#c8aa6e';
+            } else if (this.currentOwnerId === 2) {
+                btn.textContent = '🤖';
+                tooltip.textContent = '소환 소유자: 적군';
+                btn.style.borderColor = '#ff3131';
+            } else {
+                btn.textContent = '🏳️';
+                tooltip.textContent = '소환 소유자: 중립';
+                btn.style.borderColor = '#ffff00';
+            }
         }
     }
 
