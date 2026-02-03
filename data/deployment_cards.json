@@ -89,7 +89,7 @@
             "description": "박격포 2문과 호위 보병으로 구성된 보병 화력 지원 부대입니다.",
             "icon": "🎯",
             "cost": 5,
-            "weight": 50,
+            "weight": 80,
             "units": [
                 { "id": "mortar-team", "count": 2 },
                 { "id": "rifleman", "count": 3 }
