@@ -1042,6 +1042,10 @@ export class SuicideDrone extends PlayerUnit {
         this.maxAmmo = 0;
     }
 
+    getCacheKey() {
+        return null; // 드론은 상시 애니메이션(로터, 불빛)이 있으므로 캐싱 제외
+    }
+
     update(deltaTime) {
         if (!this.alive) return;
 
@@ -1266,6 +1270,10 @@ export class CarrierDrone extends PlayerUnit {
         this.maxAmmo = 0;
     }
 
+    getCacheKey() {
+        return null; // 실시간 애니메이션 및 사거리 이탈 상태 반영을 위해 캐싱 제외
+    }
+
     update(deltaTime) {
         if (!this.alive) return;
 
@@ -1350,6 +1358,22 @@ export class CarrierDrone extends PlayerUnit {
         } else {
             this.isDashing = false;
             this.speed = this.baseSpeed;
+        }
+
+        // [추가] 작전 반경(트럭 사거리) 제한 로직
+        this.isOutOfRange = false;
+        if (this.parentTruck && this.parentTruck.active) {
+            const distToTruck = Math.hypot(this.x - this.parentTruck.x, this.y - this.parentTruck.y);
+            // 사거리를 벗어나면 강제 정지 (약간의 오차 허용)
+            if (distToTruck > this.parentTruck.attackRange + 10) {
+                this.isOutOfRange = true;
+                this.destination = null;
+                this.target = null;
+                this.manualTarget = null;
+                this.command = 'stop';
+                this.isDashing = false;
+                this.speed = this.baseSpeed;
+            }
         }
 
         super.update(deltaTime);
@@ -1441,12 +1465,19 @@ export class CarrierDrone extends PlayerUnit {
         ctx.stroke();
 
         // 중앙 몸체 (CarrierDrone은 파란색 계열 포인트)
-        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : (this.isDashing ? '#e74c3c' : '#3498db');
+        // 사거리 밖이면 회색, 돌진 시 붉은색, 평상시 파란색
+        const bodyColor = this.isOutOfRange ? '#95a5a6' : (this.isDashing ? '#e74c3c' : '#3498db');
+        ctx.fillStyle = isShadow ? 'rgba(0,0,0,1)' : bodyColor;
         ctx.fillRect(-4, -4, 8, 8);
         
         if (!isShadow) {
-            const pulse = Math.sin(Date.now() / (this.isDashing ? 50 : 200)) * 0.5 + 0.5;
-            ctx.fillStyle = `rgba(50, 200, 255, ${pulse})`;
+            if (this.isOutOfRange) {
+                // 작동 중지된 불빛 (어두운 색)
+                ctx.fillStyle = '#2c3e50';
+            } else {
+                const pulse = Math.sin(Date.now() / (this.isDashing ? 50 : 200)) * 0.5 + 0.5;
+                ctx.fillStyle = `rgba(50, 200, 255, ${pulse})`;
+            }
             ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
         }
 
