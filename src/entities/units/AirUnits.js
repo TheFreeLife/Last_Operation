@@ -1,5 +1,6 @@
 import { PlayerUnit } from './BaseUnit.js';
 import { FallingBomb } from '../projectiles/Bomb.js';
+import { CombatLogic } from '../../engine/systems/CombatLogic.js';
 
 export class ScoutPlane extends PlayerUnit {
     static editorConfig = { category: 'logistics', icon: 'scout-plane', name: '정찰기' };
@@ -1125,44 +1126,15 @@ export class SuicideDrone extends PlayerUnit {
         this.active = false;
         this.alive = false;
 
-        // 시각 효과: 대형 폭발 생성
-        if (this.engine.addEffect) {
-            this.engine.addEffect('explosion', this.x, this.y);
-        }
-
-        // 1. 엔티티 광역 피해 적용 (피아 구분 없는 범위 피해)
-        const nearby = this.engine.entityManager.getNearby(this.x, this.y, this.explosionRadius);
-        nearby.forEach(ent => {
-            if (ent && ent.active && ent.hp > 0 && ent !== this) {
-                // [수정] 직접 체력을 깎지 않고 takeDamage를 호출하여 상성(Fire) 적용
-                ent.takeDamage(this.damage, 'fire');
-                if (this.engine.addEffect) {
-                    this.engine.addEffect('hit', ent.x, ent.y, '#ff4500');
-                }
-            }
+        // [수정] CombatLogic을 사용하여 곡사 화기(폭탄 등)와 동일한 폭발 메커니즘 적용
+        // isIndirect: true를 통해 천장이 있을 경우 지면의 유닛과 오브젝트를 보호함
+        CombatLogic.handleImpact(this.engine, this.x, this.y, {
+            radius: this.explosionRadius,
+            damage: this.damage,
+            weaponType: 'fire',
+            isIndirect: true, 
+            effectType: 'explosion'
         });
-
-        // 2. 지형(TileMap) 광역 피해 적용
-        const ts = this.engine.tileMap.tileSize;
-        const radiusInTiles = Math.ceil(this.explosionRadius / ts);
-        const centerG = this.engine.tileMap.worldToGrid(this.x, this.y);
-
-        for (let dy = -radiusInTiles; dy <= radiusInTiles; dy++) {
-            for (let dx = -radiusInTiles; dx <= radiusInTiles; dx++) {
-                const gx = centerG.x + dx;
-                const gy = centerG.y + dy;
-                
-                if (gx >= 0 && gx < this.engine.tileMap.cols && gy >= 0 && gy < this.engine.tileMap.rows) {
-                    const worldPos = this.engine.tileMap.gridToWorld(gx, gy);
-                    const dist = Math.hypot(this.x - worldPos.x, this.y - worldPos.y);
-                    
-                    if (dist <= this.explosionRadius) {
-                        // 지형에 데미지 전달 (벽 파괴 등)
-                        this.engine.tileMap.damageTile(gx, gy, this.damage);
-                    }
-                }
-            }
-        }
 
         // 자신 제거
         this.engine.entityManager.remove(this);
@@ -1286,44 +1258,68 @@ export class CarrierDrone extends PlayerUnit {
             // 주기적으로 유효한 모함이 있는지 체크 (아래 거리 제한 로직에서 상세 처리)
         }
 
-        // --- 드론 트럭 전용 자동 타겟팅 AI ---
+        // --- 드론 트럭 전용 자동 타켓팅 AI ---
         // 수동 타겟(manualTarget)을 설정하여 '강제 공격' 상태로 만듦 (BaseUnit이 다른 타겟으로 변경하지 못하게 함)
-        if (this.ownerId === 1 && this.isAutoSuicide && this.parentTruck && !this.manualTarget) {
-            const truckRange = this.parentTruck.attackRange;
-            const enemies = this.engine.entities.enemies;
-            
-            // 1. 트럭 사거리 내의 유효한 적 후보군 추출
-            const candidates = enemies.filter(e => 
-                e.active && e.hp > 0 && 
-                Math.hypot(e.x - this.parentTruck.x, e.y - this.parentTruck.y) <= truckRange
-            );
-
-            if (candidates.length > 0) {
-                // 2. 거리순 정렬 (가까운 순)
-                candidates.sort((a, b) => {
-                    const dA = Math.hypot(a.x - this.x, a.y - this.y);
-                    const dB = Math.hypot(b.x - this.x, b.y - this.y);
-                    return dA - dB;
-                });
-
-                // 3. 분산 타겟팅: 다른 드론이 노리지 않는 적 우선 선택
-                let selected = candidates.find(candidate => {
-                    // 내 형제 드론들 중 이 적을 manualTarget으로 잡은 놈이 있는지 확인
-                    return !this.parentTruck.launchedDrones.some(otherDrone => 
-                        otherDrone !== this && 
-                        otherDrone.active && 
-                        otherDrone.manualTarget === candidate
-                    );
-                });
-
-                // 4. 모든 적이 이미 타겟팅 되었다면, 가장 가까운 적 선택 (다구리)
-                if (!selected) {
-                    selected = candidates[0];
+        if (this.ownerId === 1 && this.isAutoSuicide && this.parentTruck) {
+            // 만약 현재 타겟이 있는데 그 타겟이 천장 아래로 들어갔다면 타겟 해제
+            if (this.manualTarget) {
+                const targetGrid = this.engine.tileMap.worldToGrid(this.manualTarget.x, this.manualTarget.y);
+                const tile = this.engine.tileMap.grid[targetGrid.y]?.[targetGrid.x];
+                const hasCeiling = tile && this.engine.tileMap.layers.ceiling[targetGrid.y]?.[targetGrid.x]?.id && tile.ceilingHp > 0;
+                
+                if (hasCeiling) {
+                    this.manualTarget = null;
+                    this.command = 'stop';
                 }
+            }
 
-                if (selected) {
-                    this.manualTarget = selected;
-                    this.command = 'attack';
+            if (!this.manualTarget) {
+                const truckRange = this.parentTruck.attackRange;
+                const enemies = this.engine.entities.enemies;
+                
+                // 1. 트럭 사거리 내의 유효한 적 후보군 추출 (천장 체크 포함)
+                const candidates = enemies.filter(e => {
+                    if (!e.active || e.hp <= 0) return false;
+                    
+                    // 트럭 사거리 체크
+                    if (Math.hypot(e.x - this.parentTruck.x, e.y - this.parentTruck.y) > truckRange) return false;
+
+                    // 천장(실내) 체크: 드론은 실내의 적을 발견하거나 공격할 수 없음
+                    const targetGrid = this.engine.tileMap.worldToGrid(e.x, e.y);
+                    const tile = this.engine.tileMap.grid[targetGrid.y]?.[targetGrid.x];
+                    const hasCeiling = tile && this.engine.tileMap.layers.ceiling[targetGrid.y]?.[targetGrid.x]?.id && tile.ceilingHp > 0;
+                    if (hasCeiling) return false;
+
+                    return true;
+                });
+
+                if (candidates.length > 0) {
+                    // 2. 거리순 정렬 (가까운 순)
+                    candidates.sort((a, b) => {
+                        const dA = Math.hypot(a.x - this.x, a.y - this.y);
+                        const dB = Math.hypot(b.x - this.x, b.y - this.y);
+                        return dA - dB;
+                    });
+
+                    // 3. 분산 타겟팅: 다른 드론이 노리지 않는 적 우선 선택
+                    let selected = candidates.find(candidate => {
+                        // 내 형제 드론들 중 이 적을 manualTarget으로 잡은 놈이 있는지 확인
+                        return !this.parentTruck.launchedDrones.some(otherDrone => 
+                            otherDrone !== this && 
+                            otherDrone.active && 
+                            otherDrone.manualTarget === candidate
+                        );
+                    });
+
+                    // 4. 모든 적이 이미 타겟팅 되었다면, 가장 가까운 적 선택 (다구리)
+                    if (!selected) {
+                        selected = candidates[0];
+                    }
+
+                    if (selected) {
+                        this.manualTarget = selected;
+                        this.command = 'attack';
+                    }
                 }
             }
         }
@@ -1407,40 +1403,17 @@ export class CarrierDrone extends PlayerUnit {
         this.active = false;
         this.alive = false;
 
-        if (this.engine.addEffect) {
-            this.engine.addEffect('explosion', this.x, this.y);
-        }
-
-        const nearby = this.engine.entityManager.getNearby(this.x, this.y, this.explosionRadius);
-        nearby.forEach(ent => {
-            if (ent && ent.active && ent.hp > 0 && ent !== this) {
-                ent.takeDamage(this.damage, 'fire');
-                if (this.engine.addEffect) {
-                    this.engine.addEffect('hit', ent.x, ent.y, '#ff4500');
-                }
-            }
+        // [수정] CombatLogic을 사용하여 곡사 화기(폭탄 등)와 동일한 폭발 메커니즘 적용
+        // isIndirect: true를 통해 천장이 있을 경우 지면의 유닛과 오브젝트를 보호함
+        CombatLogic.handleImpact(this.engine, this.x, this.y, {
+            radius: this.explosionRadius,
+            damage: this.damage,
+            weaponType: 'fire',
+            isIndirect: true, 
+            effectType: 'explosion'
         });
 
-        const ts = this.engine.tileMap.tileSize;
-        const radiusInTiles = Math.ceil(this.explosionRadius / ts);
-        const centerG = this.engine.tileMap.worldToGrid(this.x, this.y);
-
-        for (let dy = -radiusInTiles; dy <= radiusInTiles; dy++) {
-            for (let dx = -radiusInTiles; dx <= radiusInTiles; dx++) {
-                const gx = centerG.x + dx;
-                const gy = centerG.y + dy;
-                
-                if (gx >= 0 && gx < this.engine.tileMap.cols && gy >= 0 && gy < this.engine.tileMap.rows) {
-                    const worldPos = this.engine.tileMap.gridToWorld(gx, gy);
-                    const dist = Math.hypot(this.x - worldPos.x, this.y - worldPos.y);
-                    
-                    if (dist <= this.explosionRadius) {
-                        this.engine.tileMap.damageTile(gx, gy, this.damage);
-                    }
-                }
-            }
-        }
-
+        // 자신 제거
         this.engine.entityManager.remove(this);
     }
 
