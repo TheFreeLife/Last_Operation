@@ -51,7 +51,7 @@ export class GameEngine {
         this.players = {
             1: { name: 'Player 1 (User)', team: 1 },
             2: { name: 'Player 2 (Enemy)', team: 2 },
-            3: { name: 'Player 3 (Neutral)', team: 3 }
+            0: { name: 'Neutral', team: 0 }
         };
 
         this.controlGroups = {
@@ -61,10 +61,10 @@ export class GameEngine {
         this.relations = {
             '1-2': 'enemy',
             '2-1': 'enemy',
-            '1-3': 'neutral',
-            '3-1': 'neutral',
-            '2-3': 'neutral',
-            '3-2': 'neutral'
+            '1-0': 'neutral',
+            '0-1': 'neutral',
+            '2-0': 'neutral',
+            '0-2': 'neutral'
         };
 
         this.lastTime = 0;
@@ -282,7 +282,7 @@ export class GameEngine {
                         let listOverride = undefined;
                         if (ownerId === 2) listOverride = 'enemies';
                         else if (ownerId === 0) listOverride = 'neutral';
-                        else if (ownerId === 1 || ownerId === 3) listOverride = 'units';
+                        else if (ownerId === 1) listOverride = 'units';
 
                         const entity = this.entityManager.create(unitInfo.id, worldX, worldY, spawnOptions, listOverride);
                         if (entity) {
@@ -571,7 +571,7 @@ export class GameEngine {
             // 모든 선택된 개체가 사용자의 것인지 확인
             const isUserOwned = this.selectedEntities.every(ent => ent.ownerId === 1);
             const isEnemy = firstEnt.ownerId === 2;
-            const isNeutral = firstEnt.ownerId === 3;
+            const isNeutral = firstEnt.ownerId === 0;
             const allSameType = this.selectedEntities.every(ent => ent.type === firstEnt.type);
 
             // 유닛 여부 판별
@@ -1221,7 +1221,7 @@ export class GameEngine {
             if (!ent || (ent.active === false && !ent.isBoarded) || ent.isBoarded) return false;
             
             // [시야 체크] 아군 외 유닛은 시야 내에 있을 때만 선택 가능
-            const isAlly = (ent.ownerId === 1 || ent.ownerId === 3);
+            const isAlly = (ent.ownerId === 1);
             if (!isAlly && this.tileMap && !this.tileMap.isInSight(ent.x, ent.y) && !(this.debugSystem?.isFullVision)) {
                 return false;
             }
@@ -1299,7 +1299,7 @@ export class GameEngine {
             if (!ent || (!ent.active && !ent.isBoarded) || ent.isBoarded) return;
 
             // [시야 체크] 아군 외 유닛은 시야 내에 있을 때만 멀티 선택 가능
-            const isAlly = (ent.ownerId === 1 || ent.ownerId === 3);
+            const isAlly = (ent.ownerId === 1);
             if (!isAlly && this.tileMap && !this.tileMap.isInSight(ent.x, ent.y) && !(this.debugSystem?.isFullVision)) {
                 return;
             }
@@ -1344,29 +1344,8 @@ export class GameEngine {
         if (this.tileMap) {
             // 1. 기본 시야(Fog of War) 체크
             if (!this.tileMap.isInSight(hovered.x, hovered.y) && !(this.debugSystem?.isFullVision)) {
-                this.hideUITooltip();
-                return;
-            }
-
-            // 2. 천장(실내) 가림 판정
-            const g = this.tileMap.worldToGrid(hovered.x, hovered.y);
-            const tile = this.tileMap.grid[g.y]?.[g.x];
-            const hasCeiling = tile && this.tileMap.layers.ceiling[g.y]?.[g.x]?.id && tile.ceilingHp > 0;
-
-            if (hasCeiling && !(this.debugSystem?.isFullVision)) {
-                // 해당 방에 아군 지상 유닛이 있는지 확인 (실시간 투명화 여부와 동일한 로직)
-                const activeRoomIds = new Set();
-                this.entities.units.forEach(u => {
-                    const isFlying = (u.domain === 'air' || (u.altitude !== undefined && u.altitude > 0.01));
-                    if (u.ownerId === 1 && u.active && u.hp > 0 && !isFlying && !u.isBoarded) {
-                        const ug = this.tileMap.worldToGrid(u.x, u.y);
-                        const rid = this.tileMap.grid[ug.y]?.[ug.x]?.roomId;
-                        if (rid) activeRoomIds.add(rid);
-                    }
-                });
-
-                // 아군이 없는 방의 내부는 정보를 표시하지 않음
-                if (!activeRoomIds.has(tile.roomId)) {
+                const isAlly = (hovered.ownerId === 1);
+                if (!isAlly) {
                     this.hideUITooltip();
                     return;
                 }
@@ -1912,7 +1891,7 @@ export class GameEngine {
             }
             targetsToHighlight.forEach(target => {
                 // [시야 체크] 아군 외 타겟은 시야 내에 있을 때만 하이라이트 표시
-                const isAlly = (target.ownerId === 1 || target.ownerId === 3);
+                const isAlly = (target.ownerId === 1);
                 if (!isAlly && this.tileMap && !this.tileMap.isInSight(target.x, target.y) && !(this.debugSystem?.isFullVision)) {
                     return;
                 }

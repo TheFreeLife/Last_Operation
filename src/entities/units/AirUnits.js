@@ -1051,13 +1051,13 @@ export class SuicideDrone extends PlayerUnit {
             );
 
             if (this.ownerId === 1 && !hasFriendlyOperator) {
-                // 제어권 상실: 플레이어 -> 중립
-                this.ownerId = 3;
+                // 제어권 상실: 플레이어 -> 중립 (0)
+                this.ownerId = 0;
                 this.command = 'stop';
                 this.destination = null;
                 this.target = null;
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#ff3131', 'Signal Lost');
-            } else if (this.ownerId === 3 && hasFriendlyOperator) {
+            } else if (this.ownerId === 0 && hasFriendlyOperator) {
                 // 제어권 획득: 중립 -> 플레이어
                 this.ownerId = 1;
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#39ff14', 'Signal Linked');
@@ -1065,7 +1065,7 @@ export class SuicideDrone extends PlayerUnit {
         }
 
         // 중립 상태면 더 이상 업데이트(이동/공격) 안 함
-        if (this.ownerId === 3) {
+        if (this.ownerId === 0) {
             // 중립 드론은 제자리 부유만 함
             this.angle += 0.01; 
             return;

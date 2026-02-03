@@ -798,7 +798,6 @@ export class MapEditor {
                 let ownerColor = 'rgba(0, 255, 0, 0.2)'; // 기본 아군 (Player 1)
                 if (item.ownerId === 2) ownerColor = 'rgba(255, 0, 0, 0.3)'; // 적군
                 else if (item.ownerId === 0) ownerColor = 'rgba(200, 200, 200, 0.3)'; // 중립
-                else if (item.ownerId === 3) ownerColor = 'rgba(0, 210, 255, 0.3)'; // 동맹
                 
                 ctx.fillStyle = ownerColor;
                 ctx.beginPath(); ctx.arc(0, 0, tileSize/2.5, 0, Math.PI*2); ctx.fill();

@@ -24,7 +24,7 @@ export class Entity {
         if (this.passable === undefined) this.passable = false;
         
         this.isBoarded = false; 
-        this.ownerId = this.ownerId || 1; 
+        this.ownerId = (this.ownerId !== undefined) ? this.ownerId : 1; 
         this.hitTimer = 0;
     }
 

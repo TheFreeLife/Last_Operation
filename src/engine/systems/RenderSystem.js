@@ -548,7 +548,7 @@ export class RenderSystem {
             if (ent.visible === false || ent.isBoarded) continue;
 
             // [안개 시스템] 아군 외 유닛은 시야 내에 있을 때만 렌더링
-            const isAlly = (ent.ownerId === 1 || ent.ownerId === 3); // 1: Player, 3: Ally
+            const isAlly = (ent.ownerId === 1); // 1: Player (Ally 3 removed)
             if (!isAlly && this.engine.tileMap) {
                 const gx = Math.floor(ent.x / this.engine.tileMap.tileSize);
                 const gy = Math.floor(ent.y / this.engine.tileMap.tileSize);

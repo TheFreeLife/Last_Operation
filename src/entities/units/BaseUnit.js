@@ -81,7 +81,7 @@ export class BaseUnit extends Entity {
         // AI 초기화
         this.aiOrigin = { x, y };
         this.aiWanderTimer = 0;
-        this.isAiControlled = (this.ownerId === 2);
+        this.isAiControlled = (this.ownerId !== 1); // 플레이어가 아니면 AI가 제어 (2: 적군, 0: 중립)
         
         // [추가] 옵션으로 전달된 AI 상태 및 반경 적용
         this.baseAiState = this.aiState || 'guard';
