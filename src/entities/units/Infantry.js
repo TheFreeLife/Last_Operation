@@ -271,7 +271,7 @@ export class AntiTankInfantry extends PlayerUnit {
 }
 
 export class Medic extends PlayerUnit {
-    static editorConfig = { category: 'infantry', icon: 'medic', name: '의무병' };
+    static editorConfig = { category: 'logistics', icon: 'medic', name: '의무병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'medic';
@@ -671,7 +671,7 @@ export class MortarTeam extends PlayerUnit {
 }
 
 export class DroneOperator extends PlayerUnit {
-    static editorConfig = { category: 'infantry', icon: 'operator', name: '드론 운용병' };
+    static editorConfig = { category: 'logistics', icon: 'operator', name: '드론 운용병' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'drone-operator';

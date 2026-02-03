@@ -1,7 +1,7 @@
 import { PlayerUnit } from './BaseUnit.js';
 
 export class MilitaryTruck extends PlayerUnit {
-    static editorConfig = { category: 'unit', icon: 'military-truck', name: '군용 트럭' };
+    static editorConfig = { category: 'logistics', icon: 'military-truck', name: '군용 트럭' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'military-truck';
@@ -178,7 +178,7 @@ export class MilitaryTruck extends PlayerUnit {
 }
 
 export class MedicalTruck extends MilitaryTruck {
-    static editorConfig = { category: 'unit', icon: 'medical-truck', name: '의무 차량' };
+    static editorConfig = { category: 'logistics', icon: 'medical-truck', name: '의무 차량' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'medical-truck';
@@ -270,6 +270,7 @@ export class MedicalTruck extends MilitaryTruck {
         // 의무 차량 마크
         ctx.save();
         ctx.translate(-10, 0);
+        this.ctx = ctx; // [임시] super.draw에서 필요한 경우 대비
         ctx.fillStyle = '#fff';
         ctx.fillRect(-8, -8, 16, 16);
         ctx.fillStyle = '#e74c3c';
@@ -295,3 +296,180 @@ export class MedicalTruck extends MilitaryTruck {
         }
     }
 }
+
+export class DroneContainerTruck extends MilitaryTruck {
+    static editorConfig = { category: 'logistics', icon: 'drone-truck', name: '드론 사출 차량' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'drone-truck';
+        this.name = '드론 사출 차량';
+        this.hp = 1000;
+        this.maxHp = 1000;
+        this.attackRange = 800; // 드론 자동 인지 및 조종 범위
+        
+        this.droneCount = 12; // 수송 드론 수
+        this.maxDroneCount = 12;
+        this.isSortieActive = false;
+        this.sortieTimer = 0;
+        this.sortieInterval = 600; // 0.6초마다 한 대씩 사출
+        this.launchedDrones = []; // 현재 이 트럭이 관리하는 드론들
+        
+        this.armorType = 'light';
+    }
+
+    getSkillConfig(cmd) {
+        if (cmd === 'sortie') return { type: 'toggle', handler: this.toggleSortie };
+        return super.getSkillConfig(cmd);
+    }
+
+    toggleSortie() {
+        this.isSortieActive = !this.isSortieActive;
+        if (this.isSortieActive) {
+            this.engine.addEffect?.('system', this.x, this.y - 40, '#39ff14', '드론 사출 개시!');
+        } else {
+            this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '사출 중단');
+        }
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (!this.active || this.hp <= 0) return;
+
+        // 드론 사출 로직
+        if (this.isSortieActive && this.droneCount > 0) {
+            this.sortieTimer += deltaTime;
+            if (this.sortieTimer >= this.sortieInterval) {
+                this.sortieTimer = 0;
+                this.launchDrone();
+            }
+        }
+
+        // 관리 리스트 정제 (파괴된 드론 제거)
+        this.launchedDrones = this.launchedDrones.filter(d => d.active && d.hp > 0);
+    }
+
+        launchDrone() {
+
+            if (this.droneCount <= 0) {
+
+                this.isSortieActive = false; // 사출 완료 시 문 닫기
+
+                return;
+
+            }
+
+    
+
+            // 트럭 위치에서 드론 생성
+
+            const drone = this.engine.entityManager.create('suicide-drone', this.x, this.y, {
+
+                ownerId: this.ownerId,
+
+                parentTruck: this,
+
+                isAutoSuicide: true // 자동 자폭 AI 활성화
+
+            });
+
+    
+
+            if (drone) {
+
+                this.droneCount--;
+
+                this.launchedDrones.push(drone);
+
+                
+
+                // 살짝 밖으로 튀어나오는 연출
+
+                const angle = Math.random() * Math.PI * 2;
+
+                const dist = 40;
+
+                drone.destination = {
+
+                    x: this.x + Math.cos(angle) * dist,
+
+                    y: this.y + Math.sin(angle) * dist
+
+                };
+
+    
+
+                // 마지막 드론을 내보냈으면 즉시 사출 모드 종료
+
+                if (this.droneCount <= 0) {
+
+                    this.isSortieActive = false;
+
+                    this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '드론 전량 사출 완료');
+
+                }
+
+            }
+
+        }
+
+    
+
+        draw(ctx) {
+
+            super.draw(ctx);
+
+    
+
+            // 컨테이너 상단 해치 렌더링 (사출 중일 때 열린 모습)
+
+            ctx.save();
+
+            ctx.translate(-10, 0);
+
+            
+
+            // 메인 컨테이너 박스
+
+            ctx.fillStyle = '#2d3436';
+
+            ctx.fillRect(-20, -15, 40, 30);
+
+            
+
+            if (this.isSortieActive && this.droneCount > 0) {
+
+                // 열린 해치 (빨간 경고등 효과)
+
+                ctx.fillStyle = '#c0392b';
+
+                ctx.fillRect(-15, -12, 30, 24);
+
+                const pulse = Math.sin(Date.now() / 100) * 0.5 + 0.5;
+
+                ctx.fillStyle = `rgba(255, 0, 0, ${0.3 * pulse})`;
+
+                ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
+
+            } else {
+
+                // 닫힌 해치 (빗금 패턴)
+
+                ctx.strokeStyle = '#636e72';
+
+                ctx.lineWidth = 1;
+
+                for(let i=-15; i<=15; i+=5) {
+
+                    ctx.beginPath(); ctx.moveTo(i, -12); ctx.lineTo(i+3, 12); ctx.stroke();
+
+                }
+
+            }
+
+            ctx.restore();
+
+        }
+
+    }
+
+    

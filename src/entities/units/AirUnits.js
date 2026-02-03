@@ -2,7 +2,7 @@ import { PlayerUnit } from './BaseUnit.js';
 import { FallingBomb } from '../projectiles/Bomb.js';
 
 export class ScoutPlane extends PlayerUnit {
-    static editorConfig = { category: 'air', icon: 'scout-plane', name: '정찰기' };
+    static editorConfig = { category: 'logistics', icon: 'scout-plane', name: '정찰기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.init(x, y, engine);
@@ -379,7 +379,7 @@ export class Bomber extends PlayerUnit {
 }
 
 export class CargoPlane extends PlayerUnit {
-    static editorConfig = { category: 'air', icon: 'cargo-plane', name: '수송기' };
+    static editorConfig = { category: 'logistics', icon: 'cargo-plane', name: '수송기' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.init(x, y, engine);
@@ -1032,6 +1032,10 @@ export class SuicideDrone extends PlayerUnit {
 
         this.armorType = 'infantry'; // 드론은 작으므로 보병 판정
         this.weaponType = 'fire';
+
+        // [추가] 트럭 사출 드론 전용 속성
+        this.parentTruck = null;
+        this.isAutoSuicide = false;
     }
 
     init(x, y, engine) {
@@ -1053,26 +1057,60 @@ export class SuicideDrone extends PlayerUnit {
         if (this._controlCheckTimer >= 500) {
             this._controlCheckTimer = 0;
             
-            // 주변의 플레이어(1) 소유 드론 운용병 검색 (조종 사거리 800px 반영)
+            // 주변의 플레이어(1) 소유 드론 운용병 또는 드론 트럭 검색
             const operators = this.engine.entityManager.getNearby(this.x, this.y, 800); 
             const hasFriendlyOperator = operators.some(op => 
-                op.type === 'drone-operator' && 
+                (op.type === 'drone-operator' || op.type === 'drone-truck') && 
                 op.ownerId === 1 && 
-                !op.isBoarded && // [수정] 탑승 중인 운용병은 제어 불가
+                !op.isBoarded && 
                 Math.hypot(this.x - op.x, this.y - op.y) <= op.attackRange
             );
 
             if (this.ownerId === 1 && !hasFriendlyOperator) {
-                // 제어권 상실: 플레이어 -> 중립 (0)
+                // 제어권 상실
                 this.ownerId = 0;
                 this.command = 'stop';
                 this.destination = null;
                 this.target = null;
+                this.parentTruck = null; // 트럭과의 연결도 끊김
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#ff3131', 'Signal Lost');
             } else if (this.ownerId === 0 && hasFriendlyOperator) {
-                // 제어권 획득: 중립 -> 플레이어
+                // 제어권 획득
                 this.ownerId = 1;
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#39ff14', 'Signal Linked');
+            }
+        }
+
+        // --- [추가] 드론 트럭 전용 자동 타겟팅 AI ---
+        if (this.ownerId === 1 && this.isAutoSuicide && this.parentTruck && !this.target && !this.destination) {
+            const truckRange = this.parentTruck.attackRange;
+            const enemies = this.engine.entities.enemies;
+            let closestEnemy = null;
+            let minDist = truckRange;
+
+            for (const enemy of enemies) {
+                if (!enemy.active || enemy.hp <= 0) continue;
+                
+                // 트럭의 사거리 내에 있는지 확인
+                const distToTruck = Math.hypot(enemy.x - this.parentTruck.x, enemy.y - this.parentTruck.y);
+                if (distToTruck > truckRange) continue;
+
+                // [중복 방지] 이 트럭에서 나간 다른 드론이 이미 이 적을 조준하고 있는지 확인
+                const alreadyTargeted = this.parentTruck.launchedDrones.some(otherDrone => 
+                    otherDrone !== this && otherDrone.active && otherDrone.target === enemy
+                );
+                if (alreadyTargeted) continue;
+
+                const distToMe = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+                if (distToMe < minDist) {
+                    minDist = distToMe;
+                    closestEnemy = enemy;
+                }
+            }
+
+            if (closestEnemy) {
+                this.target = closestEnemy;
+                this.command = 'attack';
             }
         }
 

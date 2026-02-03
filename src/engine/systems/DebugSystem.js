@@ -38,6 +38,7 @@ export class DebugSystem {
             'db-spawn-cargo-plane': { type: 'cargo-plane' },
             'db-spawn-scout-plane': { type: 'scout-plane' },
             'db-spawn-helicopter': { type: 'helicopter' },
+            'db-spawn-drone-truck': { type: 'drone-truck' },
             'db-spawn-ammo-bullet': { type: 'ammo-box', options: { ammoType: 'bullet' } },
             'db-spawn-ammo-shell': { type: 'ammo-box', options: { ammoType: 'shell' } },
             'db-spawn-ammo-missile': { type: 'ammo-box', options: { ammoType: 'missile' } },

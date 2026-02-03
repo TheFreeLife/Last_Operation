@@ -137,6 +137,7 @@ export class MapEditor {
             '보병': engineItems.filter(item => item.category === 'infantry'),
             '차량': engineItems.filter(item => item.category === 'vehicle'),
             '항공': engineItems.filter(item => item.category === 'air'),
+            '군수': engineItems.filter(item => item.category === 'logistics'),
             '아이템': engineItems.filter(item => item.category === 'item')
         };
         
@@ -145,6 +146,7 @@ export class MapEditor {
             ...this.palette.unit['보병'],
             ...this.palette.unit['차량'],
             ...this.palette.unit['항공'],
+            ...this.palette.unit['군수'],
             ...this.palette.unit['아이템']
         ];
 

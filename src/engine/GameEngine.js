@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train, FreightCar } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train, FreightCar } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -34,7 +34,7 @@ export class GameEngine {
 
         this.resize();
 
-        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train, FreightCar };
+        this.entityClasses = { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, DroneOperator, SpecialForces, Train, FreightCar };
         this.tileMap = new TileMap(this, this.canvas, 48);
         this.pathfinding = new Pathfinding(this);
 
@@ -390,6 +390,7 @@ export class GameEngine {
         em.register('special-forces', SpecialForces, 'units');
         em.register('military-truck', MilitaryTruck, 'units');
         em.register('medical-truck', MedicalTruck, 'units');
+        em.register('drone-truck', DroneContainerTruck, 'units');
         em.register('cargo-plane', CargoPlane, 'units');
         em.register('scout-plane', ScoutPlane, 'units');
         em.register('bomber', Bomber, 'units');
@@ -599,9 +600,9 @@ export class GameEngine {
                         if (unitType === 'missile-launcher' || unitType === 'icbm-launcher') {
                             items.push({ id: 'manual_fire', name: 'FIRE (F)', icon: '🚀', action: 'unit:manual_fire', skillType: 'targeted' });
                         }
-                    } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
+                    } else if (unitType === 'bomber' || unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck' || unitType === 'drone-truck') {
                         const isFlying = firstEnt.altitude > 0.8;
-                        const isLanded = firstEnt.altitude < 0.1 || unitType === 'military-truck' || unitType === 'medical-truck';
+                        const isLanded = firstEnt.altitude < 0.1 || unitType === 'military-truck' || unitType === 'medical-truck' || unitType === 'drone-truck';
 
                         if (unitType === 'bomber') {
                             items.push({
@@ -611,6 +612,16 @@ export class GameEngine {
                                 skillType: 'toggle',
                                 locked: !isFlying,
                                 active: firstEnt.isBombingActive
+                            });
+                        } else if (unitType === 'drone-truck') {
+                            items.push({
+                                id: 'sortie',
+                                name: 'SORTIE (U)',
+                                icon: '🐝',
+                                action: 'unit:sortie',
+                                skillType: 'toggle',
+                                active: firstEnt.isSortieActive,
+                                locked: firstEnt.droneCount <= 0
                             });
                         } else if (unitType === 'cargo-plane' || unitType === 'helicopter' || unitType === 'military-truck' || unitType === 'medical-truck') {
                             items.push({
@@ -632,8 +643,8 @@ export class GameEngine {
                             }
                         }
 
-                        // 이착륙 버튼
-                        if (unitType !== 'military-truck' && unitType !== 'medical-truck') {
+                        // 이착륙 버튼 (트럭류 제외)
+                        if (unitType !== 'military-truck' && unitType !== 'medical-truck' && unitType !== 'drone-truck') {
                             let actionName = 'FLY (T)';
                             let actionIcon = 'unit:takeoff';
                             if (isFlying || firstEnt.isManualLanding || (unitType === 'helicopter' && firstEnt.altitude > 0.5)) {
@@ -801,12 +812,17 @@ export class GameEngine {
                 else if (key === 's') this.executeUnitCommand('stop');
                 else if (key === 'o') this.executeUnitCommand('siege');
                 else if (key === 'f') { this.unitCommandMode = 'manual_fire'; this.updateCursor(); }
-                else if (key === 'h') this.executeUnitCommand('hold');
+                else if (key === 'h') this.executeUnitCommand('stop');
                 else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
                 else if (key === 't') this.executeUnitCommand('takeoff_landing');
                 else if (key === 'd') this.executeUnitCommand('combat_drop');
-                else if (key === 'u') this.executeUnitCommand('unload_all');
+                else if (key === 'u') {
+                    if (this.selectedEntities.some(ent => ent.type === 'drone-truck')) {
+                        this.executeUnitCommand('sortie');
+                    }
+                    this.executeUnitCommand('unload_all');
+                }
                 else if (key === 'b') {
                     const hasBomber = this.selectedEntities.some(ent => ent.type === 'bomber');
                     if (hasBomber) this.executeUnitCommand('bombing');
@@ -1210,7 +1226,7 @@ export class GameEngine {
                 'db-spawn-anti-tank', 'db-spawn-special-forces', 'db-spawn-medic', 'db-spawn-mortar',
                 'db-spawn-drone-op', 'db-spawn-suicide-drone', 'db-spawn-military-truck',
                 'db-spawn-medical-truck', 'db-spawn-bomber', 'db-spawn-cargo-plane',
-                'db-spawn-scout-plane', 'db-spawn-helicopter', 'db-spawn-ammo-bullet',
+                'db-spawn-scout-plane', 'db-spawn-helicopter', 'db-spawn-drone-truck', 'db-spawn-ammo-bullet',
                 'db-spawn-ammo-shell', 'db-spawn-ammo-missile', 'db-spawn-ammo-nuclear',
                 'db-spawn-sentiment'
             ];
@@ -1407,7 +1423,7 @@ export class GameEngine {
         if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
             desc += `<div class="stat-row full-width"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
         }
-        if (hovered.cargo !== undefined) {
+        if (hovered.cargo !== undefined && hovered.type !== 'drone-truck') {
             const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
             desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
             if (hovered.cargo.length > 0) {
