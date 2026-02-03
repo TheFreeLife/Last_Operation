@@ -374,7 +374,16 @@ export class MapEditor {
     activate() {
         this.active = true;
         this.syncPaletteWithEngine();
-        this.setLayer('floor');
+        
+        // [수정] 이전에 선택된 레이어를 유지 (초기값은 floor)
+        this.setLayer(this.currentLayer);
+        
+        // [추가] UI 탭 활성 상태 동기화
+        const tabs = document.querySelectorAll('.palette-tab');
+        tabs.forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.layer === this.currentLayer);
+        });
+
         this.updateStatusUI();
         
         this.engine.camera.zoom = 1.0;
