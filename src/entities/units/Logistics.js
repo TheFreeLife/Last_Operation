@@ -307,8 +307,8 @@ export class DroneContainerTruck extends MilitaryTruck {
         this.maxHp = 1000;
         this.attackRange = 800; // 드론 자동 인지 및 조종 범위
         
-        this.droneCount = 12; // 수송 드론 수
-        this.maxDroneCount = 12;
+        this.droneCount = 20; // 수송 드론 수
+        this.maxDroneCount = 20;
         this.isSortieActive = false;
         this.sortieTimer = 0;
         this.sortieInterval = 600; // 0.6초마다 한 대씩 사출

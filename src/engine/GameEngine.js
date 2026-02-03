@@ -1426,6 +1426,10 @@ export class GameEngine {
         if (hovered.type?.startsWith('ammo-') && hovered.amount !== undefined) {
             desc += `<div class="stat-row full-width"><span>📦 남은 탄약:</span> <span class="highlight">${Math.ceil(hovered.amount)} / ${hovered.maxAmount}</span></div>`;
         }
+        if (hovered.type === 'drone-truck' && hovered.droneCount !== undefined) {
+            const colorClass = (hovered.droneCount <= 0) ? 'text-red' : 'highlight';
+            desc += `<div class="stat-row"><span>🐝 드론 재고:</span> <span class="${colorClass}">${hovered.droneCount} / ${hovered.maxDroneCount}</span></div>`;
+        }
         if (hovered.cargo !== undefined && hovered.type !== 'drone-truck') {
             const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
             desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
