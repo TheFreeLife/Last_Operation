@@ -6,6 +6,7 @@ export class MapEditor {
         this.currentTool = 'pencil'; 
         this.selectedItem = null;
         this.currentRotation = 0; // 0, 1, 2, 3 (90도 단위)
+        this.currentOwnerId = 2; // 기본 소유자 (Enemy)
         this.showCeiling = true; // 천장 표시 여부 토글
         
         // 유닛 드로잉을 위한 임시 인스턴스 저장소 (캐시)
@@ -217,6 +218,16 @@ export class MapEditor {
             });
         });
 
+        // Owner Selector Buttons
+        const ownerBtns = document.querySelectorAll('.owner-btn');
+        ownerBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.currentOwnerId = parseInt(btn.dataset.owner);
+                ownerBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
         document.getElementById('editor-save-btn')?.addEventListener('click', () => this.exportToSidebar());
         document.getElementById('sidebar-import-btn')?.addEventListener('click', () => this.importFromSidebar());
         document.getElementById('editor-test-btn')?.addEventListener('click', () => this.testCurrentMap());
@@ -378,6 +389,14 @@ export class MapEditor {
         this.selectedItem = null; // 레이어 변경 시 선택된 아이템 초기화 (오배치 방지)
         const layerDisplay = document.getElementById('current-layer-name');
         if (layerDisplay) layerDisplay.textContent = layer.toUpperCase();
+        
+        // 유닛 레이어인 경우에만 소유자 선택기 강조
+        const ownerSelector = document.getElementById('editor-owner-selector');
+        if (ownerSelector) {
+            ownerSelector.style.opacity = (layer === 'unit') ? '1' : '0.4';
+            ownerSelector.style.pointerEvents = (layer === 'unit') ? 'auto' : 'none';
+        }
+
         this.updatePalette();
     }
 
@@ -603,7 +622,7 @@ export class MapEditor {
             id: this.selectedItem.id, 
             r: this.currentRotation,
             options: this.selectedItem.options,
-            ownerId: (this.currentLayer === 'unit') ? 2 : undefined
+            ownerId: (this.currentLayer === 'unit') ? this.currentOwnerId : undefined
         };
 
         // [추가] 유닛인 경우 기본 스탯 포함
@@ -744,7 +763,11 @@ export class MapEditor {
                 ctx.lineWidth = 2;
                 ctx.strokeRect((mGX-1) * tileSize, (mGY-1) * tileSize, tileSize * 3, tileSize * 3);
             }
-            this.drawActualItem(ctx, { ...this.selectedItem, r: this.currentRotation }, mGX, mGY, this.currentLayer);
+            const previewData = { ...this.selectedItem, r: this.currentRotation };
+            if (this.currentLayer === 'unit') {
+                previewData.ownerId = this.currentOwnerId;
+            }
+            this.drawActualItem(ctx, previewData, mGX, mGY, this.currentLayer);
             ctx.globalAlpha = 1.0;
         }
         
