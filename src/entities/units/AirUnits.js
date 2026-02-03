@@ -1277,27 +1277,13 @@ export class CarrierDrone extends PlayerUnit {
     update(deltaTime) {
         if (!this.alive) return;
 
-        // --- 드론 트럭과의 연결 체크 ---
-        // 0.5초마다 체크
+        // --- 드론 제어권 및 모함(Adoption) 시스템 ---
         if (!this._controlCheckTimer) this._controlCheckTimer = 0;
         this._controlCheckTimer += deltaTime;
 
         if (this._controlCheckTimer >= 500) {
             this._controlCheckTimer = 0;
-            
-            // 모함(트럭)이 파괴되었거나 멀어지면 제어권 상실 또는 자폭
-            if (this.parentTruck) {
-                if (!this.parentTruck.active || this.parentTruck.hp <= 0) {
-                    this.parentTruck = null; // 연결 끊김 -> 자유 자폭 모드 또는 정지
-                    // 여기서는 연결 끊기면 그냥 마지막 명령 수행하다가 죽게 둠
-                } else {
-                    const dist = Math.hypot(this.x - this.parentTruck.x, this.y - this.parentTruck.y);
-                    if (dist > this.parentTruck.attackRange * 1.5) {
-                        // 너무 멀어지면 복귀하거나 자폭
-                        // 일단은 연결 유지
-                    }
-                }
-            }
+            // 주기적으로 유효한 모함이 있는지 체크 (아래 거리 제한 로직에서 상세 처리)
         }
 
         // --- 드론 트럭 전용 자동 타겟팅 AI ---
@@ -1360,20 +1346,46 @@ export class CarrierDrone extends PlayerUnit {
             this.speed = this.baseSpeed;
         }
 
-        // [추가] 작전 반경(트럭 사거리) 제한 로직
-        this.isOutOfRange = false;
-        if (this.parentTruck && this.parentTruck.active) {
-            const distToTruck = Math.hypot(this.x - this.parentTruck.x, this.y - this.parentTruck.y);
-            // 사거리를 벗어나면 강제 정지 (약간의 오차 허용)
-            if (distToTruck > this.parentTruck.attackRange + 10) {
-                this.isOutOfRange = true;
-                this.destination = null;
-                this.target = null;
-                this.manualTarget = null;
-                this.command = 'stop';
-                this.isDashing = false;
-                this.speed = this.baseSpeed;
+        // [수정] 작전 반경(트럭 사거리) 제한 및 Adoption 로직
+        // "어떤" 드론 트럭이라도 범위 내에 있으면 활성화 및 소속 변경
+        this.isOutOfRange = true; 
+        
+        // 1. 모든 우호 트럭 탐색
+        const trucks = this.engine.entities.units.filter(u => 
+            u.type === 'drone-truck' && u.ownerId === this.ownerId && u.active && u.hp > 0
+        );
+
+        // 2. 현재 나를 제어할 수 있는 가장 가까운 트럭 찾기
+        let bestController = null;
+        let minDist = Infinity;
+
+        for (const truck of trucks) {
+            const d = Math.hypot(this.x - truck.x, this.y - truck.y);
+            if (d <= truck.attackRange + 15) { // 15px 정도 마진
+                if (d < minDist) {
+                    minDist = d;
+                    bestController = truck;
+                }
             }
+        }
+
+        if (bestController) {
+            this.isOutOfRange = false;
+            // 제어권 이전 (Adoption): 모함이 바뀌면 해당 트럭의 관리 리스트로 이동
+            if (this.parentTruck !== bestController) {
+                this.parentTruck = bestController;
+                if (!bestController.launchedDrones.includes(this)) {
+                    bestController.launchedDrones.push(this);
+                }
+            }
+        } else {
+            // 모든 트럭의 범위를 벗어남 -> 정지
+            this.destination = null;
+            this.target = null;
+            this.manualTarget = null;
+            this.command = 'stop';
+            this.isDashing = false;
+            this.speed = this.baseSpeed;
         }
 
         super.update(deltaTime);

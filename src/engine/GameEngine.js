@@ -1171,6 +1171,8 @@ export class GameEngine {
 
         this.selectedEntities.forEach(unit => {
             if (unit.ownerId !== 1) return;
+            if (unit.type === 'carrier-drone') return; // 군집 드론은 AI가 제어하므로 명령 무시
+            
             unit.manualTarget = (cmd === 'attack') ? targetObject : null;
             unit.transportTarget = null;
 
@@ -1320,7 +1322,7 @@ export class GameEngine {
         this.selectedEntity = null;
 
         const potentialEntities = [
-            ...this.entities.units.filter(u => u.ownerId === 1)
+            ...this.entities.units.filter(u => u.ownerId === 1 && u.type !== 'carrier-drone')
         ];
 
         const selectedUnits = [];
