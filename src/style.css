@@ -1568,12 +1568,14 @@ canvas {
 
 .unit-card:hover {
     transform: translateY(-15px);
-    border-color: var(--neon-blue);
-    box-shadow: 0 20px 50px rgba(0, 210, 255, 0.3), 0 0 20px rgba(0, 210, 255, 0.2);
+    border-color: var(--rarity-color, var(--neon-blue));
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px var(--rarity-color, rgba(0, 210, 255, 0.3));
 }
 
-.unit-card:hover::before {
-    opacity: 1;
+.unit-card:hover .select-btn:not(:disabled) {
+    background: var(--rarity-color, var(--neon-blue));
+    color: #000;
+    box-shadow: 0 0 20px var(--rarity-color, rgba(0, 210, 255, 0.5));
 }
 
 .card-icon-container {

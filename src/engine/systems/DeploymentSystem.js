@@ -46,9 +46,34 @@ export class DeploymentSystem {
             return;
         }
 
-        const shuffled = [...pool].sort(() => 0.5 - Math.random());
-        this.activeCards = shuffled.slice(0, 3);
+        // 가중치 기반 무작위 선택 (3장 추출)
+        const selected = [];
+        const tempPool = [...pool];
+        
+        while (selected.length < 3 && tempPool.length > 0) {
+            const totalWeight = tempPool.reduce((sum, card) => sum + (card.weight || 10), 0);
+            let random = Math.random() * totalWeight;
+            
+            for (let i = 0; i < tempPool.length; i++) {
+                const weight = tempPool[i].weight || 10;
+                if (random < weight) {
+                    selected.push(tempPool.splice(i, 1)[0]);
+                    break;
+                }
+                random -= weight;
+            }
+        }
+
+        this.activeCards = selected;
         this.renderSelectionUI();
+    }
+
+    getRarityInfo(weight) {
+        if (weight >= 80) return { name: '표준', color: '#ffffff' };
+        if (weight >= 40) return { name: '베테랑', color: '#1eff00' };
+        if (weight >= 20) return { name: '정예', color: '#0070dd' };
+        if (weight >= 10) return { name: '최정예', color: '#a335ee' };
+        return { name: '기밀', color: '#ff8000' };
     }
 
     renderSelectionUI() {
@@ -67,7 +92,13 @@ export class DeploymentSystem {
         const div = document.createElement('div');
         div.className = 'unit-card';
         
-        // 부대 구성 정보 표시용 (인구수 자동 계산 제거, 구성만 나열)
+        const rarity = this.getRarityInfo(cardData.weight || 10);
+        // 희귀도 색상을 CSS 변수로 전달하여 스타일시트에서 활용 가능하게 함
+        div.style.setProperty('--rarity-color', rarity.color);
+        div.style.borderColor = rarity.color;
+        div.style.boxShadow = `0 0 15px ${rarity.color}33`;
+
+        // 부대 구성 정보 표시용
         let unitDetailsHtml = '';
         cardData.units.forEach(u => {
             const registration = this.engine.entityManager.registry.get(u.id);
@@ -77,22 +108,25 @@ export class DeploymentSystem {
             }
         });
 
-        const cost = cardData.cost || 0; // JSON에 정의된 고정 비용 사용
+        const cost = cardData.cost || 0;
         const canAfford = this.engine.publicSentiment >= cost;
 
         if (!canAfford) div.classList.add('locked-card');
 
         div.innerHTML = `
-            <div class="card-icon-container" style="font-size: 3rem;">${cardData.icon}</div>
-            <div class="card-name">${cardData.name}</div>
-            <p style="font-size: 0.8rem; color: #888; text-align: center; margin: 0 10px;">${cardData.description}</p>
+            <div class="card-rarity" style="color: ${rarity.color}; font-size: 0.8rem; font-weight: 900; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">${rarity.name}</div>
+            <div class="card-icon-container" style="font-size: 3.5rem; margin-bottom: 10px;">${cardData.icon}</div>
+            <div class="card-name" style="margin-bottom: 5px;">${cardData.name}</div>
+            <p style="font-size: 0.8rem; color: #aaa; text-align: center; margin: 0 10px 15px 10px; line-height: 1.4;">${cardData.description}</p>
             <div class="card-stats">
                 ${unitDetailsHtml}
-                <div class="card-stat-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-                    <span>징집 비용</span> <span class="stat-val ${canAfford ? 'text-green' : 'text-red'}">민심 ${cost}%</span>
+                <div class="card-stat-row" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                    <span style="font-weight: bold;">징집 비용</span> <span class="stat-val ${canAfford ? 'text-green' : 'text-red'}" style="font-size: 1.1rem;">민심 ${cost}%</span>
                 </div>
             </div>
-            <button class="select-btn" ${canAfford ? '' : 'disabled'}>${canAfford ? '배치 승인' : '민심 부족'}</button>
+            <button class="select-btn" ${canAfford ? '' : 'disabled'} style="${canAfford ? 'background: ' + rarity.color + '22; border-color: ' + rarity.color + ';' : ''}">
+                ${canAfford ? '배치 승인' : '민심 부족'}
+            </button>
         `;
 
         if (canAfford) {
