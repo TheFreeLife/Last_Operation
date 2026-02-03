@@ -298,147 +298,483 @@ export class MedicalTruck extends MilitaryTruck {
 }
 
 export class DroneContainerTruck extends MilitaryTruck {
+
     static editorConfig = { category: 'logistics', icon: 'drone-truck', name: '드론 사출 차량' };
+
     constructor(x, y, engine) {
+
         super(x, y, engine);
+
         this.type = 'drone-truck';
-        this.name = '드론 사출 차량';
-        this.hp = 1000;
-        this.maxHp = 1000;
-        this.attackRange = 800; // 드론 자동 인지 및 조종 범위
+
+        this.name = '전략 드론 사출 모함';
+
+        this.size = 125; // 초대형 (Class 3)
+
+        this.hp = 1200;
+
+        this.maxHp = 1200;
+
+        this.attackRange = 850; // 범위 소폭 상향
+
         
+
         this.droneCount = 20; // 수송 드론 수
+
         this.maxDroneCount = 20;
+
         this.isSortieActive = false;
+
         this.sortieTimer = 0;
+
         this.sortieInterval = 600; // 0.6초마다 한 대씩 사출
+
         this.launchedDrones = []; // 현재 이 트럭이 관리하는 드론들
+
         
+
         this.armorType = 'light';
+
+        this.cargoSize = 25; // 수송 불가 수준의 거대 체급
+
     }
+
+
 
     getSkillConfig(cmd) {
+
         if (cmd === 'sortie') return { type: 'toggle', handler: this.toggleSortie };
+
         return super.getSkillConfig(cmd);
+
     }
+
+
 
     toggleSortie() {
+
         this.isSortieActive = !this.isSortieActive;
+
         if (this.isSortieActive) {
-            this.engine.addEffect?.('system', this.x, this.y - 40, '#39ff14', '드론 사출 개시!');
+
+            this.engine.addEffect?.('system', this.x, this.y - 40, '#39ff14', '드론 사출 시스템 가동');
+
         } else {
-            this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '사출 중단');
+
+            this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '시스템 대기 모드');
+
         }
+
     }
+
+
 
     update(deltaTime) {
+
         super.update(deltaTime);
+
         if (!this.active || this.hp <= 0) return;
 
+
+
         // 드론 사출 로직
+
         if (this.isSortieActive && this.droneCount > 0) {
+
             this.sortieTimer += deltaTime;
+
             if (this.sortieTimer >= this.sortieInterval) {
+
                 this.sortieTimer = 0;
+
                 this.launchDrone();
+
             }
+
         }
+
+
 
         // 관리 리스트 정제 (파괴된 드론 제거)
+
         this.launchedDrones = this.launchedDrones.filter(d => d.active && d.hp > 0);
+
     }
 
-        launchDrone() {
-            if (this.droneCount <= 0) {
-                this.isSortieActive = false; // 사출 완료 시 문 닫기
-                return;
-            }
 
-            // 트럭 위치에서 드론 생성 (군집 드론)
-            const drone = this.engine.entityManager.create('carrier-drone', this.x, this.y, {
-                ownerId: this.ownerId,
-                parentTruck: this,
-                isAutoSuicide: true // 자동 자폭 AI 활성화
-            });
 
-            if (drone) {
-                this.droneCount--;
-                this.launchedDrones.push(drone);
-                
-                // 살짝 밖으로 튀어나오는 연출
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 40;
-                drone.destination = {
-                    x: this.x + Math.cos(angle) * dist,
-                    y: this.y + Math.sin(angle) * dist
-                };
+    launchDrone() {
 
-                // 마지막 드론을 내보냈으면 즉시 사출 모드 종료
-                if (this.droneCount <= 0) {
-                    this.isSortieActive = false;
-                    this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '드론 전량 사출 완료');
-                }
-            }
+        if (this.droneCount <= 0) {
+
+            this.isSortieActive = false;
+
+            return;
+
         }
 
-    
 
-        draw(ctx) {
 
-            super.draw(ctx);
+        // 트럭 위치에서 드론 생성 (군집 드론)
 
-    
+        const drone = this.engine.entityManager.create('carrier-drone', this.x, this.y, {
 
-            // 컨테이너 상단 해치 렌더링 (사출 중일 때 열린 모습)
+            ownerId: this.ownerId,
+
+            parentTruck: this,
+
+            isAutoSuicide: true 
+
+        });
+
+
+
+        if (drone) {
+
+            this.droneCount--;
+
+            this.launchedDrones.push(drone);
+
+            
+
+            const angle = Math.random() * Math.PI * 2;
+
+            const dist = 50;
+
+            drone.destination = {
+
+                x: this.x + Math.cos(angle) * dist,
+
+                y: this.y + Math.sin(angle) * dist
+
+            };
+
+
+
+            if (this.droneCount <= 0) {
+
+                this.isSortieActive = false;
+
+                this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '모든 드론 출격 완료');
+
+            }
+
+        }
+
+    }
+
+
+
+    draw(ctx) {
+
+        if (this.isUnderConstruction) {
+
+            this.drawConstruction(ctx);
+
+            return;
+
+        }
+
+        ctx.save();
+
+
+
+        // 1. 거대 8륜 중장갑 섀시 (8x8 Heavy Chassis)
+
+        ctx.fillStyle = '#0a0a0a';
+
+        const wheelPositions = [
+
+            { x: 40, y: -30 }, { x: 40, y: 26 },   // 1축
+
+            { x: 15, y: -30 }, { x: 15, y: 26 },   // 2축
+
+            { x: -10, y: -30 }, { x: -10, y: 26 }, // 3축
+
+            { x: -35, y: -30 }, { x: -35, y: 26 }  // 4축
+
+        ];
+
+        wheelPositions.forEach(p => ctx.fillRect(p.x, p.y, 20, 10));
+
+
+
+        // 2. 메인 프레임 (Super-Long Frame)
+
+        ctx.fillStyle = '#1e272e';
+
+        ctx.fillRect(-60, -26, 125, 52);
+
+
+
+                // 3. 지휘 통제형 운전석 (Command Cab)
+
+
+
+                ctx.fillStyle = '#f5f6fa'; // 헤드 부분 하얀색으로 변경
+
+
+
+                ctx.beginPath();
+
+
+
+                ctx.moveTo(30, -26);
+
+
+
+                ctx.lineTo(65, -26);
+
+
+
+                ctx.lineTo(75, -15);
+
+
+
+                ctx.lineTo(75, 15);
+
+
+
+                ctx.lineTo(65, 26);
+
+
+
+                ctx.lineTo(30, 26);
+
+
+
+                ctx.closePath();
+
+
+
+                ctx.fill();
+
+        
+
+        // 장갑 유리창 (분할형)
+
+        ctx.fillStyle = '#2c3e50';
+
+        ctx.fillRect(55, -22, 12, 20);
+
+        ctx.fillRect(55, 2, 12, 20);
+
+        
+
+        // 서치라이트 및 LED
+
+        ctx.fillStyle = '#fff';
+
+        ctx.fillRect(70, -18, 4, 10);
+
+        ctx.fillRect(70, 8, 4, 10);
+
+
+
+        // 4. 거대 드론 격납/사출 모듈
+
+        const moduleGrd = ctx.createLinearGradient(-55, 0, 30, 0);
+
+        moduleGrd.addColorStop(0, '#2c3e50');
+
+        moduleGrd.addColorStop(0.5, '#34495e');
+
+        moduleGrd.addColorStop(1, '#2c3e50');
+
+        ctx.fillStyle = moduleGrd;
+
+        ctx.beginPath();
+
+        ctx.roundRect(-55, -30, 95, 60, 5);
+
+        ctx.fill();
+
+
+
+        // 냉각용 그릴 및 패널 라인
+
+        ctx.fillStyle = '#1a252f';
+
+        for(let i=0; i<4; i++) {
+
+            ctx.fillRect(-48 + i*10, -26, 5, 12);
+
+            ctx.fillRect(-48 + i*10, 14, 5, 12);
+
+        }
+
+
+
+        // 5. 정밀 자동 사출 시스템 (Precision Launch System)
+
+        ctx.save();
+
+        ctx.translate(-15, 0);
+
+        
+
+        // 사출구 메커니즘 베이스
+
+        ctx.fillStyle = '#1e272e';
+
+        ctx.fillRect(-25, -20, 50, 40);
+
+        
+
+        if (this.isSortieActive && this.droneCount > 0) {
+
+            // 시스템 가동 연출 (강렬한 코어 빛)
+
+            ctx.fillStyle = '#000';
+
+            ctx.fillRect(-20, -16, 40, 32);
+
+            
+
+            const pulse = Math.sin(Date.now() / 80) * 0.5 + 0.5;
+
+            const grd = ctx.createRadialGradient(0, 0, 2, 0, 0, 30);
+
+            grd.addColorStop(0, `rgba(0, 210, 255, ${0.8 * pulse})`); // 시원한 파란색 코어
+
+            grd.addColorStop(1, 'transparent');
+
+            ctx.fillStyle = grd;
+
+            ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.fill();
+
+            
+
+            // 개방된 전동 슬라이딩 도어
+
+            ctx.fillStyle = '#34495e';
+
+            ctx.fillRect(-20, -28, 40, 10);
+
+            ctx.fillRect(-20, 18, 40, 10);
+
+        } else {
+
+            // 폐쇄된 고강도 장갑 셔터
+
+            ctx.fillStyle = '#2c3e50';
+
+            ctx.fillRect(-20, -16, 40, 32);
+
+            ctx.strokeStyle = '#1a252f';
+
+            ctx.lineWidth = 2;
+
+            for(let i=-15; i<=15; i+=10) {
+
+                ctx.strokeRect(i-2, -12, 4, 24);
+
+            }
+
+        }
+
+        ctx.restore();
+
+
+
+        // 6. 통신 및 위성 추적 어레이 (Comms Array)
+
+        ctx.strokeStyle = '#bdc3c7';
+
+        ctx.lineWidth = 2;
+
+        
+
+        // 회전하는 레이더 (가동 시)
+
+        if (this.isSortieActive) {
+
+            const rot = (Date.now() / 300) % (Math.PI * 2);
 
             ctx.save();
 
-            ctx.translate(-10, 0);
+            ctx.translate(-45, 0);
 
-            
+            ctx.rotate(rot);
 
-            // 메인 컨테이너 박스
+            ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.stroke();
 
-            ctx.fillStyle = '#2d3436';
+            ctx.fillStyle = '#95a5a6';
 
-            ctx.fillRect(-20, -15, 40, 30);
-
-            
-
-            if (this.isSortieActive && this.droneCount > 0) {
-
-                // 열린 해치 (빨간 경고등 효과)
-
-                ctx.fillStyle = '#c0392b';
-
-                ctx.fillRect(-15, -12, 30, 24);
-
-                const pulse = Math.sin(Date.now() / 100) * 0.5 + 0.5;
-
-                ctx.fillStyle = `rgba(255, 0, 0, ${0.3 * pulse})`;
-
-                ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
-
-            } else {
-
-                // 닫힌 해치 (빗금 패턴)
-
-                ctx.strokeStyle = '#636e72';
-
-                ctx.lineWidth = 1;
-
-                for(let i=-15; i<=15; i+=5) {
-
-                    ctx.beginPath(); ctx.moveTo(i, -12); ctx.lineTo(i+3, 12); ctx.stroke();
-
-                }
-
-            }
+            ctx.beginPath(); ctx.arc(8, 0, 3, 0, Math.PI*2); ctx.fill();
 
             ctx.restore();
 
         }
 
+        
+
+        // 듀얼 통신 안테나
+
+        const antL = this.isSortieActive ? 45 : 20;
+
+        ctx.beginPath();
+
+        ctx.moveTo(-52, -15); ctx.lineTo(-58, -15 - antL);
+
+        ctx.moveTo(-52, 15); ctx.lineTo(-58, 15 + antL);
+
+        ctx.stroke();
+
+
+
+        // 7. 시각적 디테일 (Hazard & Status)
+
+        ctx.fillStyle = '#f1c40f'; // 노란색 경고 마킹
+
+        ctx.fillRect(15, -30, 8, 5); ctx.fillRect(15, 25, 8, 5);
+
+        
+
+        // 상태 표시등 (전원 인가 상태)
+
+        const statusColor = (this.droneCount > 0) ? '#39ff14' : '#ff3131';
+
+        ctx.fillStyle = statusColor;
+
+        ctx.beginPath(); ctx.arc(68, 0, 2.5, 0, Math.PI*2); ctx.fill();
+
+
+
+        ctx.restore();
+
+
+
+        // 하단 수량바 (거대해진 체급에 맞춰 조정)
+
+        if (this.droneCount < this.maxDroneCount) {
+
+            const barW = 60;
+
+            const barH = 5;
+
+            const bx = this.x - barW / 2;
+
+            const by = this.y + 45;
+
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+
+            ctx.fillRect(bx, by, barW, barH);
+
+            ctx.fillStyle = (this.droneCount > 5) ? '#00d2ff' : '#ff3131';
+
+            ctx.fillRect(bx, by, (this.droneCount / this.maxDroneCount) * barW, barH);
+
+            ctx.strokeStyle = '#fff';
+
+            ctx.lineWidth = 1;
+
+            ctx.strokeRect(bx, by, barW, barH);
+
+        }
+
     }
+
+}
 
     
