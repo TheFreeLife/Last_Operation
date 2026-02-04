@@ -40,6 +40,8 @@ export class RenderSystem {
 
         this.stats = { renderedEntities: 0, totalEntities: 0, lastFrameTime: 0 };
         this.particles = [];
+        this.particlePool = []; // 객체 재사용을 위한 풀
+        this.maxParticles = 2000; // 최대 파티클 개수 제한
     }
 
     /**
@@ -80,7 +82,18 @@ export class RenderSystem {
     }
 
     addParticle(x, y, vx, vy, size, color, life, type = 'spark') {
-        this.particles.push({ x, y, vx, vy, size, color, life, maxLife: life, type });
+        if (this.particles.length >= this.maxParticles) return;
+
+        let p;
+        if (this.particlePool.length > 0) {
+            p = this.particlePool.pop();
+            p.x = x; p.y = y; p.vx = vx; p.vy = vy;
+            p.size = size; p.color = color; p.life = life;
+            p.maxLife = life; p.type = type;
+        } else {
+            p = { x, y, vx, vy, size, color, life, maxLife: life, type };
+        }
+        this.particles.push(p);
     }
 
     updateParticles(deltaTime) {
@@ -89,7 +102,9 @@ export class RenderSystem {
             p.x += p.vx;
             p.y += p.vy;
             p.life -= deltaTime;
-            if (p.life <= 0) this.particles.splice(i, 1);
+            if (p.life <= 0) {
+                this.particlePool.push(this.particles.splice(i, 1)[0]);
+            }
         }
     }
 
@@ -238,7 +253,7 @@ export class RenderSystem {
         this.renderEntities(indirectProjectiles);
         
         // 5. 파티클 및 이펙트
-        this.updateParticles(16);
+        this.updateParticles(this.engine.deltaTime || 16);
         this.renderParticles();
         this.renderEffects();
 
@@ -403,28 +418,26 @@ export class RenderSystem {
             this.ctx.globalAlpha = alpha;
             
             if (p.type === 'fire') {
-                // 화염: 밝은 노랑 -> 주황 -> 짙은 회색으로 변함
-                const r = 255;
-                const g = Math.floor(200 * alpha);
-                const b = Math.floor(100 * alpha * alpha);
-                this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                // 화염: 색상 계산 최적화
+                const g = (200 * alpha) | 0;
+                const b = (100 * alpha * alpha) | 0;
+                this.ctx.fillStyle = `rgb(255,${g},${b})`;
                 
-                this.ctx.beginPath();
-                // 화염은 팽창하다가 사라짐
                 const size = p.size * (1 + (1 - alpha) * 2);
+                this.ctx.beginPath();
                 this.ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
                 this.ctx.fill();
             } else if (p.type === 'smoke') {
-                // 연기: 뭉게뭉게 피어오름
                 this.ctx.fillStyle = p.color || '#555';
-                this.ctx.beginPath();
                 const size = p.size * (1 + (1 - alpha) * 3);
+                
+                // 연기는 원형 대신 팔각형 느낌의 사각형 두 개를 겹쳐 그려 성능과 비주얼 타협
+                this.ctx.beginPath();
                 this.ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
                 this.ctx.fill();
             } else if (p.type === 'spark') {
-                // 파편/스파크
                 this.ctx.fillStyle = p.color;
-                this.ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+                this.ctx.fillRect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size);
             }
         }
         this.ctx.globalAlpha = 1.0;
