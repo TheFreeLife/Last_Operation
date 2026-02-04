@@ -465,23 +465,35 @@ export class GameEngine {
 
         // --- [CATEGORY 2: DEATHS] 유닛 파괴 시 효과 ---
         } else if (type === 'death_vehicle') {
-            // 일반 차량 파괴: 화염과 연기 규모 축소
+            // 일반 차량 파괴: 화염과 연기 규모 축소 + 수직 상승 연기 추가
             this.audioSystem.play('explosion', { volume: 0.2 });
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 4; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 0.5 + Math.random() * 2.0;
                 this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 12 + Math.random() * 12, '#333', 3000 + Math.random() * 1500, 'smoke');
             }
-            for (let i = 0; i < 10; i++) {
+            // 수직 상승 기둥 연기 (몽글몽글하게 피어오름 - 크기 축소)
+            for (let i = 0; i < 3; i++) {
+                const vx = (Math.random() - 0.5) * 0.3;
+                const vy = -0.4 - Math.random() * 0.4;
+                this.renderSystem.addParticle(x, y, vx, vy, 5 + Math.random() * 4, '#222', 5000 + Math.random() * 2000, 'smoke');
+            }
+            for (let i = 0; i < 8; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 1.5 + Math.random() * 4.0;
                 this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 10 + Math.random() * 10, '#ff6600', 500 + Math.random() * 300, 'fire');
             }
         } else if (type === 'death_heavy') {
-            // 대형 기계 파괴: 묵직함은 유지하되 가시성 확보를 위해 축소
+            // 대형 기계 파괴: 묵직함은 유지하되 수직 기둥 연기 강화
             this.audioSystem.play('explosion', { volume: 0.3 });
             for (let i = 0; i < 2; i++) {
                 this.renderSystem.addParticle(x, y, 0, 0, 35 + i * 15, '#111', 4000 + i * 1000, 'smoke');
+            }
+            // 강력한 수직 상승 기둥 연기 (크기 축소)
+            for (let i = 0; i < 5; i++) {
+                const vx = (Math.random() - 0.5) * 0.4;
+                const vy = -0.6 - Math.random() * 0.6;
+                this.renderSystem.addParticle(x, y, vx, vy, 8 + Math.random() * 6, '#111', 7000 + Math.random() * 3000, 'smoke');
             }
             for (let i = 0; i < 12; i++) {
                 const angle = Math.random() * Math.PI * 2;
