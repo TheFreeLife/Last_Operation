@@ -555,13 +555,13 @@ export class BaseUnit extends Entity {
     onDeath() {
         if (!this.active) return;
 
-        // 1. 폭발 효과 생성
+        // 1. 파괴 효과 생성 (탄환 명중과 분리된 유닛 전용 효과)
         if (this.engine.addEffect) {
-            let effectType = 'explosion_shell';
-            if (this.size > 100 || this.type === 'icbm-launcher') {
-                effectType = 'explosion_suicide'; // 대형 유닛은 자폭급 폭발
-            } else if (this.armorType === 'light' || this.armorType === 'heavy') {
-                effectType = 'explosion_missile'; // 일반 차량은 미사일급 폭발
+            let effectType = 'death_vehicle';
+            if (this.armorType === 'infantry') {
+                effectType = 'death_infantry';
+            } else if (this.size > 100 || this.type === 'icbm-launcher' || this.armorType === 'heavy') {
+                effectType = 'death_heavy';
             }
             this.engine.addEffect(effectType, this.x, this.y);
         }

@@ -434,61 +434,69 @@ export class GameEngine {
         return 'enemy'; // 기본값은 적군
     }
 
-    // 시각 효과 추가 메서드 (포구 화염 최적화 및 명중 효과 강화)
+    // 시각 효과 추가 메서드 (탄환 명중과 유닛 파괴 효과 완전 분리)
     addEffect(type, x, y, color = '#fff', text = '') {
         if (!this.renderSystem) return;
 
-        if (type === 'explosion' || type === 'explosion_shell') {
-            // 1. 포탄 폭발: 섬광과 함께 흙먼지(먼지 연기)가 피어오름
-            this.audioSystem.play('explosion', { volume: 0.15 });
-            this.renderSystem.addParticle(x, y, 0, 0, 40, '#777', 300, 'smoke'); 
-            
-            // 화염 파티클 (짧음)
-            for (let i = 0; i < 8; i++) {
+        // --- [CATEGORY 1: IMPACTS] 탄환/투사체 명중 시 효과 ---
+        if (type === 'impact_shell') {
+            // 포탄 명중: 찰나의 섬광 + 튀어오르는 흙먼지
+            this.audioSystem.play('explosion', { volume: 0.12 });
+            this.renderSystem.addParticle(x, y, 0, 0, 35, '#8b8682', 400, 'smoke'); 
+            for (let i = 0; i < 6; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 2.0 + Math.random() * 4.0;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 8 + Math.random() * 10, '#ffcc00', 300 + Math.random() * 200, 'fire');
+                const speed = 2.0 + Math.random() * 3.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 6 + Math.random() * 8, '#ffcc00', 200 + Math.random() * 200, 'fire');
             }
-            
-            // 흙먼지/연기 파티클 (포탄 특유의 효과)
-            for (let i = 0; i < 10; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const speed = 0.3 + Math.random() * 1.5;
-                // 약간 갈색빛이 도는 회색(#8b8682)으로 흙먼지 느낌 표현
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 15 + Math.random() * 15, '#8b8682', 1000 + Math.random() * 800, 'smoke');
-            }
-
+        } else if (type === 'impact_missile') {
+            // 미사일 명중: 붉은 화염 폭발 + 순간적인 충격 연기
+            this.audioSystem.play('explosion', { volume: 0.18 });
+            this.renderSystem.addParticle(x, y, 0, 0, 50, '#555', 600, 'smoke'); 
             for (let i = 0; i < 12; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 4 + Math.random() * 6;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 1 + Math.random() * 2, '#fff', 300, 'spark');
+                const speed = 1.0 + Math.random() * 5.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 12 + Math.random() * 10, '#ff4500', 500 + Math.random() * 300, 'fire');
             }
-        } else if (type === 'explosion_missile') {
-            // 2. 미사일 폭발: 크기 소폭 축소 및 밸런스 조정
+        } else if (type === 'impact_bullet' || type === 'hit') {
+            // 총탄 명중: 작은 불꽃/스파크
+            for (let i = 0; i < 4; i++) {
+                this.renderSystem.addParticle(x, y, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, 1 + Math.random() * 1.5, color, 300, 'spark');
+            }
+
+        // --- [CATEGORY 2: DEATHS] 유닛 파괴 시 효과 ---
+        } else if (type === 'death_vehicle') {
+            // 일반 차량 파괴: 화염과 연기 규모 축소
             this.audioSystem.play('explosion', { volume: 0.2 });
-            this.renderSystem.addParticle(x, y, 0, 0, 45, '#666', 600, 'smoke'); 
-            for (let i = 0; i < 15; i++) {
+            for (let i = 0; i < 6; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 1.0 + Math.random() * 6.0;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 10 + Math.random() * 10, '#ff4500', 600 + Math.random() * 300, 'fire');
+                const speed = 0.5 + Math.random() * 2.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 12 + Math.random() * 12, '#333', 1200 + Math.random() * 600, 'smoke');
             }
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 10; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 0.5 + Math.random() * 1.5;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 20 + Math.random() * 15, '#444', 1500 + Math.random() * 800, 'smoke');
+                const speed = 1.5 + Math.random() * 4.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 10 + Math.random() * 10, '#ff6600', 500 + Math.random() * 300, 'fire');
             }
-        } else if (type === 'explosion_suicide') {
-            // 3. 자폭 폭발: 가장 거대하고 짙은 검은 연기와 지속되는 화염구
+        } else if (type === 'death_heavy') {
+            // 대형 기계 파괴: 묵직함은 유지하되 가시성 확보를 위해 축소
             this.audioSystem.play('explosion', { volume: 0.3 });
-            for (let i = 0; i < 3; i++) {
-                this.renderSystem.addParticle(x, y, 0, 0, 100 + i * 30, '#111', 3000 + i * 1000, 'smoke');
+            for (let i = 0; i < 2; i++) {
+                this.renderSystem.addParticle(x, y, 0, 0, 35 + i * 15, '#111', 1500 + i * 500, 'smoke');
             }
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < 12; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 0.5 + Math.random() * 15.0;
-                const size = 20 + Math.random() * 30;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, size, (i % 2 === 0 ? '#ff3300' : '#ffcc00'), 1200 + Math.random() * 800, 'fire');
+                const speed = 0.5 + Math.random() * 6.0;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 15 + Math.random() * 10, (i % 2 === 0 ? '#ff3300' : '#ffaa00'), 800 + Math.random() * 500, 'fire');
             }
+        } else if (type === 'death_infantry') {
+            // 보병 사망: 파편 개수 감소 및 간결화
+            for (let i = 0; i < 5; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 2;
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 1.5 + Math.random() * 1.5, '#8b0000', 400, 'spark');
+            }
+
+        // --- [CATEGORY 3: SPECIALS] 특수 효과 (핵, 무즐, 기타) ---
         } else if (type === 'nuke_explosion') {
             // 핵폭발 전용 사운드 및 강화된 시각 효과 (웅장한 잔상 연기)
             this.audioSystem.play('nuke_explosion', { volume: 0.5, cooldown: 1000 });
