@@ -1031,7 +1031,7 @@ export class SuicideDrone extends PlayerUnit {
         this.isDashing = false;
 
         this.armorType = 'infantry'; // 드론은 작으므로 보병 판정
-        this.weaponType = 'fire';
+        this.weaponType = 'shell';
     }
 
     init(x, y, engine) {
@@ -1040,6 +1040,19 @@ export class SuicideDrone extends PlayerUnit {
         this.isDashing = false;
         this.ammo = 0; // 탄약 미사용
         this.maxAmmo = 0;
+    }
+
+    onDeath() {
+        // 자폭 드론은 죽을 때 시각 효과를 내지 않음 (폭발 시 explode()에서 처리하거나, 격추 시 조용히 사라짐)
+        this.active = false;
+        this.alive = false;
+        this.hp = 0;
+        
+        // BaseEntity의 기본 정리 로직(선택 해제 등)만 수행
+        const entityProto = Object.getPrototypeOf(Object.getPrototypeOf(this));
+        if (entityProto && entityProto.onDeath) {
+            entityProto.onDeath.call(this);
+        }
     }
 
     getCacheKey() {
@@ -1125,12 +1138,11 @@ export class SuicideDrone extends PlayerUnit {
         this.active = false;
         this.alive = false;
 
-        // [수정] CombatLogic을 사용하여 곡사 화기(폭탄 등)와 동일한 폭발 메커니즘 적용
-        // isIndirect: true를 통해 천장이 있을 경우 지면의 유닛과 오브젝트를 보호함
+        // [수정] weaponType을 'shell'로 변경하여 포탄 폭발 효과(흙먼지) 적용
         CombatLogic.handleImpact(this.engine, this.x, this.y, {
             radius: this.explosionRadius,
             damage: this.damage,
-            weaponType: 'fire',
+            weaponType: 'shell',
             isIndirect: true, 
             effectType: 'explosion'
         });
@@ -1226,7 +1238,7 @@ export class CarrierDrone extends PlayerUnit {
         this.isDashing = false;
 
         this.armorType = 'infantry';
-        this.weaponType = 'fire';
+        this.weaponType = 'shell';
 
         // 트럭 사출 드론 전용 속성
         this.parentTruck = null;
@@ -1239,6 +1251,11 @@ export class CarrierDrone extends PlayerUnit {
         this.isDashing = false;
         this.ammo = 0;
         this.maxAmmo = 0;
+    }
+
+    onDeath() {
+        // 중복 효과 방지
+        super.onDeath();
     }
 
     getCacheKey() {
@@ -1402,18 +1419,30 @@ export class CarrierDrone extends PlayerUnit {
         this.active = false;
         this.alive = false;
 
-        // [수정] CombatLogic을 사용하여 곡사 화기(폭탄 등)와 동일한 폭발 메커니즘 적용
-        // isIndirect: true를 통해 천장이 있을 경우 지면의 유닛과 오브젝트를 보호함
+        // [수정] weaponType을 'shell'로 변경하여 포탄 폭발 효과 적용
         CombatLogic.handleImpact(this.engine, this.x, this.y, {
             radius: this.explosionRadius,
             damage: this.damage,
-            weaponType: 'fire',
+            weaponType: 'shell',
             isIndirect: true, 
             effectType: 'explosion'
         });
 
         // 자신 제거
         this.engine.entityManager.remove(this);
+    }
+
+    onDeath() {
+        // 중복 효과 방지
+        this.active = false;
+        this.alive = false;
+        this.hp = 0;
+        
+        // BaseEntity의 기본 정리 로직만 수행
+        const entityProto = Object.getPrototypeOf(Object.getPrototypeOf(this));
+        if (entityProto && entityProto.onDeath) {
+            entityProto.onDeath.call(this);
+        }
     }
 
     draw(ctx) {
