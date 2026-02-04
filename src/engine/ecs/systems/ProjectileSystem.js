@@ -36,8 +36,8 @@ export function updateProjectiles(world, deltaTime, engine) {
             const gridPos = tileMap.worldToGrid(x[i], y[i]);
             const tile = tileMap.grid[gridPos.y]?.[gridPos.x];
             
-            // 1. 기본 타일 충돌 (벽 등)
-            if (tile && !tile.passable) {
+            // 1. 기본 타일 충돌 (벽 등 구조물만 체크, 물은 통과)
+            if (tile && tile.occupied) {
                 collided = true;
             } else {
                 // 2. [추가] 고층 구조물(isTall) 충돌 판정 개선
