@@ -139,38 +139,58 @@ export class DeploymentSystem {
     confirmDeployment(cardData, cost) {
         if (this.engine.publicSentiment < cost) return;
 
-        // 1. 스폰 위치 확인
-        let spawnPos = null;
-        let spawnAngle = 0;
-        for (let y = 0; y < this.engine.tileMap.rows; y++) {
-            for (let x = 0; x < this.engine.tileMap.cols; x++) {
-                const wall = this.engine.tileMap.layers.wall[y][x];
-                if (wall && wall.id === 'spawn-point') {
-                    spawnPos = this.engine.tileMap.gridToWorld(x, y);
-                    spawnAngle = (wall.r || 0) * (Math.PI / 2);
-                    break;
-                }
-            }
-            if (spawnPos) break;
-        }
-
-        if (!spawnPos) {
-            this.engine.addEffect?.('system', this.engine.canvas.width/2, this.engine.canvas.height/2, '#ff3131', '배치 구역이 없습니다!');
-            return;
-        }
-
-        // 2. 민심 차감
-        this.engine.updateSentiment(-cost);
-
-        // 3. 다중 유닛 생성 (대형 형성)
+        // 1. 다중 유닛 생성 (대형 형성)
         let spawnedCount = 0;
         cardData.units.forEach((uInfo, groupIdx) => {
+            // 유닛 타입 정보 가져오기 (도메인 확인용)
+            const registration = this.engine.entityManager.registry.get(uInfo.id);
+            if (!registration) return;
+            const tempUnit = new registration.EntityClass(0, 0, this.engine);
+            const domain = tempUnit.domain || 'ground';
+
+            // 해당 도메인에 적합한 스폰 위치 검색
+            let spawnPos = null;
+            let spawnAngle = 0;
+            
+            // 우선순위 1: 도메인에 완벽히 일치하는 스폰 지점 검색 (바다면 물 위, 땅이면 땅 위)
+            for (let y = 0; y < this.engine.tileMap.rows; y++) {
+                for (let x = 0; x < this.engine.tileMap.cols; x++) {
+                    const wall = this.engine.tileMap.layers.wall[y][x];
+                    if (wall && wall.id === 'spawn-point') {
+                        const tile = this.engine.tileMap.grid[y][x];
+                        const isWater = tile.terrain === 'water';
+                        
+                        if ((domain === 'sea' && isWater) || (domain !== 'sea' && !isWater) || domain === 'air') {
+                            spawnPos = this.engine.tileMap.gridToWorld(x, y);
+                            spawnAngle = (wall.r || 0) * (Math.PI / 2);
+                            break;
+                        }
+                    }
+                }
+                if (spawnPos) break;
+            }
+
+            // 우선순위 2: 일치하는 곳이 없으면 아무 스폰 지점이나 사용
+            if (!spawnPos) {
+                for (let y = 0; y < this.engine.tileMap.rows; y++) {
+                    for (let x = 0; x < this.engine.tileMap.cols; x++) {
+                        if (this.engine.tileMap.layers.wall[y][x]?.id === 'spawn-point') {
+                            spawnPos = this.engine.tileMap.gridToWorld(x, y);
+                            spawnAngle = (this.engine.tileMap.layers.wall[y][x].r || 0) * (Math.PI / 2);
+                            break;
+                        }
+                    }
+                    if (spawnPos) break;
+                }
+            }
+
+            if (!spawnPos) return;
+
             for (let i = 0; i < uInfo.count; i++) {
                 // 약간의 흩뿌림과 대형 오프셋 적용
                 const offsetX = (groupIdx * 40) + (Math.random() - 0.5) * 60;
                 const offsetY = (i * 30) + (Math.random() - 0.5) * 60;
                 
-                // [수정] 카드에 정의된 추가 옵션(options)을 병합하여 전달
                 const spawnOptions = Object.assign({ ownerId: 1 }, uInfo.options || {});
                 
                 const unit = this.engine.entityManager.create(uInfo.id, spawnPos.x + offsetX, spawnPos.y + offsetY, spawnOptions);
@@ -181,7 +201,13 @@ export class DeploymentSystem {
             }
         });
 
-        this.engine.addEffect?.('system', spawnPos.x, spawnPos.y, '#39ff14', `${cardData.name} 도착! (${spawnedCount}기 배치)`);
+        if (spawnedCount > 0) {
+            this.engine.updateSentiment(-cost);
+            this.engine.addEffect?.('system', this.engine.canvas.width/2, this.engine.canvas.height/2, '#39ff14', `${cardData.name} 도착! (${spawnedCount}기 배치)`);
+        } else {
+            this.engine.addEffect?.('system', this.engine.canvas.width/2, this.engine.canvas.height/2, '#ff3131', '배치 구역이 적합하지 않습니다!');
+        }
+        
         this.hideUI();
     }
 

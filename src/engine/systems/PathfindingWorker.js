@@ -5,7 +5,7 @@ self.onmessage = function(e) {
     const { type, data } = e.data;
 
     if (type === 'GENERATE_FLOW_FIELD') {
-        const { cols, rows, targetX, targetY, costMap, integrationMap, flowFieldX, flowFieldY, sizeClass } = data;
+        const { cols, rows, targetX, targetY, costMap, integrationMap, flowFieldX, flowFieldY, sizeClass, domain } = data;
         const size = cols * rows;
 
         // 1. Integration Map (Dijkstra)
@@ -92,7 +92,7 @@ self.onmessage = function(e) {
 
         self.postMessage({
             type: 'FLOW_FIELD_RESULT',
-            data: { integrationMap, flowFieldX, flowFieldY, sizeClass, targetX, targetY }
+            data: { integrationMap, flowFieldX, flowFieldY, sizeClass, targetX, targetY, domain }
         }, [integrationMap.buffer, flowFieldX.buffer, flowFieldY.buffer]);
     }
 };

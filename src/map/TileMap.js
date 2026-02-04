@@ -1122,21 +1122,34 @@ export class TileMap {
      * @param {number} gX 격자 X
      * @param {number} gY 격자 Y
      * @param {number} sizeClass 유닛의 타일 크기 (1, 2, 3 등)
+     * @param {string} domain 이동 영역 ('ground', 'sea', 'air')
      */
-    isPassableArea(gX, gY, sizeClass = 1) {
+    isPassableArea(gX, gY, sizeClass = 1, domain = 'ground') {
         // 맵 범위를 벗어나면 통과 불가능
         if (gX < 0 || gY < 0 || gX + sizeClass > this.cols || gY + sizeClass > this.rows) {
             return false;
         }
 
-        if (sizeClass <= 1) {
-            return this.grid[gY][gX].passable;
-        }
+        // 공중 유닛은 어디든 통과 가능
+        if (domain === 'air') return true;
 
         // 영역 내 모든 타일이 통과 가능한지 체크
         for (let dy = 0; dy < sizeClass; dy++) {
-            for (let row = this.grid[gY + dy], dx = 0; dx < sizeClass; dx++) {
-                if (!row[gX + dx].passable) return false;
+            for (let dx = 0; dx < sizeClass; dx++) {
+                const tx = gX + dx;
+                const ty = gY + dy;
+                const tile = this.grid[ty][tx];
+                const wall = this.layers.wall[ty][tx];
+                const wallConfig = wall?.id ? this.wallRegistry[wall.id] : null;
+                const isWallPassable = !wall?.id || wall.id === 'spawn-point' || wallConfig?.isPassable;
+
+                if (domain === 'sea') {
+                    // 해상 유닛: 물 위여야 하고, 통과 불가능한 벽이 없어야 함
+                    if (tile.terrain !== 'water' || !isWallPassable) return false;
+                } else {
+                    // 지상 유닛 (기본): 물이 아니어야 하고, 통과 불가능한 벽이 없어야 함
+                    if (tile.terrain === 'water' || !isWallPassable) return false;
+                }
             }
         }
         return true;

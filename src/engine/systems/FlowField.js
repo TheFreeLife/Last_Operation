@@ -26,8 +26,8 @@ export class FlowField {
         this.worker.onmessage = (e) => {
             const { type, data } = e.data;
             if (type === 'FLOW_FIELD_RESULT') {
-                const { targetX, targetY, sizeClass } = data;
-                const key = `${targetX}_${targetY}_${sizeClass}`;
+                const { targetX, targetY, sizeClass, domain } = data;
+                const key = `${targetX}_${targetY}_${sizeClass}_${domain}`;
                 const field = this.fields.get(key);
                 
                 if (field) {
@@ -44,33 +44,42 @@ export class FlowField {
     init(cols, rows) {
         this.cols = cols;
         this.rows = rows;
-        this.costMaps = {};
-        this.fields.clear();
+        this.costMaps = {}; // domain_sc 키 사용
+        this.fields = new Map(); // targetX_targetY_sc_domain 키 사용
         
-        // 표준 체급 1, 2, 3 지형 데이터 미리 준비
-        [1, 2, 3].forEach(sc => this.ensureCostMap(sc));
+        // 표준 체급 및 영역 데이터 미리 준비
+        ['ground', 'sea'].forEach(domain => {
+            [1, 2, 3].forEach(sc => this.ensureCostMap(sc, domain));
+        });
     }
 
-    ensureCostMap(sizeClass) {
-        if (this.costMaps[sizeClass]) return;
-        this.costMaps[sizeClass] = new Uint8Array(this.cols * this.rows);
-        this.updateCostMap(sizeClass);
+    ensureCostMap(sizeClass, domain = 'ground') {
+        const key = `${domain}_${sizeClass}`;
+        if (this.costMaps[key]) return;
+        this.costMaps[key] = new Uint8Array(this.cols * this.rows);
+        this.updateCostMap(sizeClass, domain);
     }
 
-    updateCostMap(sizeClass) {
-        const costMap = this.costMaps[sizeClass];
+    updateCostMap(sizeClass, domain = 'ground') {
+        const key = `${domain}_${sizeClass}`;
+        const costMap = this.costMaps[key];
         if (!costMap) return;
 
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const idx = y * this.cols + x;
-                costMap[idx] = this.engine.tileMap.isPassableArea(x, y, sizeClass) ? 1 : 255;
+                costMap[idx] = this.engine.tileMap.isPassableArea(x, y, sizeClass, domain) ? 1 : 255;
             }
         }
     }
 
     updateAllCostMaps() {
-        [1, 2, 3].forEach(sc => this.updateCostMap(sc));
+        ['ground', 'sea'].forEach(domain => {
+            [1, 2, 3].forEach(sc => {
+                const key = `${domain}_${sc}`;
+                if (this.costMaps[key]) this.updateCostMap(sc, domain);
+            });
+        });
         // 지형이 변하면 기존 모든 유동장은 무효화됨
         this.fields.clear();
     }
@@ -78,8 +87,10 @@ export class FlowField {
     /**
      * 월드 좌표(목적지)를 입력받아 해당 체급의 플로우 필드 생성 및 키 반환
      */
-    generate(worldX, worldY, sizeClass = 1) {
-        this.ensureCostMap(sizeClass);
+    generate(worldX, worldY, sizeClass = 1, domain = 'ground') {
+        if (domain === 'air') return null;
+
+        this.ensureCostMap(sizeClass, domain);
         
         const ts = this.engine.tileMap.tileSize;
         let gx = Math.floor(worldX / ts - (sizeClass - 1) / 2);
@@ -88,8 +99,9 @@ export class FlowField {
         gx = Math.max(0, Math.min(this.cols - sizeClass, gx));
         gy = Math.max(0, Math.min(this.rows - sizeClass, gy));
 
-        if (this.costMaps[sizeClass][gy * this.cols + gx] === 255) {
-            const nearest = this.findNearestWalkable(gx, gy, sizeClass);
+        const costMapKey = `${domain}_${sizeClass}`;
+        if (this.costMaps[costMapKey][gy * this.cols + gx] === 255) {
+            const nearest = this.findNearestWalkable(gx, gy, sizeClass, domain);
             if (nearest) {
                 gx = nearest.x;
                 gy = nearest.y;
@@ -98,7 +110,7 @@ export class FlowField {
             }
         }
 
-        const key = `${gx}_${gy}_${sizeClass}`;
+        const key = `${gx}_${gy}_${sizeClass}_${domain}`;
         if (this.fields.has(key)) {
             const field = this.fields.get(key);
             field.lastUsed = Date.now();
@@ -134,7 +146,8 @@ export class FlowField {
                 cols: this.cols, rows: this.rows,
                 targetX: gx, targetY: gy,
                 sizeClass,
-                costMap: this.costMaps[sizeClass],
+                domain,
+                costMap: this.costMaps[costMapKey],
                 integrationMap: newField.integrationMap,
                 flowFieldX: newField.flowFieldX,
                 flowFieldY: newField.flowFieldY
@@ -144,8 +157,9 @@ export class FlowField {
         return key;
     }
 
-    findNearestWalkable(tx, ty, sizeClass) {
-        const costMap = this.costMaps[sizeClass];
+    findNearestWalkable(tx, ty, sizeClass, domain = 'ground') {
+        const costMapKey = `${domain}_${sizeClass}`;
+        const costMap = this.costMaps[costMapKey];
         for (let r = 1; r <= 10; r++) {
             for (let dy = -r; dy <= r; dy++) {
                 for (let dx = -r; dx <= r; dx++) {
@@ -160,24 +174,22 @@ export class FlowField {
         return null;
     }
 
-    getFlowVector(worldX, worldY, targetX, targetY, sizeClass = 1) {
+    getFlowVector(worldX, worldY, targetX, targetY, sizeClass = 1, domain = 'ground') {
+        if (domain === 'air') return { x: 0, y: 0 };
+
         const ts = this.engine.tileMap.tileSize;
         
-        // 목적지의 격자 좌표 계산 (생성 시와 동일한 로직)
+        // 목적지의 격자 좌표 계산
         let tgx = Math.floor(targetX / ts - (sizeClass - 1) / 2);
         let tgy = Math.floor(targetY / ts - (sizeClass - 1) / 2);
         tgx = Math.max(0, Math.min(this.cols - sizeClass, tgx));
         tgy = Math.max(0, Math.min(this.rows - sizeClass, tgy));
 
-        // 만약 목적지가 벽이라면 findNearestWalkable을 통해 보정된 좌표를 찾아야 함
-        // 하지만 매번 계산하는 것은 비효율적이므로 key를 유닛이 들고 있게 하는 것이 좋음
-        // 여기서는 일단 직접 키를 생성하여 찾음
-        const key = `${tgx}_${tgy}_${sizeClass}`;
+        const key = `${tgx}_${tgy}_${sizeClass}_${domain}`;
         let field = this.fields.get(key);
 
-        // 만약 필드가 없으면 생성 요청 (보통 destination setter에서 이미 생성됨)
         if (!field) {
-            this.generate(targetX, targetY, sizeClass);
+            this.generate(targetX, targetY, sizeClass, domain);
             return { x: 0, y: 0 };
         }
 
@@ -190,7 +202,6 @@ export class FlowField {
 
         if (gx < 0 || gx >= this.cols || gy < 0 || gy >= this.rows) return { x: 0, y: 0 };
 
-        // 목적지 도달 확인
         if (tgx === gx && tgy === gy) {
             return { x: 0, y: 0 };
         }

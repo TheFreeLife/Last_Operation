@@ -114,7 +114,7 @@ export class BaseUnit extends Entity {
             } else {
                 // 소유주에 따른 유동장 선택
                 const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
-                ff.generate(value.x, value.y, this.sizeClass);
+                ff.generate(value.x, value.y, this.sizeClass, this.domain);
                 this.path = []; 
             }
             this.pathRecalculateTimer = 1000;
@@ -423,30 +423,32 @@ export class BaseUnit extends Entity {
                 // [Flow Field 이동 연산]
                 if (this.domain === 'air') {
                     this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+                    this.moveWithCollision(Math.min(this.speed, distToFinal));
                 } else {
                     const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
                     
                     // [추가] 주기적으로 유동장 재생성 요청 (장애물 파괴 시 반영을 위함)
                     this.pathRecalculateTimer -= deltaTime;
                     if (this.pathRecalculateTimer <= 0) {
-                        ff.generate(this._destination.x, this._destination.y, this.sizeClass);
+                        ff.generate(this._destination.x, this._destination.y, this.sizeClass, this.domain);
                         this.pathRecalculateTimer = 2000; // 2초마다 갱신
                     }
 
-                    const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
+                    const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass, this.domain);
                     if (vector.x !== 0 || vector.y !== 0) {
                         // 유동장 벡터 방향으로 부드럽게 회전
                         const targetAngle = Math.atan2(vector.y, vector.x);
                         const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
                         this.angle += angleDiff * 0.15; // 회전 감도
-                    } else if (distToFinal > 5) {
-                        // 유동장이 없거나 목적지 타일에 도달했지만, 물리적으로 아직 거리가 남은 경우 직선 이동
+                    } else if (distToFinal < 40) {
+                        // 목적지에 매우 근접했거나 유동장 타일에 도달했지만 물리적 거리가 남은 경우에만 직선 이동 허용
                         const targetAngle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                         const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
                         this.angle += angleDiff * 0.15;
                     }
+                    
+                    this.moveWithCollision(Math.min(this.speed, distToFinal), vector);
                 }
-                this.moveWithCollision(Math.min(this.speed, distToFinal));
             }
         }
 
@@ -501,7 +503,7 @@ export class BaseUnit extends Entity {
                     const ty = curG.y + dy;
                     const tile = tileMap.grid[ty]?.[tx];
                     
-                    if (tile && !tile.passable) {
+                    if (tile && !tileMap.isPassableArea(tx, ty, 1, this.domain)) {
                         const wallLeft = tx * tileMap.tileSize;
                         const wallTop = ty * tileMap.tileSize;
                         const wallRight = wallLeft + tileMap.tileSize;
@@ -608,11 +610,17 @@ export class BaseUnit extends Entity {
     }
 
     // [헬퍼] 충돌을 고려한 이동 처리 (점 기반 이동 + 원형 반발력 시스템)
-    moveWithCollision(dist) {
+    moveWithCollision(dist, flowVector = null) {
         if (this.domain === 'air') {
             this.x += Math.cos(this.angle) * dist;
             this.y += Math.sin(this.angle) * dist;
             return;
+        }
+
+        // 유동장 데이터가 없고 목적지가 멀면 이동하지 않음 (장애물 돌파 방지)
+        const distToFinal = this._destination ? Math.hypot(this._destination.x - this.x, this._destination.y - this.y) : 0;
+        if (!flowVector || (flowVector.x === 0 && flowVector.y === 0)) {
+            if (distToFinal > 40) return;
         }
 
         const tileMap = this.engine.tileMap;
@@ -626,7 +634,7 @@ export class BaseUnit extends Entity {
             // 유닛 중심(wx, wy)으로부터 좌상단 격자(gx, gy) 계산
             const gx = Math.floor(wx / ts - (sc - 1) / 2);
             const gy = Math.floor(wy / ts - (sc - 1) / 2);
-            return tileMap.isPassableArea(gx, gy, sc);
+            return tileMap.isPassableArea(gx, gy, sc, this.domain);
         };
 
         // --- 1. 전진 시도 ---
@@ -653,7 +661,7 @@ export class BaseUnit extends Entity {
                 const ty = curG.y + dy;
                 const tile = tileMap.grid[ty]?.[tx];
                 
-                if (tile && !tile.passable) {
+                if (tile && !tileMap.isPassableArea(tx, ty, 1, this.domain)) {
                     const wallLeft = tx * tileMap.tileSize;
                     const wallTop = ty * tileMap.tileSize;
                     const wallRight = wallLeft + tileMap.tileSize;

@@ -74,7 +74,7 @@ export class Pathfinding {
         this.engine = engine;
     }
 
-    findPath(startWorldX, startWorldY, endWorldX, endWorldY, canBypassObstacles = false, unitSize = 40) {
+    findPath(startWorldX, startWorldY, endWorldX, endWorldY, canBypassObstacles = false, unitSize = 40, domain = 'ground') {
         const start = this.engine.tileMap.worldToGrid(startWorldX, startWorldY);
         const end = this.engine.tileMap.worldToGrid(endWorldX, endWorldY);
         const tileSize = this.engine.tileMap.tileSize;
@@ -92,8 +92,8 @@ export class Pathfinding {
 
         let finalEnd = { ...end };
         // 도착지가 막혀있으면 주변 탐색 (RTS 필수)
-        if (!canBypassObstacles && this.isOccupied(finalEnd.x, finalEnd.y, unitTileSize)) {
-            finalEnd = this.findNearestWalkable(finalEnd.x, finalEnd.y, unitTileSize);
+        if (!canBypassObstacles && this.isOccupied(finalEnd.x, finalEnd.y, unitTileSize, domain)) {
+            finalEnd = this.findNearestWalkable(finalEnd.x, finalEnd.y, unitTileSize, domain);
             if (!finalEnd) return null;
         }
 
@@ -149,12 +149,12 @@ export class Pathfinding {
                 if (closedSet.has(gridKey(nx, ny))) continue;
 
                 // 장애물 체크 (유닛 크기 반영)
-                if (!canBypassObstacles && this.isOccupied(nx, ny, unitTileSize)) continue;
+                if (!canBypassObstacles && this.isOccupied(nx, ny, unitTileSize, domain)) continue;
 
                 // 대각선 이동 시 코너 끼임 방지 (유닛 크기 고려하여 강화)
                 if (neighbor.x !== 0 && neighbor.y !== 0) {
-                    if (this.isOccupied(current.x + neighbor.x, current.y, unitTileSize) || 
-                        this.isOccupied(current.x, current.y + neighbor.y, unitTileSize)) {
+                    if (this.isOccupied(current.x + neighbor.x, current.y, unitTileSize, domain) || 
+                        this.isOccupied(current.x, current.y + neighbor.y, unitTileSize, domain)) {
                         continue;
                     }
                 }
@@ -200,8 +200,9 @@ export class Pathfinding {
      * @param {number} x 그리드 X
      * @param {number} y 그리드 Y
      * @param {number} unitTileSize 유닛이 차지하는 타일 크기 (보통 1 또는 2)
+     * @param {string} domain 이동 영역
      */
-    isOccupied(x, y, unitTileSize = 1) {
+    isOccupied(x, y, unitTileSize = 1, domain = 'ground') {
         // 유닛 크기가 1보다 크면 중심점을 기준으로 주변 타일들을 모두 검사
         const halfSize = Math.floor(unitTileSize / 2);
         const startX = x - halfSize;
@@ -211,24 +212,21 @@ export class Pathfinding {
 
         for (let checkY = startY; checkY <= endY; checkY++) {
             for (let checkX = startX; checkX <= endX; checkX++) {
-                if (this._isSingleTileOccupied(checkX, checkY)) return true;
+                if (this._isSingleTileOccupied(checkX, checkY, domain)) return true;
             }
         }
         return false;
     }
 
     // 기존의 단일 타일 체크 로직을 내부 메서드로 분리
-    _isSingleTileOccupied(x, y) {
+    _isSingleTileOccupied(x, y, domain = 'ground') {
         if (!this.isValid(x, y)) return true;
-        const tile = this.engine.tileMap.grid[y][x];
         
-        // 건설 가능 여부 체크 (기본 타일 속성)
-        if (!tile.buildable) return true;
-
-        return false;
+        // 도메인 기반 통과 가능 여부 체크
+        return !this.engine.tileMap.isPassableArea(x, y, 1, domain);
     }
 
-    findNearestWalkable(tx, ty, unitTileSize = 1) {
+    findNearestWalkable(tx, ty, unitTileSize = 1, domain = 'ground') {
         // 나선형 탐색으로 가장 가까운 빈 공간 찾기
         for (let radius = 1; radius <= 5; radius++) {
             for (let dy = -radius; dy <= radius; dy++) {
@@ -236,7 +234,7 @@ export class Pathfinding {
                     if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
                     const nx = tx + dx;
                     const ny = ty + dy;
-                    if (this.isValid(nx, ny) && !this.isOccupied(nx, ny, unitTileSize)) {
+                    if (this.isValid(nx, ny) && !this.isOccupied(nx, ny, unitTileSize, domain)) {
                         return { x: nx, y: ny };
                     }
                 }

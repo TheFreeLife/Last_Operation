@@ -183,6 +183,17 @@
             ]
         },
         {
+            "id": "sea_patrol",
+            "name": "해상 초계반",
+            "description": "연안 방어를 위한 고속정 2척으로 구성된 해상 전력입니다. 해상 영역을 장악하고 해안가 적들을 타격합니다.",
+            "icon": "🛥️",
+            "cost": 5,
+            "weight": 50,
+            "units": [
+                { "id": "small-boat", "count": 2 }
+            ]
+        },
+        {
             "id": "strategic_strike",
             "name": "전략 핵 타격대",
             "description": "이동식 ICBM 발사대와 정예 호위 부대입니다. 국가의 최후 결전 수단입니다.",
