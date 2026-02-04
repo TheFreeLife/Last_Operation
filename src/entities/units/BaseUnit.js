@@ -64,21 +64,23 @@ export class BaseUnit extends Entity {
         this.hp = this.maxHp || 100;
         this.alive = true;
         this.target = null;
-        this.manualTarget = null; // [추가] 수동 타겟 초기화
+        this.manualTarget = null;
         this.command = 'stop';
         this._destination = null;
         this.path = [];
-        this.pathRecalculateTimer = 0; // [추가] 경로 재계산 타이머 초기화
+        this.pathRecalculateTimer = 0;
         this.transportTarget = null;
         this.isBoarded = false;
         this.ammo = this.maxAmmo || 0;
         this.lastFireTime = 0;
         this.isFalling = false;
         this.isUnloading = false;
-        this.targetingTimer = Math.random() * 500; // 타이머 리셋
+        this.targetingTimer = Math.random() * 500;
         this.hitTimer = 0;
         
-        // [추가] 기타 상태 플래그 초기화
+        // [추가] 수송 및 특수 상태 초기화
+        this.cargo = [];
+        this.unloadTimer = 0;
         this.isTransitioning = false;
         this.isInitialExit = false;
         this._lastAmmoMsgTime = 0;
@@ -86,17 +88,15 @@ export class BaseUnit extends Entity {
         // AI 초기화
         this.aiOrigin = { x, y };
         this.aiWanderTimer = 0;
-        this.isAiControlled = (this.ownerId !== 1); // 플레이어가 아니면 AI가 제어 (2: 적군, 0: 중립)
+        this.isAiControlled = (this.ownerId !== 1);
         
         // [수정] 이전 생의 추격 상태가 남지 않도록 초기화
-        // options에서 aiState를 직접 주지 않은 경우, 이전 생의 'chase'는 'guard'로 리셋
         if (this.aiState === 'chase') {
             this.aiState = 'guard';
         }
         
-        // [추가] 옵션으로 전달된 AI 상태 및 반경 적용
         this.baseAiState = this.aiState || 'guard';
-        if (this.aiRadius === undefined) this.aiRadius = 300; // 기본값
+        if (this.aiRadius === undefined) this.aiRadius = 300;
     }
 
     get destination() { return this._destination; }

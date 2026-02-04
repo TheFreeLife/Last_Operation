@@ -174,6 +174,23 @@ export class EntityManager {
         for (let i = this.allEntities.length - 1; i >= 0; i--) {
             const entity = this.allEntities[i];
             if (!entity.active) {
+                // [추가] 객체 풀 반환 전 강력한 상태 정리
+                if (entity.cargo && entity.cargo.length > 0) {
+                    // 수송기/트럭이 파괴될 때 안의 유닛들도 함께 파괴 처리 (또는 강제 하차)
+                    entity.cargo.forEach(u => {
+                        u.isBoarded = false;
+                        if (u.hp > 0) u.hp = 0; // 함께 파괴
+                        u.active = false;
+                    });
+                    entity.cargo = [];
+                }
+
+                // 특수 상태 정리 (사운드 중단 등)
+                if (entity.siegeSoundInstance) {
+                    entity.siegeSoundInstance.pause();
+                    entity.siegeSoundInstance = null;
+                }
+
                 const pool = this.pools.get(entity.type || entity.constructor.name.toLowerCase());
                 if (pool) {
                     pool.release(entity);

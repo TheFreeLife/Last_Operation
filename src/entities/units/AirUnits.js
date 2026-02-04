@@ -97,17 +97,17 @@ export class Bomber extends PlayerUnit {
         this.type = 'bomber';
         this.name = '전략 폭격기';
         this.domain = 'ground'; 
-        this.baseSpeed = 1.1;  // 2.2 -> 1.1 (절반으로 하향)
+        this.baseSpeed = 1.1;
         this.airSpeed = 5.0;   
-        this.speed = 0.25;     // 0.5 -> 0.25
+        this.speed = 0.25;
         this.visionRange = 12;
         this.hp = 1200;
         this.maxHp = 1200;
-        this.population = 4; // 조종사, 부조종사, 항법사, 폭격수
+        this.population = 4;
         this.size = 130; 
         this.damage = 300;
         this.attackTargets = ['ground', 'sea'];
-        this.isIndirect = true; // [추가] 곡사 판정 (지붕 우선 공격을 위함)
+        this.isIndirect = true;
         this.cargoSize = 99; 
 
         this.bombTimer = 0;
@@ -391,12 +391,12 @@ export class CargoPlane extends PlayerUnit {
         this.type = 'cargo-plane';
         this.name = '전략 수송기';
         this.domain = 'ground'; 
-        this.baseSpeed = 0.4;   // 0.8 -> 0.4
+        this.baseSpeed = 0.4;
         this.airSpeed = 2.2;    
-        this.speed = 0.15;      // 0.3 -> 0.15
+        this.speed = 0.15;
         this.hp = 1500;
         this.maxHp = 1500;
-        this.population = 2; // 조종사 2명
+        this.population = 2;
         this.size = 130; 
         this.armorType = 'light';
         this.altitude = 0.0; 
@@ -409,13 +409,14 @@ export class CargoPlane extends PlayerUnit {
         this.maneuverFrameCount = 0;
         this.takeoffDistance = 0;
 
-        this.cargo = []; // 화물 비우기
+        this.cargo = [];
         this.cargoCapacity = 20; 
         this.cargoSize = 99; 
         this.isUnloading = false;
-        this.isCombatDropping = false; // [추가] 강하 상태 초기화
+        this.isCombatDropping = false;
         this.unloadTimer = 0;
         this.unloadInterval = 300;
+        this.dropTimer = 0; // [추가] 강하 타이머 리셋
     }
 
     getSelectionBounds() {
@@ -805,11 +806,10 @@ export class Helicopter extends PlayerUnit {
         this.visionRange = 10;
         this.hp = 700;
         this.maxHp = 700;
-        this.population = 2; // 조종사, 부조종사/사수
+        this.population = 2;
         this.size = 90;
         this.altitude = 0.0;
         
-        // 무장 설정: 기관총 (지상/공중 모두 타격)
         this.attackRange = 280;
         this.fireRate = 200; 
         this.damage = 12;
@@ -822,15 +822,14 @@ export class Helicopter extends PlayerUnit {
         this.maxAmmo = 400;
         this.ammo = 400;
 
-        // 수송 설정
         this.cargo = [];
         this.cargoCapacity = 4;
-        this.cargoSize = 99; // 헬기는 다른 기체에 탈 수 없음
+        this.cargoSize = 99;
         this.isUnloading = false;
         this.unloadTimer = 0;
         this.unloadInterval = 400;
 
-        this.isTransitioning = false; // 이착륙 전환 중
+        this.isTransitioning = false;
     }
 
     getSelectionBounds() {

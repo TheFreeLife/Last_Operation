@@ -122,6 +122,8 @@ export class MissileLauncher extends PlayerUnit {
         this.isFiring = false;
         this.fireDelayTimer = 0;
         this.speed = this.baseSpeed || 1.4;
+        this.pendingFirePos = { x: 0, y: 0 };
+        this.recoil = 0;
     }
 
     getSkillConfig(cmd) {
@@ -510,6 +512,8 @@ export class MobileICBMLauncher extends PlayerUnit {
         this.isFiring = false;
         this.fireDelayTimer = 0;
         this.speed = this.baseSpeed || 1.0;
+        this.pendingFirePos = { x: 0, y: 0 };
+        this.recoil = 0;
     }
 
     getSkillConfig(cmd) {
