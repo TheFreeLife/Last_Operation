@@ -946,6 +946,7 @@ export class Train extends PlayerUnit {
         this.attackRange = 0;
         this.visionRange = 4;
         this.size = 120; // 길쭉한 형태를 위해 크게 설정
+        this.cargoSize = 99; // 수송 불가
         this.population = 10; // 대규모 운송 수단 설정
         this.hp = 2000;
         this.maxHp = 2000;
@@ -1077,6 +1078,7 @@ export class FreightCar extends PlayerUnit {
         this.attackRange = 0;
         this.visionRange = 2;
         this.size = 110; 
+        this.cargoSize = 99; // 수송 불가
         this.population = 0;
         this.hp = 1500;
         this.maxHp = 1500;

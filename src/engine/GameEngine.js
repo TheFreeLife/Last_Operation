@@ -1482,6 +1482,13 @@ export class GameEngine {
         if (hovered.sizeCategoryName) {
             desc += `<div class="stat-row"><span>📏 체급:</span> <span class="highlight">${hovered.sizeCategoryName}</span></div>`;
         }
+        
+        // [추가] 수송 점유 칸수 표시
+        if (hovered.cargoSize !== undefined) {
+            const sizeText = (hovered.cargoSize >= 99) ? '수송 불가' : `${hovered.cargoSize}칸`;
+            desc += `<div class="stat-row"><span>📦 점유:</span> <span class="highlight">${sizeText}</span></div>`;
+        }
+
         if (hovered.speed > 0) {
             desc += `<div class="stat-row"><span>🏃 속도:</span> <span class="highlight">${hovered.speed}</span></div>`;
         }
