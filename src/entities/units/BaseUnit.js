@@ -68,6 +68,7 @@ export class BaseUnit extends Entity {
         this.command = 'stop';
         this._destination = null;
         this.path = [];
+        this.pathRecalculateTimer = 0; // [추가] 경로 재계산 타이머 초기화
         this.transportTarget = null;
         this.isBoarded = false;
         this.ammo = this.maxAmmo || 0;
@@ -86,6 +87,12 @@ export class BaseUnit extends Entity {
         this.aiOrigin = { x, y };
         this.aiWanderTimer = 0;
         this.isAiControlled = (this.ownerId !== 1); // 플레이어가 아니면 AI가 제어 (2: 적군, 0: 중립)
+        
+        // [수정] 이전 생의 추격 상태가 남지 않도록 초기화
+        // options에서 aiState를 직접 주지 않은 경우, 이전 생의 'chase'는 'guard'로 리셋
+        if (this.aiState === 'chase') {
+            this.aiState = 'guard';
+        }
         
         // [추가] 옵션으로 전달된 AI 상태 및 반경 적용
         this.baseAiState = this.aiState || 'guard';
