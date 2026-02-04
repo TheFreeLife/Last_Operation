@@ -1299,9 +1299,10 @@ export class GameEngine {
                 'db-spawn-anti-tank', 'db-spawn-special-forces', 'db-spawn-medic', 'db-spawn-mortar',
                 'db-spawn-drone-op', 'db-spawn-suicide-drone', 'db-spawn-military-truck',
                 'db-spawn-medical-truck', 'db-spawn-bomber', 'db-spawn-cargo-plane',
-                'db-spawn-scout-plane', 'db-spawn-helicopter', 'db-spawn-drone-truck', 'db-spawn-ammo-bullet',
-                'db-spawn-ammo-shell', 'db-spawn-ammo-missile', 'db-spawn-ammo-nuclear',
-                'db-spawn-sentiment'
+                'db-spawn-scout-plane', 'db-spawn-helicopter', 'db-spawn-drone-truck', 
+                'db-spawn-boat', 'db-spawn-train', 'db-spawn-freight',
+                'db-spawn-ammo-bullet', 'db-spawn-ammo-shell', 'db-spawn-ammo-missile', 
+                'db-spawn-ammo-nuclear', 'db-spawn-sentiment'
             ];
             
             dbBtns.forEach(id => {
