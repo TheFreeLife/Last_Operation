@@ -552,6 +552,30 @@ export class BaseUnit extends Entity {
         }
     }
 
+    onDeath() {
+        if (!this.active) return;
+
+        // 1. 폭발 효과 생성
+        if (this.engine.addEffect) {
+            let effectType = 'explosion_shell';
+            if (this.size > 100 || this.type === 'icbm-launcher') {
+                effectType = 'explosion_suicide'; // 대형 유닛은 자폭급 폭발
+            } else if (this.armorType === 'light' || this.armorType === 'heavy') {
+                effectType = 'explosion_missile'; // 일반 차량은 미사일급 폭발
+            }
+            this.engine.addEffect(effectType, this.x, this.y);
+        }
+
+        // 2. 민심 시스템: 적 처치 시 민심 2% 획득 (플레이어 유닛이 적 유닛을 죽였을 때)
+        // 여기서는 단순하게 죽은 유닛이 적군(ownerId=2)이면 민심을 올림
+        if (this.ownerId === 2 && this.engine.publicSentiment !== undefined) {
+            this.engine.publicSentiment = Math.min(100, this.engine.publicSentiment + 2);
+        }
+
+        // 3. 부모 클래스의 사망 처리 호출
+        super.onDeath();
+    }
+
     // [수송 유닛 공통] 하차 처리 로직
     processUnloading(deltaTime) {
         if (!this.isUnloading || this.cargo.length === 0) {

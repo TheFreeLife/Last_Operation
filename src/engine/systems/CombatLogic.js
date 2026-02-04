@@ -85,7 +85,12 @@ export const CombatLogic = {
 
         // 공통 폭발/명중 효과
         if (engine.addEffect) {
-            engine.addEffect(effectType, x, y);
+            let finalEffectType = effectType;
+            if (effectType === 'explosion') {
+                if (weaponType === 'shell') finalEffectType = 'explosion_shell';
+                else if (weaponType === 'missile') finalEffectType = 'explosion_missile';
+            }
+            engine.addEffect(finalEffectType, x, y);
         }
 
         return false; // 지면에 명중
