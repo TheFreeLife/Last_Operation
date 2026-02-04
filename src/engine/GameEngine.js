@@ -1492,10 +1492,10 @@ export class GameEngine {
             const colorClass = (hovered.droneCount <= 0) ? 'text-red' : 'highlight';
             desc += `<div class="stat-row"><span>🐝 드론 재고:</span> <span class="${colorClass}">${hovered.droneCount} / ${hovered.maxDroneCount}</span></div>`;
         }
-        if (hovered.cargo !== undefined && hovered.type !== 'drone-truck') {
-            const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : hovered.cargo.length;
+        if (hovered.cargoCapacity > 0 && hovered.type !== 'drone-truck') {
+            const occupied = hovered.getOccupiedSize ? hovered.getOccupiedSize() : (hovered.cargo ? hovered.cargo.length : 0);
             desc += `<div class="stat-row"><span>📦 적재량:</span> <span class="highlight">${occupied} / ${hovered.cargoCapacity}</span></div>`;
-            if (hovered.cargo.length > 0) {
+            if (hovered.cargo && hovered.cargo.length > 0) {
                 const cargoNames = hovered.cargo.map(u => u.name).join(', ');
                 desc += `<div class="stat-row full-width text-blue" style="font-size: 0.75rem;">탑승: ${cargoNames}</div>`;
             }
