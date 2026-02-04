@@ -11,7 +11,7 @@ export class MilitaryTruck extends PlayerUnit {
         this.maxHp = 600;
         this.population = 2; // 운전병 + 선탑자
         this.size = 80;
-        this.cargoSize = 15; // 다른 수송기에 탈 수는 있지만 큰 부피 차지
+        this.cargoSize = 99; // 수송 불가 (트럭 계열 고정)
 
         this.armorType = 'light';
 
@@ -188,6 +188,7 @@ export class MedicalTruck extends MilitaryTruck {
         this.maxHp = 800;
         this.population = 3;
         this.size = 80;
+        this.cargoSize = 99; // 수송 불가
         
         // 에너지 충전 시스템 (주변 의무병 지원)
         this.energyRestoreRate = 15; // 초당 활력 충전량
@@ -335,7 +336,7 @@ export class DroneContainerTruck extends MilitaryTruck {
 
         this.armorType = 'light';
 
-        this.cargoSize = 25; // 수송 불가 수준의 거대 체급
+        this.cargoSize = 99; // 수송 불가 (초대형 체급)
 
     }
 

@@ -462,6 +462,7 @@ export class MortarTeam extends PlayerUnit {
         this.maxHp = 140;
         this.population = 2; // 인구수 2명
         this.attackTargets = ['ground', 'sea'];
+        this.cargoSize = 2; // [추가] 2인 1조 및 장비 고려
         this.isIndirect = true; // 박격포는 곡사 사격
         this.hitEffectType = 'explosion';
         

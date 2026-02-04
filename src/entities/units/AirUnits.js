@@ -21,7 +21,7 @@ export class ScoutPlane extends PlayerUnit {
         this.maxHp = 250;
         this.population = 2; // 조종사 + 관측수 (현실적 운용 인원)
         this.size = 80;      
-        this.cargoSize = 99; 
+        this.cargoSize = 99; // 수송 불가
         this.armorType = 'light';
     }
 
@@ -1027,6 +1027,7 @@ export class SuicideDrone extends PlayerUnit {
         this.population = 0; // 무인기이므로 인구수 0
         this.attackTargets = ['ground', 'air', 'sea'];
         this.size = 24;
+        this.cargoSize = 99; // 수송 불가
         this.altitude = 1.0;
         this.isDashing = false;
 
@@ -1234,6 +1235,7 @@ export class CarrierDrone extends PlayerUnit {
         this.population = 0; 
         this.attackTargets = ['ground', 'air', 'sea'];
         this.size = 22;
+        this.cargoSize = 99; // 수송 불가
         this.altitude = 1.0;
         this.isDashing = false;
 
