@@ -54,7 +54,16 @@ export const CombatLogic = {
             }
 
             if (engine.addEffect) {
-                engine.addEffect(effectType, x, y, hitCeilingColor);
+                let finalEffectType = effectType;
+                if (effectType === 'explosion') {
+                    if (weaponType === 'shell') finalEffectType = 'impact_shell';
+                    else if (weaponType === 'missile') finalEffectType = 'impact_missile';
+                    else finalEffectType = 'impact_bullet';
+                } else if (effectType === 'hit') {
+                    finalEffectType = 'impact_bullet';
+                }
+                // 천장 타격 시 시각적 구분을 위해 hitCeilingColor 전달 가능 (현재 addEffect는 color를 파티클 색상으로 사용)
+                engine.addEffect(finalEffectType, x, y, hitCeilingColor);
             }
             return true; // 천장에 막힘
         }

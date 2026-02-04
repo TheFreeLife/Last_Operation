@@ -564,6 +564,13 @@ export class GameEngine {
             const vx = (Math.random() - 0.5) * 0.5;
             const vy = -0.5 - Math.random() * 0.5;
             this.renderSystem.addParticle(x, y, vx, vy, 8 + Math.random() * 8, color, 3000 + Math.random() * 2000, 'smoke');
+        } else if (type === 'water_wake') {
+            // 해상 유닛용 물보라 효과 (크기 및 속도 하향, 색상 연하게)
+            const angle = color; 
+            const spread = (Math.random() - 0.5) * 0.4;
+            const vx = Math.cos(angle + Math.PI + spread) * (0.5 + Math.random() * 0.5);
+            const vy = Math.sin(angle + Math.PI + spread) * (0.5 + Math.random() * 0.5);
+            this.renderSystem.addParticle(x, y, vx, vy, 1.5 + Math.random() * 2, '#d0eaff', 400 + Math.random() * 300, 'smoke');
         } else if (type === 'system') {
             this.effects.push({ type, x, y, color, text, timer: 0, duration: 1500, active: true });
         }

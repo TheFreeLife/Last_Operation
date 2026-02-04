@@ -35,6 +35,20 @@ export class SmallBoat extends PlayerUnit {
         this.performAttack();
     }
 
+    update(deltaTime) {
+        super.update(deltaTime);
+
+        // 이동 중일 때 물보라 파티클 생성 (빈도 감소: 0.4 -> 0.15)
+        if (this.active && this._destination && Math.hypot(this.x - this._destination.x, this.y - this._destination.y) > 10) {
+            if (Math.random() < 0.15) {
+                // 배 뒤쪽 위치 계산
+                const bx = this.x + Math.cos(this.angle + Math.PI) * 20;
+                const by = this.y + Math.sin(this.angle + Math.PI) * 20;
+                this.engine.addEffect?.('water_wake', bx, by, this.angle);
+            }
+        }
+    }
+
     draw(ctx) {
         if (this.isUnderConstruction) {
             this.drawConstruction(ctx);
@@ -81,18 +95,6 @@ export class SmallBoat extends PlayerUnit {
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(3, -1, 10, 2); // 포신
         ctx.restore();
-
-        // --- 물보라 효과 (Wake) ---
-        if (this._destination) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(-22, -8);
-            ctx.lineTo(-35, -15);
-            ctx.moveTo(-22, 8);
-            ctx.lineTo(-35, 15);
-            ctx.stroke();
-        }
 
         ctx.restore();
     }
