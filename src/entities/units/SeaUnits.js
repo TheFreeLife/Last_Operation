@@ -17,7 +17,7 @@ export class SmallBoat extends PlayerUnit {
         this.hp = 400;
         this.maxHp = 400;
         this.muzzleOffset = 35;
-        this.projectileSpeed = 20;
+        this.projectileSpeed = 35; // 고속정 탄속 상향 (20 -> 35)
         this.hitEffectType = 'bullet';
 
         this.domain = 'sea'; // 해상 도메인

@@ -19,7 +19,7 @@ export class Rifleman extends PlayerUnit {
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 1;  
         this.muzzleOffset = 20;
-        this.projectileSpeed = 14; // 보병 탄속 소폭 상향
+        this.projectileSpeed = 30; // 보병 탄속 대폭 상향 (14 -> 30)
         this.hitEffectType = 'bullet';
 
         this.armorType = 'infantry';
@@ -111,7 +111,7 @@ export class Sniper extends PlayerUnit {
         this.population = 1; // 2인 1조에서 단일 유닛으로 변경
         this.attackTargets = ['ground', 'sea', 'air'];
         this.muzzleOffset = 40;
-        this.projectileSpeed = 24; // 저격탄은 매우 빠름
+        this.projectileSpeed = 50; // 저격탄 탄속 대폭 상향 (24 -> 50)
         this.hitEffectType = 'hit';
         this.muzzleEffectType = 'muzzle_sniper';
 
@@ -750,7 +750,7 @@ export class SpecialForces extends PlayerUnit {
         this.attackTargets = ['ground', 'sea', 'air'];
         this.cargoSize = 1;  
         this.muzzleOffset = 22;
-        this.projectileSpeed = 18; // 더 빠른 탄속
+        this.projectileSpeed = 35; // 특전사 탄속 대폭 상향 (18 -> 35)
         this.hitEffectType = 'bullet';
 
         this.armorType = 'infantry';

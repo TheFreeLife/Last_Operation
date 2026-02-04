@@ -813,7 +813,9 @@ export class Helicopter extends PlayerUnit {
         this.attackRange = 280;
         this.fireRate = 200; 
         this.damage = 12;
-        this.attackTargets = ['ground', 'air', 'sea'];
+        this.muzzleOffset = 40; // BaseUnit에서 상속받은 기본값 대신 명시적 설정
+        this.projectileSpeed = 32; // 헬기 탄속 상향 (12 -> 32)
+        this.hitEffectType = 'bullet';
         
         this.armorType = 'light';
         this.weaponType = 'bullet';

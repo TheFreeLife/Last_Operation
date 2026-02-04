@@ -581,7 +581,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.cargoSize = 5;
         this.population = 3; 
         this.muzzleOffset = 50;
-        this.projectileSpeed = 22; // 탄속 소폭 상향
+        this.projectileSpeed = 40; // 대공포 탄속 상향 (22 -> 40)
         this.hitEffectType = 'flak';
 
         this.armorType = 'light';
