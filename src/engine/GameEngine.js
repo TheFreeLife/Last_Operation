@@ -442,7 +442,7 @@ export class GameEngine {
         if (type === 'impact_shell') {
             // 포탄 명중: 찰나의 섬광 + 튀어오르는 흙먼지
             this.audioSystem.play('explosion', { volume: 0.12 });
-            this.renderSystem.addParticle(x, y, 0, 0, 35, '#8b8682', 400, 'smoke'); 
+            this.renderSystem.addParticle(x, y, 0, 0, 35, '#8b8682', 1200, 'smoke'); 
             for (let i = 0; i < 6; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 2.0 + Math.random() * 3.0;
@@ -451,7 +451,7 @@ export class GameEngine {
         } else if (type === 'impact_missile') {
             // 미사일 명중: 붉은 화염 폭발 + 순간적인 충격 연기
             this.audioSystem.play('explosion', { volume: 0.18 });
-            this.renderSystem.addParticle(x, y, 0, 0, 50, '#555', 600, 'smoke'); 
+            this.renderSystem.addParticle(x, y, 0, 0, 50, '#555', 1500, 'smoke'); 
             for (let i = 0; i < 12; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 1.0 + Math.random() * 5.0;
@@ -470,7 +470,7 @@ export class GameEngine {
             for (let i = 0; i < 6; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 0.5 + Math.random() * 2.0;
-                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 12 + Math.random() * 12, '#333', 1200 + Math.random() * 600, 'smoke');
+                this.renderSystem.addParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 12 + Math.random() * 12, '#333', 3000 + Math.random() * 1500, 'smoke');
             }
             for (let i = 0; i < 10; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -481,7 +481,7 @@ export class GameEngine {
             // 대형 기계 파괴: 묵직함은 유지하되 가시성 확보를 위해 축소
             this.audioSystem.play('explosion', { volume: 0.3 });
             for (let i = 0; i < 2; i++) {
-                this.renderSystem.addParticle(x, y, 0, 0, 35 + i * 15, '#111', 1500 + i * 500, 'smoke');
+                this.renderSystem.addParticle(x, y, 0, 0, 35 + i * 15, '#111', 4000 + i * 1000, 'smoke');
             }
             for (let i = 0; i < 12; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -550,7 +550,7 @@ export class GameEngine {
             // 유닛 데미지용 연기 효과 (위로 살짝 피어오름)
             const vx = (Math.random() - 0.5) * 0.5;
             const vy = -0.5 - Math.random() * 0.5;
-            this.renderSystem.addParticle(x, y, vx, vy, 8 + Math.random() * 8, color, 1500 + Math.random() * 1000, 'smoke');
+            this.renderSystem.addParticle(x, y, vx, vy, 8 + Math.random() * 8, color, 3000 + Math.random() * 2000, 'smoke');
         } else if (type === 'system') {
             this.effects.push({ type, x, y, color, text, timer: 0, duration: 1500, active: true });
         }
