@@ -186,6 +186,18 @@ export class FlowField {
         tgx = Math.max(0, Math.min(this.cols - sizeClass, tgx));
         tgy = Math.max(0, Math.min(this.rows - sizeClass, tgy));
 
+        // [중요] 목적지가 이동 불가능한 경우 보정된 좌표를 찾음 (generate와 동일한 로직)
+        const costMapKey = `${domain}_${sizeClass}`;
+        if (this.costMaps[costMapKey][tgy * this.cols + tgx] === 255) {
+            const nearest = this.findNearestWalkable(tgx, tgy, sizeClass, domain);
+            if (nearest) {
+                tgx = nearest.x;
+                tgy = nearest.y;
+            } else {
+                return { x: 0, y: 0 };
+            }
+        }
+
         const key = `${tgx}_${tgy}_${sizeClass}_${domain}`;
         let field = this.fields.get(key);
 

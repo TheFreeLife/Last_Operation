@@ -227,8 +227,8 @@ export class Pathfinding {
     }
 
     findNearestWalkable(tx, ty, unitTileSize = 1, domain = 'ground') {
-        // 나선형 탐색으로 가장 가까운 빈 공간 찾기
-        for (let radius = 1; radius <= 5; radius++) {
+        // 나선형 탐색으로 가장 가까운 빈 공간 찾기 (반경 40으로 상향)
+        for (let radius = 1; radius <= 40; radius++) {
             for (let dy = -radius; dy <= radius; dy++) {
                 for (let dx = -radius; dx <= radius; dx++) {
                     if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
