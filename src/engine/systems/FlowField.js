@@ -160,7 +160,8 @@ export class FlowField {
     findNearestWalkable(tx, ty, sizeClass, domain = 'ground') {
         const costMapKey = `${domain}_${sizeClass}`;
         const costMap = this.costMaps[costMapKey];
-        for (let r = 1; r <= 10; r++) {
+        // 탐색 반경을 10에서 40으로 대폭 상향 (맵의 상당 부분을 커버)
+        for (let r = 1; r <= 40; r++) {
             for (let dy = -r; dy <= r; dy++) {
                 for (let dx = -r; dx <= r; dx++) {
                     if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;

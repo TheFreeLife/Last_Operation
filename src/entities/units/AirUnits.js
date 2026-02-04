@@ -1233,7 +1233,7 @@ export class CarrierDrone extends PlayerUnit {
         this.hp = 30; // 체력은 조금 더 낮음
         this.maxHp = 30;
         this.population = 0; 
-        this.attackTargets = ['ground', 'air', 'sea'];
+        this.attackTargets = ['ground', 'sea'];
         this.size = 22;
         this.cargoSize = 99; // 수송 불가
         this.altitude = 1.0;
@@ -1301,6 +1301,9 @@ export class CarrierDrone extends PlayerUnit {
                     
                     // 트럭 사거리 체크
                     if (Math.hypot(e.x - this.parentTruck.x, e.y - this.parentTruck.y) > truckRange) return false;
+
+                    // 도메인 체크 (공중 유닛 제외 로직 반영)
+                    if (!this.attackTargets.includes(e.domain || 'ground')) return false;
 
                     // 천장(실내) 체크: 드론은 실내의 적을 발견하거나 공격할 수 없음
                     const targetGrid = this.engine.tileMap.worldToGrid(e.x, e.y);

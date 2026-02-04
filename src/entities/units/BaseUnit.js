@@ -755,7 +755,7 @@ export class BaseUnit extends Entity {
                 const gx = Math.floor(finalX / this.engine.tileMap.tileSize);
                 const gy = Math.floor(finalY / this.engine.tileMap.tileSize);
                 
-                if (this.engine.tileMap.isPassableArea(gx, gy, this.sizeClass)) {
+                if (this.engine.tileMap.isPassableArea(gx, gy, this.sizeClass, this.domain)) {
                     foundValidPoint = true;
                 }
                 attempts++;
