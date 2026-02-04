@@ -528,6 +528,25 @@ export class BaseUnit extends Entity {
         this.x = Math.max(this.size / 2, Math.min(mapW - this.size / 2, this.x));
         this.y = Math.max(this.size / 2, Math.min(mapH - this.size / 2, this.y));
 
+        // --- 체력 저하 시 연기 발생 로직 (차량 계열) ---
+        if (this.active && (this.armorType === 'light' || this.armorType === 'heavy')) {
+            const hpRatio = this.hp / this.maxHp;
+            if (hpRatio < 0.5) {
+                const smokeChance = (0.5 - hpRatio) * 0.2;
+                if (Math.random() < smokeChance) {
+                    const ox = (Math.random() - 0.5) * (this.size * 0.5);
+                    const oy = (Math.random() - 0.5) * (this.size * 0.5);
+                    
+                    // HP에 따른 연기 색상 결정
+                    let smokeColor = '#999'; // 연한 회색 (50% 부근)
+                    if (hpRatio < 0.2) smokeColor = '#222'; // 검은 연기 (위험)
+                    else if (hpRatio < 0.35) smokeColor = '#555'; // 진한 회색
+                    
+                    this.engine.addEffect?.('smoke', this.x + ox, this.y + oy, smokeColor);
+                }
+            }
+        }
+
         if (this.hp <= 0 && this.active) {
             this.onDeath();
         }

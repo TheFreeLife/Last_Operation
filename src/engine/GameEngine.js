@@ -501,6 +501,11 @@ export class GameEngine {
             for (let i = 0; i < 6; i++) {
                 this.renderSystem.addParticle(x, y, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, 1 + Math.random() * 2, color, 400, 'spark');
             }
+        } else if (type === 'smoke') {
+            // 유닛 데미지용 연기 효과 (위로 살짝 피어오름)
+            const vx = (Math.random() - 0.5) * 0.5;
+            const vy = -0.5 - Math.random() * 0.5;
+            this.renderSystem.addParticle(x, y, vx, vy, 8 + Math.random() * 8, color, 1500 + Math.random() * 1000, 'smoke');
         } else if (type === 'system') {
             this.effects.push({ type, x, y, color, text, timer: 0, duration: 1500, active: true });
         }
