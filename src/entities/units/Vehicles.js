@@ -340,7 +340,7 @@ export class Artillery extends PlayerUnit {
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
-        this.muzzleOffset = 80;
+        this.muzzleOffset = 96;
         this.projectileSpeed = 10; // 곡사포는 탄속이 약간 느림
 
         this.turretAngle = this.angle; // 독립적인 포탑 각도
@@ -410,12 +410,8 @@ export class Artillery extends PlayerUnit {
             this.turretAngle += diff * 0.05;
             this.attack();
         } else {
-            // 타겟이 없으면 차체 정면 방향으로 부드럽게 복귀 (Travel Lock)
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.05;
-            if (Math.abs(diff) < 0.01) this.turretAngle = this.angle;
+            // 타겟이 없으면 차체 정면 방향으로 즉시 고정 (이동 시 따로 노는 현상 방지)
+            this.turretAngle = this.angle;
         }
     }
 
@@ -513,25 +509,56 @@ export class Artillery extends PlayerUnit {
         ctx.save();
         ctx.scale(2, 2);
 
-        // --- 1. 하부 (차체/무한궤도) : 이미 ctx가 this.angle만큼 회전된 상태 ---
-        ctx.fillStyle = '#1a1a1a'; // 궤도/하부 프레임
-        ctx.fillRect(-16, -11, 32, 22);
+        // --- 1. 하부 (차체/무한궤도) ---
+        // 궤도 및 하부 프레임 (검은색)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(-18, -12, 36, 24);
         
-        ctx.fillStyle = '#4b5320'; // 차체 장갑
-        ctx.fillRect(-15, -10, 30, 20);
+        // 차체 메인 (국방색)
+        ctx.fillStyle = '#4b5320';
+        ctx.beginPath();
+        ctx.moveTo(-18, -11); ctx.lineTo(16, -11);
+        ctx.lineTo(18, -8); ctx.lineTo(18, 8);
+        ctx.lineTo(16, 11); ctx.lineTo(-18, 11);
+        ctx.closePath();
+        ctx.fill();
 
-        // --- 2. 상부 (포탑) : turretAngle과 angle의 차이만큼 추가 회전 ---
+        // 차체 상부 디테일 (엔진 그릴 부분)
+        ctx.fillStyle = '#3d441a';
+        ctx.fillRect(4, -8, 8, 16);
+
+        // --- 2. 상부 (포탑) ---
         ctx.save();
-        // 차체의 피벗(-2, 0) 위치로 이동 후 포탑 회전
-        ctx.translate(-2, 0); 
+        // K9의 포탑은 차체 후방에 위치함 (중심에서 뒤로 -6만큼 이동)
+        ctx.translate(-6, 0); 
         ctx.rotate(this.turretAngle - this.angle);
         
-        ctx.fillStyle = '#556644'; // 포탑 본체
-        ctx.fillRect(-10, -9, 22, 18);
+        // 포탑 본체 (뒷부분이 약간 더 긴 각진 형태)
+        ctx.fillStyle = '#556644';
+        ctx.beginPath();
+        ctx.moveTo(-12, -10); ctx.lineTo(10, -10);
+        ctx.lineTo(14, -6); ctx.lineTo(14, 6);
+        ctx.lineTo(10, 10); ctx.lineTo(-12, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // 포탑 상부 해치 및 장비 상자 디테일
+        ctx.fillStyle = '#3d441a';
+        ctx.beginPath();
+        ctx.arc(-2, -5, 3.5, 0, Math.PI * 2); // 전차장 해치
+        ctx.fill();
+        ctx.fillRect(-10, 4, 6, 4); // 공구함/장비
         
-        ctx.fillStyle = '#4b5320'; // 포신
-        ctx.fillRect(12, -2, 28, 4);
+        // 포신 (K9 특유의 매우 긴 52구경장 포신)
+        ctx.fillStyle = '#4b5320';
+        ctx.fillRect(14, -2, 38, 4);
         
+        // 제퇴기 (Muzzle Brake)
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(48, -3.5, 6, 7);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(50, -4, 2, 8); // 제퇴기 슬롯 묘사
+
         ctx.restore();
         
         ctx.restore();
