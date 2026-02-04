@@ -15,6 +15,9 @@ export class Entity {
         // [구조화] size는 유닛의 체급별 표준 크기 (40, 80, 130)
         if (this.size === undefined) this.size = 40;
         
+        // [추가] 수송 점유 크기 기본값 (리팩토링: 모든 엔티티 필수 속성)
+        if (this.cargoSize === undefined) this.cargoSize = 1;
+        
         // width/height를 size와 강제 동기화하여 체급별 동일한 충돌/선택 박스 보장
         this.width = this.size;
         this.height = this.size;

@@ -29,7 +29,6 @@ export class BaseUnit extends Entity {
         this.domain = 'ground'; // 'ground', 'air', 'sea'
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
         this.canBypassObstacles = false; // 장애물 통과 가능 여부
-        this.cargoSize = 1; // [추가] 기본 점유 칸수
 
         // --- 탄약 시스템 속성 ---
         this.ammoType = null; // 'bullet', 'shell', 'missile'
