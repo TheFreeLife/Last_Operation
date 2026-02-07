@@ -1180,3 +1180,92 @@ export class FreightCar extends PlayerUnit {
         ctx.restore();
     }
 }
+
+export class SAMLauncher extends PlayerUnit {
+    static editorConfig = { category: 'vehicle', icon: 'anti-air', name: '자주 대공 미사일' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'sam-launcher';
+        this.name = '자주 대공 미사일 (SAM)';
+        this.speed = 1.2;
+        this.fireRate = 3500;
+        this.damage = 250;
+        this.attackRange = 700;
+        this.visionRange = 12;
+        this.attackTargets = ['air']; // 오직 공중만 타격
+        this.size = 85;
+        this.cargoSize = 8;
+        this.population = 3;
+        this.hp = 1200;
+        this.maxHp = 1200;
+        this.muzzleOffset = 40;
+        
+        this.armorType = 'heavy'; // 장갑형
+        this.weaponType = 'missile';
+        
+        this.ammoType = 'missile';
+        this.maxAmmo = 8;
+        this.ammo = 8;
+    }
+
+    attack() {
+        const now = Date.now();
+        if (now - this.lastFireTime < this.fireRate || !this.target) return;
+
+        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+        if (dist > this.attackRange) return;
+
+        if (this.ammo <= 0) return;
+
+        // 발사 사운드 및 효과
+        this.engine.audioSystem.play('missile_flight', { volume: 0.25 });
+        
+        // 유도 미사일 생성
+        this.engine.entityManager.create('guided-missile', this.x, this.y, {
+            target: this.target,
+            damage: this.damage,
+            ownerId: this.ownerId,
+            flightAngle: this.angle // 발사 시 차량 각도로 시작
+        }, 'neutral');
+
+        this.ammo--;
+        this.lastFireTime = now;
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.scale(2.2, 2.2);
+
+        // 1. 하부 차체 (중장갑 궤도 차량 느낌)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(-16, -14, 32, 28);
+        ctx.fillStyle = '#2c3e50'; // 어두운 철제 느낌
+        ctx.fillRect(-18, -12, 36, 24);
+        
+        // 2. 상부 미사일 런처 (4연장 발사관)
+        ctx.fillStyle = '#34495e';
+        ctx.fillRect(-10, -10, 20, 20);
+        
+        // 발사관 디테일
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-8, -9, 24, 4); // 관 1
+        ctx.fillRect(-8, -4, 24, 4); // 관 2
+        ctx.fillRect(-8, 1, 24, 4);  // 관 3
+        ctx.fillRect(-8, 6, 24, 4);  // 관 4
+
+        // 레이더 접시 (회전 애니메이션 느낌)
+        const radarRot = (Date.now() / 500) % (Math.PI * 2);
+        ctx.save();
+        ctx.translate(-8, 0);
+        ctx.rotate(radarRot);
+        ctx.strokeStyle = '#00d2ff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, -Math.PI/2, Math.PI/2);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.restore();
+    }
+}

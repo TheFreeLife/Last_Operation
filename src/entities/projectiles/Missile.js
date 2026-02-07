@@ -170,6 +170,12 @@ export class Missile extends Entity {
             const flightAngle = Math.atan2(dy_ground + dy_alt, dx);
             ctx.rotate(flightAngle);
 
+            // [추가] 좌측 방향 비행 시 상하 뒤집힘 방지 (시각적 보정)
+            const isFlyingLeft = dx < 0;
+            if (isFlyingLeft) {
+                ctx.scale(1, -1);
+            }
+
             // 몸체 (탄두가 뾰족한 로켓 형태)
             const bodyGrd = ctx.createLinearGradient(0, -5, 0, 5);
             bodyGrd.addColorStop(0, '#ffffff');

@@ -22,6 +22,7 @@ export class DebugSystem {
             'db-spawn-tank': { type: 'tank' },
             'db-spawn-artillery': { type: 'artillery' },
             'db-spawn-anti-air': { type: 'anti-air' },
+            'db-spawn-sam': { type: 'sam-launcher' },
             'db-spawn-missile': { type: 'missile-launcher' },
             'db-spawn-icbm': { type: 'icbm-launcher' },
             'db-spawn-rifleman': { type: 'rifleman' },

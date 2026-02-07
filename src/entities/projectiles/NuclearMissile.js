@@ -171,6 +171,12 @@ export class NuclearMissile extends Entity {
             const flightAngle = Math.atan2(dy_ground + dy_alt, dx);
             ctx.rotate(flightAngle);
 
+            // [추가] 좌측 방향 비행 시 상하 뒤집힘 방지
+            const isFlyingLeft = dx < 0;
+            if (isFlyingLeft) {
+                ctx.scale(1, -1);
+            }
+
             // 핵미사일 본체 (더 크고 위협적인 검은색/노란색 배색)
             ctx.fillStyle = '#2d3436';
             ctx.beginPath();

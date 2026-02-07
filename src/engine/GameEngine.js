@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, CarrierDrone, DroneOperator, SpecialForces, Train, FreightCar, SmallBoat } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, SAMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, CarrierDrone, DroneOperator, SpecialForces, Train, FreightCar, SmallBoat } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -12,10 +12,10 @@ import { audioSystem } from './systems/AudioSystem.js';
 import { CombatLogic } from './systems/CombatLogic.js';
 
 import { renderECS } from './ecs/systems/RenderSystem.js';
-
 import { FallingBomb } from '../entities/projectiles/Bomb.js';
 import { Missile } from '../entities/projectiles/Missile.js';
 import { NuclearMissile } from '../entities/projectiles/NuclearMissile.js';
+import { GuidedMissile } from '../entities/projectiles/GuidedMissile.js';
 
 export const GameState = {
     MENU: 'MENU',
@@ -383,6 +383,7 @@ export class GameEngine {
         em.register('tank', Tank, 'units');
         em.register('missile-launcher', MissileLauncher, 'units');
         em.register('icbm-launcher', MobileICBMLauncher, 'units');
+        em.register('sam-launcher', SAMLauncher, 'units');
         em.register('anti-air', AntiAirVehicle, 'units');
         em.register('artillery', Artillery, 'units');
         em.register('rifleman', Rifleman, 'units');
@@ -412,6 +413,7 @@ export class GameEngine {
         em.register('falling-bomb', FallingBomb, 'neutral');
         em.register('missile', Missile, 'neutral');
         em.register('nuclear-missile', NuclearMissile, 'neutral');
+        em.register('guided-missile', GuidedMissile, 'neutral');
     }
 
     resize() {
