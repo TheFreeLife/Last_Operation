@@ -34,6 +34,8 @@ export class EntityManager {
      * ECS 전용 투사체 생성 (초고속)
      */
     spawnProjectileECS(x, y, target, damage, options = {}) {
+        if (!target || isNaN(target.x) || isNaN(target.y)) return; // [추가] 유효하지 않은 타겟 좌표 방지
+
         const idx = this.ecsWorld.createEntity();
         if (idx === -1) return;
 

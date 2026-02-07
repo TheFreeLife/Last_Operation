@@ -78,14 +78,19 @@ export function updateProjectiles(world, deltaTime, engine) {
         }
 
         // 3. 목표 도달 또는 충돌 시 제거
-        const reachedTarget = distToTarget < 15;
-        if (collided || reachedTarget) {
+        const reachedTarget = distToTarget < 25; // 판정 범위 약간 확대 (속도 대응)
+        
+        // [추가] 안전장치: 비행 거리 초과 시 강제 제거 (최대 3000px)
+        const startDist = Math.hypot(x[i] - world.startX[i], y[i] - world.startY[i]);
+        const tooFar = startDist > 3000;
+
+        if (collided || reachedTarget || tooFar) {
             CombatLogic.handleImpact(engine, collided ? x[i] : targetX[i], collided ? y[i] : targetY[i], {
                 radius: explosionRadius[i],
                 damage: damage[i],
                 weaponType: currentWeaponType,
                 isIndirect: world.isIndirect[i] === 1,
-                effectType: explosionRadius[i] > 0 ? 'explosion' : 'hit'
+                effectType: (collided && explosionRadius[i] === 0) ? 'hit' : (explosionRadius[i] > 0 ? 'explosion' : 'hit')
             });
             world.destroyEntity(i);
         }
