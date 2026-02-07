@@ -124,6 +124,11 @@ export class EntityManager {
 
         if (pool) {
             entity = pool.acquire();
+            // [추가] 재사용 전 사망 관련 플래그 강제 초기화
+            entity.active = true;
+            entity.alive = true;
+            if (entity.maxHp) entity.hp = entity.maxHp;
+            
             // [수정] init 호출 전에 옵션을 먼저 할당하여 init 로직이 옵션을 반영할 수 있게 함
             Object.assign(entity, options);
             entity.init(x, y, this.engine);

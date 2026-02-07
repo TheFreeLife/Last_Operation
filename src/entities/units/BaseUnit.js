@@ -59,7 +59,12 @@ export class BaseUnit extends Entity {
 
     init(x, y, engine) {
         super.init(x, y, engine);
+        
+        // 생존 및 활성 상태 강제 초기화
+        this.active = true;
         this.alive = true;
+        this.hp = this.maxHp || 100;
+        
         this.target = null;
         this.manualTarget = null;
         this.command = null;
