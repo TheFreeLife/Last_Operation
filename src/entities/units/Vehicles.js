@@ -1361,66 +1361,452 @@ export class SAMLauncher extends PlayerUnit {
         this.ammoType = 'missile';
         this.maxAmmo = 8;
         this.ammo = 8;
+        this.turretAngle = this.angle;
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.turretAngle = this.angle;
+    }
+
+    getCacheKey() {
+        // 미사일 런처도 포탑이 계속 돌아가므로 실시간 렌더링 강제
+        return null;
+    }
+
+    update(deltaTime) {
+        const prevHullAngle = this.angle;
+        const oldTarget = this.target;
+        super.update(deltaTime);
+
+        // 1. 타겟 유지 로직 (떨림 방지)
+        if (this.command === 'move') {
+            this.target = null;
+            this.manualTarget = null;
+        } 
+        else if (!this.target && oldTarget && oldTarget.active && oldTarget.hp > 0) {
+            const dist = Math.hypot(oldTarget.x - this.x, oldTarget.y - this.y);
+            const canHit = this.attackTargets.includes(oldTarget.domain || 'ground');
+            if (dist <= this.attackRange * 1.1 && canHit) {
+                this.target = oldTarget;
+            }
+        }
+
+        // 2. 기동 및 조준 제어
+        if (this._destination) {
+            // 이동 중일 때: 진행 방향으로 차체 회전 및 포탑 고정
+            const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
+            const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
+            const targetMoveAngle = (vector.x !== 0 || vector.y !== 0) ? Math.atan2(vector.y, vector.x) : Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+            
+            const hullDiff = Math.atan2(Math.sin(targetMoveAngle - prevHullAngle), Math.cos(targetMoveAngle - prevHullAngle));
+            this.angle = prevHullAngle + hullDiff * 0.15;
+            this.turretAngle = this.angle;
+        } else {
+            // 정지 시: 차체 고정 및 독립 포탑 조준
+            this.angle = prevHullAngle;
+
+            if (this.target) {
+                const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                let diff = targetAngle - this.turretAngle;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                
+                this.turretAngle += diff * 0.08;
+                this.attack();
+            } else {
+                let diff = this.angle - this.turretAngle;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                this.turretAngle += diff * 0.05;
+            }
+        }
     }
 
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
 
+        // 포탑 조준 정렬 확인
+        const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+        let diff = targetAngle - this.turretAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (Math.abs(diff) > 0.15) return;
+
         const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
         if (dist > this.attackRange) return;
 
         if (this.ammo <= 0) return;
 
-        // 발사 사운드 및 효과
+        // 발사 사운드 및 효과 (포탑 각도 반영)
         this.engine.audioSystem.play('missile_flight', { volume: 0.25 });
         
-        // 유도 미사일 생성
+        // 유도 미사일 생성 (포탑 방향 반영)
         this.engine.entityManager.create('guided-missile', this.x, this.y, {
             target: this.target,
             damage: this.damage,
             ownerId: this.ownerId,
-            flightAngle: this.angle // 발사 시 차량 각도로 시작
+            flightAngle: this.turretAngle 
         }, 'neutral');
 
         this.ammo--;
         this.lastFireTime = now;
     }
 
-    draw(ctx) {
-        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
-        ctx.save();
-        ctx.scale(2.2, 2.2);
+        draw(ctx) {
 
-        // 1. 하부 차체 (중장갑 궤도 차량 느낌)
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(-16, -14, 32, 28);
-        ctx.fillStyle = '#2c3e50'; // 어두운 철제 느낌
-        ctx.fillRect(-18, -12, 36, 24);
-        
-        // 2. 상부 미사일 런처 (4연장 발사관)
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(-10, -10, 20, 20);
-        
-        // 발사관 디테일
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-8, -9, 24, 4); // 관 1
-        ctx.fillRect(-8, -4, 24, 4); // 관 2
-        ctx.fillRect(-8, 1, 24, 4);  // 관 3
-        ctx.fillRect(-8, 6, 24, 4);  // 관 4
+            if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
 
-        // 레이더 접시 (회전 애니메이션 느낌)
-        const radarRot = (Date.now() / 500) % (Math.PI * 2);
-        ctx.save();
-        ctx.translate(-8, 0);
-        ctx.rotate(radarRot);
-        ctx.strokeStyle = '#00d2ff';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(0, 0, 5, -Math.PI/2, Math.PI/2);
-        ctx.stroke();
-        ctx.restore();
+            ctx.save();
 
-        ctx.restore();
-    }
+            ctx.scale(2.2, 2.2);
+
+    
+
+            const hullColor = '#3a4118'; // 국방색 메인
+
+            const darkHull = '#2d3212';  // 국방색 그림자
+
+                    const lightHull = '#4b5320'; // 국방색 하이라이트
+
+            
+
+                    // --- 1. 하부 차체 (2.5D 두께감 표현) ---
+
+                    // 차체 옆면 (두께감)
+
+                    ctx.fillStyle = darkHull;
+
+                    ctx.fillRect(-20, -13, 40, 26);
+
+            
+
+            // 차체 윗면 (메인)
+
+            ctx.fillStyle = hullColor;
+
+            ctx.beginPath();
+
+            ctx.roundRect(-20, -11, 40, 22, 2);
+
+            ctx.fill();
+
+    
+
+            // 궤도/바퀴 디테일 (살짝 보임)
+
+            ctx.fillStyle = '#1a1a1a';
+
+            for(let i=-15; i<=15; i+=10) {
+
+                ctx.fillRect(i-3, -14, 6, 2);
+
+                ctx.fillRect(i-3, 12, 6, 2);
+
+            }
+
+    
+
+                    // --- 2. 상부 미사일 시스템 (기계적 디테일 강화) ---
+
+    
+
+                    ctx.save();
+
+    
+
+                    ctx.rotate(this.turretAngle - this.angle);
+
+    
+
+                    
+
+    
+
+                    // 포탑 회전 베이스 (다각형 기계 구조)
+
+    
+
+                    ctx.fillStyle = darkHull;
+
+    
+
+                    ctx.beginPath();
+
+    
+
+                    ctx.moveTo(-12, -10); ctx.lineTo(8, -10); ctx.lineTo(12, -6);
+
+    
+
+                    ctx.lineTo(12, 6); ctx.lineTo(8, 10); ctx.lineTo(-12, 10);
+
+    
+
+                    ctx.closePath();
+
+    
+
+                    ctx.fill();
+
+    
+
+            
+
+    
+
+                    // 메인 센서 유닛 (포탑 중앙)
+
+    
+
+                    ctx.fillStyle = lightHull;
+
+    
+
+                    ctx.fillRect(-6, -6, 12, 12);
+
+    
+
+                    ctx.fillStyle = '#1a1a1a';
+
+    
+
+                    ctx.fillRect(2, -4, 3, 8); // 전방 카메라/센서 렌즈
+
+    
+
+            
+
+    
+
+                    // [개별 발사관 뱅크] - 좌우 2개씩 분리된 중장갑 런처
+
+    
+
+                    const drawCanisterBank = (offsetY) => {
+
+    
+
+                        ctx.save();
+
+    
+
+                        ctx.translate(0, offsetY);
+
+    
+
+                        
+
+    
+
+                        // 런처 하우징 (두께감)
+
+    
+
+                        ctx.fillStyle = darkHull;
+
+    
+
+                        ctx.fillRect(-2, -4, 22, 9); 
+
+    
+
+                        ctx.fillStyle = hullColor;
+
+    
+
+                        ctx.fillRect(-4, -5, 22, 9);
+
+    
+
+            
+
+    
+
+                        // 상/하단 발사구 (입체적 묘사)
+
+    
+
+                        ctx.fillStyle = '#000';
+
+    
+
+                        const holes = [-2.2, 2.2];
+
+    
+
+                        holes.forEach((hy, idx) => {
+
+    
+
+                            const globalIdx = (offsetY < 0 ? 0 : 2) + idx;
+
+    
+
+                            ctx.beginPath();
+
+    
+
+                            ctx.arc(16, hy, 1.8, 0, Math.PI * 2);
+
+    
+
+                            ctx.fill();
+
+    
+
+                            
+
+    
+
+                            // 탄두 상태 표시
+
+    
+
+                            if (this.ammo > globalIdx) {
+
+    
+
+                                ctx.fillStyle = '#95a5a6'; // 탄두 은색
+
+    
+
+                                ctx.beginPath(); ctx.arc(15.5, hy, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    
+
+                                ctx.fillStyle = '#ff3131'; // 팁 빨간색
+
+    
+
+                                ctx.beginPath(); ctx.arc(16.5, hy, 0.8, 0, Math.PI * 2); ctx.fill();
+
+    
+
+                            }
+
+    
+
+                            ctx.fillStyle = '#000';
+
+    
+
+                        });
+
+    
+
+                        ctx.restore();
+
+    
+
+                    };
+
+    
+
+            
+
+    
+
+                    drawCanisterBank(-6); // 좌측 뱅크
+
+    
+
+                    drawCanisterBank(6);  // 우측 뱅크
+
+    
+
+            
+
+    
+
+                    // 현대적인 평면 위상배열 레이더 (후방 회전)
+
+    
+
+                    ctx.save();
+
+    
+
+                    ctx.translate(-8, 0);
+
+    
+
+                    const radarRot = (Date.now() / 800) % (Math.PI * 2);
+
+    
+
+                    ctx.rotate(radarRot);
+
+    
+
+                    // 레이더 지지대
+
+    
+
+                    ctx.fillStyle = '#2d3436';
+
+    
+
+                    ctx.fillRect(-2, -1, 4, 2);
+
+    
+
+                    // 레이더 패널 (2.5D 두께감)
+
+    
+
+                    ctx.fillStyle = darkHull;
+
+    
+
+                    ctx.fillRect(-1, -8, 2, 16);
+
+    
+
+                    ctx.fillStyle = '#4b5320';
+
+    
+
+                    ctx.fillRect(-2, -8, 2, 16);
+
+    
+
+                    // 레이더 작동등 (깜빡임)
+
+    
+
+                    if (Math.sin(Date.now() / 100) > 0) {
+
+    
+
+                        ctx.fillStyle = '#00d2ff';
+
+    
+
+                        ctx.fillRect(-2, -6, 1, 2);
+
+    
+
+                    }
+
+    
+
+                    ctx.restore();
+
+    
+
+            
+
+    
+
+                    ctx.restore();
+
+    
+
+                    ctx.restore();
+
+    
+
+                }
 }
