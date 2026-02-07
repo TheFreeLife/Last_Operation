@@ -68,12 +68,18 @@ export const CombatLogic = {
             return true; // 천장에 막힘
         }
 
-        // 3. 지면 타격 시 처리
+        // 3. 지면/공중 타격 처리
         if (radius > 0) {
             // 3-A. 주변 유닛 범위 피해
             const targets = engine.entityManager.getNearby(x, y, radius);
+            const canHitAir = options.canHitAir || !isIndirect; // 명시적 대공 판정 혹은 직사 화기일 때
+
             for (const target of targets) {
-                if (!target.active || target.hp === undefined || target.domain === 'projectile' || target.domain === 'air') continue;
+                if (!target.active || target.hp === undefined || target.domain === 'projectile') continue;
+                
+                // 공중 유닛 타격 제한 체크
+                if (target.domain === 'air' && !canHitAir) continue;
+
                 const dist = Math.hypot(target.x - x, target.y - y);
                 if (dist <= radius) {
                     // 미사일 등 일부 유닛은 거리에 따른 데미지 감쇄 적용

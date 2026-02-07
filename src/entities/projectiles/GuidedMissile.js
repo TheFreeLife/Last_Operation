@@ -92,6 +92,7 @@ export class GuidedMissile extends Entity {
             radius: this.explosionRadius,
             damage: this.damage,
             weaponType: 'missile',
+            canHitAir: true, // 대공 미사일이므로 공중 타격 허용
             effectType: 'impact_missile'
         });
 
