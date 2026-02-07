@@ -595,7 +595,7 @@ export class AntiAirVehicle extends PlayerUnit {
         this.size = 80;
         this.cargoSize = 5;
         this.population = 3; 
-        this.muzzleOffset = 50;
+        this.muzzleOffset = 85; // 포신이 길어졌으므로 오프셋 상향 (50 -> 85)
         this.projectileSpeed = 40; // 대공포 탄속 상향 (22 -> 40)
         this.hitEffectType = 'flak';
 
@@ -744,32 +744,87 @@ export class AntiAirVehicle extends PlayerUnit {
     draw(ctx) {
         if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
         ctx.save();
-        ctx.scale(2, 2);
+        ctx.scale(2.2, 2.2); // 크기 살짝 키움
 
-        // 1. 하부 (차체)
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(-14, -14, 28, 28);
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(-12, -11, 24, 22);
+        // --- 1. 하부 (차체/궤도) ---
+        // 하부 그림자
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(-16, -12, 34, 26);
+
+        // 메인 차체 (다크 올리브 드랍)
+        ctx.fillStyle = '#3a4118';
+        ctx.beginPath();
+        ctx.moveTo(-18, -11); ctx.lineTo(14, -11);
+        ctx.lineTo(18, -6); ctx.lineTo(18, 6);
+        ctx.lineTo(14, 11); ctx.lineTo(-18, 11);
+        ctx.closePath();
+        ctx.fill();
+
+        // 사이드 스커트 (장갑판 디테일)
+        ctx.fillStyle = '#2d3212';
+        ctx.fillRect(-18, -13, 32, 3);
+        ctx.fillRect(-18, 10, 32, 3);
         
-        // 2. 상부 (포탑)
+        // 차체 상부 그릴/엔진룸
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(-14, -6, 6, 12);
+
+        // --- 2. 상부 (전투 포탑) ---
         ctx.save();
         ctx.rotate(this.turretAngle - this.angle);
         
-        // 포탑 본체
-        ctx.fillStyle = '#556644';
-        ctx.fillRect(-8, -10, 16, 20);
-        
-        // 쌍열 대공 기관포
+        // 포탑 본체 (각진 스텔스 설계 느낌)
+        const turretGrd = ctx.createLinearGradient(-10, -10, 10, 10);
+        turretGrd.addColorStop(0, '#4b5320');
+        turretGrd.addColorStop(1, '#2d3212');
+        ctx.fillStyle = turretGrd;
+        ctx.beginPath();
+        ctx.moveTo(-10, -10); ctx.lineTo(8, -10);
+        ctx.lineTo(12, -6); ctx.lineTo(12, 6);
+        ctx.lineTo(8, 10); ctx.lineTo(-10, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // 사이드 탄창 박스 (포탑 양옆)
         ctx.fillStyle = '#1e272e';
-        ctx.fillRect(6, -9, 22, 3); // 좌측 포신
-        ctx.fillRect(6, 6, 22, 3);  // 우측 포신
-        
-        // 포미 부분 디테일
+        ctx.fillRect(-4, -12, 10, 3);
+        ctx.fillRect(-4, 9, 10, 3);
+
+        // [중요] 쌍열 대공 포신 (더 길고 디테일하게)
         ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-4, -11, 8, 22);
+        // 좌측 포신
+        ctx.fillRect(10, -8, 24, 2.5); 
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(30, -8.5, 6, 3.5); // 소염기(Muzzle Brake)
         
+        // 우측 포신
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(10, 5.5, 24, 2.5);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(30, 5, 6, 3.5); // 소염기
+
+        // 레이더 시스템 (후방 설치)
+        ctx.save();
+        ctx.translate(-8, 0);
+        // 레이더 회전 애니메이션
+        const radarScan = (Date.now() / 400) % (Math.PI * 2);
+        ctx.rotate(radarScan);
+        ctx.strokeStyle = '#00d2ff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, -1, 1); // 레이더 접시 모양
+        ctx.stroke();
+        // 중앙 수신기
+        ctx.fillStyle = '#00d2ff';
+        ctx.fillRect(2, -0.5, 4, 1);
         ctx.restore();
+
+        // 광학 조준경 (상단)
+        ctx.fillStyle = '#2980b9';
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(2, -3, 4, 6);
+        ctx.restore();
+
         ctx.restore();
     }
 }
