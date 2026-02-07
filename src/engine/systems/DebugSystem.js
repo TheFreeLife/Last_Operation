@@ -68,11 +68,26 @@ export class DebugSystem {
             
             const btn = document.getElementById(btnId);
             if (btn) btn.classList.add('active');
-        } else {
-            this.activeSpawnBtnId = null;
-            this.spawnUnitType = null;
-            this.spawnUnitOptions = null;
         }
+    }
+
+    /**
+     * 모든 디버그 모드 상태 리셋
+     */
+    reset() {
+        this.activeSpawnBtnId = null;
+        this.spawnUnitType = null;
+        this.spawnUnitOptions = null;
+        this.isEraserMode = false;
+        
+        // 모든 디버그 버튼의 active 클래스 제거
+        const dbBtns = document.querySelectorAll('#debug-panel .debug-btn');
+        dbBtns.forEach(btn => btn.classList.remove('active'));
+        
+        // God Mode와 Full Vision은 유지할지 선택할 수 있으나, 
+        // 여기서는 명시적으로 활성화된 버튼들만 끕니다.
+        if (this.isGodMode) document.getElementById('db-god-mode')?.classList.add('active');
+        if (this.isFullVision) document.getElementById('db-clear-fog')?.classList.add('active');
     }
 
     executeSpawnUnit(worldX, worldY) {

@@ -1251,26 +1251,7 @@ export class GameEngine {
 
     cancelModes() {
         if (this.debugSystem) {
-            this.debugSystem.spawnUnitType = null;
-            this.debugSystem.isEraserMode = false;
-            
-            // 모든 디버그 소환 버튼 ID 리스트 (자동으로 unitTypeMap 기반으로 처리하면 좋으나 일단 명시적 유지)
-            const dbBtns = [
-                'db-eraser', 'db-spawn-tank', 'db-spawn-artillery', 'db-spawn-anti-air', 
-                'db-spawn-missile', 'db-spawn-icbm', 'db-spawn-rifleman', 'db-spawn-sniper',
-                'db-spawn-anti-tank', 'db-spawn-special-forces', 'db-spawn-medic', 'db-spawn-mortar',
-                'db-spawn-drone-op', 'db-spawn-suicide-drone', 'db-spawn-military-truck',
-                'db-spawn-medical-truck', 'db-spawn-bomber', 'db-spawn-cargo-plane',
-                'db-spawn-scout-plane', 'db-spawn-helicopter', 'db-spawn-drone-truck', 
-                'db-spawn-boat', 'db-spawn-train', 'db-spawn-freight',
-                'db-spawn-ammo-bullet', 'db-spawn-ammo-shell', 'db-spawn-ammo-missile', 
-                'db-spawn-ammo-nuclear', 'db-spawn-sentiment'
-            ];
-            
-            dbBtns.forEach(id => {
-                const btn = document.getElementById(id);
-                if (btn) btn.classList.remove('active');
-            });
+            this.debugSystem.reset();
         }
     }
 
