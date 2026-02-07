@@ -302,7 +302,7 @@ export class BaseUnit extends Entity {
                 // [추가] 시야 상실 체크 (플레이어 유닛 전용)
                 const isTargetHidden = this.ownerId === 1 && !this.engine.tileMap.isInSight(this.manualTarget.x, this.manualTarget.y) && !(this.engine.debugSystem?.isFullVision);
 
-                if (isTargetDead || isTargetHidden) {
+                if (isTargetDead || isTargetHidden || !canHit) {
                     this.manualTarget = null;
                     this.command = null;
                     this.destination = null;
@@ -380,6 +380,20 @@ export class BaseUnit extends Entity {
                 }
             }
         }
+
+        // [추가] 실시간 타겟 유효성 체크 (도메인 변화 대응)
+        const finalBestTarget = bestTarget || this.target;
+        if (finalBestTarget && finalBestTarget.active && finalBestTarget.hp > 0) {
+            const currentTargetDomain = finalBestTarget.domain || 'ground';
+            if (!this.attackTargets.includes(currentTargetDomain)) {
+                bestTarget = null;
+                this.target = null;
+                if (this.manualTarget === finalBestTarget) this.manualTarget = null;
+            } else {
+                bestTarget = finalBestTarget;
+            }
+        }
+        
         this.target = bestTarget;
 
         // --- 적군 AI 행동 로직 ---
