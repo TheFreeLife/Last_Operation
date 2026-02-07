@@ -631,10 +631,17 @@ export class RenderSystem {
                 this.ctx.arc(effect.x, effect.y, 5 * alpha, 0, Math.PI * 2);
                 this.ctx.fill();
             } else if (effect.type === 'system') {
-                this.ctx.fillStyle = effect.color;
-                this.ctx.font = '14px Arial';
+                this.ctx.fillStyle = effect.color || '#fff';
+                this.ctx.font = 'bold 16px Pretendard, Arial';
                 this.ctx.textAlign = 'center';
-                this.ctx.fillText(effect.text, effect.x, effect.y - (progress * 20));
+                
+                // 그림자 효과로 가독성 확보
+                this.ctx.shadowBlur = 4;
+                this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                
+                const offsetY = progress * 40; // 위로 40px 떠오름
+                this.ctx.fillText(effect.text, effect.x, effect.y - offsetY);
+                this.ctx.shadowBlur = 0;
             }
             this.ctx.restore();
         }

@@ -13,6 +13,8 @@ import { CombatLogic } from './systems/CombatLogic.js';
 
 import { renderECS } from './ecs/systems/RenderSystem.js';
 
+import { FallingBomb } from '../entities/projectiles/Bomb.js';
+
 export const GameState = {
     MENU: 'MENU',
     MAP_SELECT: 'MAP_SELECT',
@@ -403,6 +405,9 @@ export class GameEngine {
 
         // 자원 및 아이템
         em.register('ammo-box', AmmoBox, 'units');
+        
+        // 투사체 (레거시 호환)
+        em.register('falling-bomb', FallingBomb, 'neutral');
     }
 
     resize() {
@@ -710,23 +715,6 @@ export class GameEngine {
                                     locked: !isFlying || firstEnt.cargo.length === 0
                                 });
                             }
-                        }
-
-                        // 이착륙 버튼 (트럭류 제외)
-                        if (unitType !== 'military-truck' && unitType !== 'medical-truck' && unitType !== 'drone-truck') {
-                            let actionName = 'FLY (T)';
-                            let actionIcon = 'unit:takeoff';
-                            if (isFlying || firstEnt.isManualLanding || (unitType === 'helicopter' && firstEnt.altitude > 0.5)) {
-                                actionName = 'LAND (T)';
-                                actionIcon = 'unit:landing';
-                            }
-                            items.push({
-                                id: 'takeoff_landing',
-                                name: actionName,
-                                action: 'unit:takeoff_landing',
-                                skillType: 'state',
-                                iconKey: actionIcon
-                            });
                         }
                     }
                 }
@@ -1055,25 +1043,6 @@ export class GameEngine {
 
                     if (clickedTarget && this.getRelation(1, clickedTarget.ownerId) === 'enemy') {
                         this.executeUnitCommand('attack', clickedTarget.x, clickedTarget.y, clickedTarget);
-                        return;
-                    }
-
-                    // [추가] 구조물(벽) 강제 공격 지원
-                    const grid = this.tileMap.worldToGrid(worldX, worldY);
-                    const wall = this.tileMap.layers.wall[grid.y]?.[grid.x];
-                    if (wall && wall.id && wall.id !== 'spawn-point') {
-                        const worldPos = this.tileMap.gridToWorld(grid.x, grid.y);
-                        const tileTarget = {
-                            type: 'tile',
-                            x: worldPos.x,
-                            y: worldPos.y,
-                            gx: grid.x,
-                            gy: grid.y,
-                            ownerId: 0,
-                            active: true,
-                            hp: this.tileMap.grid[grid.y][grid.x].hp
-                        };
-                        this.executeUnitCommand('attack', tileTarget.x, tileTarget.y, tileTarget);
                         return;
                     }
 
@@ -1588,14 +1557,15 @@ export class GameEngine {
             this.entityManager.update(deltaTime);
         }
 
-        const processList = (list, updateFn) => {
+        const processList = (list) => {
             if (!list) return list;
             let writeIdx = 0;
             let countChanged = false;
 
                         for (let readIdx = 0; readIdx < list.length; readIdx++) {
                             const obj = list[readIdx];
-                            if (updateFn && !obj.isBoarded) updateFn(obj);
+                            // [수정] update 호출 제거 (EntityManager에서 수행함)
+                            
                             let keep = true;
                             if (!obj.isBoarded) {
                                 if (obj.hp <= 0 || obj.active === false) {
@@ -1622,28 +1592,27 @@ export class GameEngine {
                                     }
                                 }
                             }
-                            if (keep) {                    if (writeIdx !== readIdx) list[writeIdx] = obj;
-                    writeIdx++;
-                } else {
-                    countChanged = true;
-                    if (this.entityManager) this.entityManager.remove(obj);
-                }
-            }
+                            if (keep) {
+                                if (writeIdx !== readIdx) list[writeIdx] = obj;
+                                writeIdx++;
+                            } else {
+                                countChanged = true;
+                                if (this.entityManager) this.entityManager.remove(obj);
+                            }
+                        }
             if (countChanged) {
                 list.length = writeIdx;
             }
             return list;
         };
 
-        this.entities.units = processList(this.entities.units, (u) => u.update(deltaTime));
-
-        this.entities.cargoPlanes = processList(this.entities.cargoPlanes, (p) => p.update(deltaTime));
-        this.entities.neutral = processList(this.entities.neutral, (n) => n.update(deltaTime));
+        this.entities.units = processList(this.entities.units);
+        this.entities.neutral = processList(this.entities.neutral);
         
         // [ECS 최적화] 투사체 업데이트는 entityManager.update(deltaTime) 내의 ECS 시스템에서 일괄 처리됨
 
         this.entities.enemies = this.entities.enemies.filter(enemy => {
-            enemy.update(deltaTime, null, [], this);
+            // [수정] update 호출 제거
             if (!enemy.active || enemy.hp <= 0) {
                 return false;
             }
@@ -2062,6 +2031,7 @@ export class GameEngine {
             this.ctx.fillRect(startX, startY, w, h);
             this.ctx.restore();
         }
+
         this.renderMinimap();
     }
 

@@ -1,13 +1,16 @@
 import { CombatLogic } from '../../engine/systems/CombatLogic.js';
 
 export class FallingBomb {
-    constructor(x, y, engine, damage = 300, source) {
+    constructor(x, y, engine) {
+        this.init(x, y, engine);
+    }
+
+    init(x, y, engine) {
         this.x = x;
         this.y = y;
         this.engine = engine;
-        this.damage = damage;
-        this.source = source;
-        this.ownerId = source ? source.ownerId : 0;
+        this.damage = 300;
+        this.ownerId = 0;
         this.timer = 0;
         this.duration = 800; // 낙하 시간을 0.8초로 단축
         this.active = true;
@@ -19,11 +22,8 @@ export class FallingBomb {
         this.isIndirect = true;
         this.visible = true; // 렌더링 필터 통과를 위해 명시적 설정
         this.alive = true;   // 생존 상태 설정
-        
-        // 투하 고도 (폭격기 높이에 맞춰 60px로 조정)
         this.startAltitude = 60; 
-
-        this.attackTargets = source?.attackTargets || ['ground', 'sea'];
+        this.attackTargets = ['ground', 'sea'];
     }
 
     getCacheKey() {

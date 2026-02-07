@@ -71,23 +71,18 @@ export class EntityManager {
         ECSSystems.updateHealth(this.ecsWorld, (idx) => this.handleECSDestruction(idx));
 
         // 2. 기존 객체 기반 업데이트 및 SpatialGrid 동기화
-        const lists = Object.values(this.entities);
-        for (const list of lists) {
-            if (Array.isArray(list)) {
-                for (let i = list.length - 1; i >= 0; i--) {
-                    const entity = list[i];
-                    if (!entity || !entity.active || entity.isBoarded) continue;
-                    
-                    // ECS에 데이터가 있는 경우 동기화
-                    if (entity.ecsIndex !== undefined) {
-                        entity.x = this.ecsWorld.x[entity.ecsIndex];
-                        entity.y = this.ecsWorld.y[entity.ecsIndex];
-                    }
-                    
-                    if (entity.update) entity.update(deltaTime, this.engine);
-                    this.spatialGrid.update(entity);
-                }
+        for (let i = this.allEntities.length - 1; i >= 0; i--) {
+            const entity = this.allEntities[i];
+            if (!entity || !entity.active || entity.isBoarded) continue;
+            
+            // ECS에 데이터가 있는 경우 동기화
+            if (entity.ecsIndex !== undefined) {
+                entity.x = this.ecsWorld.x[entity.ecsIndex];
+                entity.y = this.ecsWorld.y[entity.ecsIndex];
             }
+            
+            if (entity.update) entity.update(deltaTime, this.engine);
+            this.spatialGrid.update(entity);
         }
 
         // 주기적 cleanup (1초마다)

@@ -118,10 +118,7 @@ export class Bomber extends PlayerUnit {
         this.lastX = x;
         this.lastY = y;
 
-        this.isTakeoffStarting = false; 
-        this.isManualLanding = false;   
-        this.maneuverFrameCount = 0;    
-        this.takeoffDistance = 0;       
+        this.isTransitioning = false; 
         this.isBombingActive = false;   
 
         this.armorType = 'light';
@@ -154,7 +151,7 @@ export class Bomber extends PlayerUnit {
 
     getCacheKey() {
         // 이착륙 조작 중이거나 폭격 중일 때는 실시간 렌더링
-        if (this.isTakeoffStarting || this.isManualLanding || this.isBombingActive) return null;
+        if (this.isTransitioning || this.isBombingActive) return null;
         // 고도에 따라 다른 캐시 이미지 사용 (지상 vs 공중)
         const state = (this.altitude > 0.8) ? 'air' : 'ground';
         return `${this.type}-${state}`;
@@ -165,67 +162,77 @@ export class Bomber extends PlayerUnit {
     }
 
     toggleTakeoff() {
-        if (this.altitude < 0.1) {
-            // 지상이면 이륙 프로세스 시작
-            this.isTakeoffStarting = true;
-            this.isManualLanding = false;
-            this.maneuverFrameCount = 0;
-            this.takeoffDistance = 0;
-            this.speed = 0.25; // 0.5 -> 0.25
-            this.command = 'move';
-            this.destination = null;
-        } else {
-            // 공중이면 착륙 프로세스 시작
-            this.isManualLanding = true;
-            this.isTakeoffStarting = false;
-            this.maneuverFrameCount = 0;
-            this.command = 'move';
-            this.destination = null;
-        }
+        if (this.isTransitioning) return;
+        this.isTransitioning = true;
+        this.command = null;
+        this.destination = null;
     }
 
     update(deltaTime) {
-        const movedDist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
-        this.lastX = this.x;
-        this.lastY = this.y;
-
-        // 0. 속도 관리 로직 (이륙 가속 및 공중 고속 비행)
-        if (this.isTakeoffStarting) {
-            if (this.altitude <= 0) {
-                // 1) 활주 중 가속: 0.25에서 baseSpeed까지 (활주 거리 300px 기준)
-                const takeoffProgress = Math.min(1.0, this.takeoffDistance / 300);
-                this.speed = 0.25 + (this.baseSpeed - 0.25) * takeoffProgress;
+        // 0. 이착륙 전환 로직 (VTOL)
+        if (this.isTransitioning) {
+            this.speed = 0; // 전환 중에는 제자리 비행
+            if (this.altitude < 1.0 && this.domain === 'ground') {
+                this.altitude = Math.min(1.0, this.altitude + 0.015);
+                if (this.altitude >= 1.0) {
+                    this.isTransitioning = false;
+                    this.domain = 'air';
+                }
             } else {
-                // 2) 이륙 상승 중 가속: baseSpeed에서 airSpeed까지 (고도 기준)
-                this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+                this.altitude = Math.max(0.0, this.altitude - 0.015);
+                if (this.altitude <= 0.0) {
+                    this.isTransitioning = false;
+                    this.domain = 'ground';
+                }
             }
-        } else if (this.isManualLanding) {
-            // 3) 착륙 시 감속: 고도에 따라 airSpeed에서 baseSpeed까지
-            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
-        } else if (this.altitude > 0) {
-            // 4) 일반 비행 중: 고도에 따른 속도 유지
-            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
         } else {
-            // 5) 지상 대기/이동 중
-            this.speed = this.baseSpeed;
+            // 1. 비행 상태에 따른 속도 설정
+            if (this.altitude > 0.8) {
+                this.speed = this.airSpeed;
+                this.domain = 'air';
+                
+                // [자동 착륙] 목적지가 없고 공중이면 안전한 지형 확인 후 착륙
+                if (!this.destination && !this.isTransitioning) {
+                    const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
+                    const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
+                    const hasCeiling = this.engine.tileMap.layers.ceiling[grid.y]?.[grid.x]?.id;
+                    
+                    if (tile && !tile.occupied && tile.buildable && tile.terrain !== 'water' && !hasCeiling) {
+                        this.isTransitioning = true;
+                    } else {
+                        // 착륙 불가 알림
+                        if (tile && (tile.occupied || !tile.buildable || tile.terrain === 'water' || hasCeiling)) {
+                            if (Date.now() - (this._lastLandingBlockedMsgTime || 0) > 5000) {
+                                let reason = '착륙 불가: 지면 확보 필요';
+                                if (tile.terrain === 'water') reason = '착륙 불가: 수면 위';
+                                else if (hasCeiling) reason = '착륙 불가: 건물 지붕';
+                                this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', reason);
+                                this._lastLandingBlockedMsgTime = Date.now();
+                            }
+                        }
+                    }
+                }
+            } else {
+                this.speed = 0; // 지상 이동 완전 차단
+                this.domain = 'ground';
+                
+                // [자동 이륙] 목적지가 설정되면 즉시 이륙 시작 (지형 상관없이 이륙 가능)
+                if (this.destination && !this.isTransitioning) {
+                    this.isTransitioning = true;
+                }
+            }
         }
 
-        // 1. 도메인 판정
-        this.domain = (this.altitude > 0.8) ? 'air' : 'ground';
-
-        // 2. 폭격 자동 투하 로직 (폭격 모드가 켜져 있고 충분한 고도일 때만 투하)
+        // 2. 폭격 자동 투하 로직 (폭격 모드 활성화 시)
         if (this.isBombingActive && this.altitude > 0.8) {
             this.bombTimer += deltaTime;
             if (this.bombTimer >= this.bombInterval) {
-                // 탄약 체크
                 if (this.ammo > 0) {
                     this.bombTimer = 0;
-                    this.ammo--; // 포탄 1발 소모
+                    this.ammo--;
                     this.engine.audioSystem.play('missile_flight', { volume: 0.1 });
-                    const bomb = new FallingBomb(this.x, this.y, this.engine, 300, this);
-                    this.engine.entities.projectiles.push(bomb);
+                    this.engine.entityManager.create('falling-bomb', this.x, this.y, { damage: 300, ownerId: this.ownerId }, 'neutral');
                 } else {
-                    // 탄약 고갈 시 폭격 중단 및 알림
                     this.isBombingActive = false;
                     if (this.engine.addEffect) {
                         this.engine.addEffect('system', this.x, this.y - 40, '#ff3131', '포탄 고갈! 폭격 중단');
@@ -234,88 +241,8 @@ export class Bomber extends PlayerUnit {
             }
         }
 
-        // 3. 자동 전진 로직 (이륙 또는 착륙 활주 중일 때)
-        if (this.isTakeoffStarting || this.isManualLanding) {
-            this.maneuverFrameCount++;
-
-            // 다음 전진 지점 계산 및 지형 충돌 체크
-            const nextX = this.x + Math.cos(this.angle) * this.speed;
-            const nextY = this.y + Math.sin(this.angle) * this.speed;
-            const grid = this.engine.tileMap.worldToGrid(nextX, nextY);
-            const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-
-            // 고도가 낮을 때만 지상 장애물에 막힘 (충돌 판정)
-            const isBlocked = (this.altitude < 0.7) && (tile && (tile.occupied || !tile.buildable));
-
-            if (!isBlocked) {
-                this.x = nextX;
-                this.y = nextY;
-            }
-
-            // 실제로 움직이고 있는지 확인 (장애물 체크 - 판정 기준)
-            const isMoving = this.maneuverFrameCount < 15 || movedDist > this.speed * 0.25;
-
-            if (this.isTakeoffStarting) {
-                if (isMoving) {
-                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5);
-                    // 최소 300px 활주 후 상승 시작
-                    if (this.takeoffDistance > 300) {
-                        this.altitude = Math.min(1.0, this.altitude + 0.015);
-                    }
-                    if (this.altitude >= 1.0) {
-                        this.isTakeoffStarting = false;
-                        this.command = null;
-                    }
-                } else {
-                    // 장애물에 막혀 속도가 떨어지면 즉시 이륙 취소
-                    if (this.altitude < 0.8) {
-                        this.isTakeoffStarting = false;
-                        this.altitude = 0;
-                        this.command = null;
-                    }
-                }
-            } else if (this.isManualLanding) {
-                // 발밑 지형 확인
-                const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
-                const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-                const isGroundClear = tile && !tile.occupied && tile.buildable;
-
-                if (isMoving) {
-                    if (isGroundClear) {
-                        // 하강 속도를 절반으로 줄여 착륙 거리를 2배로 연장 (0.015 -> 0.0075)
-                        this.altitude = Math.max(0, this.altitude - 0.0075);
-                        if (this.altitude <= 0) {
-                            this.isManualLanding = false;
-                            this.command = null;
-                        }
-                    } else {
-                        // 장애물 위라면 더 천천히 하강하며 평지 탐색
-                        this.altitude = Math.max(0.15, this.altitude - 0.005);
-                    }
-                } else {
-                    // 착륙 중 충돌 시 즉시 정지
-                    this.isManualLanding = false;
-                    this.altitude = 0;
-                    this.command = null;
-                }
-            }
-            return;
-        }
-
+        // 3. 기본 유닛 업데이트 (이동 및 타겟팅)
         super.update(deltaTime);
-
-        // 4. 목적지 지형 확인 (일반 이동 시)
-        if (this.destination) {
-            const grid = this.engine.tileMap.worldToGrid(this.destination.x, this.destination.y);
-            const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-            this.isLandingZoneSafe = tile && !tile.occupied && tile.buildable;
-        }
-
-        // 5. 고도 보정 (수동 조작 중이 아닐 때)
-        if (this.altitude > 0 && this.altitude < 1.0) {
-            if (this.altitude > 0.5) this.altitude = Math.min(1.0, this.altitude + 0.01);
-            else this.altitude = Math.max(0, this.altitude - 0.01);
-        }
     }
 
     draw(ctx) {
@@ -404,10 +331,7 @@ export class CargoPlane extends PlayerUnit {
         this.lastX = x;
         this.lastY = y;
 
-        this.isTakeoffStarting = false;
-        this.isManualLanding = false;
-        this.maneuverFrameCount = 0;
-        this.takeoffDistance = 0;
+        this.isTransitioning = false;
 
         this.cargo = [];
         this.cargoCapacity = 20; 
@@ -447,7 +371,7 @@ export class CargoPlane extends PlayerUnit {
 
     getCacheKey() {
         // 애니메이션이 필요한 상황들
-        if (this.isTakeoffStarting || this.isManualLanding || 
+        if (this.isTransitioning || 
             this.isUnloading || this.isCombatDropping) return null;
         
         const state = (this.altitude > 0.8) ? 'air' : 'ground';
@@ -614,105 +538,64 @@ export class CargoPlane extends PlayerUnit {
     }
 
     update(deltaTime) {
-        const movedDist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
-        this.lastX = this.x;
-        this.lastY = this.y;
-
-        // 하차 로직 처리
-        if (this.isUnloading) {
-            this.processUnloading(deltaTime);
-        }
-
-        // 전투 강하 로직
-        if (this.isCombatDropping) {
-            this.processCombatDrop(deltaTime);
-        }
-
-        // 0. 속도 관리 로직
-        if (this.isTakeoffStarting) {
-            if (this.altitude <= 0) {
-                const takeoffProgress = Math.min(1.0, this.takeoffDistance / 350); // 수송기는 더 긴 활주 거리 필요
-                this.speed = 0.15 + (this.baseSpeed - 0.15) * takeoffProgress; // 0.3 -> 0.15
+        // 0. 이착륙 전환 로직 (VTOL)
+        if (this.isTransitioning) {
+            this.speed = 0;
+            if (this.altitude < 1.0 && this.domain === 'ground') {
+                this.altitude = Math.min(1.0, this.altitude + 0.012);
+                if (this.altitude >= 1.0) {
+                    this.isTransitioning = false;
+                    this.domain = 'air';
+                }
             } else {
-                this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
+                this.altitude = Math.max(0.0, this.altitude - 0.012);
+                if (this.altitude <= 0.0) {
+                    this.isTransitioning = false;
+                    this.domain = 'ground';
+                }
             }
-        } else if (this.isManualLanding) {
-            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
-        } else if (this.altitude > 0) {
-            this.speed = this.baseSpeed + (this.airSpeed - this.baseSpeed) * this.altitude;
         } else {
-            this.speed = this.baseSpeed;
-        }
-
-        // 1. 도메인 판정
-        this.domain = (this.altitude > 0.8) ? 'air' : 'ground';
-
-        // 2. 자동 전진 로직 (이륙 또는 착륙 활주 중일 때)
-        if (this.isTakeoffStarting || this.isManualLanding) {
-            this.maneuverFrameCount++;
-
-            const nextX = this.x + Math.cos(this.angle) * this.speed;
-            const nextY = this.y + Math.sin(this.angle) * this.speed;
-            const grid = this.engine.tileMap.worldToGrid(nextX, nextY);
-            const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-
-            const isBlocked = (this.altitude < 0.7) && (tile && (tile.occupied || !tile.buildable));
-
-            if (!isBlocked) {
-                this.x = nextX;
-                this.y = nextY;
-            }
-
-            const isMoving = this.maneuverFrameCount < 15 || movedDist > this.speed * 0.25;
-
-            if (this.isTakeoffStarting) {
-                if (isMoving) {
-                    this.takeoffDistance += Math.max(movedDist, this.speed * 0.5);
-                    if (this.takeoffDistance > 350) {
-                        this.altitude = Math.min(1.0, this.altitude + 0.012); // 수송기는 약간 더 천천히 상승
-                    }
-                    if (this.altitude >= 1.0) {
-                        this.isTakeoffStarting = false;
-                        this.command = null;
-                    }
-                } else {
-                    if (this.altitude < 0.8) {
-                        this.isTakeoffStarting = false;
-                        this.altitude = 0;
-                        this.command = null;
-                    }
-                }
-            } else if (this.isManualLanding) {
-                const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
-                const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
-                const isGroundClear = tile && !tile.occupied && tile.buildable;
-
-                if (isMoving) {
-                    if (isGroundClear) {
-                        this.altitude = Math.max(0, this.altitude - 0.006); // 더 완만하게 착륙
-                        if (this.altitude <= 0) {
-                            this.isManualLanding = false;
-                            this.command = null;
-                        }
+            if (this.altitude > 0.8) {
+                this.speed = this.airSpeed;
+                this.domain = 'air';
+                
+                // [자동 착륙]
+                if (!this.destination && !this.isTransitioning && !this.isCombatDropping && !this.isUnloading) {
+                    const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
+                    const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
+                    const hasCeiling = this.engine.tileMap.layers.ceiling[grid.y]?.[grid.x]?.id;
+                    
+                    if (tile && !tile.occupied && tile.buildable && tile.terrain !== 'water' && !hasCeiling) {
+                        this.isTransitioning = true;
                     } else {
-                        this.altitude = Math.max(0.15, this.altitude - 0.004);
+                        // 착륙 불가 알림
+                        if (tile && (tile.occupied || !tile.buildable || tile.terrain === 'water' || hasCeiling)) {
+                            if (Date.now() - (this._lastLandingBlockedMsgTime || 0) > 5000) {
+                                let reason = '착륙 불가: 지면 확보 필요';
+                                if (tile.terrain === 'water') reason = '착륙 불가: 수면 위';
+                                else if (hasCeiling) reason = '착륙 불가: 건물 지붕';
+                                this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', reason);
+                                this._lastLandingBlockedMsgTime = Date.now();
+                            }
+                        }
                     }
-                } else {
-                    this.isManualLanding = false;
-                    this.altitude = 0;
-                    this.command = null;
+                }
+            } else {
+                this.speed = 0;
+                this.domain = 'ground';
+                
+                // [자동 이륙]
+                if (this.destination && !this.isTransitioning) {
+                    this.isTransitioning = true;
                 }
             }
-            return;
         }
+
+        // 하차 및 강하 로직 처리
+        if (this.isUnloading) this.processUnloading(deltaTime);
+        if (this.isCombatDropping) this.processCombatDrop(deltaTime);
 
         super.update(deltaTime);
-
-        // 3. 고도 보정 (수동 조작 중이 아닐 때)
-        if (this.altitude > 0 && this.altitude < 1.0) {
-            if (this.altitude > 0.5) this.altitude = Math.min(1.0, this.altitude + 0.01);
-            else this.altitude = Math.max(0, this.altitude - 0.01);
-        }
     }
 
     draw(ctx) {
@@ -928,13 +811,41 @@ export class Helicopter extends PlayerUnit {
             }
             this.speed = 0; // 전환 중 정지
         } else {
-            this.speed = this.altitude > 0.8 ? this.airSpeed : this.baseSpeed;
+            this.speed = this.altitude > 0.8 ? this.airSpeed : 0; 
+            
+            // 자동 이륙
+            if (this.destination && this.altitude < 0.1 && !this.isTransitioning) {
+                this.isTransitioning = true;
+            }
         }
 
         // 2. 수송 하차 처리
         if (this.isUnloading) this.processUnloading(deltaTime);
 
         super.update(deltaTime);
+
+        // 자동 착륙 로직
+        if (!this.destination && this.altitude > 0.8 && !this.isTransitioning && !this.isUnloading) {
+            const grid = this.engine.tileMap.worldToGrid(this.x, this.y);
+            const tile = this.engine.tileMap.grid[grid.y]?.[grid.x];
+            const hasCeiling = this.engine.tileMap.layers.ceiling[grid.y]?.[grid.x]?.id;
+            
+            if (tile && !tile.occupied && tile.buildable && tile.terrain !== 'water' && !hasCeiling) {
+                this.isTransitioning = true;
+            } else {
+                // 착륙 불가 알림 (장애물, 물 위, 또는 천장 위일 때)
+                if (tile && (tile.occupied || !tile.buildable || tile.terrain === 'water' || hasCeiling)) {
+                    if (Date.now() - (this._lastLandingBlockedMsgTime || 0) > 5000) {
+                        let reason = '착륙 불가: 지면 확보 필요';
+                        if (tile.terrain === 'water') reason = '착륙 불가: 수면 위';
+                        else if (hasCeiling) reason = '착륙 불가: 건물 지붕';
+                        
+                        this.engine.addEffect?.('system', this.x, this.y - 20, '#ffff00', reason);
+                        this._lastLandingBlockedMsgTime = Date.now();
+                    }
+                }
+            }
+        }
     }
 
     attack() {

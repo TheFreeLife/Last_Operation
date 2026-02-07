@@ -81,6 +81,7 @@ export class BaseUnit extends Entity {
         this.isTransitioning = false;
         this.isInitialExit = false;
         this._lastAmmoMsgTime = 0;
+        this._lastLandingBlockedMsgTime = 0;
 
         // AI 초기화
         this.aiOrigin = { x, y };
@@ -104,12 +105,13 @@ export class BaseUnit extends Entity {
             this.transportTarget = null;
         }
 
-        if (value) {
-            if (this.domain === 'air') {
-                // 공중 유닛은 장애물을 무시하고 목적지까지 직선으로 비행
-                this.path = [{ x: value.x, y: value.y }];
-            } else {
-                // 소유주에 따른 유동장 선택
+                if (value) {
+                    const isAirUnit = this.domain === 'air' || (this.altitude !== undefined && (this.altitude > 0 || this.type === 'bomber' || this.type === 'cargo-plane' || this.type === 'helicopter' || this.type === 'scout-plane'));
+                    
+                    if (isAirUnit) {
+                        // 공중 유닛(또는 이륙 예정인 유닛)은 장애물을 무시하고 직선 비행
+                        this.path = [{ x: value.x, y: value.y }];
+                    } else {                // 소유주에 따른 유동장 선택
                 const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
                 ff.generate(value.x, value.y, this.sizeClass, this.domain);
                 this.path = []; 
