@@ -60,7 +60,7 @@ export class BaseUnit extends Entity {
     init(x, y, engine) {
         super.init(x, y, engine);
         
-        // 생존 및 활성 상태 강제 초기화
+        // 기본 상태 리셋 (Factory Defaults)
         this.active = true;
         this.alive = true;
         this.hp = this.maxHp || 100;
@@ -80,7 +80,6 @@ export class BaseUnit extends Entity {
         this.targetingTimer = Math.random() * 500;
         this.hitTimer = 0;
         
-        // [추가] 수송 및 특수 상태 초기화
         this.cargo = [];
         this.unloadTimer = 0;
         this.isTransitioning = false;
@@ -88,18 +87,29 @@ export class BaseUnit extends Entity {
         this._lastAmmoMsgTime = 0;
         this._lastLandingBlockedMsgTime = 0;
 
-        // AI 초기화
         this.aiOrigin = { x, y };
         this.aiWanderTimer = 0;
-        this.isAiControlled = (this.ownerId !== 1);
-        
-        // [수정] 이전 생의 추격 상태가 남지 않도록 초기화
-        if (this.aiState === 'chase') {
-            this.aiState = 'guard';
-        }
+        this.isAiControlled = false; 
         
         this.baseAiState = this.aiState || 'guard';
         if (this.aiRadius === undefined) this.aiRadius = 300;
+    }
+
+    /**
+     * EntityManager에서 options가 할당된 후 호출됨
+     */
+    onPropertiesSet() {
+        // 소유자에 따른 AI 제어권 설정
+        this.isAiControlled = (this.ownerId !== 1);
+        
+        // HP 보정
+        if (this.hp <= 0 && this.maxHp > 0) this.hp = this.maxHp;
+
+        // 이전 생의 추격 상태가 남지 않도록 초기화
+        if (this.aiState === 'chase') {
+            this.aiState = 'guard';
+        }
+        this.baseAiState = this.aiState || 'guard';
     }
 
     get destination() { return this._destination; }

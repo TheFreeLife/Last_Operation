@@ -14,6 +14,8 @@ import { CombatLogic } from './systems/CombatLogic.js';
 import { renderECS } from './ecs/systems/RenderSystem.js';
 
 import { FallingBomb } from '../entities/projectiles/Bomb.js';
+import { Missile } from '../entities/projectiles/Missile.js';
+import { NuclearMissile } from '../entities/projectiles/NuclearMissile.js';
 
 export const GameState = {
     MENU: 'MENU',
@@ -408,6 +410,8 @@ export class GameEngine {
         
         // 투사체 (레거시 호환)
         em.register('falling-bomb', FallingBomb, 'neutral');
+        em.register('missile', Missile, 'neutral');
+        em.register('nuclear-missile', NuclearMissile, 'neutral');
     }
 
     resize() {

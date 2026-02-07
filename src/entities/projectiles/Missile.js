@@ -2,41 +2,46 @@ import { Entity } from '../BaseEntity.js';
 import { CombatLogic } from '../../engine/systems/CombatLogic.js';
 
 export class Missile extends Entity {
-    constructor(startX, startY, targetX, targetY, damage, engine, source = null) {
-        super(startX, startY);
-        this.type = 'missile';
-        this.source = source;
-        this.ownerId = source ? source.ownerId : 0;
-        
-        this.startX = startX;
-        this.startY = startY;
-        this.targetX = targetX;
-        this.targetY = targetY;
-        this.damage = damage;
-        this.engine = engine;
-        this.domain = 'projectile';
-        this.isIndirect = true; // 곡사 판정 추가
+    constructor(x, y, engine) {
+        super(x, y);
+        this.init(x, y, engine);
+    }
 
-        // 물리 설정 (긴장감을 위해 속도 하향: 8 -> 4)
-        this.speed = 4; 
-        // RenderSystem의 자동 회전을 피하기 위해 moveAngle로 이름을 바꿈
-        this.moveAngle = Math.atan2(targetY - startY, targetX - startX);
-        this.angle = 0; // Renderer가 회전시키지 못하게 0으로 고정
+    init(x, y, engine) {
+        this.x = x;
+        this.y = y;
+        this.engine = engine;
+        this.type = 'missile';
+        this.ownerId = 0;
         
-        this.totalDistance = Math.hypot(targetX - startX, targetY - startY);
-        this.peakHeight = Math.max(250, this.totalDistance * 0.5); 
+        // 이 속성들은 options에서 주입받지만, 재사용 시를 위해 기본값 설정
+        this.startX = x;
+        this.startY = y;
+        this.targetX = x;
+        this.targetY = y;
+        this.damage = 0;
+        this.domain = 'projectile';
+        this.isIndirect = true;
+
+        this.speed = 4; 
+        this.moveAngle = 0;
+        this.angle = 0;
+        
+        this.totalDistance = 1;
+        this.peakHeight = 250; 
         
         this.active = true;
         this.arrived = false;
-        this.progress = 0; 
+        this.progress = 0; // 반드시 0으로 초기화
         
-        // 물리 충돌 제거
         this.passable = true;
         this.size = 0; 
         
         this.trail = [];
         this.explosionRadius = 160;
         this.lifeTime = 0;
+        this.visible = true;
+        this.alive = true;
     }
 
     update(deltaTime) {

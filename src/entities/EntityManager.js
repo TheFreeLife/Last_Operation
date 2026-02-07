@@ -124,14 +124,22 @@ export class EntityManager {
 
         if (pool) {
             entity = pool.acquire();
-            // [추가] 재사용 전 사망 관련 플래그 강제 초기화
+            
+            // 1. 기본 상태 초기화 (Factory Reset)
+            entity.init(x, y, this.engine);
+            
+            // 2. 외부 옵션 적용 (Instance Overrides)
+            Object.assign(entity, options);
+            
+            // 3. 생존 관련 플래그 강제 보정
             entity.active = true;
             entity.alive = true;
-            if (entity.maxHp) entity.hp = entity.maxHp;
-            
-            // [수정] init 호출 전에 옵션을 먼저 할당하여 init 로직이 옵션을 반영할 수 있게 함
-            Object.assign(entity, options);
-            entity.init(x, y, this.engine);
+            if (entity.hp === undefined || (options.hp === undefined && entity.maxHp)) {
+                entity.hp = entity.maxHp;
+            }
+
+            // 4. 속성 할당 후 추가 로직 처리 (필요한 경우)
+            if (entity.onPropertiesSet) entity.onPropertiesSet();
         } else {
             const { EntityClass } = registration;
             entity = new EntityClass(x, y, this.engine);

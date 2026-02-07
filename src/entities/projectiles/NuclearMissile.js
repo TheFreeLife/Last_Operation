@@ -2,27 +2,32 @@ import { Entity } from '../BaseEntity.js';
 import { CombatLogic } from '../../engine/systems/CombatLogic.js';
 
 export class NuclearMissile extends Entity {
-    constructor(startX, startY, targetX, targetY, damage, engine, source = null) {
-        super(startX, startY);
-        this.type = 'nuclear-missile';
-        this.source = source;
-        this.ownerId = source ? source.ownerId : 0;
-        
-        this.startX = startX;
-        this.startY = startY;
-        this.targetX = targetX;
-        this.targetY = targetY;
-        this.damage = damage;
-        this.engine = engine;
-        this.domain = 'projectile';
-        this.isIndirect = true; // 곡사 판정 추가
+    constructor(x, y, engine) {
+        super(x, y);
+        this.init(x, y, engine);
+    }
 
-        this.speed = 3.5; // ICBM은 약간 더 무겁고 웅장하게 이동
-        this.moveAngle = Math.atan2(targetY - startY, targetX - startX);
+    init(x, y, engine) {
+        this.x = x;
+        this.y = y;
+        this.engine = engine;
+        this.type = 'nuclear-missile';
+        this.ownerId = 0;
+        
+        this.startX = x;
+        this.startY = y;
+        this.targetX = x;
+        this.targetY = y;
+        this.damage = 0;
+        this.domain = 'projectile';
+        this.isIndirect = true;
+
+        this.speed = 3.5; 
+        this.moveAngle = 0;
         this.angle = 0;
         
-        this.totalDistance = Math.hypot(targetX - startX, targetY - startY);
-        this.peakHeight = Math.max(400, this.totalDistance * 0.7); // 더 높게 비상
+        this.totalDistance = 1;
+        this.peakHeight = 400;
         
         this.active = true;
         this.arrived = false;
@@ -32,8 +37,10 @@ export class NuclearMissile extends Entity {
         this.size = 0; 
         
         this.trail = [];
-        this.explosionRadius = 350; // 압도적인 폭발 범위 (기존 160)
+        this.explosionRadius = 350;
         this.lifeTime = 0;
+        this.visible = true;
+        this.alive = true;
     }
 
     update(deltaTime) {

@@ -252,8 +252,21 @@ export class MissileLauncher extends PlayerUnit {
         if (!options.skipSound) {
             this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
         }
-        const missile = new Missile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
-        this.engine.entities.projectiles.push(missile);
+
+        const totalDistance = Math.hypot(targetX - spawnX, targetY - spawnY);
+        const peakHeight = Math.max(250, totalDistance * 0.5);
+
+        this.engine.entityManager.create('missile', spawnX, spawnY, {
+            startX: spawnX,
+            startY: spawnY,
+            targetX: targetX,
+            targetY: targetY,
+            damage: this.damage,
+            ownerId: this.ownerId,
+            totalDistance: totalDistance,
+            peakHeight: peakHeight,
+            moveAngle: Math.atan2(targetY - spawnY, targetX - spawnX)
+        }, 'neutral');
 
         this.ammo--;
         this.lastFireTime = Date.now();
@@ -846,8 +859,21 @@ export class MobileICBMLauncher extends PlayerUnit {
         if (!options.skipSound) {
             this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
         }
-        const missile = new NuclearMissile(spawnX, spawnY, targetX, targetY, this.damage, this.engine, this);
-        this.engine.entities.projectiles.push(missile);
+
+        const totalDistance = Math.hypot(targetX - spawnX, targetY - spawnY);
+        const peakHeight = Math.max(400, totalDistance * 0.7);
+
+        this.engine.entityManager.create('nuclear-missile', spawnX, spawnY, {
+            startX: spawnX,
+            startY: spawnY,
+            targetX: targetX,
+            targetY: targetY,
+            damage: this.damage,
+            ownerId: this.ownerId,
+            totalDistance: totalDistance,
+            peakHeight: peakHeight,
+            moveAngle: Math.atan2(targetY - spawnY, targetX - spawnX)
+        }, 'neutral');
 
         this.ammo--;
         this.lastFireTime = Date.now();
