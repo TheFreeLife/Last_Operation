@@ -77,9 +77,6 @@ export const ICONS = {
     'skill-ammo-shell': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" fill="#795548" stroke="#3e2723" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#f1c40f" font-size="10" font-weight="bold">SHL</text></svg></div>`,
     'skill-ammo-missile': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><rect x="8" y="12" width="24" height="20" fill="#5d4037" stroke="#3e2723" stroke-width="2"/><text x="20" y="26" text-anchor="middle" fill="#e74c3c" font-size="10" font-weight="bold">MSL</text></svg></div>`,
     'unit:move': `<div class="btn-icon blue"><svg viewBox="0 0 40 40"><path d="M10 20 L30 20 M22 12 L30 20 L22 28" stroke="#00d2ff" stroke-width="3" fill="none"/></svg></div>`,
-    'unit:stop': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><rect x="10" y="10" width="20" height="20" fill="#ff3131"/></svg></div>`,
-    'unit:hold': `<div class="btn-icon yellow"><svg viewBox="0 0 40 40"><path d="M20 5 L32 12 V25 L20 35 L8 25 V12 Z" fill="#333" stroke="#ffff00" stroke-width="2"/></svg></div>`,
-    'unit:patrol': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="12" fill="none" stroke="#00ffcc" stroke-width="2" stroke-dasharray="5,3"/><path d="M32 20 L28 16 M32 20 L28 24" stroke="#00ffcc" stroke-width="2" fill="none"/></svg></div>`,
     'unit:attack': `<div class="btn-icon red"><svg viewBox="0 0 40 40"><path d="M10 30 L30 10 M10 10 L30 30" stroke="#ff3131" stroke-width="4"/><path d="M15 15 L10 10 M25 15 L30 10" stroke="#fff" stroke-width="2"/></svg></div>`,
     'unit:siege': `<div class="btn-icon cyan"><svg viewBox="0 0 40 40">
         <!-- 바닥 지지대 (Outriggers) -->

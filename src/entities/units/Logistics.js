@@ -36,7 +36,7 @@ export class MilitaryTruck extends PlayerUnit {
         if (this.isUnloading || (this.getOccupiedSize() + uSize) > this.cargoCapacity) return false;
 
         unit.isBoarded = true;
-        unit.command = 'stop';
+        unit.command = null;
         unit.destination = null;
         unit.path = [];
         this.cargo.push(unit);

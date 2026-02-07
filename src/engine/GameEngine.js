@@ -660,9 +660,7 @@ export class GameEngine {
                 header.textContent = (this.selectedEntities.length > 1 ? `GROUPS (${this.selectedEntities.length})` : firstEnt.name.toUpperCase()) + sizeInfo;
 
                 // 유동적 배열: 필요한 명령만 담음
-                items = [
-                    { id: 'patrol', name: 'PATROL (P)', icon: '🔄', action: 'unit:patrol', skillType: 'targeted' }
-                ];
+                items = [];
 
                 if (allSameType) {
                     const unitType = firstEnt.type;
@@ -880,11 +878,8 @@ export class GameEngine {
             if (this.selectedEntities.length > 0) {
                 const key = e.key.toLowerCase();
                 if (key === 'm') { this.unitCommandMode = 'move'; this.updateCursor(); }
-                else if (key === 's') this.executeUnitCommand('stop');
                 else if (key === 'o') this.executeUnitCommand('siege');
                 else if (key === 'f') { this.unitCommandMode = 'manual_fire'; this.updateCursor(); }
-                else if (key === 'h') this.executeUnitCommand('stop');
-                else if (key === 'p') { this.unitCommandMode = 'patrol'; this.updateCursor(); }
                 else if (key === 'a') { this.unitCommandMode = 'attack'; this.updateCursor(); }
                 else if (key === 't') this.executeUnitCommand('takeoff_landing');
                 else if (key === 'd') this.executeUnitCommand('combat_drop');
@@ -1223,15 +1218,13 @@ export class GameEngine {
     }
 
     updateCursor() {
-        const classes = ['cmd-move-cursor', 'cmd-attack-cursor', 'cmd-patrol-cursor'];
+        const classes = ['cmd-move-cursor', 'cmd-attack-cursor'];
         this.canvas.classList.remove(...classes);
 
         if (this.unitCommandMode === 'move') {
             this.canvas.classList.add('cmd-move-cursor');
         } else if (this.unitCommandMode === 'attack' || this.unitCommandMode === 'manual_fire' || this.unitCommandMode === 'bombing') {
             this.canvas.classList.add('cmd-attack-cursor');
-        } else if (this.unitCommandMode === 'patrol') {
-            this.canvas.classList.add('cmd-patrol-cursor');
         }
         this.canvas.style.cursor = '';
     }
@@ -1268,14 +1261,8 @@ export class GameEngine {
             }
 
             unit.command = finalCmd;
-            if (finalCmd === 'stop' || finalCmd === 'hold') {
-                unit.destination = null;
-            } else if (finalCmd === 'move' && worldX !== null) {
+            if (finalCmd === 'move' && worldX !== null) {
                 unit.destination = { x: worldX, y: worldY };
-            } else if (finalCmd === 'patrol' && worldX !== null) {
-                unit.patrolStart = { x: unit.x, y: unit.y };
-                unit.patrolEnd = { x: worldX, y: worldY };
-                unit.destination = unit.patrolEnd;
             } else if (finalCmd === 'attack' && worldX !== null) {
                 unit.destination = { x: worldX, y: worldY };
             } else if (finalCmd === 'unload_all') {

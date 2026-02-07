@@ -264,14 +264,14 @@ export class Bomber extends PlayerUnit {
                     }
                     if (this.altitude >= 1.0) {
                         this.isTakeoffStarting = false;
-                        this.command = 'stop';
+                        this.command = null;
                     }
                 } else {
                     // 장애물에 막혀 속도가 떨어지면 즉시 이륙 취소
                     if (this.altitude < 0.8) {
                         this.isTakeoffStarting = false;
                         this.altitude = 0;
-                        this.command = 'stop';
+                        this.command = null;
                     }
                 }
             } else if (this.isManualLanding) {
@@ -286,7 +286,7 @@ export class Bomber extends PlayerUnit {
                         this.altitude = Math.max(0, this.altitude - 0.0075);
                         if (this.altitude <= 0) {
                             this.isManualLanding = false;
-                            this.command = 'stop';
+                            this.command = null;
                         }
                     } else {
                         // 장애물 위라면 더 천천히 하강하며 평지 탐색
@@ -296,7 +296,7 @@ export class Bomber extends PlayerUnit {
                     // 착륙 중 충돌 시 즉시 정지
                     this.isManualLanding = false;
                     this.altitude = 0;
-                    this.command = 'stop';
+                    this.command = null;
                 }
             }
             return;
@@ -463,7 +463,7 @@ export class CargoPlane extends PlayerUnit {
 
         // 탑승 상태 설정
         unit.isBoarded = true;
-        unit.command = 'stop';
+        unit.command = null;
         unit.destination = null;
         unit.path = [];
 
@@ -525,7 +525,7 @@ export class CargoPlane extends PlayerUnit {
             unit.y = rearY;
             unit.angle = this.angle + Math.PI; // 반대 방향 바라보기
             unit.path = [];
-            unit.command = 'stop';
+            unit.command = null;
 
             // 하차 후 약간 전진 시키기
             const exitDestX = rearX + Math.cos(this.angle + Math.PI) * 60;
@@ -583,7 +583,7 @@ export class CargoPlane extends PlayerUnit {
             unit.fallDuration = 2000; // 2초간 낙하
             unit.destination = null;
             unit.path = [];
-            unit.command = 'stop';
+            unit.command = null;
 
             // this.engine.entities.units.push(unit); // 제거: 이미 리스트에 있음
             this.engine.addEffect?.('system', this.x, this.y, '#fff', 'Drop!');
@@ -673,13 +673,13 @@ export class CargoPlane extends PlayerUnit {
                     }
                     if (this.altitude >= 1.0) {
                         this.isTakeoffStarting = false;
-                        this.command = 'stop';
+                        this.command = null;
                     }
                 } else {
                     if (this.altitude < 0.8) {
                         this.isTakeoffStarting = false;
                         this.altitude = 0;
-                        this.command = 'stop';
+                        this.command = null;
                     }
                 }
             } else if (this.isManualLanding) {
@@ -692,7 +692,7 @@ export class CargoPlane extends PlayerUnit {
                         this.altitude = Math.max(0, this.altitude - 0.006); // 더 완만하게 착륙
                         if (this.altitude <= 0) {
                             this.isManualLanding = false;
-                            this.command = 'stop';
+                            this.command = null;
                         }
                     } else {
                         this.altitude = Math.max(0.15, this.altitude - 0.004);
@@ -700,7 +700,7 @@ export class CargoPlane extends PlayerUnit {
                 } else {
                     this.isManualLanding = false;
                     this.altitude = 0;
-                    this.command = 'stop';
+                    this.command = null;
                 }
             }
             return;
@@ -862,7 +862,7 @@ export class Helicopter extends PlayerUnit {
     toggleTakeoff() {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
-        this.command = 'stop';
+        this.command = null;
         this.destination = null;
     }
 
@@ -872,7 +872,7 @@ export class Helicopter extends PlayerUnit {
         if (this.cargo.length + uSize > this.cargoCapacity) return false;
 
         unit.isBoarded = true;
-        unit.command = 'stop';
+        unit.command = null;
         unit.destination = null;
         unit.path = [];
         this.cargo.push(unit);
@@ -1085,7 +1085,7 @@ export class SuicideDrone extends PlayerUnit {
             if (this.ownerId === 1 && !hasFriendlyOperator) {
                 // 제어권 상실
                 this.ownerId = 0;
-                this.command = 'stop';
+                this.command = null;
                 this.destination = null;
                 this.target = null;
                 this.engine.addEffect?.('system', this.x, this.y - 20, '#ff3131', 'Signal Lost');
@@ -1289,7 +1289,7 @@ export class CarrierDrone extends PlayerUnit {
                 
                 if (hasCeiling) {
                     this.manualTarget = null;
-                    this.command = 'stop';
+                    this.command = null;
                 }
             }
 
@@ -1402,7 +1402,7 @@ export class CarrierDrone extends PlayerUnit {
             this.destination = null;
             this.target = null;
             this.manualTarget = null;
-            this.command = 'stop';
+            this.command = null;
             this.isDashing = false;
             this.speed = this.baseSpeed;
         }

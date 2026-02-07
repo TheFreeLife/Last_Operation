@@ -23,9 +23,7 @@ export class BaseUnit extends Entity {
         this._destination = null;
         this.path = []; // A* 경로 저장용
         this.pathRecalculateTimer = 0;
-        this.command = 'stop'; // 'move', 'attack', 'patrol', 'stop', 'hold'
-        this.patrolStart = null;
-        this.patrolEnd = null;
+        this.command = null; // 'move', 'attack', 'build'
         this.domain = 'ground'; // 'ground', 'air', 'sea'
         this.attackTargets = ['ground', 'sea']; // 공격 가능 대상
         this.canBypassObstacles = false; // 장애물 통과 가능 여부
@@ -61,11 +59,10 @@ export class BaseUnit extends Entity {
 
     init(x, y, engine) {
         super.init(x, y, engine);
-        this.hp = this.maxHp || 100;
         this.alive = true;
         this.target = null;
         this.manualTarget = null;
-        this.command = 'stop';
+        this.command = null;
         this._destination = null;
         this.path = [];
         this.pathRecalculateTimer = 0;
@@ -242,7 +239,7 @@ export class BaseUnit extends Entity {
 
             if (!target.active || target.hp <= 0 || (target.altitude !== undefined && target.altitude > 0.1) || !hasSpace) {
                 this.transportTarget = null;
-                this.command = 'stop';
+                this.command = null;
             } else {
                 const entranceDist = target.type === 'cargo-plane' ? 110 : 40;
                 const entranceX = target.x + Math.cos(target.angle + Math.PI) * entranceDist;
@@ -290,7 +287,7 @@ export class BaseUnit extends Entity {
 
                 if (isTargetDead || isTargetHidden) {
                     this.manualTarget = null;
-                    this.command = 'stop';
+                    this.command = null;
                     this.destination = null;
                 } else if (canHit) {
                     const distToManual = Math.hypot(this.manualTarget.x - this.x, this.manualTarget.y - this.y);
@@ -410,15 +407,8 @@ export class BaseUnit extends Entity {
 
             if (distToFinal < 10) {
                 this.isInitialExit = false; // 출격 모드 해제
-                if (this.command === 'patrol') {
-                    const temp = this.patrolStart;
-                    this.patrolStart = this.patrolEnd;
-                    this.patrolEnd = temp;
-                    this.destination = this.patrolEnd;
-                } else {
-                    this._destination = null;
-                    if (this.command !== 'build') this.command = 'stop';
-                }
+                this._destination = null;
+                if (this.command !== 'build') this.command = null;
             } else {
                 // [Flow Field 이동 연산]
                 if (this.domain === 'air') {

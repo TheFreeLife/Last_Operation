@@ -186,7 +186,7 @@ export class MapEditor {
         document.getElementById('config-ai-state')?.addEventListener('change', (e) => {
             const radiusRow = document.getElementById('config-ai-radius-row');
             if (radiusRow) {
-                radiusRow.style.display = (e.target.value === 'patrol') ? 'block' : 'none';
+                radiusRow.style.display = 'none';
             }
         });
 
@@ -352,7 +352,7 @@ export class MapEditor {
         // 초기 가시성 설정
         const radiusRow = document.getElementById('config-ai-radius-row');
         if (radiusRow) {
-            radiusRow.style.display = (document.getElementById('config-ai-state').value === 'patrol') ? 'block' : 'none';
+            radiusRow.style.display = 'none';
         }
 
         this.configModal.classList.remove('hidden');
