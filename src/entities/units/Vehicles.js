@@ -418,7 +418,7 @@ export class Artillery extends TurretUnit {
     }
 }
 
-export class AntiAirVehicle extends PlayerUnit {
+export class AntiAirVehicle extends TurretUnit {
     static editorConfig = { category: 'vehicle', icon: 'anti-air', name: '대공포' };
     constructor(x, y, engine) {
         super(x, y, engine);
@@ -444,12 +444,8 @@ export class AntiAirVehicle extends PlayerUnit {
         this.maxAmmo = 400; // 탄약 용량 상향 (연사력 대응)
         this.ammo = 400;
         this.ammoConsumption = 2; // 한 번에 2발씩 소모
-        this.turretAngle = this.angle;
-    }
-
-    init(x, y, engine) {
-        super.init(x, y, engine);
-        this.turretAngle = this.angle;
+        
+        this.turretRotationSpeed = 0.1;
     }
 
     getCacheKey() {
@@ -457,88 +453,11 @@ export class AntiAirVehicle extends PlayerUnit {
         return null;
     }
 
-    update(deltaTime) {
-        // 1. 이전 상태 저장
-        const prevHullAngle = this.angle;
-        const oldTarget = this.target;
-
-        // 2. 부모 클래스 로직 수행
-        super.update(deltaTime);
-
-        // 3. 타겟 유지 로직 (자주포와 동일하게 적용하여 떨림 방지)
-        if (this.command === 'move') {
-            this.target = null;
-            this.manualTarget = null;
-        } 
-        else if (!this.target && oldTarget && oldTarget.active && oldTarget.hp > 0) {
-            const dist = Math.hypot(oldTarget.x - this.x, oldTarget.y - this.y);
-            const canHit = this.attackTargets.includes(oldTarget.domain || 'ground');
-            if (dist <= this.attackRange * 1.1 && canHit) {
-                this.target = oldTarget;
-            }
-        }
-        else if (this.target && oldTarget && this.target !== oldTarget && oldTarget.active && oldTarget.hp > 0) {
-            const dist = Math.hypot(oldTarget.x - this.x, oldTarget.y - this.y);
-            const canHit = this.attackTargets.includes(oldTarget.domain || 'ground');
-            if (dist <= this.attackRange * 1.05 && canHit) {
-                if (!this.manualTarget || this.manualTarget === oldTarget) {
-                    this.target = oldTarget;
-                }
-            }
-        }
-
-        // 4. [하단부 기동 제어]
-        if (this._destination) {
-            // 이동 중일 때: 차체는 진행 방향으로 회전
-            const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
-            const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
-            const targetMoveAngle = (vector.x !== 0 || vector.y !== 0) ? Math.atan2(vector.y, vector.x) : Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
-            
-            const hullDiff = Math.atan2(Math.sin(targetMoveAngle - prevHullAngle), Math.cos(targetMoveAngle - prevHullAngle));
-            this.angle = prevHullAngle + hullDiff * 0.15;
-        } else {
-            // 정지 시에는 차체 각도 엄격하게 유지
-            this.angle = prevHullAngle;
-        }
-
-        // 5. [상단부 조준 및 사격 제어]
-        const dist = this.target ? Math.hypot(this.target.x - this.x, this.target.y - this.y) : Infinity;
-        const inRange = dist <= this.attackRange;
-
-        if (this.target && inRange && !this._destination) {
-            // 사거리 내에 있고 정지 상태일 때만 독립 조준 및 사격
-            const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            let diff = targetAngle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            
-            this.turretAngle += diff * 0.1;
-            this.attack();
-        } else {
-            // 이동 중이거나 타겟이 없거나 사거리 밖이면 차체와 정렬 (이동 모드)
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.1;
-        }
-    }
-
-    attack() {
+    // AntiAir는 쌍열포 발사를 위해 performAttack 오버라이드
+    performAttack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
 
-        // 포탑 각도(turretAngle) 기준으로 목표 조준 확인
-        const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-        let diff = targetAngle - this.turretAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-
-        if (Math.abs(diff) > 0.1) return; // 포탑이 타겟을 대략적으로 가리킬 때만 발사
-
-        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
-        if (dist > this.attackRange) return;
-
-        // 탄약 체크 (2발 동시 발사)
         if (this.ammo < this.ammoConsumption) {
             if (now - (this._lastAmmoMsgTime || 0) > 2000) {
                 this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
