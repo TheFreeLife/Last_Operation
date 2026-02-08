@@ -40,38 +40,86 @@ export class Tank extends TurretUnit {
             return;
         }
         ctx.save();
-        ctx.scale(2, 2);
+        ctx.scale(2.2, 2.2);
 
-        // --- 1. 하부 (차체/궤도) ---
+        const hullColor = '#4b5320'; 
+        const darkHull = '#3a4118';  
+        const lightHull = '#556644'; 
+        const camoColor = '#3d2b1f'; // 위장 패턴용 갈색
+
+        // --- 1. 하부 (차체 및 무한궤도) ---
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(-14, -13, 28, 26);
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-14, -13, 28, 4);
-        ctx.fillRect(-14, 9, 28, 4);
+        ctx.fillRect(-16, -13, 32, 26);
 
-        ctx.fillStyle = '#4b5320';
+        ctx.fillStyle = '#2d3436';
+        for(let i=-14; i<=10; i+=6) {
+            ctx.fillRect(i, -13, 4, 3);
+            ctx.fillRect(i, 10, 4, 3);
+        }
+
+        ctx.fillStyle = hullColor;
         ctx.beginPath();
-        ctx.moveTo(-14, -9); ctx.lineTo(10, -9);
-        ctx.lineTo(16, -6); ctx.lineTo(16, 6);
-        ctx.lineTo(10, 9); ctx.lineTo(-14, 9);
+        ctx.moveTo(-16, -10); ctx.lineTo(12, -10);
+        ctx.lineTo(18, -6); ctx.lineTo(18, 6);
+        ctx.lineTo(12, 10); ctx.lineTo(-16, 10);
         ctx.closePath();
         ctx.fill();
 
-        // --- 2. 상부 (포탑) ---
+        // [추가] 차체 위장 패턴
+        ctx.fillStyle = camoColor;
+        ctx.fillRect(-10, -10, 6, 20);
+        ctx.fillRect(4, -6, 4, 12);
+
+        ctx.fillStyle = darkHull;
+        ctx.fillRect(-16, -11, 28, 3);
+        ctx.fillRect(-16, 8, 28, 3);
+
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(-12, -6, 6, 12);
+
+        // --- 2. 상부 (전투 포탑) ---
         ctx.save();
         ctx.rotate(this.turretAngle - this.angle);
-        ctx.translate(-3, 0);
-        ctx.fillStyle = '#556644';
+        
+        const turretGrd = ctx.createLinearGradient(-10, -10, 10, 10);
+        turretGrd.addColorStop(0, lightHull);
+        turretGrd.addColorStop(1, hullColor);
+        ctx.fillStyle = turretGrd;
+        
         ctx.beginPath();
-        ctx.moveTo(-8, -8); ctx.lineTo(5, -8); ctx.lineTo(10, -4);
-        ctx.lineTo(10, 4); ctx.lineTo(5, 8); ctx.lineTo(-8, 8);
+        ctx.moveTo(-10, -9); ctx.lineTo(4, -9);
+        ctx.lineTo(12, -4); ctx.lineTo(12, 4);
+        ctx.lineTo(4, 9); ctx.lineTo(-10, 9);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = '#1e272e';
-        ctx.fillRect(10, -1.2, 30, 2.4);
-        ctx.restore();
+        // [추가] 포탑 식별 표식 (하얀색 쉐브론)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-2, -4); ctx.lineTo(2, 0); ctx.lineTo(-2, 4);
+        ctx.stroke();
 
+        ctx.fillStyle = darkHull;
+        ctx.fillRect(0, -7, 4, 3);
+        ctx.fillRect(0, 4, 4, 3);
+
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.arc(-3, -4, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2980b9'; 
+        ctx.fillRect(6, 2, 3, 4);
+
+        ctx.fillStyle = hullColor;
+        ctx.fillRect(12, -1.5, 34, 3);
+        ctx.fillStyle = darkHull;
+        ctx.fillRect(22, -2, 8, 4);
+        
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(44, -2.5, 4, 5);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(45, -3, 2, 6);
+
+        ctx.restore();
         ctx.restore();
     }
 }
@@ -369,48 +417,81 @@ export class Artillery extends TurretUnit {
         if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
         
         ctx.save();
-        ctx.scale(2, 2);
+        ctx.scale(2.2, 2.2);
 
-        // --- 1. 하부 (차체/무한궤도) ---
+        // [변경] 자주포 전용 올리브-그레이 톤 (전차와 차별화)
+        const hullColor = '#5a6344'; 
+        const darkHull = '#454d30';  
+        const lightHull = '#6b7552'; 
+
+        // --- 1. 하부 (차체 및 무한궤도) ---
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(-18, -12, 36, 24);
-        ctx.fillStyle = '#4b5320';
+        ctx.fillRect(-18, -13, 36, 26);
+        
+        ctx.fillStyle = '#2d3436';
+        for(let i=-16; i<=14; i+=5) {
+            ctx.fillRect(i, -13, 3, 3);
+            ctx.fillRect(i, 10, 3, 3);
+        }
+
+        ctx.fillStyle = hullColor;
         ctx.beginPath();
-        ctx.moveTo(-18, -11); ctx.lineTo(16, -11);
-        ctx.lineTo(18, -8); ctx.lineTo(18, 8);
-        ctx.lineTo(16, 11); ctx.lineTo(-18, 11);
+        ctx.moveTo(-18, -11); ctx.lineTo(12, -11);
+        ctx.lineTo(18, -7); ctx.lineTo(18, 7);
+        ctx.lineTo(12, 11); ctx.lineTo(-18, 11);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = '#3d441a';
-        ctx.fillRect(4, -8, 8, 16);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(14, -8, 2, 16); 
+        ctx.fillStyle = '#fbc02d'; 
+        ctx.fillRect(16, -9, 1.5, 1.5);
+        ctx.fillRect(16, 7.5, 1.5, 1.5);
 
-        // --- 2. 상부 (포탑) ---
+        // --- 2. 상부 (전투 포탑) ---
         ctx.save();
         ctx.translate(-6, 0); 
         ctx.rotate(this.turretAngle - this.angle);
         
-        ctx.fillStyle = '#556644';
+        // [변경] 더 길고 각진 상자형 포탑 실루엣 (K9 특징 강화)
+        const turretGrd = ctx.createLinearGradient(-12, -10, 14, 10);
+        turretGrd.addColorStop(0, lightHull);
+        turretGrd.addColorStop(1, darkHull);
+        ctx.fillStyle = turretGrd;
+        
         ctx.beginPath();
-        ctx.moveTo(-12, -10); ctx.lineTo(10, -10);
+        ctx.moveTo(-14, -10); ctx.lineTo(10, -10); 
         ctx.lineTo(14, -6); ctx.lineTo(14, 6);
-        ctx.lineTo(10, 10); ctx.lineTo(-12, 10);
+        ctx.lineTo(10, 10); ctx.lineTo(-14, 10);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = '#3d441a';
-        ctx.beginPath();
-        ctx.arc(-2, -5, 3.5, 0, Math.PI * 2); 
-        ctx.fill();
-        ctx.fillRect(-10, 4, 6, 4); 
-        
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(14, -2, 38, 4);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.arc(-2, -5, 3.5, 0, Math.PI * 2); ctx.fill(); 
+        ctx.fillStyle = '#2980b9';
+        ctx.fillRect(4, 4, 4, 3); 
         
         ctx.fillStyle = '#2d3436';
-        ctx.fillRect(48, -3.5, 6, 7);
+        ctx.fillRect(-10, 4, 6, 4); 
+        ctx.fillRect(-10, -8, 2, 2); 
+
+        // [변경] 포신 길이를 강조하는 디자인 및 백색 식별 띠 추가
+        ctx.fillStyle = hullColor;
+        ctx.fillRect(14, -2, 42, 4);
+        
+        // 포신 식별 백색 띠
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillRect(28, -2.1, 3, 4.2);
+        ctx.fillRect(34, -2.1, 2, 4.2);
+
+        ctx.fillStyle = darkHull;
+        ctx.fillRect(18, -2.5, 6, 5);
+        ctx.fillRect(40, -2.2, 4, 4.4);
+        
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(52, -3.5, 7, 7);
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(50, -4, 2, 8); 
+        ctx.fillRect(54, -4, 2, 8); 
 
         ctx.restore();
         
