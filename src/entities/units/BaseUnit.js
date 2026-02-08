@@ -413,11 +413,17 @@ export class BaseUnit extends Entity {
                 }
             }
 
-            this.angle = Math.atan2(ty - this.y, tx - this.x);
-            
             const distToTarget = Math.hypot(ty - this.y, tx - this.x);
             const inRange = distToTarget <= this.attackRange;
 
+            // [수정] 이동 중이 아닐 때만 타겟 방향으로 회전
+            // 단, 상하 분리 유닛(turretAngle 보유)은 사거리 내에서 하단부(angle)를 고정하여 포탑만 돌아가게 함
+            if (!this._destination) {
+                if (this.turretAngle === undefined || !inRange) {
+                    this.angle = Math.atan2(ty - this.y, tx - this.x);
+                }
+            }
+            
             if (inRange) {
                 this.attack();
                 // 사거리 내에 들어오면 공격을 위해 정지 (어택땅 또는 추격 중일 때)
@@ -433,7 +439,10 @@ export class BaseUnit extends Entity {
                     }
                 }
             }
-        } else if (this._destination) {
+        } 
+        
+        // [수정] else if를 if로 변경하여 타겟이 있어도 목적지가 있으면 이동하도록 함 (추격 가능)
+        if (this._destination) {
             const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
 
             if (distToFinal < 10) {
