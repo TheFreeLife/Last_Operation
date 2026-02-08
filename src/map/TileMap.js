@@ -276,12 +276,96 @@ export class TileMap {
                 }
             },
             'barricade': {
-                maxHp: 150,
+                maxHp: 300,
+                isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    ctx.strokeStyle = '#333'; ctx.lineWidth = 5; ctx.beginPath();
-                    ctx.moveTo(lpx+5, lpy+5); ctx.lineTo(lpx+ts-5, lpy+ts-5);
-                    ctx.moveTo(lpx+ts-5, lpy+5); ctx.lineTo(lpx+5, lpy+ts-5); ctx.stroke();
-                    ctx.strokeStyle = '#fbc02d'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+                    const h = ts * 0.65; // 1칸 내외의 묵직한 높이
+                    ctx.save();
+                    ctx.translate(lpx + ts * 0.5, lpy + ts * 0.9);
+
+                    // 2. 콘크리트 본체 (저지 장벽 특유의 사다리꼴 단면)
+                    const bW = ts * 0.45; // 하단 폭
+                    const mW = ts * 0.35; // 중간 턱 폭
+                    const tW = ts * 0.22; // 상단 폭
+                    
+                    ctx.strokeStyle = '#222';
+                    ctx.lineWidth = 1.5;
+
+                    // 기본 형태 및 그림자 쪽 면
+                    ctx.fillStyle = '#7f8c8d';
+                    ctx.beginPath();
+                    ctx.moveTo(-bW, 0);
+                    ctx.lineTo(-mW, -h * 0.2);
+                    ctx.lineTo(-tW, -h);
+                    ctx.lineTo(tW, -h);
+                    ctx.lineTo(mW, -h * 0.2);
+                    ctx.lineTo(bW, 0);
+                    ctx.closePath();
+                    ctx.fill(); ctx.stroke();
+
+                    // 전면 하이라이트 및 질감 (입체감 강조)
+                    const grad = ctx.createLinearGradient(0, -h, 0, 0);
+                    grad.addColorStop(0, '#bdc3c7');
+                    grad.addColorStop(0.2, '#95a5a6');
+                    grad.addColorStop(1, '#7f8c8d');
+                    ctx.fillStyle = grad;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(-bW + 2, -2);
+                    ctx.lineTo(-mW + 2, -h * 0.2);
+                    ctx.lineTo(-tW + 2, -h + 2);
+                    ctx.lineTo(tW - 2, -h + 2);
+                    ctx.lineTo(mW - 2, -h * 0.2);
+                    ctx.lineTo(bW - 2, -2);
+                    ctx.fill();
+
+                    // 3. 디테일: 파손된 흔적 및 철근
+                    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                    ctx.lineWidth = 1;
+                    // 균열 (Cracks)
+                    ctx.beginPath();
+                    ctx.moveTo(-ts * 0.2, -h * 0.7);
+                    ctx.lineTo(-ts * 0.1, -h * 0.4);
+                    ctx.lineTo(-ts * 0.25, -h * 0.1);
+                    ctx.stroke();
+
+                    // 삐져나온 녹슨 철근 (Exposed Rebar)
+                    ctx.strokeStyle = '#3d2b1f';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(-tW, -h);
+                    ctx.lineTo(-tW - 5, -h - 6);
+                    ctx.stroke();
+
+                    // 4. 퇴색된 경고 스트라이프 (한쪽 끝에만 적용)
+                    ctx.save();
+                    ctx.globalAlpha = 0.6;
+                    ctx.beginPath();
+                    ctx.moveTo(ts * 0.1, -h * 0.2);
+                    ctx.lineTo(ts * 0.15, -h);
+                    ctx.lineTo(tW, -h);
+                    ctx.lineTo(mW, -h * 0.2);
+                    ctx.clip();
+                    
+                    ctx.fillStyle = '#fbc02d';
+                    ctx.fillRect(0, -h, ts, h);
+                    
+                    ctx.strokeStyle = '#222';
+                    ctx.lineWidth = 6;
+                    for(let i=0; i<3; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(ts * 0.1 + i*12, -h);
+                        ctx.lineTo(ts * 0.05 + i*12, 0);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+
+                    // 5. 하단 지게차 삽입구 (Lifting Slots)
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(-ts * 0.25, -ts * 0.08, ts * 0.15, ts * 0.08);
+                    ctx.fillRect(ts * 0.1, -ts * 0.08, ts * 0.15, ts * 0.08);
+
+                    ctx.restore();
                 }
             },
             'brick-wall': {
