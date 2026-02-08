@@ -377,6 +377,94 @@ export class TileMap {
                     }
                 }
             },
+            'anti-tank-obstacle': {
+                maxHp: 1500,
+                render: (ctx, ts, lpx, lpy) => {
+                    const cx = lpx + ts / 2;
+                    const cy = lpy + ts / 2;
+                    
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    // 자연스러운 배치를 위해 전체적으로 약간 회전
+                    ctx.rotate(0.4);
+
+                    // 어두운 무광 콘크리트 팔레트 (전체적으로 명도를 낮춤)
+                    const colors = {
+                        shadow: '#2d3436', // 매우 어두운 그림자
+                        mid: '#444c56',    // 어두운 톤
+                        base: '#636e72',   // 기본 콘크리트 (어두운 회색)
+                        light: '#7f8c8d',  // 제한된 하이라이트
+                        grain: 'rgba(0,0,0,0.2)' // 더 선명한 거친 입자
+                    };
+
+                    // 다리(Lobe)를 그리는 함수
+                    const drawTetraLeg = (angle, length, width, isTop = false) => {
+                        ctx.save();
+                        ctx.rotate(angle);
+                        
+                        // 다리 본체 (중앙에서 끝으로 갈수록 살짝 굵어지는 각진 원통형)
+                        ctx.fillStyle = isTop ? colors.base : colors.mid;
+                        ctx.beginPath();
+                        ctx.moveTo(0, -width * 0.4);
+                        ctx.lineTo(length, -width * 0.6);
+                        ctx.lineTo(length, width * 0.6);
+                        ctx.lineTo(0, width * 0.4);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // 상단 면 명암 (빛을 받는 부분)
+                        ctx.fillStyle = isTop ? colors.light : colors.base;
+                        ctx.beginPath();
+                        ctx.moveTo(0, -width * 0.4);
+                        ctx.lineTo(length, -width * 0.6);
+                        ctx.lineTo(length, 0);
+                        ctx.lineTo(0, 0);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // 다리 끝부분 단면 (둥근 느낌의 각진 마감)
+                        ctx.fillStyle = isTop ? '#f7fafc' : colors.mid;
+                        ctx.beginPath();
+                        ctx.ellipse(length, 0, 3, width * 0.6, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+
+                        ctx.restore();
+                    };
+
+                    // 1. 지면에 닿은 3개의 다리 (120도 간격, 그림자 강조)
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                    drawTetraLeg(Math.PI * 0.1, ts * 0.42, ts * 0.2, false);
+                    drawTetraLeg(Math.PI * 0.76, ts * 0.38, ts * 0.2, false);
+                    drawTetraLeg(Math.PI * 1.42, ts * 0.38, ts * 0.2, false);
+                    ctx.shadowBlur = 0;
+
+                    // 2. 중앙 결합부 (Hub)
+                    ctx.fillStyle = colors.mid;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ts * 0.18, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 3. 위로 솟아오른 네 번째 다리 (정면이 아닌 비스듬한 방향으로 오프셋)
+                    ctx.save();
+                    ctx.translate(-ts * 0.08, -ts * 0.08); // 횡으로 돌려진 느낌을 주기 위한 오프셋
+                    drawTetraLeg(-Math.PI * 0.55, ts * 0.4, ts * 0.22, true);
+                    ctx.restore();
+
+                    // 4. 거친 콘크리트 질감 표현 (점묘)
+                    ctx.fillStyle = colors.grain;
+                    for(let i=0; i<20; i++) {
+                        const rx = (Math.sin(i * 1.7) * ts * 0.35);
+                        const ry = (Math.cos(i * 2.3) * ts * 0.35);
+                        ctx.fillRect(rx, ry, 1.5, 1.5);
+                    }
+
+                    ctx.restore();
+                }
+            },
             'street-lamp': {
                 maxHp: 50,
                 isTall: true,

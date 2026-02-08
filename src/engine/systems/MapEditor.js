@@ -86,6 +86,7 @@ export class MapEditor {
                     { id: 'fence-corner', name: '울타리 모서리', rotatable: true },
                     { id: 'sandbag', name: '모래주머니', rotatable: true },
                     { id: 'barricade', name: '바리케이드', rotatable: true },
+                    { id: 'anti-tank-obstacle', name: '대전차 장애물', rotatable: true },
                     { id: 'airport-fence', name: '보안 펜스', rotatable: true },
                     { id: 'airport-fence-corner', name: '보안 펜스 모서리', rotatable: true },
                     { id: 'street-lamp', name: '가로등', rotatable: false },
