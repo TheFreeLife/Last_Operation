@@ -417,9 +417,10 @@ export class BaseUnit extends Entity {
             const inRange = distToTarget <= this.attackRange;
 
             // [수정] 이동 중이 아닐 때만 타겟 방향으로 회전
-            // 단, 상하 분리 유닛(turretAngle 보유)은 사거리 내에서 하단부(angle)를 고정하여 포탑만 돌아가게 함
+            // 포탑 유닛은 상단에서 독립적으로 회전하므로 하단(angle)은 사거리 밖에서만 타겟을 향함
             if (!this._destination) {
-                if (this.turretAngle === undefined || !inRange) {
+                const hasSeparateTurret = this.turretAngle !== undefined;
+                if (!hasSeparateTurret || !inRange) {
                     this.angle = Math.atan2(ty - this.y, tx - this.x);
                 }
             }
@@ -441,7 +442,6 @@ export class BaseUnit extends Entity {
             }
         } 
         
-        // [수정] else if를 if로 변경하여 타겟이 있어도 목적지가 있으면 이동하도록 함 (추격 가능)
         if (this._destination) {
             const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
 
@@ -796,6 +796,113 @@ export class BaseUnit extends Entity {
             }
             this.aiWanderTimer = 2000 + Math.random() * 4000; // 2~6초 후 다음 이동 결정
         }
+    }
+}
+
+/**
+ * TurretUnit
+ * 상하체가 분리되어 포탑이 독립적으로 회전하는 유닛을 위한 베이스 클래스
+ */
+export class TurretUnit extends BaseUnit {
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.turretAngle = this.angle;
+        this.turretRotationSpeed = 0.05;
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.turretAngle = this.angle;
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+
+        const dist = this.target ? Math.hypot(this.target.x - this.x, this.target.y - this.y) : Infinity;
+        const inRange = dist <= this.attackRange;
+
+        if (this.target && inRange && !this._destination) {
+            // [상단부] 사거리 내 정지 상태: 포탑이 타겟 조준
+            const tx = this.target.x;
+            let ty = this.target.y;
+            
+            if (this.target.type === 'tile') {
+                const wall = this.engine.tileMap.layers.wall[this.target.gy]?.[this.target.gx];
+                if (wall && this.engine.tileMap.wallRegistry[wall.id]?.isTall) ty -= 40;
+            }
+
+            const targetAngle = Math.atan2(ty - this.y, tx - this.x);
+            let diff = targetAngle - this.turretAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.turretAngle += diff * this.turretRotationSpeed;
+            
+            this.attack();
+        } else {
+            // [상단부] 이동 중이거나 사거리 밖: 포탑을 차체 정면(this.angle)으로 서서히 정렬
+            let diff = this.angle - this.turretAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.turretAngle += diff * 0.1;
+        }
+    }
+
+    attack() {
+        if (!this.target) return;
+        
+        const tx = this.target.x;
+        let ty = this.target.y;
+        if (this.target.type === 'tile') {
+            const wall = this.engine.tileMap.layers.wall[this.target.gy]?.[this.target.gx];
+            if (wall && this.engine.tileMap.wallRegistry[wall.id]?.isTall) ty -= 40;
+        }
+
+        const targetAngle = Math.atan2(ty - this.y, tx - this.x);
+        let diff = targetAngle - this.turretAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        if (Math.abs(diff) < 0.15) {
+            this.performAttack();
+        }
+    }
+
+    performAttack() {
+        const now = Date.now();
+        if (now - this.lastFireTime < this.fireRate || !this.target) return;
+
+        if (this.maxAmmo > 0 && this.ammo < this.ammoConsumption) {
+            if (now - (this._lastAmmoMsgTime || 0) > 2000) {
+                this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
+                this._lastAmmoMsgTime = now;
+            }
+            return;
+        }
+        if (this.maxAmmo > 0) this.ammo -= this.ammoConsumption;
+
+        if (this.engine.addEffect) {
+            const mx = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
+            const my = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
+            this.engine.addEffect(this.muzzleEffectType || (this.explosionRadius > 20 ? 'muzzle_large' : 'muzzle'), mx, my, '#ff8c00');
+        }
+
+        this.executeProjectileAttack();
+        this.lastFireTime = now;
+    }
+
+    executeProjectileAttack() {
+        const spawnX = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
+        const spawnY = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
+        
+        const options = {
+            speed: this.projectileSpeed,
+            explosionRadius: this.explosionRadius || 0,
+            ownerId: this.ownerId,
+            isIndirect: this.isIndirect,
+            weaponType: this.weaponType
+        };
+
+        this.engine.entityManager.spawnProjectileECS(spawnX, spawnY, this.target, this.damage, options);
     }
 }
 

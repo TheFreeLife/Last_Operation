@@ -1,8 +1,8 @@
-import { PlayerUnit } from './BaseUnit.js';
+import { PlayerUnit, TurretUnit } from './BaseUnit.js';
 import { Missile } from '../projectiles/Missile.js';
 import { NuclearMissile } from '../projectiles/NuclearMissile.js';
 
-export class Tank extends PlayerUnit {
+export class Tank extends TurretUnit {
     static editorConfig = { category: 'vehicle', icon: 'tank', name: '전차' };
     constructor(x, y, engine) {
         super(x, y, engine);
@@ -10,18 +10,18 @@ export class Tank extends PlayerUnit {
         this.name = '전차';
         this.speed = 1.8;
         this.fireRate = 1800;
-        this.damage = 180; // 데미지 소폭 조정 (광역딜 밸런스)
+        this.damage = 180; 
         this.color = '#39ff14';
         this.attackRange = 360;
         this.visionRange = 6;
-        this.explosionRadius = 70; // 범위 피해 반경 확대 (40 -> 70)
+        this.explosionRadius = 70; 
         this.size = 80;
         this.cargoSize = 10;
-        this.population = 4; // 전차장, 포수, 탄약수, 조종수
+        this.population = 4; 
         this.hp = 1000;
         this.maxHp = 1000;
         this.muzzleOffset = 60;
-        this.projectileSpeed = 18; // 탄속 상향 (16 -> 18)
+        this.projectileSpeed = 18; 
         this.hitEffectType = 'explosion';
 
         this.armorType = 'heavy';
@@ -30,10 +30,8 @@ export class Tank extends PlayerUnit {
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
-    }
 
-    attack() {
-        this.performAttack();
+        this.turretRotationSpeed = 0.08;
     }
 
     draw(ctx) {
@@ -44,6 +42,7 @@ export class Tank extends PlayerUnit {
         ctx.save();
         ctx.scale(2, 2);
 
+        // --- 1. 하부 (차체/궤도) ---
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(-14, -13, 28, 26);
         ctx.fillStyle = '#2d3436';
@@ -58,7 +57,9 @@ export class Tank extends PlayerUnit {
         ctx.closePath();
         ctx.fill();
 
+        // --- 2. 상부 (포탑) ---
         ctx.save();
+        ctx.rotate(this.turretAngle - this.angle);
         ctx.translate(-3, 0);
         ctx.fillStyle = '#556644';
         ctx.beginPath();
@@ -330,7 +331,7 @@ export class MissileLauncher extends PlayerUnit {
     }
 }
 
-export class Artillery extends PlayerUnit {
+export class Artillery extends TurretUnit {
     static editorConfig = { category: 'vehicle', icon: 'artillery', name: '자주포' };
     constructor(x, y, engine) {
         super(x, y, engine);
@@ -344,8 +345,8 @@ export class Artillery extends PlayerUnit {
         this.explosionRadius = 60;
         this.size = 80;
         this.cargoSize = 5;
-        this.population = 5; // 승무원 5명
-        this.isIndirect = true; // 자주포는 곡사 사격
+        this.population = 5; 
+        this.isIndirect = true; 
 
         this.armorType = 'heavy';
         this.weaponType = 'shell';
@@ -354,159 +355,14 @@ export class Artillery extends PlayerUnit {
         this.maxAmmo = 20;
         this.ammo = 20;
         this.muzzleOffset = 96;
-        this.projectileSpeed = 10; // 곡사포는 탄속이 약간 느림
+        this.projectileSpeed = 10; 
 
-        this.turretAngle = this.angle; // 독립적인 포탑 각도
-    }
-
-    init(x, y, engine) {
-        super.init(x, y, engine);
-        this.turretAngle = this.angle;
+        this.turretRotationSpeed = 0.05;
     }
 
     getCacheKey() {
-        // 포탑이 차체와 정렬되어 있을 때만 비트맵 캐싱 사용 (성능 최적화)
         if (Math.abs(this.turretAngle - this.angle) > 0.05) return null;
         return this.type;
-    }
-
-    update(deltaTime) {
-        // 1. 상태 저장 (타겟 유지 로직용)
-        const oldTarget = this.target;
-
-        // 2. 부모 클래스(BaseUnit) 로직 수행
-        // BaseUnit.update가 이제 이동(hull angle)과 타겟팅을 모두 처리함
-        super.update(deltaTime);
-
-        // 3. [상태 기반 타겟 관리] 플레이어 명령 우선 순위 적용
-        if (this.command === 'move') {
-            this.target = null;
-            this.manualTarget = null;
-        } 
-        else if (!this.target && oldTarget && oldTarget.active && oldTarget.hp > 0) {
-            const dist = Math.hypot(oldTarget.x - this.x, oldTarget.y - this.y);
-            const canHit = this.attackTargets.includes(oldTarget.domain || 'ground');
-            if (dist <= this.attackRange * 1.1 && canHit) {
-                this.target = oldTarget;
-            }
-        }
-
-        // 4. [상단부 제어] 포탑 회전 및 사격
-        if (this.target) {
-            const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
-            const inRange = dist <= this.attackRange;
-
-            if (inRange && !this._destination) {
-                // 사거리 내에 있고 정지 상태일 때만 독립 조준 및 발사
-                const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-                let diff = targetAngle - this.turretAngle;
-                while (diff > Math.PI) diff -= Math.PI * 2;
-                while (diff < -Math.PI) diff += Math.PI * 2;
-                
-                this.turretAngle += diff * 0.05;
-                this.attack();
-            } else {
-                // 사거리 밖이거나 이동 중이면 차체 방향으로 상단 재정렬 (이동 모드)
-                let diff = this.angle - this.turretAngle;
-                while (diff > Math.PI) diff -= Math.PI * 2;
-                while (diff < -Math.PI) diff += Math.PI * 2;
-                this.turretAngle += diff * 0.1;
-            }
-        } else {
-            // 타겟이 없으면 차체 정면 방향으로 서서히 정렬
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.1;
-        }
-    }
-
-    /**
-     * 현재 유닛의 이동 방향(유동장 또는 목적지 방향)을 계산합니다.
-     */
-    getMovementAngle() {
-        if (!this._destination) return this.angle;
-        
-        // 공중 유닛(혹은 공중 판정)인 경우 직선 방향
-        if (this.domain === 'air') {
-            return Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
-        }
-
-        // 지상 유닛은 유동장(Flow Field) 벡터를 따름
-        const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
-        const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass);
-        
-        if (vector.x !== 0 || vector.y !== 0) {
-            return Math.atan2(vector.y, vector.x);
-        }
-        
-        // 유동장 데이터가 없으면 목적지 직선 방향
-        return Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
-    }
-
-    attack() {
-        if (!this.target) return;
-
-        // 목표 방향과 현재 포탑 방향의 차이 계산
-        const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-        let diff = targetAngle - this.turretAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-
-        // 포탑이 목표를 거의 정확히(약 1.7도 이내) 가리켰을 때만 실제 발사 수행
-        if (Math.abs(diff) < 0.03) {
-            this.performAttack();
-        }
-    }
-
-    // BaseUnit의 투사체 발사 로직 오버라이드 (포탑 각도 반영)
-    performAttack() {
-        const now = Date.now();
-        if (now - this.lastFireTime < this.fireRate || !this.target) return;
-
-        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
-        if (dist > this.attackRange) return;
-
-        if (this.maxAmmo > 0 && this.ammo < this.ammoConsumption) {
-            if (now - (this._lastAmmoMsgTime || 0) > 2000) {
-                this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
-                this._lastAmmoMsgTime = now;
-            }
-            return;
-        }
-        if (this.maxAmmo > 0) this.ammo -= this.ammoConsumption;
-
-        // 포탑 각도(turretAngle) 기준으로 총구 화염 생성
-        if (this.engine.addEffect) {
-            const mx = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
-            const my = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
-            this.engine.addEffect('muzzle_large', mx, my, '#ff8c00');
-        }
-
-        this.executeProjectileAttack();
-        this.lastFireTime = now;
-    }
-
-    executeProjectileAttack() {
-        // 포탑 각도(turretAngle) 기준으로 발사 위치 계산
-        const spawnX = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
-        const spawnY = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
-
-        const options = {
-            speed: this.projectileSpeed,
-            explosionRadius: this.explosionRadius || 0,
-            ownerId: this.ownerId,
-            isIndirect: this.isIndirect,
-            weaponType: this.weaponType
-        };
-
-        this.engine.entityManager.spawnProjectileECS(
-            spawnX, 
-            spawnY, 
-            this.target, 
-            this.damage, 
-            options
-        );
     }
 
     draw(ctx) {
@@ -516,11 +372,8 @@ export class Artillery extends PlayerUnit {
         ctx.scale(2, 2);
 
         // --- 1. 하부 (차체/무한궤도) ---
-        // 궤도 및 하부 프레임 (검은색)
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(-18, -12, 36, 24);
-        
-        // 차체 메인 (국방색)
         ctx.fillStyle = '#4b5320';
         ctx.beginPath();
         ctx.moveTo(-18, -11); ctx.lineTo(16, -11);
@@ -529,17 +382,14 @@ export class Artillery extends PlayerUnit {
         ctx.closePath();
         ctx.fill();
 
-        // 차체 상부 디테일 (엔진 그릴 부분)
         ctx.fillStyle = '#3d441a';
         ctx.fillRect(4, -8, 8, 16);
 
         // --- 2. 상부 (포탑) ---
         ctx.save();
-        // K9의 포탑은 차체 후방에 위치함 (중심에서 뒤로 -6만큼 이동)
         ctx.translate(-6, 0); 
         ctx.rotate(this.turretAngle - this.angle);
         
-        // 포탑 본체 (뒷부분이 약간 더 긴 각진 형태)
         ctx.fillStyle = '#556644';
         ctx.beginPath();
         ctx.moveTo(-12, -10); ctx.lineTo(10, -10);
@@ -548,22 +398,19 @@ export class Artillery extends PlayerUnit {
         ctx.closePath();
         ctx.fill();
 
-        // 포탑 상부 해치 및 장비 상자 디테일
         ctx.fillStyle = '#3d441a';
         ctx.beginPath();
-        ctx.arc(-2, -5, 3.5, 0, Math.PI * 2); // 전차장 해치
+        ctx.arc(-2, -5, 3.5, 0, Math.PI * 2); 
         ctx.fill();
-        ctx.fillRect(-10, 4, 6, 4); // 공구함/장비
+        ctx.fillRect(-10, 4, 6, 4); 
         
-        // 포신 (K9 특유의 매우 긴 52구경장 포신)
         ctx.fillStyle = '#4b5320';
         ctx.fillRect(14, -2, 38, 4);
         
-        // 제퇴기 (Muzzle Brake)
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(48, -3.5, 6, 7);
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(50, -4, 2, 8); // 제퇴기 슬롯 묘사
+        ctx.fillRect(50, -4, 2, 8); 
 
         ctx.restore();
         
@@ -1327,7 +1174,7 @@ export class FreightCar extends PlayerUnit {
     }
 }
 
-export class SAMLauncher extends PlayerUnit {
+export class SAMLauncher extends TurretUnit {
     static editorConfig = { category: 'vehicle', icon: 'anti-air', name: '자주 대공 미사일' };
     constructor(x, y, engine) {
         super(x, y, engine);
@@ -1352,66 +1199,19 @@ export class SAMLauncher extends PlayerUnit {
         this.ammoType = 'missile';
         this.maxAmmo = 8;
         this.ammo = 8;
-        this.turretAngle = this.angle;
-    }
-
-    init(x, y, engine) {
-        super.init(x, y, engine);
-        this.turretAngle = this.angle;
+        
+        this.turretRotationSpeed = 0.08;
     }
 
     getCacheKey() {
-        // 미사일 런처도 포탑이 계속 돌아가므로 실시간 렌더링 강제
         return null;
-    }
-
-    update(deltaTime) {
-        // 1. 상태 저장 (타겟 유지 로직용)
-        const oldTarget = this.target;
-
-        // 2. 부모 클래스 로직 수행
-        super.update(deltaTime);
-
-        // 3. 타겟 유지 로직 (떨림 방지)
-        if (this.command === 'move') {
-            this.target = null;
-            this.manualTarget = null;
-        } 
-        else if (!this.target && oldTarget && oldTarget.active && oldTarget.hp > 0) {
-            const dist = Math.hypot(oldTarget.x - this.x, oldTarget.y - this.y);
-            const canHit = this.attackTargets.includes(oldTarget.domain || 'ground');
-            if (dist <= this.attackRange * 1.1 && canHit) {
-                this.target = oldTarget;
-            }
-        }
-
-        // 4. 상부 조준 및 사격 제어
-        const dist = this.target ? Math.hypot(this.target.x - this.x, this.target.y - this.y) : Infinity;
-        const inRange = dist <= this.attackRange;
-
-        if (this.target && inRange && !this._destination) {
-            // 사거리 내 정지 상태에서만 독립 조준 및 사격
-            const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            let diff = targetAngle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            
-            this.turretAngle += diff * 0.08;
-            this.attack();
-        } else {
-            // 이동 중이거나 사거리 밖이면 차체와 정렬
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.1;
-        }
     }
 
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
 
-        // 포탑 조준 정렬 확인
+        // 포탑 조준 정렬 확인 (TurretUnit 로직 활용)
         const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
         let diff = targetAngle - this.turretAngle;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -1423,10 +1223,8 @@ export class SAMLauncher extends PlayerUnit {
 
         if (this.ammo <= 0) return;
 
-        // 발사 사운드 및 효과 (포탑 각도 반영)
         this.engine.audioSystem.play('missile_flight', { volume: 0.25 });
         
-        // 유도 미사일 생성 (포탑 방향 반영)
         this.engine.entityManager.create('guided-missile', this.x, this.y, {
             target: this.target,
             damage: this.damage,
@@ -1438,359 +1236,90 @@ export class SAMLauncher extends PlayerUnit {
         this.lastFireTime = now;
     }
 
-        draw(ctx) {
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
 
-            if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.scale(2.2, 2.2);
 
+        const hullColor = '#3a4118'; 
+        const darkHull = '#2d3212';  
+        const lightHull = '#4b5320'; 
+
+        ctx.fillStyle = darkHull;
+        ctx.fillRect(-20, -13, 40, 26);
+
+        ctx.fillStyle = hullColor;
+        ctx.beginPath();
+        ctx.roundRect(-20, -11, 40, 22, 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#1a1a1a';
+        for(let i=-15; i<=15; i+=10) {
+            ctx.fillRect(i-3, -14, 6, 2);
+            ctx.fillRect(i-3, 12, 6, 2);
+        }
+
+        ctx.save();
+        ctx.rotate(this.turretAngle - this.angle);
+
+        ctx.fillStyle = darkHull;
+        ctx.beginPath();
+        ctx.moveTo(-12, -10); ctx.lineTo(8, -10); ctx.lineTo(12, -6);
+        ctx.lineTo(12, 6); ctx.lineTo(8, 10); ctx.lineTo(-12, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = lightHull;
+        ctx.fillRect(-6, -6, 12, 12);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(2, -4, 3, 8); 
+
+        const drawCanisterBank = (offsetY) => {
             ctx.save();
-
-            ctx.scale(2.2, 2.2);
-
-    
-
-            const hullColor = '#3a4118'; // 국방색 메인
-
-            const darkHull = '#2d3212';  // 국방색 그림자
-
-                    const lightHull = '#4b5320'; // 국방색 하이라이트
-
-            
-
-                    // --- 1. 하부 차체 (2.5D 두께감 표현) ---
-
-                    // 차체 옆면 (두께감)
-
-                    ctx.fillStyle = darkHull;
-
-                    ctx.fillRect(-20, -13, 40, 26);
-
-            
-
-            // 차체 윗면 (메인)
-
+            ctx.translate(0, offsetY);
+            ctx.fillStyle = darkHull;
+            ctx.fillRect(-2, -4, 22, 9); 
             ctx.fillStyle = hullColor;
-
-            ctx.beginPath();
-
-            ctx.roundRect(-20, -11, 40, 22, 2);
-
-            ctx.fill();
-
-    
-
-            // 궤도/바퀴 디테일 (살짝 보임)
-
-            ctx.fillStyle = '#1a1a1a';
-
-            for(let i=-15; i<=15; i+=10) {
-
-                ctx.fillRect(i-3, -14, 6, 2);
-
-                ctx.fillRect(i-3, 12, 6, 2);
-
-            }
-
-    
-
-                    // --- 2. 상부 미사일 시스템 (기계적 디테일 강화) ---
-
-    
-
-                    ctx.save();
-
-    
-
-                    ctx.rotate(this.turretAngle - this.angle);
-
-    
-
-                    
-
-    
-
-                    // 포탑 회전 베이스 (다각형 기계 구조)
-
-    
-
-                    ctx.fillStyle = darkHull;
-
-    
-
-                    ctx.beginPath();
-
-    
-
-                    ctx.moveTo(-12, -10); ctx.lineTo(8, -10); ctx.lineTo(12, -6);
-
-    
-
-                    ctx.lineTo(12, 6); ctx.lineTo(8, 10); ctx.lineTo(-12, 10);
-
-    
-
-                    ctx.closePath();
-
-    
-
-                    ctx.fill();
-
-    
-
-            
-
-    
-
-                    // 메인 센서 유닛 (포탑 중앙)
-
-    
-
-                    ctx.fillStyle = lightHull;
-
-    
-
-                    ctx.fillRect(-6, -6, 12, 12);
-
-    
-
-                    ctx.fillStyle = '#1a1a1a';
-
-    
-
-                    ctx.fillRect(2, -4, 3, 8); // 전방 카메라/센서 렌즈
-
-    
-
-            
-
-    
-
-                    // [개별 발사관 뱅크] - 좌우 2개씩 분리된 중장갑 런처
-
-    
-
-                    const drawCanisterBank = (offsetY) => {
-
-    
-
-                        ctx.save();
-
-    
-
-                        ctx.translate(0, offsetY);
-
-    
-
-                        
-
-    
-
-                        // 런처 하우징 (두께감)
-
-    
-
-                        ctx.fillStyle = darkHull;
-
-    
-
-                        ctx.fillRect(-2, -4, 22, 9); 
-
-    
-
-                        ctx.fillStyle = hullColor;
-
-    
-
-                        ctx.fillRect(-4, -5, 22, 9);
-
-    
-
-            
-
-    
-
-                        // 상/하단 발사구 (입체적 묘사)
-
-    
-
-                        ctx.fillStyle = '#000';
-
-    
-
-                        const holes = [-2.2, 2.2];
-
-    
-
-                        holes.forEach((hy, idx) => {
-
-    
-
-                            const globalIdx = (offsetY < 0 ? 0 : 2) + idx;
-
-    
-
-                            ctx.beginPath();
-
-    
-
-                            ctx.arc(16, hy, 1.8, 0, Math.PI * 2);
-
-    
-
-                            ctx.fill();
-
-    
-
-                            
-
-    
-
-                            // 탄두 상태 표시
-
-    
-
-                            if (this.ammo > globalIdx) {
-
-    
-
-                                ctx.fillStyle = '#95a5a6'; // 탄두 은색
-
-    
-
-                                ctx.beginPath(); ctx.arc(15.5, hy, 1.2, 0, Math.PI * 2); ctx.fill();
-
-    
-
-                                ctx.fillStyle = '#ff3131'; // 팁 빨간색
-
-    
-
-                                ctx.beginPath(); ctx.arc(16.5, hy, 0.8, 0, Math.PI * 2); ctx.fill();
-
-    
-
-                            }
-
-    
-
-                            ctx.fillStyle = '#000';
-
-    
-
-                        });
-
-    
-
-                        ctx.restore();
-
-    
-
-                    };
-
-    
-
-            
-
-    
-
-                    drawCanisterBank(-6); // 좌측 뱅크
-
-    
-
-                    drawCanisterBank(6);  // 우측 뱅크
-
-    
-
-            
-
-    
-
-                    // 현대적인 평면 위상배열 레이더 (후방 회전)
-
-    
-
-                    ctx.save();
-
-    
-
-                    ctx.translate(-8, 0);
-
-    
-
-                    const radarRot = (Date.now() / 800) % (Math.PI * 2);
-
-    
-
-                    ctx.rotate(radarRot);
-
-    
-
-                    // 레이더 지지대
-
-    
-
-                    ctx.fillStyle = '#2d3436';
-
-    
-
-                    ctx.fillRect(-2, -1, 4, 2);
-
-    
-
-                    // 레이더 패널 (2.5D 두께감)
-
-    
-
-                    ctx.fillStyle = darkHull;
-
-    
-
-                    ctx.fillRect(-1, -8, 2, 16);
-
-    
-
-                    ctx.fillStyle = '#4b5320';
-
-    
-
-                    ctx.fillRect(-2, -8, 2, 16);
-
-    
-
-                    // 레이더 작동등 (깜빡임)
-
-    
-
-                    if (Math.sin(Date.now() / 100) > 0) {
-
-    
-
-                        ctx.fillStyle = '#00d2ff';
-
-    
-
-                        ctx.fillRect(-2, -6, 1, 2);
-
-    
-
-                    }
-
-    
-
-                    ctx.restore();
-
-    
-
-            
-
-    
-
-                    ctx.restore();
-
-    
-
-                    ctx.restore();
-
-    
-
+            ctx.fillRect(-4, -5, 22, 9);
+            ctx.fillStyle = '#000';
+            const holes = [-2.2, 2.2];
+            holes.forEach((hy, idx) => {
+                const globalIdx = (offsetY < 0 ? 0 : 2) + idx;
+                ctx.beginPath();
+                ctx.arc(16, hy, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+                if (this.ammo > globalIdx) {
+                    ctx.fillStyle = '#95a5a6'; 
+                    ctx.beginPath(); ctx.arc(15.5, hy, 1.2, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#ff3131'; 
+                    ctx.beginPath(); ctx.arc(16.5, hy, 0.8, 0, Math.PI * 2); ctx.fill();
                 }
+                ctx.fillStyle = '#000';
+            });
+            ctx.restore();
+        };
+
+        drawCanisterBank(-6); 
+        drawCanisterBank(6);  
+
+        ctx.save();
+        ctx.translate(-8, 0);
+        const radarRot = (Date.now() / 800) % (Math.PI * 2);
+        ctx.rotate(radarRot);
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(-2, -1, 4, 2);
+        ctx.fillStyle = darkHull;
+        ctx.fillRect(-1, -8, 2, 16);
+        ctx.fillStyle = '#4b5320';
+        ctx.fillRect(-2, -8, 2, 16);
+        if (Math.sin(Date.now() / 100) > 0) {
+            ctx.fillStyle = '#00d2ff';
+            ctx.fillRect(-2, -6, 1, 2);
+        }
+        ctx.restore();
+
+        ctx.restore();
+        ctx.restore();
+    }
 }
