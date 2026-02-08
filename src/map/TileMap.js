@@ -1155,40 +1155,53 @@ export class TileMap {
         return true;
     }
 
-        isVisible(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.visible || false; }
+    isVisible(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.visible || false; }
+    isInSight(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.inSight || false; }
 
-        isInSight(wX, wY) { const g = this.worldToGrid(wX, wY); return this.grid[g.y]?.[g.x]?.inSight || false; }
+    /**
+     * 특정 지점(월드 좌표)에서 가장 가까운 통과 가능한 타일의 중심 좌표를 반환합니다.
+     */
+    findNearestPassableTile(wX, wY, sizeClass = 1, domain = 'ground') {
+        const center = this.worldToGrid(wX, wY);
+        const maxSearch = 30; // 탐색 반경 확대 (10 -> 30타일)
 
-    
-
-        /**
-
-         * 특정 구역 ID를 가진 모든 타일의 시야를 확보합니다.
-
-         */
-
-        revealRoom(roomId) {
-
-            if (!roomId) return;
-
-            for (let y = 0; y < this.rows; y++) {
-
-                for (let x = 0; x < this.cols; x++) {
-
-                    if (this.grid[y][x].roomId === roomId) {
-
-                        this.grid[y][x].visible = true;
-
-                        this.grid[y][x].inSight = true;
-
-                    }
-
-                }
-
-            }
-
+        // 중심점이 이미 통과 가능하다면 즉시 반환
+        if (this.isPassableArea(center.x, center.y, sizeClass, domain)) {
+            return this.gridToWorld(center.x, center.y);
         }
 
+        for (let r = 1; r <= maxSearch; r++) {
+            // 정사각형 테두리를 따라 탐색 (성능 최적화)
+            for (let i = -r; i <= r; i++) {
+                const points = [
+                    { x: center.x + i, y: center.y - r }, // 상
+                    { x: center.x + i, y: center.y + r }, // 하
+                    { x: center.x - r, y: center.y + i }, // 좌
+                    { x: center.x + r, y: center.y + i }  // 우
+                ];
+
+                for (const p of points) {
+                    if (this.isPassableArea(p.x, p.y, sizeClass, domain)) {
+                        return this.gridToWorld(p.x, p.y);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
-    
+    /**
+     * 특정 구역 ID를 가진 모든 타일의 시야를 확보합니다.
+     */
+    revealRoom(roomId) {
+        if (!roomId) return;
+        for (let y = 0; y < this.rows; y++) {
+            for (let x = 0; x < this.cols; x++) {
+                if (this.grid[y][x].roomId === roomId) {
+                    this.grid[y][x].visible = true;
+                    this.grid[y][x].inSight = true;
+                }
+            }
+        }
+    }
+}

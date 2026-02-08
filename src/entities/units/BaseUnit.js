@@ -416,27 +416,42 @@ export class BaseUnit extends Entity {
             const distToTarget = Math.hypot(ty - this.y, tx - this.x);
             const inRange = distToTarget <= this.attackRange;
 
-            // [수정] 이동 중이 아닐 때만 타겟 방향으로 회전
-            // 포탑 유닛은 상단에서 독립적으로 회전하므로 하단(angle)은 사거리 밖에서만 타겟을 향함
-            if (!this._destination) {
-                const hasSeparateTurret = this.turretAngle !== undefined;
+            // [수정] 이동 중이 아닐 때 혹은 경로가 막혔을 때 타겟 방향으로 부드럽게 회전
+            const hasSeparateTurret = this.turretAngle !== undefined;
+            if (!this._destination || (this._lastMoveFailed && !inRange)) {
                 if (!hasSeparateTurret || !inRange) {
-                    this.angle = Math.atan2(ty - this.y, tx - this.x);
+                    const targetAngle = Math.atan2(ty - this.y, tx - this.x);
+                    const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
+                    this.angle += angleDiff * 0.1;
                 }
             }
             
             if (inRange) {
                 this.attack();
-                // 사거리 내에 들어오면 공격을 위해 정지 (어택땅 또는 추격 중일 때)
+                // 사거리 내에 들어오면 공격을 위해 정지
                 if (this.command === 'attack' || (this.isAiControlled && this.aiState === 'chase')) {
                     this._destination = null;
                     this.path = [];
                 }
             } else {
-                // 사거리 밖이면 타겟 방향으로 이동 (어택땅 또는 추격 중일 때)
+                // 사거리 밖이면 타겟 방향으로 이동
                 if (this.command === 'attack' || (this.isAiControlled && this.aiState === 'chase')) {
-                    if (!this._destination || Math.hypot(this._destination.x - tx, this._destination.y - ty) > 40) {
-                        this.destination = { x: tx, y: ty };
+                    const targetGrid = this.engine.tileMap.worldToGrid(tx, ty);
+                    const isTargetPassable = this.engine.tileMap.isPassableArea(targetGrid.x, targetGrid.y, this.sizeClass, this.domain);
+
+                    // 타겟이 이동했거나 목적지가 없을 때만 목적지 갱신 (최적화)
+                    if (!this._destination || Math.hypot(this._destination.x - tx, this._destination.y - ty) > 48) {
+                        let finalDestX = tx;
+                        let finalDestY = ty;
+
+                        if (!isTargetPassable) {
+                            const nearest = this.engine.tileMap.findNearestPassableTile(tx, ty, this.sizeClass, this.domain);
+                            if (nearest) {
+                                finalDestX = nearest.x;
+                                finalDestY = nearest.y;
+                            }
+                        }
+                        this.destination = { x: finalDestX, y: finalDestY };
                     }
                 }
             }
@@ -444,37 +459,40 @@ export class BaseUnit extends Entity {
         
         if (this._destination) {
             const distToFinal = Math.hypot(this._destination.x - this.x, this._destination.y - this.y);
-
+            
             if (distToFinal < 10) {
-                this.isInitialExit = false; // 출격 모드 해제
+                this.isInitialExit = false;
                 this._destination = null;
+                this._lastMoveFailed = false;
                 if (this.command !== 'build') this.command = null;
             } else {
-                // [Flow Field 이동 연산]
                 if (this.domain === 'air') {
-                    this.angle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+                    const targetAngle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
+                    const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
+                    this.angle += angleDiff * 0.15;
                     this.moveWithCollision(Math.min(this.speed, distToFinal));
                 } else {
                     const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
                     
-                    // [추가] 주기적으로 유동장 재생성 요청 (장애물 파괴 시 반영을 위함)
                     this.pathRecalculateTimer -= deltaTime;
                     if (this.pathRecalculateTimer <= 0) {
                         ff.generate(this._destination.x, this._destination.y, this.sizeClass, this.domain);
-                        this.pathRecalculateTimer = 2000; // 2초마다 갱신
+                        this.pathRecalculateTimer = 2000;
                     }
 
                     const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass, this.domain);
+                    
                     if (vector.x !== 0 || vector.y !== 0) {
-                        // 유동장 벡터 방향으로 부드럽게 회전
                         const targetAngle = Math.atan2(vector.y, vector.x);
                         const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
-                        this.angle += angleDiff * 0.15; // 회전 감도
-                    } else if (distToFinal < 40) {
-                        // 목적지에 매우 근접했거나 유동장 타일에 도달했지만 물리적 거리가 남은 경우에만 직선 이동 허용
+                        this.angle += angleDiff * 0.15;
+                        this._lastMoveFailed = false;
+                    } else {
+                        // 경로를 찾지 못했을 때 (벽 너머 등): 타겟 방향이라도 바라봄
                         const targetAngle = Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
                         const angleDiff = Math.atan2(Math.sin(targetAngle - this.angle), Math.cos(targetAngle - this.angle));
-                        this.angle += angleDiff * 0.15;
+                        this.angle += angleDiff * 0.1;
+                        this._lastMoveFailed = true;
                     }
                     
                     this.moveWithCollision(Math.min(this.speed, distToFinal), vector);
