@@ -341,16 +341,192 @@ export class TileMap {
                 }
             },
             'hydrant': {
-                maxHp: 50,
+                maxHp: 80,
+                isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0, Math.PI*2); ctx.fill();
+                    const h = ts * 1.3; // 몸체 높이
+                    ctx.save();
+                    ctx.translate(lpx + ts * 0.5, lpy + ts * 0.85);
+
+                    // 1. 부드러운 바닥 그림자
+                    const shadowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, ts * 0.4);
+                    shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+                    shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = shadowGrad;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, ts * 0.4, ts * 0.2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 2. 하단 플랜지 (지면 고정부)
+                    ctx.fillStyle = '#444';
+                    ctx.strokeStyle = '#222';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, ts * 0.25, ts * 0.12, 0, 0, Math.PI * 2);
+                    ctx.fill(); ctx.stroke();
+                    
+                    // 볼트 (플랜지 위)
+                    ctx.fillStyle = '#222';
+                    for(let i=0; i<6; i++) {
+                        const ang = (i/6) * Math.PI * 2;
+                        ctx.beginPath();
+                        ctx.arc(Math.cos(ang)*ts*0.18, Math.sin(ang)*ts*0.08, 1.5, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+
+                    // 3. 메인 몸체 그라데이션 (금속 광택)
+                    const bodyGrad = ctx.createLinearGradient(-ts * 0.2, 0, ts * 0.2, 0);
+                    bodyGrad.addColorStop(0, '#5a0000');
+                    bodyGrad.addColorStop(0.3, '#d32f2f');
+                    bodyGrad.addColorStop(0.5, '#ff5252'); // 중앙 하이라이트
+                    bodyGrad.addColorStop(0.7, '#d32f2f');
+                    bodyGrad.addColorStop(1, '#5a0000');
+
+                    ctx.fillStyle = bodyGrad;
+                    ctx.strokeStyle = '#330000';
+                    
+                    // 몸체 기둥
+                    ctx.fillRect(-ts * 0.18, -h, ts * 0.36, h);
+                    ctx.strokeRect(-ts * 0.18, -h, ts * 0.36, h);
+
+                    // 몸체 중간 띠 (띠 부분)
+                    ctx.fillStyle = '#b71c1c';
+                    ctx.fillRect(-ts * 0.2, -h * 0.7, ts * 0.4, ts * 0.1);
+                    ctx.strokeRect(-ts * 0.2, -h * 0.7, ts * 0.4, ts * 0.1);
+
+                    // 4. 상단 헤드 및 캡
+                    // 헤드 베이스
+                    ctx.beginPath();
+                    ctx.arc(0, -h, ts * 0.22, Math.PI, 0);
+                    ctx.fill(); ctx.stroke();
+                    
+                    // 헤드 상단 꼭지 (육각형 느낌)
+                    ctx.fillStyle = '#8b0000';
+                    ctx.fillRect(-ts * 0.06, -h - ts * 0.12, ts * 0.12, ts * 0.08);
+                    ctx.strokeRect(-ts * 0.06, -h - ts * 0.12, ts * 0.12, ts * 0.08);
+
+                    // 5. 좌우 배수구 및 체인
+                    const drawOutlet = (side) => {
+                        const ox = side * ts * 0.18;
+                        const oy = -h * 0.55;
+                        
+                        // 연결부
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(ox, oy - ts * 0.1, side * ts * 0.12, ts * 0.2);
+                        
+                        // 캡
+                        ctx.fillStyle = '#666';
+                        ctx.strokeStyle = '#222';
+                        ctx.beginPath();
+                        ctx.arc(ox + side * ts * 0.12, oy, ts * 0.12, 0, Math.PI * 2);
+                        ctx.fill(); ctx.stroke();
+                        
+                        // 캡 중앙 볼트
+                        ctx.fillStyle = '#999';
+                        ctx.beginPath();
+                        ctx.arc(ox + side * ts * 0.12, oy, ts * 0.04, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // 체인 (곡선)
+                        ctx.strokeStyle = '#555';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(ox + side * ts * 0.12, oy + ts * 0.05);
+                        ctx.quadraticCurveTo(side * ts * 0.1, oy + ts * 0.25, 0, -h * 0.4);
+                        ctx.stroke();
+                    };
+
+                    drawOutlet(-1); // 왼쪽
+                    drawOutlet(1);  // 오른쪽
+
+                    // 6. 하이라이트 (금속 질감 추가)
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(-ts * 0.05, -h + 5);
+                    ctx.lineTo(-ts * 0.05, -5);
+                    ctx.stroke();
+
+                    ctx.restore();
                 }
             },
             'trash-can': {
-                maxHp: 20,
+                maxHp: 40,
+                isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    ctx.fillStyle = '#455a64'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.5);
-                    ctx.fillStyle = '#37474f'; ctx.fillRect(lpx+ts*0.25, lpy+ts*0.25, ts*0.5, ts*0.15);
+                    const h = ts * 1.1; // 위로 솟은 높이 (기반 포함 시 시각적으로 약 2칸)
+                    ctx.save();
+                    ctx.translate(lpx + ts * 0.5, lpy + ts * 0.85);
+
+                    // 1. 바닥 그림자
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, ts * 0.35, ts * 0.18, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 2. 몸체 (Cylindrical Body)
+                    const bodyGrad = ctx.createLinearGradient(-ts * 0.25, 0, ts * 0.25, 0);
+                    bodyGrad.addColorStop(0, '#37474f');
+                    bodyGrad.addColorStop(0.4, '#78909c');
+                    bodyGrad.addColorStop(1, '#263238');
+
+                    ctx.fillStyle = bodyGrad;
+                    ctx.strokeStyle = '#1a1a1a';
+                    ctx.lineWidth = 1;
+                    
+                    // 하단 원통 부분
+                    ctx.fillRect(-ts * 0.25, -h, ts * 0.5, h);
+                    ctx.strokeRect(-ts * 0.25, -h, ts * 0.5, h);
+
+                    // 몸체 가로 줄무늬 (디자인)
+                    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                    for(let i=1; i<3; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(-ts * 0.25, -h * i/3);
+                        ctx.lineTo(ts * 0.25, -h * i/3);
+                        ctx.stroke();
+                    }
+
+                    // 3. 상단 돔형 뚜껑 (Dome Lid)
+                    const lidY = -h;
+                    ctx.fillStyle = bodyGrad;
+                    ctx.beginPath();
+                    ctx.ellipse(0, lidY, ts * 0.25, ts * 0.1, 0, Math.PI, 0);
+                    ctx.fill(); ctx.stroke();
+                    
+                    // 뚜껑 꼭지
+                    ctx.fillStyle = '#455a64';
+                    ctx.fillRect(-ts * 0.04, lidY - ts * 0.15, ts * 0.08, ts * 0.05);
+
+                    // 4. 쓰레기 투입구 (Opening)
+                    ctx.fillStyle = '#111'; // 어두운 내부
+                    ctx.beginPath();
+                    ctx.ellipse(0, -h * 0.75, ts * 0.15, ts * 0.08, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // 투입구 테두리
+                    ctx.strokeStyle = '#546e7a';
+                    ctx.stroke();
+
+                    // 5. 사이드 손잡이
+                    ctx.strokeStyle = '#37474f';
+                    ctx.lineWidth = 2;
+                    [-1, 1].forEach(side => {
+                        ctx.beginPath();
+                        ctx.arc(side * ts * 0.25, -h * 0.6, ts * 0.05, -Math.PI/2, Math.PI/2, side < 0);
+                        ctx.stroke();
+                    });
+
+                    // 6. 재활용 마크 (단순화)
+                    ctx.strokeStyle = '#81c784';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(-ts * 0.05, -h * 0.4);
+                    ctx.lineTo(0, -h * 0.5);
+                    ctx.lineTo(ts * 0.05, -h * 0.4);
+                    ctx.stroke();
+
+                    ctx.restore();
                 }
             },
             'container-wall': {
@@ -435,13 +611,142 @@ export class TileMap {
                 }
             },
             'radar': {
-                maxHp: 500,
+                maxHp: 600,
+                isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    ctx.fillStyle = '#34495e'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.6, ts*0.2, ts*0.4);
-                    const angle = (Date.now() / 500) % (Math.PI * 2);
-                    ctx.save(); ctx.translate(lpx+ts*0.5, lpy+ts*0.4); ctx.rotate(angle);
-                    ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.arc(0, 0, ts*0.3, 0.2, Math.PI-0.2); ctx.fill();
-                    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2; ctx.stroke();
+                    const h = ts * 2.6; // 약 3칸 높이 체감
+                    ctx.save();
+                    ctx.translate(lpx + ts * 0.5, lpy + ts * 0.9);
+
+                    // 1. 거대한 그림자
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, ts * 0.6, ts * 0.3, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 2. 콘크리트 기반 (Base)
+                    ctx.fillStyle = '#444';
+                    ctx.strokeStyle = '#222';
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(-ts * 0.4, -ts * 0.1, ts * 0.8, ts * 0.2);
+                    ctx.strokeRect(-ts * 0.4, -ts * 0.1, ts * 0.8, ts * 0.2);
+                    
+                    // 기반 디테일 (해치/볼트)
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(-ts * 0.1, -ts * 0.05, ts * 0.2, ts * 0.1);
+
+                    // 3. 철골 격자 타워 (Lattice Tower)
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.lineWidth = 2;
+                    const bW = ts * 0.3; // 바닥 폭
+                    const tW = ts * 0.1; // 상단 폭
+
+                    // 메인 기둥 4개 (2.5D 투영으로 2개 위주)
+                    ctx.beginPath();
+                    ctx.moveTo(-bW, 0); ctx.lineTo(-tW, -h);
+                    ctx.moveTo(bW, 0); ctx.lineTo(tW, -h);
+                    ctx.stroke();
+
+                    // 가로 지지대 및 X자 교차 구조
+                    const sections = 4;
+                    for(let i=1; i<=sections; i++) {
+                        const currY = -(h * i / sections);
+                        const prevY = -(h * (i-1) / sections);
+                        const currW = bW - (bW - tW) * (i / sections);
+                        const prevW = bW - (bW - tW) * ((i-1) / sections);
+
+                        // 가로 바
+                        ctx.beginPath();
+                        ctx.moveTo(-currW, currY); ctx.lineTo(currW, currY);
+                        ctx.stroke();
+
+                        // X자 보강재
+                        ctx.save();
+                        ctx.globalAlpha = 0.5;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(-prevW, prevY); ctx.lineTo(currW, currY);
+                        ctx.moveTo(prevW, prevY); ctx.lineTo(-currW, currY);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+
+                    // 4. 회전하는 파라볼라 안테나 (Pseudo-3D)
+                    const angle = (Date.now() / 1200) % (Math.PI * 2);
+                    const rotationScale = Math.cos(angle); // 회전감 표현을 위한 스케일
+                    const dishSize = ts * 0.7;
+
+                    ctx.save();
+                    ctx.translate(0, -h);
+                    
+                    // 안테나 지지부
+                    ctx.fillStyle = '#34495e';
+                    ctx.fillRect(-ts * 0.08, -ts * 0.1, ts * 0.16, ts * 0.2);
+
+                    // 안테나 본체 (타원형 변환으로 회전 표현)
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#2c3e50';
+                    
+                    // 뒷면 (회전 각도에 따라 어둡게)
+                    if (rotationScale < 0) {
+                        ctx.fillStyle = '#7f8c8d';
+                        ctx.beginPath();
+                        ctx.ellipse(0, -ts * 0.2, dishSize * Math.abs(rotationScale), dishSize * 0.6, 0, 0, Math.PI * 2);
+                        ctx.fill(); ctx.stroke();
+                    }
+
+                    // 안테나 내부 격자 표현
+                    ctx.fillStyle = rotationScale > 0 ? '#ecf0f1' : '#bdc3c7';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -ts * 0.2, dishSize * Math.abs(rotationScale), dishSize * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill(); ctx.stroke();
+                    
+                    // 내부 방사형 선 (디테일)
+                    if (Math.abs(rotationScale) > 0.2) {
+                        ctx.save();
+                        ctx.globalAlpha = 0.3;
+                        for(let j=0; j<4; j++) {
+                            ctx.beginPath();
+                            ctx.moveTo(0, -ts * 0.2);
+                            const ang = (j/4) * Math.PI * 2;
+                            ctx.lineTo(Math.cos(ang) * dishSize * Math.abs(rotationScale), -ts * 0.2 + Math.sin(ang) * dishSize * 0.6);
+                            ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+
+                    // 수신기 암 (LNB)
+                    const armLen = ts * 0.4 * rotationScale;
+                    ctx.strokeStyle = '#222';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -ts * 0.2);
+                    ctx.lineTo(armLen, -ts * 0.2);
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.beginPath();
+                    ctx.arc(armLen, -ts * 0.2, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+
+                    // 5. 항공 장애등 (빨간색 점멸)
+                    const isBlink = Math.sin(Date.now() / 500) > 0;
+                    if (isBlink) {
+                        ctx.fillStyle = '#ff1744';
+                        ctx.shadowBlur = 12;
+                        ctx.shadowColor = '#ff1744';
+                        ctx.beginPath();
+                        ctx.arc(0, -h - ts * 0.1, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // 하단 중간에도 하나 더
+                        ctx.beginPath();
+                        ctx.arc(0, -h * 0.5, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
                     ctx.restore();
                 }
             },
