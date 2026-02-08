@@ -286,6 +286,12 @@ export class BaseUnit extends Entity {
         let canActuallyAttack = (typeof this.attack === 'function' && this.damage > 0);
         if (this.type === 'missile-launcher') canActuallyAttack = false;
 
+        // [추가] 이동 명령 시 모든 타겟 해제 (플레이어 컨트롤 우선)
+        if (this.command === 'move') {
+            this.target = null;
+            this.manualTarget = null;
+        }
+
         if (canActuallyAttack && this.command !== 'move') {
             if (this.manualTarget) {
                 // [추가] 타일 타겟 HP 동기화
@@ -299,10 +305,11 @@ export class BaseUnit extends Entity {
                 const targetDomain = this.manualTarget.domain || 'ground';
                 const canHit = this.attackTargets.includes(targetDomain);
                 
-                // [추가] 시야 상실 체크 (플레이어 유닛 전용)
+                // [수정] 이미 잡힌 수동 타겟은 시야에서 일시적으로 사라져도(천장 등) 추격을 유지함
+                // 단, 사망했거나 공격 불가능한 도메인으로 변경된 경우는 해제
                 const isTargetHidden = this.ownerId === 1 && !this.engine.tileMap.isInSight(this.manualTarget.x, this.manualTarget.y) && !(this.engine.debugSystem?.isFullVision);
 
-                if (isTargetDead || isTargetHidden || !canHit) {
+                if (isTargetDead || !canHit) {
                     this.manualTarget = null;
                     this.command = null;
                     this.destination = null;
@@ -353,17 +360,23 @@ export class BaseUnit extends Entity {
                         const targetHasCeiling = targetTile && this.engine.tileMap.layers.ceiling[targetGrid.y]?.[targetGrid.x]?.id && targetTile.ceilingHp > 0;
 
                         if (targetHasCeiling) {
-                            // 공중 유닛은 내부를 볼 수 없음
-                            const isAir = (this.domain === 'air' || (this.altitude !== undefined && this.altitude > 0.1));
-                            if (isAir) continue;
+                            // [수정] 이미 추격 중인 타겟(this.target)이라면 천장 판정을 건너뜀 (추격 유지)
+                            // 신규 타겟 확보 시에만 엄격한 시야 판색 적용
+                            const isExistingTarget = (this.target === e || this.manualTarget === e);
+                            
+                            if (!isExistingTarget) {
+                                // 공중 유닛은 내부를 볼 수 없음
+                                const isAir = (this.domain === 'air' || (this.altitude !== undefined && this.altitude > 0.1));
+                                if (isAir) continue;
 
-                            // 지상 유닛은 동일한 방(roomId)에 있을 때만 내부 유닛을 볼 수 있음
-                            const myGrid = this.engine.tileMap.worldToGrid(this.x, this.y);
-                            const myTile = this.engine.tileMap.grid[myGrid.y]?.[myGrid.x];
-                            const myHasCeiling = myTile && this.engine.tileMap.layers.ceiling[myGrid.y]?.[myGrid.x]?.id && myTile.ceilingHp > 0;
+                                // 지상 유닛은 동일한 방(roomId)에 있을 때만 내부 유닛을 볼 수 있음
+                                const myGrid = this.engine.tileMap.worldToGrid(this.x, this.y);
+                                const myTile = this.engine.tileMap.grid[myGrid.y]?.[myGrid.x];
+                                const myHasCeiling = myTile && this.engine.tileMap.layers.ceiling[myGrid.y]?.[myGrid.x]?.id && myTile.ceilingHp > 0;
 
-                            if (!myHasCeiling || myTile.roomId !== targetTile.roomId) {
-                                continue;
+                                if (!myHasCeiling || myTile.roomId !== targetTile.roomId) {
+                                    continue;
+                                }
                             }
                         }
                     }
@@ -385,7 +398,11 @@ export class BaseUnit extends Entity {
         const finalBestTarget = bestTarget || this.target;
         if (finalBestTarget && finalBestTarget.active && finalBestTarget.hp > 0) {
             const currentTargetDomain = finalBestTarget.domain || 'ground';
-            if (!this.attackTargets.includes(currentTargetDomain)) {
+            const canHit = this.attackTargets.includes(currentTargetDomain);
+            
+            // [수정] 이미 추격 중인 타겟은 시야에서 사라져도(천장 아래 등) 유효한 것으로 간주
+            // 신규 타겟을 찾는 과정(auto-search)에서만 시야/천장 판정을 엄격히 함
+            if (!canHit) {
                 bestTarget = null;
                 this.target = null;
                 if (this.manualTarget === finalBestTarget) this.manualTarget = null;
