@@ -36,29 +36,10 @@ export function updateProjectiles(world, deltaTime, engine) {
             const gridPos = tileMap.worldToGrid(x[i], y[i]);
             const tile = tileMap.grid[gridPos.y]?.[gridPos.x];
             
-            // 1. 기본 타일 충돌 (벽 등 구조물만 체크, 물은 통과)
+            // [수정] 오직 투사체가 현재 위치한 타일의 충돌 박스(occupied)에만 부딪힘
+            // 건물 상단부(이미지 영역)는 통과하도록 고층 구조물 판정 제거
             if (tile && tile.occupied) {
                 collided = true;
-            } else {
-                // 2. [추가] 고층 구조물(isTall) 충돌 판정 개선
-                // 현재 투사체 위치의 아래쪽 타일들에 고층 구조물이 배치되어 있는지 확인
-                // (고층 구조물은 위로 솟아있으므로 투사체가 위쪽 타일을 지나갈 때 충돌해야 함)
-                for (let dy = 1; dy <= 2; dy++) {
-                    const checkY = gridPos.y + dy;
-                    if (checkY >= tileMap.rows) break;
-                    
-                    const lowerWall = tileMap.layers.wall[checkY]?.[gridPos.x];
-                    if (lowerWall && lowerWall.id) {
-                        const config = tileMap.wallRegistry[lowerWall.id];
-                        if (config && config.isTall) {
-                            collided = true;
-                            // 충돌 지점을 해당 구조물 위치로 조정 (데미지 적용을 위함)
-                            x[i] = gridPos.x * tileMap.tileSize + tileMap.tileSize / 2;
-                            y[i] = checkY * tileMap.tileSize + tileMap.tileSize / 2;
-                            break;
-                        }
-                    }
-                }
             }
 
             if (!collided) {
