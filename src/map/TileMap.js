@@ -294,10 +294,50 @@ export class TileMap {
                 }
             },
             'street-lamp': {
-                maxHp: 20,
+                maxHp: 50,
+                isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    ctx.fillStyle = '#333'; ctx.fillRect(lpx+ts*0.4, lpy+ts*0.1, ts*0.2, ts*0.8);
-                    ctx.fillStyle = '#fbc02d'; ctx.beginPath(); ctx.arc(0, lpy+ts*0.2, ts*0.15, 0, Math.PI*2); ctx.fill();
+                    const h = ts * 2; // 베이스 타일 포함 총 3칸 높이 (-ts*2 만큼 위로)
+                    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5;
+                    
+                    // 1. 두꺼워진 기둥 (Pillar) - 아래쪽 지지대 포함
+                    const grad = ctx.createLinearGradient(lpx + ts*0.3, lpy, lpx + ts*0.7, lpy);
+                    grad.addColorStop(0, '#2d3436'); grad.addColorStop(0.5, '#7f8c8d'); grad.addColorStop(1, '#2d3436');
+                    
+                    // 지지대 베이스
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(lpx + ts*0.35, lpy + ts*0.6, ts*0.3, ts*0.2);
+
+                    // 메인 기둥 (직경 약 20%~25%)
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.moveTo(lpx + ts*0.4, lpy + ts*0.6);
+                    ctx.lineTo(lpx + ts*0.6, lpy + ts*0.6);
+                    ctx.lineTo(lpx + ts*0.58, lpy - h);
+                    ctx.lineTo(lpx + ts*0.42, lpy - h);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+                    // 2. 램프 암 및 헤드 (Lamp Arm & Head)
+                    ctx.save();
+                    ctx.translate(lpx + ts*0.5, lpy - h);
+                    
+                    // 굴곡진 암(Arm)
+                    ctx.fillStyle = '#2d3436';
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.quadraticCurveTo(ts*0.2, -ts*0.1, ts*0.4, ts*0.1);
+                    ctx.lineTo(ts*0.4, ts*0.2);
+                    ctx.lineTo(0, ts*0.1);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                    
+                    // 램프 본체
+                    ctx.fillRect(ts*0.3, ts*0.1, ts*0.3, ts*0.15);
+                    
+                    // 전등 발광부
+                    const lightPulse = (Math.sin(Date.now() / 800) + 1) / 2;
+                    ctx.fillStyle = `rgba(255, 255, 180, ${0.8 + lightPulse * 0.2})`;
+                    ctx.fillRect(ts*0.35, ts*0.2, ts*0.2, ts*0.05);
+                    ctx.restore();
                 }
             },
             'hydrant': {
@@ -458,70 +498,61 @@ export class TileMap {
                 maxHp: 1500,
                 isTall: true,
                 render: (ctx, ts, lpx, lpy) => {
-                    // [개선] 더 상세하고 입체적인 관제탑 렌더링
+                    const h = ts * 2; // 베이스 타일 포함 총 3칸 높이 (-ts*2 만큼 위로)
                     ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 1;
                     
-                    // 1. 하단 베이스 (단단한 콘크리트 느낌)
+                    // 1. 하단 베이스
                     ctx.fillStyle = '#2c3e50'; 
                     ctx.fillRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
                     ctx.strokeRect(lpx + ts*0.1, lpy + ts*0.1, ts*0.8, ts*0.8);
                     
-                    // 2. 중간 기둥 (약간 좁아지는 실루엣)
-                    ctx.fillStyle = '#34495e';
+                    // 2. 거대한 기둥 (Pillar)
+                    const pillarGrd = ctx.createLinearGradient(lpx, lpy, lpx+ts, lpy);
+                    pillarGrd.addColorStop(0, '#34495e'); pillarGrd.addColorStop(0.5, '#5d6d7e'); pillarGrd.addColorStop(1, '#34495e');
+                    ctx.fillStyle = pillarGrd;
                     ctx.beginPath();
                     ctx.moveTo(lpx + ts*0.25, lpy + ts*0.1);
                     ctx.lineTo(lpx + ts*0.75, lpy + ts*0.1);
-                    ctx.lineTo(lpx + ts*0.7, lpy - ts*0.8);
-                    ctx.lineTo(lpx + ts*0.3, lpy - ts*0.8);
+                    ctx.lineTo(lpx + ts*0.65, lpy - h + ts*0.8);
+                    ctx.lineTo(lpx + ts*0.35, lpy - h + ts*0.8);
                     ctx.closePath(); ctx.fill(); ctx.stroke();
                     
-                    // 3. 상단 관제실 데크 (받침대)
+                    // 3. 상단 관제실 (Control Room)
+                    const topY = lpy - h;
                     ctx.fillStyle = '#2c3e50';
-                    ctx.fillRect(lpx + ts*0.1, lpy - ts*0.9, ts*0.8, ts*0.2);
-                    ctx.strokeRect(lpx + ts*0.1, lpy - ts*0.9, ts*0.8, ts*0.2);
+                    ctx.fillRect(lpx, topY + ts*0.6, ts, ts*0.2); // 테라스/데크
                     
-                    // 4. 관제실 (유리창이 있는 역사다리꼴)
-                    const topY = lpy - ts * 1.7;
-                    ctx.fillStyle = '#5d6d7e';
+                    ctx.fillStyle = '#34495e';
                     ctx.beginPath();
-                    ctx.moveTo(lpx - ts*0.1, topY + ts*0.7);
-                    ctx.lineTo(lpx + ts*1.1, topY + ts*0.7);
-                    ctx.lineTo(lpx + ts*1.3, topY);
-                    ctx.lineTo(lpx - ts*0.3, topY);
+                    ctx.moveTo(lpx - ts*0.2, topY + ts*0.6);
+                    ctx.lineTo(lpx + ts*1.2, topY + ts*0.6);
+                    ctx.lineTo(lpx + ts*1.4, topY - ts*0.2);
+                    ctx.lineTo(lpx - ts*0.4, topY - ts*0.2);
                     ctx.closePath(); ctx.fill(); ctx.stroke();
                     
-                    // 5. 유리창 (푸른색 투명감 및 하이라이트)
+                    // 4. 관제실 유리창
                     ctx.fillStyle = '#87ceeb';
                     ctx.beginPath();
-                    ctx.moveTo(lpx - ts*0.05, topY + ts*0.5);
-                    ctx.lineTo(lpx + ts*1.05, topY + ts*0.5);
-                    ctx.lineTo(lpx + ts*1.15, topY + ts*0.2);
-                    ctx.lineTo(lpx - ts*0.15, topY + ts*0.2);
+                    ctx.moveTo(lpx - ts*0.1, topY + ts*0.4);
+                    ctx.lineTo(lpx + ts*1.1, topY + ts*0.4);
+                    ctx.lineTo(lpx + ts*1.25, topY);
+                    ctx.lineTo(lpx - ts*0.25, topY);
                     ctx.closePath(); ctx.fill();
                     
                     // 유리창 광택
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(lpx + ts*0.1, topY + ts*0.45);
-                    ctx.lineTo(lpx + ts*0.3, topY + ts*0.25);
-                    ctx.stroke();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(lpx, topY + ts*0.35); ctx.lineTo(lpx + ts*0.4, topY + ts*0.1); ctx.stroke();
                     
-                    // 6. 상단 지붕 및 안테나
+                    // 5. 지붕 및 안테나
                     ctx.fillStyle = '#2c3e50';
-                    ctx.fillRect(lpx - ts*0.3, topY - ts*0.1, ts*1.6, ts*0.15);
+                    ctx.fillRect(lpx - ts*0.4, topY - ts*0.3, ts*1.8, ts*0.15);
                     
                     ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.5, topY - ts*0.1); ctx.lineTo(lpx + ts*0.5, topY - ts*0.6); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.7, topY - ts*0.1); ctx.lineTo(lpx + ts*0.7, topY - ts*0.4); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(lpx + ts*0.5, topY - ts*0.3); ctx.lineTo(lpx + ts*0.5, topY - ts*0.9); ctx.stroke();
                     
-                    // 7. 항공 장애등 (깜빡이는 느낌의 붉은 점)
                     const pulse = (Math.sin(Date.now() / 300) + 1) / 2;
                     ctx.fillStyle = `rgba(231, 76, 60, ${0.5 + pulse * 0.5})`;
-                    ctx.beginPath(); ctx.arc(lpx + ts*0.5, topY - ts*0.6, 3, 0, Math.PI*2); ctx.fill();
-                    ctx.fillStyle = '#e74c3c';
-                    ctx.beginPath(); ctx.arc(lpx - ts*0.3, topY - ts*0.05, 2, 0, Math.PI*2); ctx.fill();
-                    ctx.beginPath(); ctx.arc(lpx + ts*1.3, topY - ts*0.05, 2, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(lpx + ts*0.5, topY - ts*0.9, 3, 0, Math.PI*2); ctx.fill();
                 }
             },
             'spawn-point': {
