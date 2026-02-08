@@ -77,6 +77,10 @@ export class MapEditor {
                     { id: 'rail-straight', name: '직선 철도', rotatable: true },
                     { id: 'rail-corner', name: '모서리 철도', rotatable: true }
                 ],
+                '전장/장식': [
+                    { id: 'shell-crater', name: '포탄 구덩이', rotatable: true },
+                    { id: 'concrete-debris', name: '콘크리트 잔해', rotatable: true }
+                ],
                 '방어/시설': [
                     { id: 'fence', name: '울타리', rotatable: true },
                     { id: 'fence-corner', name: '울타리 모서리', rotatable: true },

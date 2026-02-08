@@ -212,6 +212,59 @@ export class TileMap {
                     }));
                 }
             },
+            'concrete-debris': {
+                maxHp: 200,
+                isPassable: true,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 바닥에 깔린 자잘한 콘크리트 파편들
+                    ctx.fillStyle = '#555';
+                    const debris = [
+                        {x: 0.2, y: 0.3, s: 0.3}, {x: 0.6, y: 0.2, s: 0.25},
+                        {x: 0.4, y: 0.7, s: 0.35}, {x: 0.7, y: 0.6, s: 0.2}
+                    ];
+                    debris.forEach(d => {
+                        ctx.beginPath();
+                        ctx.moveTo(lpx + ts*d.x, lpy + ts*d.y);
+                        ctx.lineTo(lpx + ts*(d.x+d.s), lpy + ts*d.y);
+                        ctx.lineTo(lpx + ts*(d.x+d.s*0.8), lpy + ts*(d.y+d.s));
+                        ctx.lineTo(lpx + ts*d.x*0.8, lpy + ts*(d.y+d.s*0.7));
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke();
+                    });
+                    // 철근 조각 표현
+                    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(lpx+ts*0.3, lpy+ts*0.4); ctx.lineTo(lpx+ts*0.7, lpy+ts*0.5); ctx.stroke();
+                }
+            },
+            'shell-crater': {
+                maxHp: 9999,
+                isPassable: true,
+                isInvulnerable: true,
+                render: (ctx, ts, lpx, lpy) => {
+                    // 검게 그을린 타원형 구덩이
+                    const grad = ctx.createRadialGradient(lpx+ts/2, lpy+ts/2, ts*0.1, lpx+ts/2, lpy+ts/2, ts*0.5);
+                    grad.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+                    grad.addColorStop(0.6, 'rgba(40, 30, 20, 0.5)');
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.ellipse(lpx+ts/2, lpy+ts/2, ts*0.45, ts*0.35, Math.PI/4, 0, Math.PI*2);
+                    ctx.fill();
+
+                    // 방사형 파편 흔적
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.lineWidth = 1;
+                    for(let i=0; i<8; i++) {
+                        const ang = (i / 8) * Math.PI * 2;
+                        ctx.beginPath();
+                        ctx.moveTo(lpx+ts/2, lpy+ts/2);
+                        ctx.lineTo(lpx+ts/2 + Math.cos(ang)*ts*0.4, lpy+ts/2 + Math.sin(ang)*ts*0.4);
+                        ctx.stroke();
+                    }
+                }
+            },
             'sandbag': {
                 maxHp: 100,
                 render: (ctx, ts, lpx, lpy) => {
