@@ -894,12 +894,14 @@ export class TurretUnit extends BaseUnit {
         const bodyImg = this.getPartBitmap(this.type, 'body', this.drawBody);
         const s = bodyImg.width;
         
-        // 1. 차체 그리기
+        // 1. 고정된 차체 (비트맵 캐시)
         ctx.drawImage(bodyImg, -s/2, -s/2);
 
-        // 2. 포탑 그리기
+        // 2. 차체 위 실시간 애니메이션 (회전 전 단계 - 점멸등 등)
+        this.drawBodyAnimations(ctx);
+
+        // 3. 포탑 회전 및 그리기
         ctx.save();
-        // [수정] 설정된 오프셋만큼 이동한 후 회전 (피봇 이동)
         if (this.turretOffset.x !== 0 || this.turretOffset.y !== 0) {
             ctx.translate(this.turretOffset.x, this.turretOffset.y);
         }
@@ -907,6 +909,9 @@ export class TurretUnit extends BaseUnit {
         this.drawTurret(ctx);
         ctx.restore();
     }
+
+    // 하위 클래스에서 필요시 구현 (점멸등 등)
+    drawBodyAnimations(ctx) { }
 
     // 하위 클래스에서 구현해야 함
     drawBody(ctx) { }

@@ -373,6 +373,18 @@ export class MissileLauncher extends TurretUnit {
         ctx.fillRect(-5, 9, 8, 2);
     }
 
+    drawBodyAnimations(ctx) {
+        ctx.save();
+        ctx.scale(2.2, 2.2);
+        // 시즈 모드 작동등 (차체 고정, 실시간 점멸)
+        if (this.isSieged && !this.isTransitioning) {
+            const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
+            ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
+            ctx.beginPath(); ctx.arc(-18, 0, 1.5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+    }
+
     drawTurret(ctx) {
         const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
             offCtx.scale(2.2, 2.2);
@@ -404,11 +416,9 @@ export class MissileLauncher extends TurretUnit {
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
 
-        // --- 3. 실시간 애니메이션 ---
+        // --- 3. 실시간 애니메이션 (기립 전용) ---
         ctx.save();
         ctx.scale(2.2, 2.2);
-        // 부모의 translate(-10, 0)이 이미 적용된 상태이므로 추가 이동 불필요
-
         const spacing = 4.5;
         const currentLen = 34 - (this.raiseAngle * 10);
         const hydraulicColor = '#95a5a6';
@@ -430,12 +440,6 @@ export class MissileLauncher extends TurretUnit {
             ctx.fillStyle = '#222';
             ctx.fillRect(currentLen - 5, -spacing - 3.5, 2, 7);
             ctx.fillRect(currentLen - 5, spacing - 3.5, 2, 7);
-        }
-
-        if (this.isSieged && !this.isTransitioning) {
-            const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
-            ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
-            ctx.beginPath(); ctx.arc(-2, 0, 1.5, 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
     }
@@ -712,25 +716,25 @@ export class MobileICBMLauncher extends TurretUnit {
         super(x, y, engine);
         this.type = 'icbm-launcher';
         this.name = '이동식 ICBM 발사대';
-        this.speed = 1.0; // 매우 느림
+        this.speed = 1.0; 
         this.baseSpeed = 1.0;
-        this.fireRate = 8000; // 매우 긴 재장전 시간
-        this.damage = 5000; // 압도적인 데미지
-        this.attackRange = 3000; // 맵 전체 수준의 사거리
+        this.fireRate = 8000; 
+        this.damage = 5000; 
+        this.attackRange = 3000; 
         this.visionRange = 10;
         this.recoil = 0;
-        this.size = 110; // 더 거대함
+        this.size = 110; 
         this.cargoSize = 15;
-        this.population = 6; // 다수의 운용 인원
+        this.population = 6; 
         this.isSieged = false;
         this.isTransitioning = false;
         this.transitionTimer = 0;
-        this.maxTransitionTime = 120; // 시즈 모드 전환에 긴 시간 소요
+        this.maxTransitionTime = 120; 
         this.raiseAngle = 0;
 
         this.isFiring = false;
         this.fireDelayTimer = 0;
-        this.maxFireDelay = 180; // 3초 카운트다운 (60fps * 3)
+        this.maxFireDelay = 180; 
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackTargets = ['ground', 'sea'];
 
@@ -738,10 +742,12 @@ export class MobileICBMLauncher extends TurretUnit {
         this.weaponType = 'missile';
 
         this.ammoType = 'nuclear-missile';
-        this.maxAmmo = 2; // 탄약 제한적
+        this.maxAmmo = 2; 
         this.ammo = 2;
         this.hp = 1500;
         this.maxHp = 1500;
+
+        this.turretOffset = { x: -20, y: 0 }; 
     }
 
     init(x, y, engine) {
@@ -750,7 +756,8 @@ export class MobileICBMLauncher extends TurretUnit {
         this.isTransitioning = false;
         this.transitionTimer = 0;
         this.raiseAngle = 0;
-        this.turretAngle = 0;
+        this.turretAngle = this.angle;
+        this.turretOffset = { x: -20, y: 0 };
         this.isFiring = false;
         this.fireDelayTimer = 0;
         this.speed = this.baseSpeed || 1.0;
@@ -911,73 +918,136 @@ export class MobileICBMLauncher extends TurretUnit {
 
     drawBody(ctx) {
         ctx.scale(2.5, 2.5);
+        const truckColor = '#2d3436'; 
+        const accentColor = '#34495e';
+
+        // --- 1. 하부 프레임 및 바퀴 (6축 12륜) ---
+        ctx.fillStyle = '#050505';
+        for(let i=0; i<6; i++) {
+            ctx.fillRect(-35 + i*13, -14, 10, 4);
+            ctx.fillRect(-35 + i*13, 10, 10, 4);
+        }
+
+        // 육중한 섀시
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(-40, -11, 80, 22);
+
+        // 아웃리거 (지지대)
         if (this.raiseAngle > 0) {
             const outDist = this.raiseAngle * 12;
             ctx.fillStyle = '#1e272e';
             const outriggers = [
-                { x: -25, y: -12, dx: -1, dy: -1 }, { x: 0, y: -12, dx: 0, dy: -1 }, { x: 25, y: -12, dx: 1, dy: -1 },
-                { x: -25, y: 12, dx: -1, dy: 1 }, { x: 0, y: 12, dx: 0, dy: 1 }, { x: 25, y: 12, dx: 1, dy: 1 }
+                { x: -30, y: -11, dy: -1 }, { x: 0, y: -11, dy: -1 }, { x: 30, y: -11, dy: -1 },
+                { x: -30, y: 11, dy: 1 }, { x: 0, y: 11, dy: 1 }, { x: 30, y: 11, dy: 1 }
             ];
             outriggers.forEach(o => {
                 ctx.save();
-                ctx.translate(o.x + o.dx * outDist, o.y + o.dy * outDist);
-                ctx.fillRect(-3, -3, 6, 6);
+                ctx.translate(o.x, o.y + o.dy * outDist);
+                ctx.fillRect(-4, -2, 8, 4);
                 ctx.strokeStyle = '#95a5a6';
-                ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(-o.dx * outDist, -o.dy * outDist); ctx.lineTo(0, 0); ctx.stroke();
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(0, -o.dy * outDist); ctx.lineTo(0, 0); ctx.stroke();
                 ctx.restore();
             });
         }
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-35, -12, 70, 24);
-        ctx.fillStyle = '#000';
-        for(let i=0; i<4; i++) {
-            ctx.fillRect(-30 + i*20, -14, 12, 4);
-            ctx.fillRect(-30 + i*20, 10, 12, 4);
-        }
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(20, -12, 15, 24);
+
+        // --- 2. 상부 구조 ---
+        // 대형 전면 캐빈
+        ctx.fillStyle = truckColor;
+        ctx.beginPath();
+        ctx.moveTo(25, -12); ctx.lineTo(42, -12);
+        ctx.lineTo(45, -9); ctx.lineTo(45, 9);
+        ctx.lineTo(42, 12); ctx.lineTo(25, 12);
+        ctx.closePath();
+        ctx.fill();
+
+        // 캐빈 디테일 (창문 및 장갑판)
+        ctx.fillStyle = accentColor;
+        ctx.fillRect(35, -10, 6, 20);
         ctx.fillStyle = '#2980b9';
-        ctx.fillRect(30, -10, 3, 20);
+        ctx.fillRect(38, -9, 2, 18);
+
+        // 적재함 베이스
+        ctx.fillStyle = truckColor;
+        ctx.fillRect(-40, -12, 65, 24);
+        
+        // 측면 기계 장치 디테일
+        ctx.fillStyle = '#111';
+        for(let i=0; i<3; i++) {
+            ctx.fillRect(-25 + i*15, -13, 8, 2);
+            ctx.fillRect(-25 + i*15, 11, 8, 2);
+        }
+    }
+
+    drawBodyAnimations(ctx) {
+        ctx.save();
+        ctx.scale(2.5, 2.5);
+        if (this.isSieged) {
+            const blink = Math.sin(Date.now() / 150) > 0;
+            ctx.fillStyle = blink ? '#ff3131' : '#550000';
+            // 빨간색 후미등 (차체 고정)
+            ctx.beginPath(); ctx.arc(-42, -9, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-42, 9, 2, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
     }
 
     drawTurret(ctx) {
+        const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
+            offCtx.scale(2.5, 2.5);
+            // 1. 발사대 피봇 베이스
+            offCtx.fillStyle = '#111';
+            offCtx.beginPath(); offCtx.arc(0, 0, 12, 0, Math.PI * 2); offCtx.fill();
+            offCtx.fillStyle = '#333';
+            offCtx.beginPath(); offCtx.arc(0, 0, 8, 0, Math.PI * 2); offCtx.fill();
+
+            // 2. 전략 ICBM 캐니스터
+            const mslGrd = offCtx.createLinearGradient(0, -10, 0, 10);
+            mslGrd.addColorStop(0, '#34495e');
+            mslGrd.addColorStop(0.5, '#2d3436');
+            mslGrd.addColorStop(1, '#1e272e');
+            offCtx.fillStyle = mslGrd;
+            
+            const canisterLen = 55;
+            offCtx.fillRect(-8, -10, canisterLen, 20);
+
+            offCtx.fillStyle = '#f1c40f';
+            for(let i=0; i<3; i++) {
+                offCtx.fillRect(10 + i*15, -10, 4, 20);
+            }
+
+            offCtx.fillStyle = '#000';
+            offCtx.fillRect(-10, -8, 4, 16);
+        });
+
+        const s = turretImg.width;
+        ctx.drawImage(turretImg, -s/2, -s/2);
+
+        // --- 3. 실시간 애니메이션 (기립 및 해치) ---
+        ctx.save();
         ctx.scale(2.5, 2.5);
-        ctx.translate(-10, 0);
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
-        const canisterLen = 50 - (this.raiseAngle * 15);
+        const canisterLen = 55 - (this.raiseAngle * 15);
+        const hydraulicColor = '#bdc3c7';
+
         if (this.raiseAngle > 0.1) {
-            ctx.fillStyle = '#7f8c8d';
-            ctx.fillRect(5, -4, 15 * this.raiseAngle, 3);
-            ctx.fillRect(5, 1, 15 * this.raiseAngle, 3);
-        }
-        const mslGrd = ctx.createLinearGradient(0, -10, 0, 10);
-        mslGrd.addColorStop(0, '#34495e');
-        mslGrd.addColorStop(0.5, '#2d3436');
-        mslGrd.addColorStop(1, '#1e272e');
-        ctx.fillStyle = mslGrd;
-        ctx.fillRect(-5, -10, canisterLen, 20);
-        ctx.fillStyle = '#f1c40f';
-        for(let i=0; i<3; i++) {
-            ctx.fillRect(5 + i*12, -10, 3, 20);
-        }
-        if (this.raiseAngle > 0.8) {
-            ctx.fillStyle = '#c0392b';
-            ctx.beginPath(); ctx.arc(canisterLen - 10, 0, 8, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#000';
-            ctx.beginPath(); ctx.arc(canisterLen - 10, 0, 6, 0, Math.PI * 2); ctx.fill();
-        } else {
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(canisterLen - 8, -8, 4, 16);
+            ctx.strokeStyle = hydraulicColor;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(5, -5); ctx.lineTo(15 * this.raiseAngle, -5);
+            ctx.moveTo(5, 5); ctx.lineTo(15 * this.raiseAngle, 5);
+            ctx.stroke();
         }
 
-        if (this.isSieged) {
-            const pulse = Math.sin(Date.now() / 100) * 0.5 + 0.5;
-            ctx.fillStyle = `rgba(241, 196, 15, ${0.3 + pulse * 0.7})`;
-            ctx.beginPath(); ctx.arc(-20, -8, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(-20, 8, 3, 0, Math.PI * 2); ctx.fill();
+        if (this.raiseAngle > 0.8) {
+            ctx.fillStyle = '#c0392b'; 
+            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 6, 0, Math.PI * 2); ctx.fill();
+        } else {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(canisterLen - 10, -8, 4, 16);
         }
+        ctx.restore();
     }
 }
 
