@@ -155,6 +155,8 @@ export class MissileLauncher extends TurretUnit {
         this.ammoType = 'missile';
         this.maxAmmo = 6;
         this.ammo = 6;
+
+        this.turretOffset = { x: -10, y: 0 }; 
     }
 
     init(x, y, engine) {
@@ -163,7 +165,8 @@ export class MissileLauncher extends TurretUnit {
         this.isTransitioning = false;
         this.transitionTimer = 0;
         this.raiseAngle = 0;
-        this.turretAngle = 0;
+        this.turretAngle = this.angle;
+        this.turretOffset = { x: -10, y: 0 };
         this.isFiring = false;
         this.fireDelayTimer = 0;
         this.speed = this.baseSpeed || 1.4;
@@ -285,8 +288,8 @@ export class MissileLauncher extends TurretUnit {
     executeFire(options = {}) {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
-        const totalAngle = this.turretAngle; // [수정] 절대 각도 사용
-        const launchDist = 30;
+        const totalAngle = this.turretAngle; 
+        const launchDist = 25; 
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
 
@@ -315,57 +318,126 @@ export class MissileLauncher extends TurretUnit {
     }
 
     drawBody(ctx) {
-        ctx.scale(2, 2);
-        // 시즈 모드일 때 지지대(Outriggers) 그리기
+        ctx.scale(2.2, 2.2);
+        const truckColor = '#3a4118'; 
+        const darkMetal = '#1e272e';
+        const camoGreen = '#4b5320';
+
+        ctx.fillStyle = '#111';
+        for(let i=0; i<4; i++) ctx.fillRect(-18 + i*10, -12, 6, 3);
+        for(let i=0; i<4; i++) ctx.fillRect(-18 + i*10, 9, 6, 3);
+
+        ctx.fillStyle = darkMetal;
+        ctx.fillRect(-22, -9, 44, 18);
+
         if (this.raiseAngle > 0) {
-            const outDist = this.raiseAngle * 8;
+            const outDist = this.raiseAngle * 10;
             ctx.fillStyle = '#2d3436';
             const outriggers = [
-                { x: -15, y: -9, dx: -1, dy: -1 }, { x: 15, y: -9, dx: 1, dy: -1 },  
-                { x: -15, y: 9, dx: -1, dy: 1 }, { x: 15, y: 9, dx: 1, dy: 1 }    
+                { x: -16, y: -9, dx: 0, dy: -1 }, { x: 4, y: -9, dx: 0, dy: -1 },
+                { x: -16, y: 9, dx: 0, dy: 1 }, { x: 4, y: 9, dx: 0, dy: 1 }
             ];
             outriggers.forEach(o => {
                 ctx.save();
-                ctx.translate(o.x + o.dx * outDist, o.y + o.dy * outDist);
-                ctx.fillRect(-2, -2, 4, 4);
+                ctx.translate(o.x, o.y + o.dy * outDist);
+                ctx.fillStyle = '#333';
+                ctx.fillRect(-3, -2, 6, 4); 
                 ctx.strokeStyle = '#7f8c8d';
-                ctx.lineWidth = 0.5;
-                ctx.beginPath(); ctx.moveTo(-o.dx * outDist, -o.dy * outDist); ctx.lineTo(0, 0); ctx.stroke();
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(0, -o.dy * outDist); ctx.lineTo(0, 0); ctx.stroke();
                 ctx.restore();
             });
         }
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-22, -10, 44, 20);
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(12, -10, 10, 20);
+
+        ctx.fillStyle = truckColor;
+        ctx.beginPath();
+        ctx.moveTo(14, -10); ctx.lineTo(24, -10);
+        ctx.lineTo(26, -8); ctx.lineTo(26, 8);
+        ctx.lineTo(24, 10); ctx.lineTo(14, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(20, -8, 4, 16);
+        ctx.fillStyle = 'rgba(133, 193, 233, 0.4)';
+        ctx.fillRect(21, -7, 2, 14);
+
+        ctx.fillStyle = truckColor;
+        ctx.fillRect(-22, -10, 36, 20);
+        ctx.fillStyle = camoGreen;
+        ctx.fillRect(-10, -10, 8, 20);
+        ctx.fillRect(4, -6, 6, 12);
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(-5, -11, 8, 2);
+        ctx.fillRect(-5, 9, 8, 2);
     }
 
     drawTurret(ctx) {
-        ctx.scale(2, 2);
-        ctx.translate(-8, 0);
-        ctx.fillStyle = '#1e272e';
-        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
-        const canisterLen = 32 - (this.raiseAngle * 12);
+        const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
+            offCtx.scale(2.2, 2.2);
+            const tubeColor = '#4b5320';
+            const darkTube = '#2d3212';
+
+            // 부모가 이미 translate(-10, 0)을 해줬으므로, (0,0)을 연결점으로 보고 바로 그립니다.
+            offCtx.fillStyle = '#1a1a1a';
+            offCtx.beginPath(); offCtx.arc(0, 0, 9, 0, Math.PI * 2); offCtx.fill();
+            offCtx.fillStyle = '#333';
+            offCtx.beginPath(); offCtx.arc(0, 0, 6, 0, Math.PI * 2); offCtx.fill();
+
+            const canisterLen = 34; 
+            const spacing = 4.5;
+
+            offCtx.fillStyle = tubeColor;
+            offCtx.fillRect(-4, -spacing - 3.5, canisterLen, 7);
+            offCtx.fillStyle = darkTube;
+            offCtx.fillRect(-4, -spacing - 3.5, 3, 7); 
+            offCtx.fillRect(canisterLen - 8, -spacing - 3.5, 2, 7);
+
+            offCtx.fillStyle = tubeColor;
+            offCtx.fillRect(-4, spacing - 3.5, canisterLen, 7);
+            offCtx.fillStyle = darkTube;
+            offCtx.fillRect(-4, spacing - 3.5, 3, 7);
+            offCtx.fillRect(canisterLen - 8, spacing - 3.5, 2, 7);
+        });
+
+        const s = turretImg.width;
+        ctx.drawImage(turretImg, -s/2, -s/2);
+
+        // --- 3. 실시간 애니메이션 ---
+        ctx.save();
+        ctx.scale(2.2, 2.2);
+        // 부모의 translate(-10, 0)이 이미 적용된 상태이므로 추가 이동 불필요
+
+        const spacing = 4.5;
+        const currentLen = 34 - (this.raiseAngle * 10);
+        const hydraulicColor = '#95a5a6';
+
         if (this.raiseAngle > 0.1) {
-            ctx.fillStyle = '#bdc3c7';
-            ctx.fillRect(2, -2, 8 * this.raiseAngle, 4);
-        }
-        ctx.fillStyle = '#4b5320';
-        ctx.fillRect(-4, -7, canisterLen, 14);
-        if (this.raiseAngle > 0.8) {
-            ctx.fillStyle = '#1a1a1a';
-            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 5, 0, Math.PI * 2); ctx.fill();
-        } else {
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(canisterLen - 6, -5, 2, 10);
+            ctx.strokeStyle = hydraulicColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(2, -spacing); ctx.lineTo(10 * this.raiseAngle, -spacing);
+            ctx.moveTo(2, spacing); ctx.lineTo(10 * this.raiseAngle, spacing);
+            ctx.stroke();
         }
 
-        // 시즈 모드 표시등
+        if (this.raiseAngle > 0.8) {
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.arc(currentLen - 4, -spacing, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(currentLen - 4, spacing, 3, 0, Math.PI * 2); ctx.fill();
+        } else {
+            ctx.fillStyle = '#222';
+            ctx.fillRect(currentLen - 5, -spacing - 3.5, 2, 7);
+            ctx.fillRect(currentLen - 5, spacing - 3.5, 2, 7);
+        }
+
         if (this.isSieged && !this.isTransitioning) {
             const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
             ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
-            ctx.beginPath(); ctx.arc(-10, 0, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-2, 0, 1.5, 0, Math.PI * 2); ctx.fill();
         }
+        ctx.restore();
     }
 }
 

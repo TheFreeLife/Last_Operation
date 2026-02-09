@@ -839,24 +839,27 @@ export class BaseUnit extends Entity {
  * 상하체가 분리되어 포탑이 독립적으로 회전하는 유닛을 위한 베이스 클래스
  */
 export class TurretUnit extends BaseUnit {
-    static bitmapCache = {}; // 타입별 비트맵 캐시 저장소 (static으로 공유)
+    static bitmapCache = {}; // 타입별 비트맵 캐시 저장소
+    static cacheVersion = 2; // [수정] 버전을 올려서 기존 캐시를 강제 초기화
 
     constructor(x, y, engine) {
         super(x, y, engine);
         this.turretAngle = this.angle;
         this.turretRotationSpeed = 0.05;
+        this.turretOffset = { x: 0, y: 0 }; // [추가] 포탑 회전축 오프셋
     }
 
     init(x, y, engine) {
         super.init(x, y, engine);
         this.turretAngle = this.angle;
+        this.turretOffset = { x: 0, y: 0 };
     }
 
     /**
      * 특정 파츠(Body 또는 Turret)의 비트맵을 생성하거나 가져옵니다.
      */
     getPartBitmap(type, partName, drawFn) {
-        const cacheKey = `${type}_${partName}`;
+        const cacheKey = `${type}_${partName}_v${TurretUnit.cacheVersion}`;
         if (TurretUnit.bitmapCache[cacheKey]) return TurretUnit.bitmapCache[cacheKey];
 
         // 비트맵 생성 (여유 있게 크게 생성)
@@ -888,15 +891,18 @@ export class TurretUnit extends BaseUnit {
             return;
         }
 
-        // 차체는 보통 정적이므로 항상 캐싱 적용
         const bodyImg = this.getPartBitmap(this.type, 'body', this.drawBody);
         const s = bodyImg.width;
         
         // 1. 차체 그리기
         ctx.drawImage(bodyImg, -s/2, -s/2);
 
-        // 2. 포탑 그리기 (각 유닛이 drawTurret 내에서 getPartBitmap을 써서 캐싱하거나 실시간으로 그림)
+        // 2. 포탑 그리기
         ctx.save();
+        // [수정] 설정된 오프셋만큼 이동한 후 회전 (피봇 이동)
+        if (this.turretOffset.x !== 0 || this.turretOffset.y !== 0) {
+            ctx.translate(this.turretOffset.x, this.turretOffset.y);
+        }
         ctx.rotate(this.turretAngle - this.angle);
         this.drawTurret(ctx);
         ctx.restore();
