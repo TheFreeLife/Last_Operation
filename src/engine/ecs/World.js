@@ -27,6 +27,8 @@ export class World {
         this.targetY = new Float32Array(maxEntities);
         this.startX = new Float32Array(maxEntities);
         this.startY = new Float32Array(maxEntities);
+        this.peakHeight = new Float32Array(maxEntities);
+        this.startHeight = new Float32Array(maxEntities);
         this.explosionRadius = new Float32Array(maxEntities);
         this.isIndirect = new Uint8Array(maxEntities); // 0: 직사, 1: 곡사
         this.weaponType = new Uint8Array(maxEntities); // 0: bullet, 1: sniper, 2: shell, 3: missile, 4: fire

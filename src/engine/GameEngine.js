@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, SAMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, CarrierDrone, DroneOperator, SpecialForces, Train, FreightCar, SmallBoat } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, WheeledArtillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, SAMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, CarrierDrone, DroneOperator, SpecialForces, Train, FreightCar, SmallBoat } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -386,6 +386,7 @@ export class GameEngine {
         em.register('sam-launcher', SAMLauncher, 'units');
         em.register('anti-air', AntiAirVehicle, 'units');
         em.register('artillery', Artillery, 'units');
+        em.register('wheeled-artillery', WheeledArtillery, 'units');
         em.register('rifleman', Rifleman, 'units');
         em.register('sniper', Sniper, 'units');
         em.register('anti-tank', AntiTankInfantry, 'units');

@@ -21,6 +21,7 @@ export class DebugSystem {
         this.unitTypeMap = {
             'db-spawn-tank': { type: 'tank' },
             'db-spawn-artillery': { type: 'artillery' },
+            'db-spawn-wheeled-artillery': { type: 'wheeled-artillery' },
             'db-spawn-anti-air': { type: 'anti-air' },
             'db-spawn-sam': { type: 'sam-launcher' },
             'db-spawn-missile': { type: 'missile-launcher' },

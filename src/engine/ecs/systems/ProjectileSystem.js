@@ -21,12 +21,20 @@ export function updateProjectiles(world, deltaTime, engine) {
         const distToTarget = Math.sqrt(dx * dx + dy * dy);
 
         angle[i] = Math.atan2(dy, dx);
-        x[i] += Math.cos(angle[i]) * speed[i] * dt;
-        y[i] += Math.sin(angle[i]) * speed[i] * dt;
 
-        // weaponType 역매핑 (0: bullet, 1: sniper, 2: shell, 3: missile, 4: fire)
-        const weaponTypes = ['bullet', 'sniper', 'shell', 'missile', 'fire'];
+        // [이동] 무기 타입 역매핑 (속도 변조 및 충돌 로직에서 사용됨)
+        const weaponTypes = ['bullet', 'sniper', 'shell', 'missile', 'fire', 'cluster'];
         const currentWeaponType = weaponTypes[world.weaponType[i]] || 'bullet';
+
+        // [추가] 집속탄 속도 변조 (부드러운 고고도 비행 연출)
+        let currentSpeed = speed[i];
+        if (currentWeaponType === 'cluster') {
+            // 전체 비행 동안 일정한 속도(40%)를 유지하여 묵직함을 표현하고 하강 시 속도 저하를 없앰
+            currentSpeed *= 0.4; 
+        }
+
+        x[i] += Math.cos(angle[i]) * currentSpeed * dt;
+        y[i] += Math.sin(angle[i]) * currentSpeed * dt;
 
         // 2. 충돌 체크
         let collided = false;
@@ -59,18 +67,47 @@ export function updateProjectiles(world, deltaTime, engine) {
         }
 
         // 3. 목표 도달 또는 충돌 시 제거
-        const reachedTarget = distToTarget < 25; // 판정 범위 약간 확대 (속도 대응)
+        const totalDist = Math.hypot(world.targetX[i] - world.startX[i], world.targetY[i] - world.startY[i]);
+        const curDist = Math.hypot(x[i] - world.startX[i], y[i] - world.startY[i]);
         
+        // [수정] 고정 25px 대신 속도 기반 유동적 임계값 사용 (훨씬 정밀함)
+        let reachedTarget = (curDist >= totalDist - speed[i] * 1.2) || (distToTarget < 5); 
+
+        // [추가] 집속탄 공중 분열 (상공 고고도 기폭)
+        if (currentWeaponType === 'cluster') {
+            // 전체 거리의 85% 지점에 도달하면 공중에서 분열 시작 (목표에 더 근접했을 때)
+            if (totalDist > 150 && (curDist / totalDist) >= 0.85) {
+                reachedTarget = true;
+            }
+        }
+
         // [추가] 안전장치: 비행 거리 초과 시 강제 제거 (최대 3000px)
         const startDist = Math.hypot(x[i] - world.startX[i], y[i] - world.startY[i]);
         const tooFar = startDist > 3000;
 
         if (collided || reachedTarget || tooFar) {
-            CombatLogic.handleImpact(engine, collided ? x[i] : targetX[i], collided ? y[i] : targetY[i], {
+            // [추가] 충돌/분열 시점의 시각적 고도 계산
+            let currentHeight = 0;
+            const tDist = Math.hypot(world.targetX[i] - world.startX[i], world.targetY[i] - world.startY[i]);
+            const cDist = Math.hypot(x[i] - world.startX[i], y[i] - world.startY[i]);
+
+            if (world.isIndirect[i] === 1) {
+                const progress = Math.min(1, cDist / tDist);
+                const maxHeight = world.peakHeight[i] > 0 ? world.peakHeight[i] : tDist * 0.45;
+                currentHeight = (1 - progress) * world.startHeight[i] + Math.sin(progress * Math.PI) * maxHeight;
+            }
+
+            // [핵심 수정] 공중 분열(reachedTarget) 시 현재 위치(x, y)를 임팩트 지점으로 사용
+            const impactX = (collided || (currentWeaponType === 'cluster' && reachedTarget)) ? x[i] : targetX[i];
+            const impactY = (collided || (currentWeaponType === 'cluster' && reachedTarget)) ? y[i] : targetY[i];
+
+            CombatLogic.handleImpact(engine, impactX, impactY, {
                 radius: explosionRadius[i],
                 damage: damage[i],
                 weaponType: currentWeaponType,
                 isIndirect: world.isIndirect[i] === 1,
+                _motherHeight: currentHeight, 
+                ownerId: world.ownerId[i],
                 effectType: (collided && explosionRadius[i] === 0) ? 'hit' : (explosionRadius[i] > 0 ? 'explosion' : 'hit')
             });
             world.destroyEntity(i);

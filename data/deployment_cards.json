@@ -194,6 +194,18 @@
             ]
         },
         {
+            "id": "wheeled_artillery_platoon",
+            "name": "차륜형 자주포 소대",
+            "description": "최신형 8륜 차륜형 자주포 1문과 호위 보병입니다. 집속탄을 사격하여 광범위한 지역을 초토화합니다.",
+            "icon": "🚚",
+            "cost": 12,
+            "weight": 15,
+            "units": [
+                { "id": "wheeled-artillery", "count": 1 },
+                { "id": "rifleman", "count": 3 }
+            ]
+        },
+        {
             "id": "strategic_strike",
             "name": "전략 핵 타격대",
             "description": "이동식 ICBM 발사대와 정예 호위 부대입니다. 국가의 최후 결전 수단입니다.",

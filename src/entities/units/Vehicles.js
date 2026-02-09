@@ -135,17 +135,16 @@ export class MissileLauncher extends TurretUnit {
         this.recoil = 0;
         this.size = 80;
         this.cargoSize = 10;
-        this.population = 3; // 운전수, 사격통제수 2명
+        this.population = 3; 
         this.isSieged = false;
         this.isTransitioning = false;
         this.transitionTimer = 0;
         this.maxTransitionTime = 60;
         this.raiseAngle = 0;
-        this.turretAngle = 0; // 차체 기준 상부 회전 각도
 
         this.isFiring = false;
         this.fireDelayTimer = 0;
-        this.maxFireDelay = 90; // 정렬 후 대기 시간 (약 1.5초)
+        this.maxFireDelay = 90; 
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackTargets = ['ground', 'sea'];
 
@@ -184,10 +183,7 @@ export class MissileLauncher extends TurretUnit {
 
     toggleSiege() {
         if (this.isTransitioning || this.isFiring) return;
-
-        // 시즈 모드 사운드 즉시 시작
         this.siegeSoundInstance = this.engine.audioSystem.play('siege_mode', { volume: 0.2, loop: true, cooldown: 0 });
-
         this.isTransitioning = true;
         this.transitionTimer = 0;
         this.destination = null;
@@ -197,12 +193,8 @@ export class MissileLauncher extends TurretUnit {
 
     update(deltaTime) {
         const prevAngle = this.angle;
-        // TurretUnit의 update를 호출하지 않고 BaseUnit 수준의 이동/공격 로직만 호출 (시즈 모드 특수성 때문)
         Object.getPrototypeOf(TurretUnit.prototype).update.call(this, deltaTime);
-
-        if (this.isSieged) {
-            this.angle = prevAngle;
-        }
+        if (this.isSieged) this.angle = prevAngle;
 
         if (this.isSieged && !this.isTransitioning) {
             if (this.isFiring) {
@@ -210,45 +202,27 @@ export class MissileLauncher extends TurretUnit {
                 let diff = targetAngle - this.turretAngle;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 while (diff < -Math.PI) diff += Math.PI * 2;
-                
                 this.turretAngle += diff * 0.0125;
-                if (Math.abs(diff) < 0.05) {
-                    this.fireDelayTimer++;
-                }
+                if (Math.abs(diff) < 0.05) this.fireDelayTimer++;
             }
         } else if (!this.isSieged) {
-            // [수정] 이동 중에는 포탑을 차체 정면에 즉시 고정 (Travel Lock)
             this.turretAngle = this.angle;
         }
 
         if (this.isTransitioning) {
             this.transitionTimer++;
-            if (this.isSieged) {
-                this.raiseAngle = 1 - (this.transitionTimer / this.maxTransitionTime);
-            } else {
-                this.raiseAngle = this.transitionTimer / this.maxTransitionTime;
-            }
-
+            this.raiseAngle = this.isSieged ? 1 - (this.transitionTimer / this.maxTransitionTime) : (this.transitionTimer / this.maxTransitionTime);
             if (this.transitionTimer >= this.maxTransitionTime) {
                 this.isTransitioning = false;
                 this.isSieged = !this.isSieged;
                 this.raiseAngle = this.isSieged ? 1 : 0;
                 this.speed = this.isSieged ? 0 : this.baseSpeed;
-                
-                // 시즈 모드 사운드 중단
-                if (this.siegeSoundInstance) {
-                    this.siegeSoundInstance.pause();
-                    this.siegeSoundInstance = null;
-                }
+                if (this.siegeSoundInstance) { this.siegeSoundInstance.pause(); this.siegeSoundInstance = null; }
             }
         }
 
         if (this.isFiring) {
-            // 발사 15프레임(약 0.25초) 전에 사운드를 미리 재생하여 씽크를 맞춤
-            if (this.fireDelayTimer === this.maxFireDelay - 15) {
-                this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
-            }
-
+            if (this.fireDelayTimer === this.maxFireDelay - 15) this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
             if (this.fireDelayTimer >= this.maxFireDelay) {
                 this.executeFire({ skipSound: true });
                 this.isFiring = false;
@@ -293,23 +267,15 @@ export class MissileLauncher extends TurretUnit {
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
 
-        if (!options.skipSound) {
-            this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
-        }
+        if (!options.skipSound) this.engine.audioSystem.play('missile_flight', { volume: 0.2 });
 
         const totalDistance = Math.hypot(targetX - spawnX, targetY - spawnY);
         const peakHeight = Math.max(250, totalDistance * 0.5);
 
         this.engine.entityManager.create('missile', spawnX, spawnY, {
-            startX: spawnX,
-            startY: spawnY,
-            targetX: targetX,
-            targetY: targetY,
-            damage: this.damage,
-            ownerId: this.ownerId,
-            totalDistance: totalDistance,
-            peakHeight: peakHeight,
-            moveAngle: Math.atan2(targetY - spawnY, targetX - spawnX)
+            startX: spawnX, startY: spawnY, targetX: targetX, targetY: targetY,
+            damage: this.damage, ownerId: this.ownerId, totalDistance: totalDistance,
+            peakHeight: peakHeight, moveAngle: Math.atan2(targetY - spawnY, targetX - spawnX)
         }, 'neutral');
 
         this.ammo--;
@@ -376,7 +342,6 @@ export class MissileLauncher extends TurretUnit {
     drawBodyAnimations(ctx) {
         ctx.save();
         ctx.scale(2.2, 2.2);
-        // 시즈 모드 작동등 (차체 고정, 실시간 점멸)
         if (this.isSieged && !this.isTransitioning) {
             const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
             ctx.fillStyle = `rgba(255, 49, 49, ${0.4 + pulse * 0.6})`;
@@ -390,22 +355,17 @@ export class MissileLauncher extends TurretUnit {
             offCtx.scale(2.2, 2.2);
             const tubeColor = '#4b5320';
             const darkTube = '#2d3212';
-
-            // 부모가 이미 translate(-10, 0)을 해줬으므로, (0,0)을 연결점으로 보고 바로 그립니다.
             offCtx.fillStyle = '#1a1a1a';
             offCtx.beginPath(); offCtx.arc(0, 0, 9, 0, Math.PI * 2); offCtx.fill();
             offCtx.fillStyle = '#333';
             offCtx.beginPath(); offCtx.arc(0, 0, 6, 0, Math.PI * 2); offCtx.fill();
-
             const canisterLen = 34; 
             const spacing = 4.5;
-
             offCtx.fillStyle = tubeColor;
             offCtx.fillRect(-4, -spacing - 3.5, canisterLen, 7);
             offCtx.fillStyle = darkTube;
             offCtx.fillRect(-4, -spacing - 3.5, 3, 7); 
             offCtx.fillRect(canisterLen - 8, -spacing - 3.5, 2, 7);
-
             offCtx.fillStyle = tubeColor;
             offCtx.fillRect(-4, spacing - 3.5, canisterLen, 7);
             offCtx.fillStyle = darkTube;
@@ -416,13 +376,11 @@ export class MissileLauncher extends TurretUnit {
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
 
-        // --- 3. 실시간 애니메이션 (기립 전용) ---
         ctx.save();
         ctx.scale(2.2, 2.2);
         const spacing = 4.5;
         const currentLen = 34 - (this.raiseAngle * 10);
         const hydraulicColor = '#95a5a6';
-
         if (this.raiseAngle > 0.1) {
             ctx.strokeStyle = hydraulicColor;
             ctx.lineWidth = 1.5;
@@ -431,7 +389,6 @@ export class MissileLauncher extends TurretUnit {
             ctx.moveTo(2, spacing); ctx.lineTo(10 * this.raiseAngle, spacing);
             ctx.stroke();
         }
-
         if (this.raiseAngle > 0.8) {
             ctx.fillStyle = '#111';
             ctx.beginPath(); ctx.arc(currentLen - 4, -spacing, 3, 0, Math.PI * 2); ctx.fill();
@@ -461,16 +418,13 @@ export class Artillery extends TurretUnit {
         this.cargoSize = 5;
         this.population = 5; 
         this.isIndirect = true; 
-
         this.armorType = 'heavy';
         this.weaponType = 'shell';
-
         this.ammoType = 'shell';
         this.maxAmmo = 20;
         this.ammo = 20;
         this.muzzleOffset = 96;
         this.projectileSpeed = 10; 
-
         this.turretRotationSpeed = 0.05;
     }
 
@@ -478,24 +432,20 @@ export class Artillery extends TurretUnit {
         ctx.scale(2.2, 2.2);
         const hullColor = '#5a6344'; 
         const darkHull = '#454d30';  
-
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(-18, -13, 36, 26);
-        
         ctx.fillStyle = '#2d3436';
         for(let i=-16; i<=14; i+=5) {
             ctx.fillRect(i, -13, 3, 3);
             ctx.fillRect(i, 10, 3, 3);
         }
-
         ctx.fillStyle = hullColor;
         ctx.beginPath();
         ctx.moveTo(-18, -11); ctx.lineTo(12, -11);
-        ctx.lineTo(18, -7); ctx.lineTo(18, 7);
+        ctx.lineTo(18, -7); ctx.lineTo(18, 6);
         ctx.lineTo(12, 11); ctx.lineTo(-18, 11);
         ctx.closePath();
         ctx.fill();
-
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(14, -8, 2, 16); 
         ctx.fillStyle = '#fbc02d'; 
@@ -509,47 +459,37 @@ export class Artillery extends TurretUnit {
             const hullColor = '#5a6344'; 
             const darkHull = '#454d30';  
             const lightHull = '#6b7552'; 
-
             offCtx.translate(-6, 0); 
-            
             const turretGrd = offCtx.createLinearGradient(-12, -10, 14, 10);
             turretGrd.addColorStop(0, lightHull);
             turretGrd.addColorStop(1, darkHull);
             offCtx.fillStyle = turretGrd;
-            
             offCtx.beginPath();
             offCtx.moveTo(-14, -10); offCtx.lineTo(10, -10); 
             offCtx.lineTo(14, -6); offCtx.lineTo(14, 6);
             offCtx.lineTo(10, 10); offCtx.lineTo(-14, 10);
             offCtx.closePath();
             offCtx.fill();
-
             offCtx.fillStyle = '#1a1a1a';
             offCtx.beginPath(); offCtx.arc(-2, -5, 3.5, 0, Math.PI * 2); offCtx.fill(); 
             offCtx.fillStyle = '#2980b9';
             offCtx.fillRect(4, 4, 4, 3); 
-            
             offCtx.fillStyle = '#2d3436';
             offCtx.fillRect(-10, 4, 6, 4); 
             offCtx.fillRect(-10, -8, 2, 2); 
-
             offCtx.fillStyle = hullColor;
             offCtx.fillRect(14, -2, 42, 4);
-            
             offCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             offCtx.fillRect(28, -2.1, 3, 4.2);
             offCtx.fillRect(34, -2.1, 2, 4.2);
-
             offCtx.fillStyle = darkHull;
             offCtx.fillRect(18, -2.5, 6, 5);
             offCtx.fillRect(40, -2.2, 4, 4.4);
-            
             offCtx.fillStyle = '#2d3436';
             offCtx.fillRect(52, -3.5, 7, 7);
             offCtx.fillStyle = '#1a1a1a';
             offCtx.fillRect(54, -4, 2, 8); 
         });
-
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
     }
@@ -562,7 +502,7 @@ export class AntiAirVehicle extends TurretUnit {
         this.type = 'anti-air';
         this.name = '자주 대공포';
         this.speed = 1.3;
-        this.fireRate = 100; // 연사 속도 상향 (150 -> 100)
+        this.fireRate = 100; 
         this.damage = 8;
         this.attackRange = 600;
         this.visionRange = 10;
@@ -570,69 +510,37 @@ export class AntiAirVehicle extends TurretUnit {
         this.size = 80;
         this.cargoSize = 5;
         this.population = 3; 
-        this.muzzleOffset = 85; // 포신이 길어졌으므로 오프셋 상향 (50 -> 85)
-        this.projectileSpeed = 40; // 대공포 탄속 상향 (22 -> 40)
+        this.muzzleOffset = 85; 
+        this.projectileSpeed = 40; 
         this.hitEffectType = 'flak';
-
         this.armorType = 'light';
         this.weaponType = 'bullet';
-
         this.ammoType = 'bullet';
-        this.maxAmmo = 400; // 탄약 용량 상향 (연사력 대응)
+        this.maxAmmo = 400; 
         this.ammo = 400;
-        this.ammoConsumption = 2; // 한 번에 2발씩 소모
-        
+        this.ammoConsumption = 2; 
         this.turretRotationSpeed = 0.1;
     }
 
     getPartBitmap(type, partName, drawFn) {
-        // 대공포는 실시간 레이더 애니메이션을 위해 포탑 캐시를 쓰지 않거나, 
-        // 부모의 getPartBitmap을 호출하되 drawTurret에서 본체만 캐싱하도록 설계됨
         return super.getPartBitmap(type, partName, drawFn);
     }
 
-    // AntiAir는 쌍열포 발사를 위해 performAttack 오버라이드
     performAttack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
-
-        if (this.ammo < this.ammoConsumption) {
-            if (now - (this._lastAmmoMsgTime || 0) > 2000) {
-                this.engine.addEffect?.('system', this.x, this.y - 30, '#ff3131', '탄약 부족!');
-                this._lastAmmoMsgTime = now;
-            }
-            return;
-        }
+        if (this.ammo < this.ammoConsumption) return;
         this.ammo -= this.ammoConsumption;
-
-        // --- 이중 총구 발사 로직 (포탑 각도 반영) ---
         const lateralOffset = 18; 
         const barrelOffsets = [lateralOffset, -lateralOffset];
-
         barrelOffsets.forEach(sideOffset => {
-            // 포탑 각도(turretAngle) 기준으로 발사 위치 계산
             const spawnX = this.x + Math.cos(this.turretAngle) * this.muzzleOffset + Math.cos(this.turretAngle + Math.PI/2) * sideOffset;
             const spawnY = this.y + Math.sin(this.turretAngle) * this.muzzleOffset + Math.sin(this.turretAngle + Math.PI/2) * sideOffset;
-
-            if (this.engine.addEffect) {
-                this.engine.addEffect('muzzle', spawnX, spawnY, '#fff');
-            }
-
-            const options = {
-                speed: this.projectileSpeed,
-                ownerId: this.ownerId,
-                isIndirect: false
-            };
-
-            this.engine.entityManager.spawnProjectileECS(
-                spawnX, 
-                spawnY, 
-                this.target, 
-                this.damage, 
-                options
-            );
+            if (this.engine.addEffect) this.engine.addEffect('muzzle', spawnX, spawnY, '#fff');
+            this.engine.entityManager.spawnProjectileECS(spawnX, spawnY, this.target, this.damage, {
+                speed: this.projectileSpeed, ownerId: this.ownerId, isIndirect: false
+            });
         });
-
         this.lastFireTime = now;
     }
 
@@ -640,7 +548,6 @@ export class AntiAirVehicle extends TurretUnit {
         ctx.scale(2.2, 2.2);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         ctx.fillRect(-16, -12, 34, 26);
-
         ctx.fillStyle = '#3a4118';
         ctx.beginPath();
         ctx.moveTo(-18, -11); ctx.lineTo(14, -11);
@@ -648,11 +555,9 @@ export class AntiAirVehicle extends TurretUnit {
         ctx.lineTo(14, 11); ctx.lineTo(-18, 11);
         ctx.closePath();
         ctx.fill();
-
         ctx.fillStyle = '#2d3212';
         ctx.fillRect(-18, -13, 32, 3);
         ctx.fillRect(-18, 10, 32, 3);
-        
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(-14, -6, 6, 12);
     }
@@ -670,30 +575,23 @@ export class AntiAirVehicle extends TurretUnit {
             offCtx.lineTo(8, 10); offCtx.lineTo(-10, 10);
             offCtx.closePath();
             offCtx.fill();
-
             offCtx.fillStyle = '#1e272e';
             offCtx.fillRect(-4, -12, 10, 3);
             offCtx.fillRect(-4, 9, 10, 3);
-
             offCtx.fillStyle = '#2d3436';
             offCtx.fillRect(10, -8, 24, 2.5); 
             offCtx.fillStyle = '#1a1a1a';
             offCtx.fillRect(30, -8.5, 6, 3.5); 
-            
             offCtx.fillStyle = '#2d3436';
             offCtx.fillRect(10, 5.5, 24, 2.5);
             offCtx.fillStyle = '#1a1a1a';
             offCtx.fillRect(30, 5, 6, 3.5);
-
             offCtx.fillStyle = '#2980b9';
             offCtx.globalAlpha = 0.8;
             offCtx.fillRect(2, -3, 4, 6);
         });
-
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
-
-        // --- 실시간 레이더 애니메이션 (캐시에서 제외) ---
         ctx.save();
         ctx.scale(2.2, 2.2);
         ctx.translate(-8, 0);
@@ -718,36 +616,32 @@ export class MobileICBMLauncher extends TurretUnit {
         this.name = '이동식 ICBM 발사대';
         this.speed = 1.0; 
         this.baseSpeed = 1.0;
-        this.fireRate = 8000; 
+        this.fireRate = 10000; 
         this.damage = 5000; 
-        this.attackRange = 3000; 
+        this.attackRange = 3500; 
         this.visionRange = 10;
         this.recoil = 0;
-        this.size = 110; 
+        this.size = 120; 
         this.cargoSize = 15;
-        this.population = 6; 
+        this.population = 8; 
         this.isSieged = false;
         this.isTransitioning = false;
         this.transitionTimer = 0;
-        this.maxTransitionTime = 120; 
+        this.maxTransitionTime = 150; 
         this.raiseAngle = 0;
-
         this.isFiring = false;
         this.fireDelayTimer = 0;
-        this.maxFireDelay = 180; 
+        this.maxFireDelay = 240; 
         this.pendingFirePos = { x: 0, y: 0 };
         this.attackTargets = ['ground', 'sea'];
-
         this.armorType = 'heavy';
         this.weaponType = 'missile';
-
         this.ammoType = 'nuclear-missile';
         this.maxAmmo = 2; 
         this.ammo = 2;
-        this.hp = 1500;
-        this.maxHp = 1500;
-
-        this.turretOffset = { x: -20, y: 0 }; 
+        this.hp = 2000;
+        this.maxHp = 2000;
+        this.turretOffset = { x: -25, y: 0 }; 
     }
 
     init(x, y, engine) {
@@ -757,7 +651,7 @@ export class MobileICBMLauncher extends TurretUnit {
         this.transitionTimer = 0;
         this.raiseAngle = 0;
         this.turretAngle = this.angle;
-        this.turretOffset = { x: -20, y: 0 };
+        this.turretOffset = { x: -25, y: 0 };
         this.isFiring = false;
         this.fireDelayTimer = 0;
         this.speed = this.baseSpeed || 1.0;
@@ -775,75 +669,47 @@ export class MobileICBMLauncher extends TurretUnit {
 
     toggleSiege() {
         if (this.isTransitioning || this.isFiring) return;
-
-        // 시즈 모드 사운드 즉시 시작
-        this.siegeSoundInstance = this.engine.audioSystem.play('siege_mode', { volume: 0.2, loop: true, cooldown: 0 });
-
+        this.siegeSoundInstance = this.engine.audioSystem.play('siege_mode', { volume: 0.25, loop: true, cooldown: 0 });
         this.isTransitioning = true;
         this.transitionTimer = 0;
         this.destination = null;
         this.speed = 0;
-        this.engine.addEffect?.('system', this.x, this.y, '#fff', this.isSieged ? '발사대 수평 전환 중...' : '전략 미사일 기립 중...');
+        this.engine.addEffect?.('system', this.x, this.y, '#f1c40f', this.isSieged ? '전략 무기 격납 중' : '전략 핵 미사일 전개');
     }
 
     update(deltaTime) {
         const prevAngle = this.angle;
-        // TurretUnit의 update를 호출하지 않고 BaseUnit 수준의 이동/공격 로직만 호출 (시즈 모드 특수성 때문)
         Object.getPrototypeOf(TurretUnit.prototype).update.call(this, deltaTime);
-
-        if (this.isSieged) {
-            this.angle = prevAngle;
-        }
-
+        if (this.isSieged) this.angle = prevAngle;
         if (this.isSieged && !this.isTransitioning) {
             if (this.isFiring) {
                 const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
                 let diff = targetAngle - this.turretAngle;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 while (diff < -Math.PI) diff += Math.PI * 2;
-                
-                this.turretAngle += diff * 0.008; // 매우 느리고 신중한 회전
-
-                if (Math.abs(diff) < 0.05) {
-                    this.fireDelayTimer++;
-                }
+                this.turretAngle += diff * 0.005; 
+                if (Math.abs(diff) < 0.05) this.fireDelayTimer++;
             }
         } else if (!this.isSieged) {
-            // [수정] 이동 중에는 포탑을 차체 정면에 즉시 고정 (Travel Lock)
             this.turretAngle = this.angle;
         }
-
         if (this.isTransitioning) {
             this.transitionTimer++;
-            if (this.isSieged) {
-                this.raiseAngle = 1 - (this.transitionTimer / this.maxTransitionTime);
-            } else {
-                this.raiseAngle = this.transitionTimer / this.maxTransitionTime;
-            }
-
+            this.raiseAngle = this.isSieged ? 1 - (this.transitionTimer / this.maxTransitionTime) : (this.transitionTimer / this.maxTransitionTime);
             if (this.transitionTimer >= this.maxTransitionTime) {
                 this.isTransitioning = false;
                 this.isSieged = !this.isSieged;
                 this.raiseAngle = this.isSieged ? 1 : 0;
                 this.speed = this.isSieged ? 0 : this.baseSpeed;
-
-                // 시즈 모드 사운드 중단
-                if (this.siegeSoundInstance) {
-                    this.siegeSoundInstance.pause();
-                    this.siegeSoundInstance = null;
-                }
+                if (this.siegeSoundInstance) { this.siegeSoundInstance.pause(); this.siegeSoundInstance = null; }
             }
         }
-
         if (this.isFiring) {
-            if (this.fireDelayTimer === 1) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '3');
-            if (this.fireDelayTimer === 60) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '2');
-            if (this.fireDelayTimer === 120) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '1');
-            if (this.fireDelayTimer === 165) { // LAUNCH! 텍스트 및 실제 발사보다 15프레임 빠르게
-                this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
-            }
-            if (this.fireDelayTimer === 175) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', 'LAUNCH!');
-
+            if (this.fireDelayTimer === 1) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', 'READY');
+            if (this.fireDelayTimer === 60) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '3');
+            if (this.fireDelayTimer === 120) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '2');
+            if (this.fireDelayTimer === 180) this.engine.addEffect?.('system', this.x, this.y - 80, '#ff3131', '1');
+            if (this.fireDelayTimer === 225) this.engine.audioSystem.play('missile_flight', { volume: 0.4 });
             if (this.fireDelayTimer >= this.maxFireDelay) {
                 this.executeFire({ skipSound: true });
                 this.isFiring = false;
@@ -864,119 +730,94 @@ export class MobileICBMLauncher extends TurretUnit {
 
     fireAt(targetX, targetY) {
         if (!this.isSieged || this.isTransitioning || this.isFiring) return;
-        if (this.ammo <= 0) {
-            this.engine.addEffect?.('system', this.x, this.y - 40, '#ff3131', '핵탄두 고갈!');
-            return;
-        }
+        if (this.ammo <= 0) return;
         const dist = Math.hypot(targetX - this.x, targetY - this.y);
         if (dist > this.attackRange) return;
-
         const now = Date.now();
         if (now - this.lastFireTime > this.fireRate) {
             this.isFiring = true;
             this.fireDelayTimer = 0;
             this.pendingFirePos = { x: targetX, y: targetY };
-            this.engine.addEffect?.('system', this.x, this.y - 60, '#f1c40f', '전략 핵 미사일 발사 시퀀스 개시');
+            this.engine.addEffect?.('system', this.x, this.y - 60, '#f1c40f', '전략 타격 승인됨');
         }
     }
 
     executeFire(options = {}) {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
-        
-        const totalAngle = this.turretAngle; // [수정] 절대 각도 사용
+        const totalAngle = this.turretAngle; 
         const launchDist = 40;
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
-
-        if (!options.skipSound) {
-            this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
-        }
-
+        if (!options.skipSound) this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
         const totalDistance = Math.hypot(targetX - spawnX, targetY - spawnY);
         const peakHeight = Math.max(400, totalDistance * 0.7);
-
         this.engine.entityManager.create('nuclear-missile', spawnX, spawnY, {
-            startX: spawnX,
-            startY: spawnY,
-            targetX: targetX,
-            targetY: targetY,
-            damage: this.damage,
-            ownerId: this.ownerId,
-            totalDistance: totalDistance,
-            peakHeight: peakHeight,
-            moveAngle: Math.atan2(targetY - spawnY, targetX - spawnX)
+            startX: spawnX, startY: spawnY, targetX: targetX, targetY: targetY,
+            damage: this.damage, ownerId: this.ownerId, totalDistance: totalDistance,
+            peakHeight: peakHeight, moveAngle: Math.atan2(targetY - spawnY, targetX - spawnX)
         }, 'neutral');
-
         this.ammo--;
         this.lastFireTime = Date.now();
-        this.recoil = 25;
-        for(let i=0; i<8; i++) {
-            this.engine.addEffect?.('smoke', spawnX, spawnY);
-        }
+        this.recoil = 30;
+        for(let i=0; i<12; i++) this.engine.addEffect?.('smoke', spawnX, spawnY);
     }
 
     drawBody(ctx) {
         ctx.scale(2.5, 2.5);
-        const truckColor = '#2d3436'; 
-        const accentColor = '#34495e';
-
-        // --- 1. 하부 프레임 및 바퀴 (6축 12륜) ---
-        ctx.fillStyle = '#050505';
+        const mainColor = '#1e272e';
+        const deckColor = '#2d3436';
+        const detailColor = '#485460';
+        ctx.fillStyle = '#000';
         for(let i=0; i<6; i++) {
-            ctx.fillRect(-35 + i*13, -14, 10, 4);
-            ctx.fillRect(-35 + i*13, 10, 10, 4);
+            const wx = -38 + i*14;
+            ctx.fillRect(wx, -15, 11, 5); 
+            ctx.fillRect(wx, 10, 11, 5);
+            ctx.fillStyle = detailColor;
+            ctx.fillRect(wx + 3, -14, 5, 3); 
+            ctx.fillRect(wx + 3, 11, 5, 3);
+            ctx.fillStyle = '#000';
         }
-
-        // 육중한 섀시
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(-40, -11, 80, 22);
-
-        // 아웃리거 (지지대)
+        ctx.fillStyle = mainColor;
+        ctx.fillRect(-45, -11, 90, 22); 
         if (this.raiseAngle > 0) {
-            const outDist = this.raiseAngle * 12;
-            ctx.fillStyle = '#1e272e';
+            const outDist = this.raiseAngle * 14;
             const outriggers = [
-                { x: -30, y: -11, dy: -1 }, { x: 0, y: -11, dy: -1 }, { x: 30, y: -11, dy: -1 },
-                { x: -30, y: 11, dy: 1 }, { x: 0, y: 11, dy: 1 }, { x: 30, y: 11, dy: 1 }
+                { x: -35, y: -11, dy: -1 }, { x: -5, y: -11, dy: -1 }, { x: 25, y: -11, dy: -1 },
+                { x: -35, y: 11, dy: 1 }, { x: -5, y: 11, dy: 1 }, { x: 25, y: 11, dy: 1 }
             ];
             outriggers.forEach(o => {
                 ctx.save();
                 ctx.translate(o.x, o.y + o.dy * outDist);
-                ctx.fillRect(-4, -2, 8, 4);
-                ctx.strokeStyle = '#95a5a6';
+                ctx.fillStyle = '#333';
+                ctx.fillRect(-5, -2, 10, 4); 
+                ctx.strokeStyle = '#7f8c8d';
                 ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.moveTo(0, -o.dy * outDist); ctx.lineTo(0, 0); ctx.stroke();
                 ctx.restore();
             });
         }
-
-        // --- 2. 상부 구조 ---
-        // 대형 전면 캐빈
-        ctx.fillStyle = truckColor;
-        ctx.beginPath();
-        ctx.moveTo(25, -12); ctx.lineTo(42, -12);
-        ctx.lineTo(45, -9); ctx.lineTo(45, 9);
-        ctx.lineTo(42, 12); ctx.lineTo(25, 12);
-        ctx.closePath();
-        ctx.fill();
-
-        // 캐빈 디테일 (창문 및 장갑판)
-        ctx.fillStyle = accentColor;
-        ctx.fillRect(35, -10, 6, 20);
-        ctx.fillStyle = '#2980b9';
-        ctx.fillRect(38, -9, 2, 18);
-
-        // 적재함 베이스
-        ctx.fillStyle = truckColor;
-        ctx.fillRect(-40, -12, 65, 24);
-        
-        // 측면 기계 장치 디테일
-        ctx.fillStyle = '#111';
+        ctx.fillStyle = deckColor;
+        ctx.fillRect(-42, -12, 70, 24); 
+        ctx.fillStyle = detailColor;
         for(let i=0; i<3; i++) {
-            ctx.fillRect(-25 + i*15, -13, 8, 2);
-            ctx.fillRect(-25 + i*15, 11, 8, 2);
+            ctx.fillRect(-30 + i*18, -13, 10, 2); 
+            ctx.fillRect(-30 + i*18, 11, 10, 2);
         }
+        ctx.fillStyle = mainColor;
+        ctx.beginPath();
+        ctx.moveTo(28, -13); ctx.lineTo(46, -13); ctx.lineTo(50, -10);
+        ctx.lineTo(50, 10); ctx.lineTo(46, 13); ctx.lineTo(28, 13);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = detailColor;
+        ctx.fillRect(30, -12, 2, 24); 
+        ctx.fillStyle = '#2980b9'; 
+        ctx.globalAlpha = 0.6;
+        ctx.fillRect(40, -11, 6, 9); ctx.fillRect(40, 2, 6, 9);
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(35, -13); ctx.lineTo(32, -18); ctx.stroke();
     }
 
     drawBodyAnimations(ctx) {
@@ -985,7 +826,6 @@ export class MobileICBMLauncher extends TurretUnit {
         if (this.isSieged) {
             const blink = Math.sin(Date.now() / 150) > 0;
             ctx.fillStyle = blink ? '#ff3131' : '#550000';
-            // 빨간색 후미등 (차체 고정)
             ctx.beginPath(); ctx.arc(-42, -9, 2, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(-42, 9, 2, 0, Math.PI * 2); ctx.fill();
         }
@@ -995,280 +835,205 @@ export class MobileICBMLauncher extends TurretUnit {
     drawTurret(ctx) {
         const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
             offCtx.scale(2.5, 2.5);
-            // 1. 발사대 피봇 베이스
-            offCtx.fillStyle = '#111';
-            offCtx.beginPath(); offCtx.arc(0, 0, 12, 0, Math.PI * 2); offCtx.fill();
-            offCtx.fillStyle = '#333';
-            offCtx.beginPath(); offCtx.arc(0, 0, 8, 0, Math.PI * 2); offCtx.fill();
-
-            // 2. 전략 ICBM 캐니스터
-            const mslGrd = offCtx.createLinearGradient(0, -10, 0, 10);
-            mslGrd.addColorStop(0, '#34495e');
-            mslGrd.addColorStop(0.5, '#2d3436');
-            mslGrd.addColorStop(1, '#1e272e');
-            offCtx.fillStyle = mslGrd;
-            
-            const canisterLen = 55;
-            offCtx.fillRect(-8, -10, canisterLen, 20);
-
-            offCtx.fillStyle = '#f1c40f';
-            for(let i=0; i<3; i++) {
-                offCtx.fillRect(10 + i*15, -10, 4, 20);
+            const tubeColor = '#34495e';
+            const darkMetal = '#1e272e';
+            offCtx.fillStyle = '#000';
+            offCtx.beginPath(); offCtx.arc(0, 0, 14, 0, Math.PI * 2); offCtx.fill();
+            offCtx.strokeStyle = '#485460';
+            offCtx.lineWidth = 1;
+            offCtx.beginPath(); offCtx.arc(0, 0, 11, 0, Math.PI * 2); offCtx.stroke();
+            const canisterLen = 65;
+            const grd = offCtx.createLinearGradient(0, -12, 0, 12);
+            grd.addColorStop(0, '#2c3e50');
+            grd.addColorStop(0.5, tubeColor);
+            grd.addColorStop(1, darkMetal);
+            offCtx.fillStyle = grd;
+            offCtx.beginPath();
+            offCtx.moveTo(-10, -8); offCtx.lineTo(canisterLen - 10, -8);
+            offCtx.lineTo(canisterLen - 5, -4); offCtx.lineTo(canisterLen - 5, 4);
+            offCtx.lineTo(canisterLen - 10, 8); offCtx.lineTo(-10, 8);
+            offCtx.lineTo(-12, 4); offCtx.lineTo(-12, -4);
+            offCtx.closePath(); offCtx.fill();
+            offCtx.fillStyle = '#f1c40f'; 
+            for(let i=0; i<4; i++) {
+                offCtx.fillRect(5 + i*16, -8.5, 3, 17);
             }
-
+            offCtx.fillStyle = 'rgba(255,255,255,0.3)';
+            offCtx.fillRect(10, -4, 8, 1);
+            offCtx.fillRect(10, -2, 12, 1);
             offCtx.fillStyle = '#000';
             offCtx.fillRect(-10, -8, 4, 16);
         });
-
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
-
-        // --- 3. 실시간 애니메이션 (기립 및 해치) ---
         ctx.save();
         ctx.scale(2.5, 2.5);
-        const canisterLen = 55 - (this.raiseAngle * 15);
+        const canisterLen = 65 - (this.raiseAngle * 18);
         const hydraulicColor = '#bdc3c7';
-
-        if (this.raiseAngle > 0.1) {
-            ctx.strokeStyle = hydraulicColor;
-            ctx.lineWidth = 2.5;
+        if (this.raiseAngle > 0.05) {
+            ctx.strokeStyle = '#bdc3c7';
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(5, -5); ctx.lineTo(15 * this.raiseAngle, -5);
-            ctx.moveTo(5, 5); ctx.lineTo(15 * this.raiseAngle, 5);
+            ctx.moveTo(4, -6); ctx.lineTo(18 * this.raiseAngle, -6);
+            ctx.moveTo(4, 6); ctx.lineTo(18 * this.raiseAngle, 6);
+            ctx.stroke();
+            ctx.strokeStyle = '#7f8c8d';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(4, -6); ctx.lineTo(25 * this.raiseAngle, -6);
+            ctx.moveTo(4, 6); ctx.lineTo(25 * this.raiseAngle, 6);
             ctx.stroke();
         }
-
         if (this.raiseAngle > 0.8) {
-            ctx.fillStyle = '#c0392b'; 
-            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 8, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#000';
-            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 9, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#c0392b';
+            ctx.beginPath(); ctx.arc(canisterLen - 8, 0, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(canisterLen - 12, -14, 8, 4);
+            ctx.fillRect(canisterLen - 12, 10, 8, 4);
         } else {
             ctx.fillStyle = '#111';
-            ctx.fillRect(canisterLen - 10, -8, 4, 16);
+            ctx.fillRect(canisterLen - 10, -8, 5, 16);
         }
         ctx.restore();
     }
 }
 
-export class Train extends PlayerUnit {
-    static editorConfig = { category: 'vehicle', icon: 'train', name: '기차' };
+export class WheeledArtillery extends TurretUnit {
+    static editorConfig = { category: 'vehicle', icon: 'artillery', name: '차륜형 자주포' };
     constructor(x, y, engine) {
         super(x, y, engine);
-        this.type = 'train';
-        this.name = '기차';
-        this.speed = 0;
-        this.fireRate = 1000;
-        this.damage = 0;
-        this.color = '#7f8c8d';
-        this.attackRange = 0;
-        this.visionRange = 4;
-        this.size = 120; // 길쭉한 형태를 위해 크게 설정
-        this.cargoSize = 99; // 수송 불가
-        this.population = 10; // 대규모 운송 수단 설정
-        this.hp = 2000;
-        this.maxHp = 2000;
-        this.attackTargets = []; // 공격 불가
-
-        this.ammoType = null;
-        this.maxAmmo = 0;
-        this.ammo = 0;
+        this.type = 'wheeled-artillery';
+        this.name = '차륜형 자주포';
+        this.speed = 1.2;
+        this.baseSpeed = 1.2;
+        this.fireRate = 5000; 
+        this.damage = 120; 
+        this.attackRange = 850; 
+        this.visionRange = 8;
+        this.explosionRadius = 80; 
+        this.size = 100;
+        this.cargoSize = 10;
+        this.population = 4;
+        this.isIndirect = true;
+        this.armorType = 'light';
+        this.weaponType = 'cluster'; 
+        this.ammoType = 'shell';
+        this.maxAmmo = 15;
+        this.ammo = 15;
+        this.turretRotationSpeed = 0.04;
+        this.turretOffset = { x: -12, y: 0 }; 
+        this.recoil = 0; 
+        this.muzzleOffset = 110; 
     }
 
-    attack() {
-        // 공격 기능 없음
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.turretAngle = this.angle;
+        this.turretOffset = { x: -12, y: 0 };
+        this.recoil = 0;
     }
 
     update(deltaTime) {
-        // BaseUnit의 update를 호출하여 충돌(밀어내기) 로직은 실행하되,
-        // 자체적인 이동 명령(destination)은 무시함
         super.update(deltaTime);
-        if (this._destination) {
-            this._destination = null;
-            this.path = [];
-        }
+        if (this.recoil > 0) this.recoil *= 0.9;
     }
 
-    draw(ctx) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
+    performAttack() {
+        const now = Date.now();
+        if (now - this.lastFireTime < this.fireRate || !this.target) return;
+        if (this.ammo < 1) return;
+        this.ammo--;
+        if (this.engine.addEffect) {
+            const mx = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
+            const my = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
+            this.engine.addEffect('muzzle_large', mx, my, '#ff8c00');
         }
+        const spawnX = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
+        const spawnY = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
+        this.engine.entityManager.spawnProjectileECS(spawnX, spawnY, this.target, this.damage, {
+            speed: 14, explosionRadius: this.explosionRadius, ownerId: this.ownerId, isIndirect: true, 
+            peakHeight: 400, // 고도 하향 조정
+            weaponType: 'cluster'
+        });
+        this.lastFireTime = now;
+        this.recoil = 12;
+    }
+
+    drawBody(ctx) {
+        ctx.scale(2.2, 2.2);
+        const mainColor = '#4b5320'; 
+        const darkMetal = '#1e272e';
+        ctx.fillStyle = '#111';
+        for(let i=0; i<4; i++) {
+            const wx = -20 + i*11;
+            ctx.fillRect(wx, -12, 7, 3);
+            ctx.fillRect(wx, 9, 7, 3);
+        }
+        ctx.fillStyle = darkMetal;
+        ctx.fillRect(-25, -9, 50, 18);
+        ctx.fillStyle = mainColor;
+        ctx.beginPath();
+        ctx.moveTo(15, -10); ctx.lineTo(25, -10);
+        ctx.lineTo(28, -7); ctx.lineTo(28, 7);
+        ctx.lineTo(25, 10); ctx.lineTo(15, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#2c3e50'; ctx.fillRect(22, -8, 3, 16); 
+        ctx.fillStyle = '#3a4118';
+        ctx.fillRect(-10, -10, 25, 20);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, -11, 10, 2); ctx.fillRect(0, 9, 10, 2);
+    }
+
+    drawBodyAnimations(ctx) {
         ctx.save();
-        ctx.scale(2, 2);
-
-        // --- 그림자 (Depth 효과) ---
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.fillRect(-38, -8, 80, 26);
-
-        // 1. 하부 구동부 프레임
-        ctx.fillStyle = '#1e272e';
-        ctx.fillRect(-42, -13, 84, 26);
-
-        // 2. 바퀴 (심플한 현대식 보기 대차 느낌)
-        ctx.fillStyle = '#0a0a0a';
-        for (let i = -32; i <= 32; i += 16) {
-            ctx.fillRect(i - 6, -15, 12, 4);
-            ctx.fillRect(i - 6, 11, 12, 4);
-        }
-
-        // 3. 메인 바디 (박스형 기관차 본체)
-        // 측면 명암을 위한 그라데이션
-        const bodyGrd = ctx.createLinearGradient(0, -11, 0, 11);
-        bodyGrd.addColorStop(0, '#2c3e50'); // 상단 어두운 파랑
-        bodyGrd.addColorStop(0.3, '#34495e'); // 메인 컬러
-        bodyGrd.addColorStop(1, '#1a252f'); // 하단 쉐이딩
-        ctx.fillStyle = bodyGrd;
-        ctx.fillRect(-40, -11, 80, 22);
-
-        // 4. 전면부 (기관실 방향)
-        // 전면 유리창 및 경사면 표현
-        ctx.fillStyle = '#2c3e50';
-        ctx.beginPath();
-        ctx.moveTo(30, -11);
-        ctx.lineTo(42, -9);
-        ctx.lineTo(42, 9);
-        ctx.lineTo(30, 11);
-        ctx.closePath();
-        ctx.fill();
-
-        // 전면 유리 (Light Blue)
-        ctx.fillStyle = '#85c1e9';
-        ctx.beginPath();
-        ctx.moveTo(34, -8);
-        ctx.lineTo(41, -7);
-        ctx.lineTo(41, 7);
-        ctx.lineTo(34, 8);
-        ctx.closePath();
-        ctx.fill();
-
-        // 5. 상단 디테일 (루프 및 환풍구)
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(-35, -12, 60, 2); // 루프 라인
-        ctx.fillRect(-35, 10, 60, 2);
-
-        // 환풍기/팬 디테일
-        ctx.fillStyle = '#1a1a1a';
-        for (let i = -20; i <= 10; i += 15) {
-            ctx.beginPath();
-            ctx.arc(i, 0, 4, 0, Math.PI * 2);
-            ctx.fill();
-            // 팬 날개 느낌
-            ctx.strokeStyle = '#333';
+        ctx.scale(2.2, 2.2);
+        if (!this._destination) {
+            ctx.fillStyle = '#333';
+            ctx.strokeStyle = '#7f8c8d';
             ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(i - 3, 0); ctx.lineTo(i + 3, 0);
-            ctx.moveTo(i, -3); ctx.lineTo(i, 3);
-            ctx.stroke();
+            const outriggers = [{ x: -20, y: -10, dy: -1 }, { x: -20, y: 10, dy: 1 }];
+            outriggers.forEach(o => {
+                ctx.save();
+                ctx.translate(o.x, o.y + o.dy * 2);
+                ctx.fillRect(-2, -1, 4, 2);
+                ctx.beginPath(); ctx.moveTo(0, -o.dy * 2); ctx.lineTo(0, 0); ctx.stroke();
+                ctx.restore();
+            });
         }
-
-        // 6. 측면 도어 및 점검창
-        ctx.fillStyle = '#1a252f';
-        ctx.fillRect(-10, -11, 8, 22); // 중앙 출입문
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(-9, -10, 6, 20);
-
-        // 7. 하이라이트 및 범퍼
-        ctx.fillStyle = '#f1c40f'; // 노란색 안전 경고선
-        ctx.fillRect(40, -11, 2, 22);
-        ctx.fillRect(-42, -11, 2, 22);
-
-        // 헤드라이트 (쌍등)
-        const pulse = Math.sin(Date.now() / 250) * 0.5 + 0.5;
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + pulse * 0.3})`;
-        ctx.beginPath(); ctx.arc(41, -5, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(41, 5, 2, 0, Math.PI * 2); ctx.fill();
-
         ctx.restore();
     }
-}
 
-export class FreightCar extends PlayerUnit {
-    static editorConfig = { category: 'vehicle', icon: 'freight-car', name: '화물칸' };
-    constructor(x, y, engine) {
-        super(x, y, engine);
-        this.type = 'freight-car';
-        this.name = '화물칸';
-        this.speed = 0;
-        this.fireRate = 1000;
-        this.damage = 0;
-        this.color = '#95a5a6';
-        this.attackRange = 0;
-        this.visionRange = 2;
-        this.size = 110; 
-        this.cargoSize = 99; // 수송 불가
-        this.population = 0;
-        this.hp = 1500;
-        this.maxHp = 1500;
-        this.attackTargets = [];
-
-        this.ammoType = null;
-        this.maxAmmo = 0;
-        this.ammo = 0;
-    }
-
-    update(deltaTime) {
-        super.update(deltaTime);
-        if (this._destination) {
-            this._destination = null;
-            this.path = [];
-        }
-    }
-
-    draw(ctx) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
+    drawTurret(ctx) {
+        const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
+            offCtx.scale(2.2, 2.2);
+            const darkHull = '#3a4118';
+            offCtx.fillStyle = darkHull;
+            offCtx.beginPath();
+            offCtx.moveTo(-12, -10); offCtx.lineTo(10, -10);
+            offCtx.lineTo(14, -6); offCtx.lineTo(14, 6);
+            offCtx.lineTo(10, 10); offCtx.lineTo(-12, 10);
+            offCtx.closePath();
+            offCtx.fill();
+            offCtx.fillStyle = '#1a1a1a';
+            offCtx.beginPath(); offCtx.arc(-2, -4, 4, 0, Math.PI * 2); offCtx.fill();
+            offCtx.fillStyle = '#2980b9'; offCtx.fillRect(6, 3, 4, 3);
+        });
+        const s = turretImg.width;
+        ctx.drawImage(turretImg, -s/2, -s/2);
         ctx.save();
-        ctx.scale(2, 2);
-
-        // --- 그림자 ---
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.fillRect(-38, -8, 76, 26);
-
-        // 1. 하부 프레임 및 연결부
-        ctx.fillStyle = '#1e272e';
-        ctx.fillRect(-42, -12, 84, 24);
-        // 커플러 (연결기) 표현
-        ctx.fillRect(-45, -3, 6, 6);
-        ctx.fillRect(39, -3, 6, 6);
-
-        // 2. 바퀴 (보기 대차)
-        ctx.fillStyle = '#0a0a0a';
-        for (let i = -30; i <= 30; i += 60) {
-            ctx.fillRect(i - 6, -14, 12, 4);
-            ctx.fillRect(i - 6, 10, 12, 4);
-        }
-
-        // 3. 컨테이너 본체
-        const bodyGrd = ctx.createLinearGradient(0, -10, 0, 10);
-        bodyGrd.addColorStop(0, '#7f8c8d');
-        bodyGrd.addColorStop(0.5, '#95a5a6');
-        bodyGrd.addColorStop(1, '#707b7c');
-        ctx.fillStyle = bodyGrd;
-        ctx.fillRect(-38, -10, 76, 20);
-
-        // 컨테이너 주름(수직선) 디테일
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = 1;
-        for (let i = -32; i <= 32; i += 8) {
-            ctx.beginPath();
-            ctx.moveTo(i, -10);
-            ctx.lineTo(i, 10);
-            ctx.stroke();
-        }
-
-        // 4. 상단 루프 디테일
-        ctx.fillStyle = '#707b7c';
-        ctx.fillRect(-35, -11, 70, 2);
-        ctx.fillRect(-35, 9, 70, 2);
-
-        // 6. 안전 반사판
-        ctx.fillStyle = '#c0392b';
-        ctx.fillRect(-38, 6, 3, 2);
-        ctx.fillRect(35, 6, 3, 2);
-
+        ctx.scale(2.2, 2.2);
+        const hullColor = '#4b5320';
+        const recoilOffset = this.recoil || 0;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(14 - recoilOffset, -2.5, 45, 5); 
+        ctx.fillStyle = hullColor;
+        ctx.fillRect(14 - recoilOffset, -3, 12, 6); 
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(55 - recoilOffset, -4, 6, 8);
+        ctx.fillRect(57 - recoilOffset, -4.5, 2, 9);
         ctx.restore();
     }
 }
@@ -1284,49 +1049,35 @@ export class SAMLauncher extends TurretUnit {
         this.damage = 250;
         this.attackRange = 700;
         this.visionRange = 12;
-        this.attackTargets = ['air']; // 오직 공중만 타격
+        this.attackTargets = ['air']; 
         this.size = 85;
         this.cargoSize = 8;
         this.population = 3;
         this.hp = 1200;
         this.maxHp = 1200;
         this.muzzleOffset = 40;
-        
-        this.armorType = 'heavy'; // 장갑형
+        this.armorType = 'heavy'; 
         this.weaponType = 'missile';
-        
         this.ammoType = 'missile';
         this.maxAmmo = 8;
         this.ammo = 8;
-        
         this.turretRotationSpeed = 0.08;
     }
 
     attack() {
         const now = Date.now();
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
-
-        // 포탑 조준 정렬 확인 (TurretUnit 로직 활용)
         const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
         let diff = targetAngle - this.turretAngle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         if (Math.abs(diff) > 0.15) return;
-
-        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
-        if (dist > this.attackRange) return;
-
+        if (Math.hypot(this.target.x - this.x, this.target.y - this.y) > this.attackRange) return;
         if (this.ammo <= 0) return;
-
         this.engine.audioSystem.play('missile_flight', { volume: 0.25 });
-        
         this.engine.entityManager.create('guided-missile', this.x, this.y, {
-            target: this.target,
-            damage: this.damage,
-            ownerId: this.ownerId,
-            flightAngle: this.turretAngle 
+            target: this.target, damage: this.damage, ownerId: this.ownerId, flightAngle: this.turretAngle 
         }, 'neutral');
-
         this.ammo--;
         this.lastFireTime = now;
     }
@@ -1335,15 +1086,12 @@ export class SAMLauncher extends TurretUnit {
         ctx.scale(2.2, 2.2);
         const hullColor = '#3a4118'; 
         const darkHull = '#2d3212';  
-
         ctx.fillStyle = darkHull;
         ctx.fillRect(-20, -13, 40, 26);
-
         ctx.fillStyle = hullColor;
         ctx.beginPath();
         ctx.roundRect(-20, -11, 40, 22, 2);
         ctx.fill();
-
         ctx.fillStyle = '#1a1a1a';
         for(let i=-15; i<=15; i+=10) {
             ctx.fillRect(i-3, -14, 6, 2);
@@ -1357,19 +1105,16 @@ export class SAMLauncher extends TurretUnit {
             const hullColor = '#3a4118'; 
             const darkHull = '#2d3212';  
             const lightHull = '#4b5320'; 
-
             offCtx.fillStyle = darkHull;
             offCtx.beginPath();
             offCtx.moveTo(-12, -10); offCtx.lineTo(8, -10); offCtx.lineTo(12, -6);
             offCtx.lineTo(12, 6); offCtx.lineTo(8, 10); offCtx.lineTo(-12, 10);
             offCtx.closePath();
             offCtx.fill();
-
             offCtx.fillStyle = lightHull;
             offCtx.fillRect(-6, -6, 12, 12);
             offCtx.fillStyle = '#1a1a1a';
             offCtx.fillRect(2, -4, 3, 8); 
-
             const drawCanisterBank = (offsetY) => {
                 offCtx.save();
                 offCtx.translate(0, offsetY);
@@ -1389,15 +1134,10 @@ export class SAMLauncher extends TurretUnit {
             drawCanisterBank(-6); 
             drawCanisterBank(6);
         });
-
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
-
-        // --- 실시간 레이더 애니메이션 & 탄두 표시 (캐시 제외) ---
         ctx.save();
         ctx.scale(2.2, 2.2);
-        
-        // 탄두(미사일) 표시
         const hullColor = '#3a4118'; 
         const drawMissileHeads = (offsetY) => {
             const holes = [-2.2, 2.2];
@@ -1413,21 +1153,154 @@ export class SAMLauncher extends TurretUnit {
         };
         drawMissileHeads(-6);
         drawMissileHeads(6);
-
-        // 레이더
         ctx.translate(-8, 0);
         const radarRot = (Date.now() / 800) % (Math.PI * 2);
         ctx.rotate(radarRot);
         ctx.fillStyle = '#2d3436';
         ctx.fillRect(-2, -1, 4, 2);
-        ctx.fillStyle = '#2d3212'; // darkHull
+        ctx.fillStyle = '#2d3212';
         ctx.fillRect(-1, -8, 2, 16);
-        ctx.fillStyle = '#3a4118'; // hullColor
+        ctx.fillStyle = '#3a4118';
         ctx.fillRect(-2, -8, 2, 16);
         if (Math.sin(Date.now() / 100) > 0) {
             ctx.fillStyle = '#00d2ff';
             ctx.fillRect(-2, -6, 1, 2);
         }
+        ctx.restore();
+    }
+}
+
+export class Train extends PlayerUnit {
+    static editorConfig = { category: 'vehicle', icon: 'train', name: '기차' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'train';
+        this.name = '기차';
+        this.speed = 0;
+        this.fireRate = 1000;
+        this.damage = 0;
+        this.color = '#7f8c8d';
+        this.attackRange = 0;
+        this.visionRange = 4;
+        this.size = 120; 
+        this.cargoSize = 99; 
+        this.population = 10; 
+        this.hp = 2000;
+        this.maxHp = 2000;
+        this.attackTargets = []; 
+        this.ammoType = null;
+        this.maxAmmo = 0;
+        this.ammo = 0;
+    }
+    attack() { }
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (this._destination) { this._destination = null; this.path = []; }
+    }
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.scale(2, 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(-38, -8, 80, 26);
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-42, -13, 84, 26);
+        ctx.fillStyle = '#0a0a0a';
+        for (let i = -32; i <= 32; i += 16) {
+            ctx.fillRect(i - 6, -15, 12, 4);
+            ctx.fillRect(i - 6, 11, 12, 4);
+        }
+        const bodyGrd = ctx.createLinearGradient(0, -11, 0, 11);
+        bodyGrd.addColorStop(0, '#2c3e50'); 
+        bodyGrd.addColorStop(0.3, '#34495e'); 
+        bodyGrd.addColorStop(1, '#1a252f'); 
+        ctx.fillStyle = bodyGrd;
+        ctx.fillRect(-40, -11, 80, 22);
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath();
+        ctx.moveTo(30, -11); ctx.lineTo(42, -9); ctx.lineTo(42, 9); ctx.lineTo(30, 11);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#85c1e9';
+        ctx.beginPath();
+        ctx.moveTo(34, -8); ctx.lineTo(41, -7); ctx.lineTo(41, 7); ctx.lineTo(34, 8);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(-35, -12, 60, 2); 
+        ctx.fillRect(-35, 10, 60, 2);
+        ctx.fillStyle = '#1a1a1a';
+        for (let i = -20; i <= 10; i += 15) {
+            ctx.beginPath(); ctx.arc(i, 0, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(i - 3, 0); ctx.lineTo(i + 3, 0); ctx.moveTo(i, -3); ctx.lineTo(i, 3); ctx.stroke();
+        }
+        ctx.fillStyle = '#1a252f'; ctx.fillRect(-10, -11, 8, 22); 
+        ctx.fillStyle = '#34495e'; ctx.fillRect(-9, -10, 6, 20);
+        ctx.fillStyle = '#f1c40f'; 
+        ctx.fillRect(40, -11, 2, 22); ctx.fillRect(-42, -11, 2, 22);
+        const pulse = Math.sin(Date.now() / 250) * 0.5 + 0.5;
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + pulse * 0.3})`;
+        ctx.beginPath(); ctx.arc(41, -5, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(41, 5, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+export class FreightCar extends PlayerUnit {
+    static editorConfig = { category: 'vehicle', icon: 'freight-car', name: '화물칸' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'freight-car';
+        this.name = '화물칸';
+        this.speed = 0;
+        this.fireRate = 1000;
+        this.damage = 0;
+        this.color = '#95a5a6';
+        this.attackRange = 0;
+        this.visionRange = 2;
+        this.size = 110; 
+        this.cargoSize = 99; 
+        this.population = 0;
+        this.hp = 1500;
+        this.maxHp = 1500;
+        this.attackTargets = [];
+        this.ammoType = null;
+        this.maxAmmo = 0;
+        this.ammo = 0;
+    }
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (this._destination) { this._destination = null; this.path = []; }
+    }
+    draw(ctx) {
+        if (this.isUnderConstruction) { this.drawConstruction(ctx); return; }
+        ctx.save();
+        ctx.scale(2, 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(-38, -8, 76, 26);
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-42, -12, 84, 24);
+        ctx.fillRect(-45, -3, 6, 6);
+        ctx.fillRect(39, -3, 6, 6);
+        ctx.fillStyle = '#0a0a0a';
+        for (let i = -30; i <= 30; i += 60) {
+            ctx.fillRect(i - 6, -14, 12, 4);
+            ctx.fillRect(i - 6, 10, 12, 4);
+        }
+        const bodyGrd = ctx.createLinearGradient(0, -10, 0, 10);
+        bodyGrd.addColorStop(0, '#7f8c8d');
+        bodyGrd.addColorStop(0.5, '#95a5a6');
+        bodyGrd.addColorStop(1, '#707b7c');
+        ctx.fillStyle = bodyGrd;
+        ctx.fillRect(-38, -10, 76, 20);
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        for (let i = -32; i <= 32; i += 8) {
+            ctx.beginPath(); ctx.moveTo(i, -10); ctx.lineTo(i, 10); ctx.stroke();
+        }
+        ctx.fillStyle = '#707b7c';
+        ctx.fillRect(-35, -11, 70, 2); ctx.fillRect(-35, 9, 70, 2);
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(-38, 6, 3, 2); ctx.fillRect(35, 6, 3, 2);
         ctx.restore();
     }
 }

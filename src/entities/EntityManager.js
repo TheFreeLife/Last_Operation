@@ -46,14 +46,16 @@ export class EntityManager {
         this.ecsWorld.startY[idx] = y;
         this.ecsWorld.targetX[idx] = target.x;
         this.ecsWorld.targetY[idx] = target.y;
+        this.ecsWorld.peakHeight[idx] = options.peakHeight || 0;
+        this.ecsWorld.startHeight[idx] = options.startHeight || 0;
         this.ecsWorld.speed[idx] = options.speed || 8;
         this.ecsWorld.damage[idx] = damage;
         this.ecsWorld.explosionRadius[idx] = options.explosionRadius || 0;
         this.ecsWorld.ownerId[idx] = options.ownerId || 0;
         this.ecsWorld.isIndirect[idx] = options.isIndirect ? 1 : 0;
         
-        // weaponType 매핑 (0: bullet, 1: sniper, 2: shell, 3: missile, 4: fire)
-        const weaponMap = { 'bullet': 0, 'sniper': 1, 'shell': 2, 'missile': 3, 'fire': 4 };
+        // weaponType 매핑 (0: bullet, 1: sniper, 2: shell, 3: missile, 4: fire, 5: cluster)
+        const weaponMap = { 'bullet': 0, 'sniper': 1, 'shell': 2, 'missile': 3, 'fire': 4, 'cluster': 5 };
         this.ecsWorld.weaponType[idx] = weaponMap[options.weaponType] || 0;
 
         // [추가] 투사체는 체력 시스템의 영향을 받지 않도록 충분한 HP 설정 또는 초기화

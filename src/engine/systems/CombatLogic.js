@@ -34,6 +34,42 @@ export const CombatLogic = {
 
         const tileMap = engine.tileMap;
         
+        // --- [수정] 집속탄(Cluster Munition) 처리: 상공 분열 및 자탄 낙하 ---
+        if (weaponType === 'cluster' && !options._isSubMunition) {
+            // 1. 모체 포탄의 공중 파열 효과 (소리만 재생)
+            engine.audioSystem.play('explosion', { volume: 0.15, pitch: 1.2 });
+
+            // 2. 자탄 살포 (16~24개) - 실제 투사체로 생성하여 낙하 연출
+            const subCount = 16 + Math.floor(Math.random() * 9);
+            for (let i = 0; i < subCount; i++) {
+                const scatterAngle = (Math.PI * 2 / subCount) * i + (Math.random() * 0.8 - 0.4);
+                
+                // [수정] 최소 거리를 확보하여 즉시 폭발 방지 및 중심부 밀도 유지
+                const scatterDist = 30 + Math.random() * radius * 3.5; 
+                
+                // [핵심] 모든 자탄이 비슷한 시간(약 180~280프레임) 동안 체공하도록 속도 역산
+                const targetFrames = 180 + Math.random() * 100;
+                const calculatedSpeed = scatterDist / targetFrames;
+
+                // 자탄이 떨어질 지점
+                const dropX = x + Math.cos(scatterAngle) * scatterDist;
+                const dropY = y + Math.sin(scatterAngle) * scatterDist;
+                
+                // 자탄 투사체 생성
+                engine.entityManager.spawnProjectileECS(x, y, { x: dropX, y: dropY }, damage * 0.6, {
+                    speed: Math.max(0.4, calculatedSpeed), // 최소 속도 보장
+                    explosionRadius: radius * 0.5,
+                    ownerId: options.ownerId,
+                    isIndirect: true, 
+                    startHeight: options._motherHeight || 0, 
+                    peakHeight: 5 + Math.random() * 10, 
+                    weaponType: 'shell', 
+                    _isSubMunition: true
+                });
+            }
+            return true; // 모체는 여기서 소멸 (지면 타격 안 함)
+        }
+
         // 1. 천장 레이어 판정 (곡사 무기 전용)
         let hitCeiling = false;
         if (isIndirect && tileMap) {
