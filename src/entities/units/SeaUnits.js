@@ -1,209 +1,325 @@
-import { PlayerUnit } from './BaseUnit.js';
+import { PlayerUnit, TurretUnit } from './BaseUnit.js';
 
-export class SmallBoat extends PlayerUnit {
+export class SmallBoat extends TurretUnit {
     static editorConfig = { category: 'sea', icon: 'boat', name: '고속정' };
     constructor(x, y, engine) {
         super(x, y, engine);
         this.type = 'small-boat';
         this.name = '고속정';
-        this.speed = 2.5; // 해상 유닛은 비교적 빠름
-        this.fireRate = 800;
+        this.speed = 2.5; 
+        this.baseSpeed = 2.5;
+        this.fireRate = 600; 
         this.damage = 25;
         this.color = '#3498db';
-        this.attackRange = 400;
-        this.visionRange = 7;
-        this.size = 60;
-        this.population = 4; // 승무원 4명
-        this.hp = 400;
-        this.maxHp = 400;
-        this.muzzleOffset = 35;
-        this.projectileSpeed = 35; // 고속정 탄속 상향 (20 -> 35)
+        this.attackRange = 450;
+        this.visionRange = 10;
+        this.size = 70; 
+        this.population = 4; 
+        this.hp = 500;
+        this.maxHp = 500;
+        this.cargoSize = 99; // 수송 불가
+        this.muzzleOffset = 45;
+        this.projectileSpeed = 38; 
         this.hitEffectType = 'bullet';
 
-        this.domain = 'sea'; // 해상 도메인
-        this.attackTargets = ['ground', 'sea', 'air']; // 만능 공격?
+        this.domain = 'sea'; 
+        this.attackTargets = ['ground', 'sea', 'air']; 
 
         this.armorType = 'light';
         this.weaponType = 'bullet';
 
         this.ammoType = 'bullet';
-        this.maxAmmo = 200;
-        this.ammo = 200;
+        this.maxAmmo = 300;
+        this.ammo = 300;
 
-        this.turretAngle = this.angle; // 독립적인 포탑 각도
+        this.turretOffset = { x: 12, y: 0 }; 
+        this.recoil = 0;
     }
 
     init(x, y, engine) {
         super.init(x, y, engine);
         this.turretAngle = this.angle;
-    }
-
-    getCacheKey() {
-        // 포탑이 차체와 정렬되어 있을 때만 비트맵 캐싱 사용
-        if (Math.abs(this.turretAngle - this.angle) > 0.05) return null;
-        return this.type;
+        this.turretOffset = { x: 12, y: 0 };
+        this.recoil = 0;
     }
 
     update(deltaTime) {
-        // 1. 이전 상태 저장
-        const prevHullAngle = this.angle;
-        const oldTarget = this.target;
-
-        // 2. 부모 클래스(BaseUnit) 로직 수행
         super.update(deltaTime);
+        if (this.recoil > 0) this.recoil *= 0.85;
 
-        // 3. 이동 중일 때 물보라 파티클 생성
+        // 이동 중일 때 물보라 파티클 생성
         if (this.active && this._destination && Math.hypot(this.x - this._destination.x, this.y - this._destination.y) > 10) {
+            if (Math.random() < 0.25) {
+                const fx = this.x + Math.cos(this.angle) * 25;
+                const fy = this.y + Math.sin(this.angle) * 25;
+                this.engine.addEffect?.('water_wake', fx, fy, this.angle);
+            }
             if (Math.random() < 0.15) {
-                const bx = this.x + Math.cos(this.angle + Math.PI) * 20;
-                const by = this.y + Math.sin(this.angle + Math.PI) * 20;
+                const bx = this.x + Math.cos(this.angle + Math.PI) * 25;
+                const by = this.y + Math.sin(this.angle + Math.PI) * 25;
+                this.engine.addEffect?.('water_wake', bx, by, this.angle);
+            }
+        }
+    }
+
+    drawBody(ctx) {
+        const bodyImg = this.getPartBitmap(this.type, 'body', (offCtx) => {
+            offCtx.scale(1.8, 1.8);
+            const hullColor = '#2c3e50'; 
+            const deckColor = '#34495e';
+            const detailColor = '#1e272e';
+
+            // 1. 스텔스 선체 (Hull)
+            offCtx.fillStyle = hullColor;
+            offCtx.beginPath();
+            offCtx.moveTo(28, 0);    
+            offCtx.lineTo(10, -12);  
+            offCtx.lineTo(-25, -12); 
+            offCtx.lineTo(-28, -8);  
+            offCtx.lineTo(-28, 8);   
+            offCtx.lineTo(-25, 12);  
+            offCtx.lineTo(10, 12);   
+            offCtx.closePath();
+            offCtx.fill();
+
+            // 2. 갑판 구조물 (Deck)
+            offCtx.fillStyle = deckColor;
+            offCtx.beginPath();
+            offCtx.moveTo(15, 0);
+            offCtx.lineTo(5, -8);
+            offCtx.lineTo(-22, -8);
+            offCtx.lineTo(-22, 8);
+            offCtx.lineTo(5, 8);
+            offCtx.closePath();
+            offCtx.fill();
+
+            // 3. 브릿지 / 상부 구조 (Bridge)
+            offCtx.fillStyle = detailColor;
+            offCtx.fillRect(-8, -6, 12, 12);
+            offCtx.fillStyle = '#2c3e50';
+            offCtx.beginPath();
+            offCtx.moveTo(4, -6); offCtx.lineTo(8, -4); offCtx.lineTo(8, 4); offCtx.lineTo(4, 6); offCtx.fill();
+            offCtx.fillStyle = '#2980b9';
+            offCtx.globalAlpha = 0.6;
+            offCtx.fillRect(5, -4, 2, 8);
+            offCtx.globalAlpha = 1.0;
+
+            // 4. 후방 미사일 발사관 (Missile Launchers)
+            offCtx.fillStyle = '#111';
+            offCtx.fillRect(-20, -7, 8, 4); 
+            offCtx.fillRect(-20, 3, 8, 4);  
+            offCtx.fillStyle = '#000';
+            offCtx.fillRect(-5, -13, 10, 1); 
+            offCtx.fillRect(-5, 12, 10, 1);
+        });
+
+        const s = bodyImg.width;
+        ctx.drawImage(bodyImg, -s/2, -s/2);
+    }
+
+    drawBodyAnimations(ctx) {
+        ctx.save();
+        ctx.scale(1.8, 1.8);
+        ctx.translate(-5, 0);
+        const radarRot = (Date.now() / 500) % (Math.PI * 2);
+        ctx.rotate(radarRot);
+        ctx.strokeStyle = '#00d2ff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-4, 0); ctx.lineTo(4, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#00d2ff';
+        ctx.fillRect(2, -0.5, 3, 1);
+        ctx.restore();
+    }
+
+    drawTurret(ctx) {
+        const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
+            offCtx.scale(1.8, 1.8);
+            const gunColor = '#2c3e50';
+            offCtx.fillStyle = gunColor;
+            offCtx.beginPath();
+            offCtx.moveTo(-6, -5);
+            offCtx.lineTo(4, -5);
+            offCtx.lineTo(8, -2);
+            offCtx.lineTo(8, 2);
+            offCtx.lineTo(4, 5);
+            offCtx.lineTo(-6, 5);
+            offCtx.closePath();
+            offCtx.fill();
+            offCtx.fillStyle = '#111';
+            offCtx.fillRect(-2, -2, 4, 4);
+        });
+
+        const s = turretImg.width;
+        ctx.drawImage(turretImg, -s/2, -s/2);
+
+        ctx.save();
+        ctx.scale(1.8, 1.8);
+        const recoilX = this.recoil || 0;
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(8 - recoilX, -1, 15, 2); 
+        ctx.fillStyle = '#333';
+        ctx.fillRect(20 - recoilX, -1.5, 4, 3); 
+        ctx.restore();
+    }
+}
+
+export class Corvette extends TurretUnit {
+    static editorConfig = { category: 'sea', icon: 'boat', name: '초계함' };
+    constructor(x, y, engine) {
+        super(x, y, engine);
+        this.type = 'corvette';
+        this.name = '초계함';
+        this.speed = 1.8; 
+        this.baseSpeed = 1.8;
+        this.fireRate = 100; // 초고속 연사 (30mm 기관포)
+        this.damage = 12;
+        this.attackRange = 550;
+        this.visionRange = 12;
+        this.size = 100; 
+        this.population = 12; 
+        this.hp = 1500;
+        this.maxHp = 1500;
+        this.cargoSize = 99; // 수송 불가
+        this.muzzleOffset = 60;
+        this.projectileSpeed = 42; 
+        this.hitEffectType = 'bullet';
+
+        this.domain = 'sea'; 
+        this.attackTargets = ['ground', 'sea', 'air']; 
+
+        this.armorType = 'heavy';
+        this.weaponType = 'bullet'; // 기관총 판정
+
+        this.ammoType = 'bullet';
+        this.maxAmmo = 600;
+        this.ammo = 600;
+
+        this.turretOffset = { x: 25, y: 0 }; 
+        this.recoil = 0;
+
+        // 미사일 시스템
+        this.missileFireRate = 8000;
+        this.lastMissileTime = 0;
+    }
+
+    init(x, y, engine) {
+        super.init(x, y, engine);
+        this.turretAngle = this.angle;
+        this.turretOffset = { x: 25, y: 0 };
+        this.recoil = 0;
+        this.lastMissileTime = 0;
+        this.ammo = 600;
+    }
+
+    update(deltaTime) {
+        super.update(deltaTime);
+        if (this.recoil > 0) this.recoil *= 0.8; // 빠른 복구
+
+        // 이동 중 물보라 연출
+        if (this.active && this._destination && Math.hypot(this.x - this._destination.x, this.y - this._destination.y) > 10) {
+            if (Math.random() < 0.3) {
+                const fx = this.x + Math.cos(this.angle) * 45;
+                const fy = this.y + Math.sin(this.angle) * 45;
+                this.engine.addEffect?.('water_wake', fx, fy, this.angle);
+            }
+            if (Math.random() < 0.2) {
+                const bx = this.x + Math.cos(this.angle + Math.PI) * 45;
+                const by = this.y + Math.sin(this.angle + Math.PI) * 45;
                 this.engine.addEffect?.('water_wake', bx, by, this.angle);
             }
         }
 
-        // 4. [상태 기반 타겟 관리]
-        if (this.command === 'move') {
-            this.target = null;
-            this.manualTarget = null;
-        } 
-        else if (!this.target && oldTarget && oldTarget.active && oldTarget.hp > 0) {
-            const dist = Math.hypot(oldTarget.x - this.x, oldTarget.y - this.y);
-            if (dist <= this.attackRange * 1.1) {
-                this.target = oldTarget;
-            }
-        }
-
-        // 5. [하단부 제어] 이동 중에만 회전
-        if (this._destination) {
-            const targetMoveAngle = this.getMovementAngle();
-            const angleDiff = Math.atan2(Math.sin(targetMoveAngle - prevHullAngle), Math.cos(targetMoveAngle - prevHullAngle));
-            this.angle = prevHullAngle + angleDiff * 0.1; // 배는 차량보다 약간 더 느리게 회전
-        } else {
-            this.angle = prevHullAngle;
-        }
-
-        // 6. [상단부 제어] 포탑 회전
-        if (this.target) {
-            const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            let diff = targetAngle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            
-            this.turretAngle += diff * 0.1; // 포탑 회전 속도
-            this.attack();
-        } else {
-            // 타겟이 없으면 선체 정면 방향으로 서서히 정렬
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.05;
-        }
-    }
-
-    getMovementAngle() {
-        if (!this._destination) return this.angle;
-        const ff = (this.ownerId === 2) ? this.engine.enemyFlowField : this.engine.flowField;
-        const vector = ff.getFlowVector(this.x, this.y, this._destination.x, this._destination.y, this.sizeClass, this.domain);
-        if (vector.x !== 0 || vector.y !== 0) return Math.atan2(vector.y, vector.x);
-        return Math.atan2(this._destination.y - this.y, this._destination.x - this.x);
-    }
-
-    attack() {
-        if (!this.target) return;
-        const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-        let diff = targetAngle - this.turretAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-
-        if (Math.abs(diff) < 0.1) {
-            this.performAttack();
-        }
-    }
-
-    performAttack() {
+        // 보조 무장: 대함/대공 미사일 (자동 발사)
         const now = Date.now();
-        if (now - this.lastFireTime < this.fireRate || !this.target) return;
-
-        const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
-        if (dist > this.attackRange) return;
-
-        if (this.maxAmmo > 0 && this.ammo < this.ammoConsumption) return;
-        if (this.maxAmmo > 0) this.ammo -= this.ammoConsumption;
-
-        if (this.engine.addEffect) {
-            const mx = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
-            const my = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
-            this.engine.addEffect('muzzle', mx, my, '#ff8c00');
+        if (this.target && now - this.lastMissileTime > this.missileFireRate) {
+            this.fireMissile();
+            this.lastMissileTime = now;
         }
-
-        this.executeProjectileAttack();
-        this.lastFireTime = now;
     }
 
-    executeProjectileAttack() {
-        const spawnX = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
-        const spawnY = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
-
-        const options = {
-            speed: this.projectileSpeed,
-            ownerId: this.ownerId,
-            isIndirect: false,
-            weaponType: this.weaponType
-        };
-
-        this.engine.entityManager.spawnProjectileECS(spawnX, spawnY, this.target, this.damage, options);
-    }
-
-    draw(ctx) {
-        if (this.isUnderConstruction) {
-            this.drawConstruction(ctx);
-            return;
-        }
-        ctx.save();
-        ctx.scale(1.5, 1.5);
-
-        // --- 선체 (Hull) ---
-        ctx.fillStyle = '#2c3e50';
-        ctx.beginPath();
-        ctx.moveTo(-20, -10);
-        ctx.lineTo(15, -10);
-        ctx.lineTo(25, 0);
-        ctx.lineTo(15, 10);
-        ctx.lineTo(-20, 10);
-        ctx.closePath();
-        ctx.fill();
-
-        // --- 갑판 (Deck) ---
-        ctx.fillStyle = '#7f8c8d';
-        ctx.beginPath();
-        ctx.moveTo(-15, -7);
-        ctx.lineTo(12, -7);
-        ctx.lineTo(18, 0);
-        ctx.lineTo(12, 7);
-        ctx.lineTo(-15, 7);
-        ctx.closePath();
-        ctx.fill();
-
-        // --- 조타실 (Bridge) ---
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(-8, -5, 12, 10);
-        ctx.fillStyle = '#85c1e9'; // 창문
-        ctx.fillRect(0, -4, 3, 8);
-
-        // --- 포탑 (Turret) - turretAngle 적용 ---
-        ctx.save();
-        // 선체의 로컬 좌표계에서 turretAngle(월드) - angle(선체 월드) 만큼 회전
-        ctx.translate(10, 0);
-        ctx.rotate(this.turretAngle - this.angle);
+    fireMissile() {
+        if (!this.target) return;
+        this.engine.audioSystem.play('missile_flight', { volume: 0.3 });
+        const vx = this.x + Math.cos(this.angle + Math.PI) * 20;
+        const vy = this.y + Math.sin(this.angle + Math.PI) * 20;
         
-        ctx.fillStyle = '#2c3e50';
-        ctx.beginPath();
-        ctx.arc(0, 0, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(3, -1, 10, 2); // 포신
-        ctx.restore();
+        this.engine.entityManager.create('guided-missile', vx, vy, {
+            target: this.target,
+            damage: 150,
+            ownerId: this.ownerId,
+            flightAngle: this.angle - Math.PI/2 
+        }, 'neutral');
+    }
 
+    drawBody(ctx) {
+        const bodyImg = this.getPartBitmap(this.type, 'body', (offCtx) => {
+            offCtx.scale(2.2, 2.2);
+            const hullColor = '#2c3e50'; 
+            const deckColor = '#34495e';
+            const detailColor = '#1e272e';
+
+            // 1. 거대 스텔스 함체
+            offCtx.fillStyle = hullColor;
+            offCtx.beginPath();
+            offCtx.moveTo(40, 0); offCtx.lineTo(15, -14); offCtx.lineTo(-35, -14); offCtx.lineTo(-42, -8); 
+            offCtx.lineTo(-42, 8); offCtx.lineTo(-35, 14); offCtx.lineTo(15, 14); offCtx.closePath(); offCtx.fill();
+
+            // 2. 주 갑판
+            offCtx.fillStyle = deckColor;
+            offCtx.beginPath();
+            offCtx.moveTo(25, 0); offCtx.lineTo(10, -10); offCtx.lineTo(-32, -10); offCtx.lineTo(-32, 10); offCtx.lineTo(10, 10); offCtx.closePath(); offCtx.fill();
+
+            // 3. 거대 상부 구조물
+            offCtx.fillStyle = detailColor;
+            offCtx.fillRect(-15, -8, 25, 16);
+            offCtx.fillStyle = hullColor;
+            offCtx.beginPath(); offCtx.moveTo(10, -8); offCtx.lineTo(16, -5); offCtx.lineTo(16, 5); offCtx.lineTo(10, 8); offCtx.fill();
+            offCtx.fillStyle = '#2980b9'; offCtx.globalAlpha = 0.7; offCtx.fillRect(12, -6, 3, 12); offCtx.globalAlpha = 1.0;
+
+            // 4. 후방 VLS 및 헬기장
+            offCtx.fillStyle = '#111';
+            for(let i=0; i<2; i++) for(let j=0; j<4; j++) offCtx.fillRect(-28 + j*4, -6 + i*8, 3, 3);
+            offCtx.strokeStyle = 'rgba(255,255,255,0.3)'; offCtx.lineWidth = 1; offCtx.beginPath(); offCtx.arc(-20, 0, 8, 0, Math.PI * 2); offCtx.stroke();
+        });
+        const s = bodyImg.width;
+        ctx.drawImage(bodyImg, -s/2, -s/2);
+    }
+
+    drawBodyAnimations(ctx) {
+        ctx.save();
+        ctx.scale(2.2, 2.2);
+        const time = Date.now();
+        ctx.save(); ctx.translate(-5, 0); ctx.rotate((time / 800) % (Math.PI * 2)); ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.stroke(); ctx.strokeRect(3, -0.5, 2, 1); ctx.restore();
+        ctx.save(); ctx.translate(5, 0); ctx.rotate((time / 300) % (Math.PI * 2)); ctx.fillStyle = '#f1c40f'; ctx.fillRect(-2, -0.5, 4, 1); ctx.restore();
+        ctx.restore();
+    }
+
+    drawTurret(ctx) {
+        const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
+            offCtx.scale(2.2, 2.2);
+            const gunColor = '#2c3e50';
+            // 30mm CIWS 스타일 포탑 (둥글고 복잡한 형상)
+            offCtx.fillStyle = gunColor;
+            offCtx.beginPath(); offCtx.arc(0, 0, 8, 0, Math.PI * 2); offCtx.fill();
+            offCtx.fillStyle = '#1e272e';
+            offCtx.fillRect(-4, -8, 8, 4); // 탄매 회수 장치 느낌
+            offCtx.fillStyle = '#111';
+            offCtx.fillRect(4, -3, 4, 6); // 센서 유닛
+        });
+        const s = turretImg.width;
+        ctx.drawImage(turretImg, -s/2, -s/2);
+
+        ctx.save();
+        ctx.scale(2.2, 2.2);
+        const recoilX = this.recoil || 0;
+        // 3연장 기관포신 (CIWS 느낌)
+        ctx.fillStyle = '#111';
+        const offsets = [-2, 0, 2];
+        offsets.forEach(oy => {
+            ctx.fillRect(6 - recoilX, oy - 0.6, 18, 1.2);
+        });
         ctx.restore();
     }
 }

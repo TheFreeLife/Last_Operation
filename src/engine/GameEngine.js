@@ -1,5 +1,5 @@
 import { TileMap } from '../map/TileMap.js';
-import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, WheeledArtillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, SAMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, CarrierDrone, DroneOperator, SpecialForces, Train, FreightCar, SmallBoat } from '../entities/Entities.js';
+import { Entity, PlayerUnit, AmmoBox, MilitaryTruck, MedicalTruck, DroneContainerTruck, CargoPlane, ScoutPlane, Bomber, Helicopter, Artillery, WheeledArtillery, AntiAirVehicle, Tank, MissileLauncher, MobileICBMLauncher, SAMLauncher, Rifleman, Sniper, AntiTankInfantry, Medic, MortarTeam, SuicideDrone, CarrierDrone, DroneOperator, SpecialForces, Train, FreightCar, SmallBoat, Corvette } from '../entities/Entities.js';
 import { Pathfinding } from './systems/Pathfinding.js';
 import { ICONS } from '../assets/Icons.js';
 import { EntityManager } from '../entities/EntityManager.js';
@@ -406,6 +406,7 @@ export class GameEngine {
         em.register('train', Train, 'units');
         em.register('freight-car', FreightCar, 'units');
         em.register('small-boat', SmallBoat, 'units');
+        em.register('corvette', Corvette, 'units');
 
         // 자원 및 아이템
         em.register('ammo-box', AmmoBox, 'units');

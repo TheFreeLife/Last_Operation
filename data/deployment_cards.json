@@ -183,6 +183,18 @@
             ]
         },
         {
+            "id": "naval_task_force",
+            "name": "해상 기동함대",
+            "description": "최신형 초계함 1척과 고속정 1척으로 구성된 해상 타격 전력입니다. 강력한 함포와 유도 미사일 지원이 가능합니다.",
+            "icon": "🛳️",
+            "cost": 10,
+            "weight": 25,
+            "units": [
+                { "id": "corvette", "count": 1 },
+                { "id": "small-boat", "count": 1 }
+            ]
+        },
+        {
             "id": "sea_patrol",
             "name": "해상 초계반",
             "description": "연안 방어를 위한 고속정 2척으로 구성된 해상 전력입니다. 해상 영역을 장악하고 해안가 적들을 타격합니다.",

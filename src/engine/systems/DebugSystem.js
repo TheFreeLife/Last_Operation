@@ -41,6 +41,7 @@ export class DebugSystem {
             'db-spawn-scout-plane': { type: 'scout-plane' },
             'db-spawn-helicopter': { type: 'helicopter' },
             'db-spawn-drone-truck': { type: 'drone-truck' },
+            'db-spawn-corvette': { type: 'corvette' },
             'db-spawn-boat': { type: 'small-boat' },
             'db-spawn-train': { type: 'train' },
             'db-spawn-freight': { type: 'freight-car' },
