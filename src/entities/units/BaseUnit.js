@@ -839,6 +839,8 @@ export class BaseUnit extends Entity {
  * 상하체가 분리되어 포탑이 독립적으로 회전하는 유닛을 위한 베이스 클래스
  */
 export class TurretUnit extends BaseUnit {
+    static bitmapCache = {}; // 타입별 비트맵 캐시 저장소 (static으로 공유)
+
     constructor(x, y, engine) {
         super(x, y, engine);
         this.turretAngle = this.angle;
@@ -849,6 +851,60 @@ export class TurretUnit extends BaseUnit {
         super.init(x, y, engine);
         this.turretAngle = this.angle;
     }
+
+    /**
+     * 특정 파츠(Body 또는 Turret)의 비트맵을 생성하거나 가져옵니다.
+     */
+    getPartBitmap(type, partName, drawFn) {
+        const cacheKey = `${type}_${partName}`;
+        if (TurretUnit.bitmapCache[cacheKey]) return TurretUnit.bitmapCache[cacheKey];
+
+        // 비트맵 생성 (여유 있게 크게 생성)
+        const size = (this.size || 80) * 2.5; 
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = size;
+        offCanvas.height = size;
+        const offCtx = offCanvas.getContext('2d');
+
+        offCtx.translate(size / 2, size / 2);
+        
+        // 유닛의 실제 디자인 코드를 실행하여 굽기
+        drawFn.call(this, offCtx);
+
+        TurretUnit.bitmapCache[cacheKey] = offCanvas;
+        return offCanvas;
+    }
+
+    /**
+     * [최적화] RenderSystem의 캐시를 사용하지 않고 직접 그리도록 null 반환
+     */
+    getCacheKey() {
+        return null;
+    }
+
+    draw(ctx) {
+        if (this.isUnderConstruction) {
+            if (this.drawConstruction) this.drawConstruction(ctx);
+            return;
+        }
+
+        // 차체는 보통 정적이므로 항상 캐싱 적용
+        const bodyImg = this.getPartBitmap(this.type, 'body', this.drawBody);
+        const s = bodyImg.width;
+        
+        // 1. 차체 그리기
+        ctx.drawImage(bodyImg, -s/2, -s/2);
+
+        // 2. 포탑 그리기 (각 유닛이 drawTurret 내에서 getPartBitmap을 써서 캐싱하거나 실시간으로 그림)
+        ctx.save();
+        ctx.rotate(this.turretAngle - this.angle);
+        this.drawTurret(ctx);
+        ctx.restore();
+    }
+
+    // 하위 클래스에서 구현해야 함
+    drawBody(ctx) { }
+    drawTurret(ctx) { }
 
     update(deltaTime) {
         super.update(deltaTime);
