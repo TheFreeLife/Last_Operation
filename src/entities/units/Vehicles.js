@@ -204,18 +204,21 @@ export class MissileLauncher extends TurretUnit {
         if (this.isSieged && !this.isTransitioning) {
             if (this.isFiring) {
                 const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
-                let relativeTargetAngle = targetAngle - this.angle;
-                let diff = relativeTargetAngle - this.turretAngle;
+                let diff = targetAngle - this.turretAngle;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 while (diff < -Math.PI) diff += Math.PI * 2;
+                
                 this.turretAngle += diff * 0.0125;
                 if (Math.abs(diff) < 0.05) {
                     this.fireDelayTimer++;
                 }
             }
         } else if (!this.isSieged) {
-            this.turretAngle *= 0.9;
-            if (Math.abs(this.turretAngle) < 0.01) this.turretAngle = 0;
+            // [수정] 이동 중에는 포탑이 차체 정면(this.angle)을 부드럽게 따라감
+            let diff = this.angle - this.turretAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.turretAngle += diff * 0.1;
         }
 
         if (this.isTransitioning) {
@@ -285,7 +288,7 @@ export class MissileLauncher extends TurretUnit {
     executeFire(options = {}) {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
-        const totalAngle = this.angle + this.turretAngle;
+        const totalAngle = this.turretAngle; // [수정] 절대 각도 사용
         const launchDist = 30;
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
@@ -719,8 +722,7 @@ export class MobileICBMLauncher extends TurretUnit {
         if (this.isSieged && !this.isTransitioning) {
             if (this.isFiring) {
                 const targetAngle = Math.atan2(this.pendingFirePos.y - this.y, this.pendingFirePos.x - this.x);
-                let relativeTargetAngle = targetAngle - this.angle;
-                let diff = relativeTargetAngle - this.turretAngle;
+                let diff = targetAngle - this.turretAngle;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 
@@ -731,8 +733,11 @@ export class MobileICBMLauncher extends TurretUnit {
                 }
             }
         } else if (!this.isSieged) {
-            this.turretAngle *= 0.95;
-            if (Math.abs(this.turretAngle) < 0.01) this.turretAngle = 0;
+            // [수정] 이동 중에는 포탑이 차체 정면(this.angle)을 부드럽게 따라감
+            let diff = this.angle - this.turretAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.turretAngle += diff * 0.05;
         }
 
         if (this.isTransitioning) {
@@ -806,7 +811,7 @@ export class MobileICBMLauncher extends TurretUnit {
         if (this.ammo <= 0) return;
         const { x: targetX, y: targetY } = this.pendingFirePos;
         
-        const totalAngle = this.angle + this.turretAngle;
+        const totalAngle = this.turretAngle; // [수정] 절대 각도 사용
         const launchDist = 40;
         const spawnX = this.x + Math.cos(totalAngle) * launchDist;
         const spawnY = this.y + Math.sin(totalAngle) * launchDist;
