@@ -214,11 +214,8 @@ export class MissileLauncher extends TurretUnit {
                 }
             }
         } else if (!this.isSieged) {
-            // [수정] 이동 중에는 포탑이 차체 정면(this.angle)을 부드럽게 따라감
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.1;
+            // [수정] 이동 중에는 포탑을 차체 정면에 즉시 고정 (Travel Lock)
+            this.turretAngle = this.angle;
         }
 
         if (this.isTransitioning) {
@@ -733,11 +730,8 @@ export class MobileICBMLauncher extends TurretUnit {
                 }
             }
         } else if (!this.isSieged) {
-            // [수정] 이동 중에는 포탑이 차체 정면(this.angle)을 부드럽게 따라감
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.05;
+            // [수정] 이동 중에는 포탑을 차체 정면에 즉시 고정 (Travel Lock)
+            this.turretAngle = this.angle;
         }
 
         if (this.isTransitioning) {

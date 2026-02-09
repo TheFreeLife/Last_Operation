@@ -930,11 +930,8 @@ export class TurretUnit extends BaseUnit {
             
             this.attack();
         } else {
-            // [상단부] 이동 중이거나 사거리 밖: 포탑을 차체 정면(this.angle)으로 서서히 정렬
-            let diff = this.angle - this.turretAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            this.turretAngle += diff * 0.1;
+            // [상단부] 이동 중이거나 사거리 밖: 포탑을 차체 정면에 즉시 고정 (Travel Lock)
+            this.turretAngle = this.angle;
         }
     }
 
