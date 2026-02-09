@@ -906,26 +906,26 @@ export class WheeledArtillery extends TurretUnit {
         super(x, y, engine);
         this.type = 'wheeled-artillery';
         this.name = '차륜형 자주포';
-        this.speed = 1.2;
-        this.baseSpeed = 1.2;
+        this.speed = 1.35; 
+        this.baseSpeed = 1.35;
         this.fireRate = 5000; 
         this.damage = 120; 
-        this.attackRange = 850; 
+        this.attackRange = 1000; 
         this.visionRange = 8;
         this.explosionRadius = 80; 
-        this.size = 100;
+        this.size = 75; // 크기 소폭 축소
         this.cargoSize = 10;
         this.population = 4;
         this.isIndirect = true;
         this.armorType = 'light';
         this.weaponType = 'cluster'; 
         this.ammoType = 'shell';
-        this.maxAmmo = 15;
-        this.ammo = 15;
-        this.turretRotationSpeed = 0.04;
+        this.maxAmmo = 10;
+        this.ammo = 10;
+        this.turretRotationSpeed = 0.04; 
         this.turretOffset = { x: -12, y: 0 }; 
         this.recoil = 0; 
-        this.muzzleOffset = 110; 
+        this.muzzleOffset = 70; 
     }
 
     init(x, y, engine) {
@@ -933,11 +933,12 @@ export class WheeledArtillery extends TurretUnit {
         this.turretAngle = this.angle;
         this.turretOffset = { x: -12, y: 0 };
         this.recoil = 0;
+        this.ammo = 10;
     }
 
     update(deltaTime) {
         super.update(deltaTime);
-        if (this.recoil > 0) this.recoil *= 0.9;
+        if (this.recoil > 0) this.recoil *= 0.85;
     }
 
     performAttack() {
@@ -945,61 +946,79 @@ export class WheeledArtillery extends TurretUnit {
         if (now - this.lastFireTime < this.fireRate || !this.target) return;
         if (this.ammo < 1) return;
         this.ammo--;
+        
         if (this.engine.addEffect) {
             const mx = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
             const my = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
             this.engine.addEffect('muzzle_large', mx, my, '#ff8c00');
         }
+
         const spawnX = this.x + Math.cos(this.turretAngle) * this.muzzleOffset;
         const spawnY = this.y + Math.sin(this.turretAngle) * this.muzzleOffset;
         this.engine.entityManager.spawnProjectileECS(spawnX, spawnY, this.target, this.damage, {
             speed: 14, explosionRadius: this.explosionRadius, ownerId: this.ownerId, isIndirect: true, 
-            peakHeight: 400, // 고도 하향 조정
+            peakHeight: 400,
             weaponType: 'cluster'
         });
         this.lastFireTime = now;
-        this.recoil = 12;
+        this.recoil = 8; 
     }
 
     drawBody(ctx) {
-        ctx.scale(2.2, 2.2);
-        const mainColor = '#4b5320'; 
-        const darkMetal = '#1e272e';
-        ctx.fillStyle = '#111';
-        for(let i=0; i<4; i++) {
-            const wx = -20 + i*11;
-            ctx.fillRect(wx, -12, 7, 3);
-            ctx.fillRect(wx, 9, 7, 3);
-        }
-        ctx.fillStyle = darkMetal;
-        ctx.fillRect(-25, -9, 50, 18);
-        ctx.fillStyle = mainColor;
-        ctx.beginPath();
-        ctx.moveTo(15, -10); ctx.lineTo(25, -10);
-        ctx.lineTo(28, -7); ctx.lineTo(28, 7);
-        ctx.lineTo(25, 10); ctx.lineTo(15, 10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#2c3e50'; ctx.fillRect(22, -8, 3, 16); 
-        ctx.fillStyle = '#3a4118';
-        ctx.fillRect(-10, -10, 25, 20);
-        ctx.fillStyle = '#222';
-        ctx.fillRect(0, -11, 10, 2); ctx.fillRect(0, 9, 10, 2);
+        const bodyImg = this.getPartBitmap(this.type, 'body', (offCtx) => {
+            offCtx.scale(2.0, 2.0); // 2.2 -> 2.0 축소
+            const mainColor = '#3a4118'; 
+            const deckColor = '#1e272e'; 
+            const detailColor = '#2d3212';
+
+            offCtx.fillStyle = '#050505';
+            for(let i=0; i<4; i++) {
+                const wx = -20 + i*11;
+                offCtx.fillRect(wx, -11, 7, 3);
+                offCtx.fillRect(wx, 8, 7, 3);
+            }
+
+            offCtx.fillStyle = '#111';
+            offCtx.fillRect(-22, -8, 55, 16);
+
+            offCtx.fillStyle = mainColor;
+            offCtx.beginPath();
+            offCtx.moveTo(14, -9); offCtx.lineTo(30, -9);
+            offCtx.lineTo(33, -6); offCtx.lineTo(33, 6);
+            offCtx.lineTo(30, 9); offCtx.lineTo(14, 9);
+            offCtx.closePath();
+            offCtx.fill();
+
+            offCtx.fillStyle = '#2c3e50'; 
+            offCtx.fillRect(26, -7, 3, 14); 
+            offCtx.fillStyle = '#111';
+            offCtx.fillRect(18, -9.5, 2, 19); 
+
+            offCtx.fillStyle = deckColor;
+            offCtx.fillRect(-22, -9, 38, 18);
+            
+            offCtx.fillStyle = detailColor;
+            offCtx.fillRect(-12, -10, 22, 1);
+            offCtx.fillRect(-12, 9, 22, 1);
+        });
+
+        const s = bodyImg.width;
+        ctx.drawImage(bodyImg, -s/2, -s/2);
     }
 
     drawBodyAnimations(ctx) {
         ctx.save();
-        ctx.scale(2.2, 2.2);
+        ctx.scale(2.0, 2.0);
         if (!this._destination) {
-            ctx.fillStyle = '#333';
+            ctx.fillStyle = '#222';
             ctx.strokeStyle = '#7f8c8d';
             ctx.lineWidth = 1;
-            const outriggers = [{ x: -20, y: -10, dy: -1 }, { x: -20, y: 10, dy: 1 }];
-            outriggers.forEach(o => {
+            const stabilizers = [{ x: -18, y: -8, dy: -1 }, { x: -18, y: 8, dy: 1 }];
+            stabilizers.forEach(s => {
                 ctx.save();
-                ctx.translate(o.x, o.y + o.dy * 2);
+                ctx.translate(s.x, s.y + s.dy * 2.2);
                 ctx.fillRect(-2, -1, 4, 2);
-                ctx.beginPath(); ctx.moveTo(0, -o.dy * 2); ctx.lineTo(0, 0); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, -s.dy * 2.2); ctx.lineTo(0, 0); ctx.stroke();
                 ctx.restore();
             });
         }
@@ -1008,32 +1027,48 @@ export class WheeledArtillery extends TurretUnit {
 
     drawTurret(ctx) {
         const turretImg = this.getPartBitmap(this.type, 'turret', (offCtx) => {
-            offCtx.scale(2.2, 2.2);
-            const darkHull = '#3a4118';
-            offCtx.fillStyle = darkHull;
+            offCtx.scale(2.0, 2.0);
+            const gunColor = '#4b5320';
+            const mechColor = '#2d3436';
+
+            offCtx.fillStyle = '#111';
+            offCtx.beginPath(); offCtx.arc(0, 0, 9, 0, Math.PI * 2); offCtx.fill();
+            
+            offCtx.fillStyle = gunColor;
             offCtx.beginPath();
-            offCtx.moveTo(-12, -10); offCtx.lineTo(10, -10);
-            offCtx.lineTo(14, -6); offCtx.lineTo(14, 6);
-            offCtx.lineTo(10, 10); offCtx.lineTo(-12, 10);
+            offCtx.moveTo(-14, -8); 
+            offCtx.lineTo(7, -8); 
+            offCtx.lineTo(12, -4); 
+            offCtx.lineTo(12, 4);
+            offCtx.lineTo(7, 8);
+            offCtx.lineTo(-14, 8);
             offCtx.closePath();
             offCtx.fill();
+
             offCtx.fillStyle = '#1a1a1a';
-            offCtx.beginPath(); offCtx.arc(-2, -4, 4, 0, Math.PI * 2); offCtx.fill();
-            offCtx.fillStyle = '#2980b9'; offCtx.fillRect(6, 3, 4, 3);
+            offCtx.beginPath(); offCtx.arc(-2, -3.5, 3, 0, Math.PI * 2); offCtx.fill();
+            offCtx.fillStyle = mechColor;
+            offCtx.fillRect(3, 2.5, 5, 3.5); 
         });
+
         const s = turretImg.width;
         ctx.drawImage(turretImg, -s/2, -s/2);
+
         ctx.save();
-        ctx.scale(2.2, 2.2);
-        const hullColor = '#4b5320';
-        const recoilOffset = this.recoil || 0;
+        ctx.scale(2.0, 2.0);
+        const recoilX = this.recoil || 0;
+
         ctx.fillStyle = '#333';
-        ctx.fillRect(14 - recoilOffset, -2.5, 45, 5); 
-        ctx.fillStyle = hullColor;
-        ctx.fillRect(14 - recoilOffset, -3, 12, 6); 
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(55 - recoilOffset, -4, 6, 8);
-        ctx.fillRect(57 - recoilOffset, -4.5, 2, 9);
+        ctx.fillRect(9, -3, 7, 6);
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(12 - recoilX, -1.8, 42, 3.6); 
+        
+        ctx.fillStyle = '#111';
+        ctx.fillRect(54 - recoilX, -4, 6, 8);
+        ctx.fillStyle = '#444';
+        ctx.fillRect(56 - recoilX, -4.5, 2.5, 9);
+        
         ctx.restore();
     }
 }
