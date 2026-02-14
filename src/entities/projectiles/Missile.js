@@ -158,23 +158,25 @@ export class Missile extends Entity {
             ctx.save();
             ctx.translate(0, -altitude);
             
-            // [해결] 화면 좌표계 기반의 절대 각도 계산
+            // [수정] 화면 좌표계 기반의 절대 각도 계산 (정밀도 개선)
             const p1 = this.progress;
-            const p2 = Math.min(1.0, p1 + 0.01);
+            const p2 = Math.min(1.0, p1 + 0.02); // 샘플링 간격을 0.01에서 0.02로 확장
             
-            // p1, p2 지점의 화면 좌표 차이 계산
-            const dx = (this.targetX - this.startX) * (p2 - p1);
-            const dy_ground = (this.targetY - this.startY) * (p2 - p1);
-            const dy_alt = -(this.peakHeight * 4 * p2 * (1 - p2)) - (-(this.peakHeight * 4 * p1 * (1 - p1)));
-            
-            const flightAngle = Math.atan2(dy_ground + dy_alt, dx);
-            ctx.rotate(flightAngle);
-
-            // [추가] 좌측 방향 비행 시 상하 뒤집힘 방지 (시각적 보정)
-            const isFlyingLeft = dx < 0;
-            if (isFlyingLeft) {
-                ctx.scale(1, -1);
+            const gap = p2 - p1;
+            if (gap > 0) {
+                const dx = (this.targetX - this.startX) * gap;
+                const dy_ground = (this.targetY - this.startY) * gap;
+                const dy_alt = -(this.peakHeight * 4 * p2 * (1 - p2)) - (-(this.peakHeight * 4 * p1 * (1 - p1)));
+                
+                const flightAngle = Math.atan2(dy_ground + dy_alt, dx);
+                ctx.rotate(flightAngle);
+            } else {
+                // gap이 0인 경우 (도달 직전) 기존 moveAngle 또는 수평 방향 유지
+                ctx.rotate(this.moveAngle || 0);
             }
+
+            // [제거] 불필요한 scale(1, -1) 로직이 방향 반전을 일으킬 수 있으므로 삭제
+            // 미사일은 상하 대칭이므로 회전만으로 충분합니다.
 
             // 몸체 (탄두가 뾰족한 로켓 형태)
             const bodyGrd = ctx.createLinearGradient(0, -5, 0, 5);

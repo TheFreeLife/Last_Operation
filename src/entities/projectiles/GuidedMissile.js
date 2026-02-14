@@ -134,11 +134,7 @@ export class GuidedMissile extends Entity {
             ctx.save();
             ctx.rotate(this.flightAngle);
             
-            // [추가] 좌측 방향 비행 시 상하 뒤집힘 방지
-            const isFlyingLeft = Math.abs(this.flightAngle) > Math.PI / 2;
-            if (isFlyingLeft) {
-                ctx.scale(1, -1);
-            }
+            // [제거] 상하 대칭 미사일이므로 불필요한 scale 보정 로직 삭제 (방향 오류 방지)
             
             // 몸체
             ctx.fillStyle = '#fff';

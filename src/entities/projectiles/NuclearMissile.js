@@ -164,18 +164,20 @@ export class NuclearMissile extends Entity {
             ctx.translate(0, -altitude);
             
             const p1 = this.progress;
-            const p2 = Math.min(1.0, p1 + 0.01);
-            const dx = (this.targetX - this.startX) * (p2 - p1);
-            const dy_ground = (this.targetY - this.startY) * (p2 - p1);
-            const dy_alt = -(this.peakHeight * 4 * p2 * (1 - p2)) - (-(this.peakHeight * 4 * p1 * (1 - p1)));
-            const flightAngle = Math.atan2(dy_ground + dy_alt, dx);
-            ctx.rotate(flightAngle);
-
-            // [추가] 좌측 방향 비행 시 상하 뒤집힘 방지
-            const isFlyingLeft = dx < 0;
-            if (isFlyingLeft) {
-                ctx.scale(1, -1);
+            const p2 = Math.min(1.0, p1 + 0.02);
+            
+            const gap = p2 - p1;
+            if (gap > 0) {
+                const dx = (this.targetX - this.startX) * gap;
+                const dy_ground = (this.targetY - this.startY) * gap;
+                const dy_alt = -(this.peakHeight * 4 * p2 * (1 - p2)) - (-(this.peakHeight * 4 * p1 * (1 - p1)));
+                const flightAngle = Math.atan2(dy_ground + dy_alt, dx);
+                ctx.rotate(flightAngle);
+            } else {
+                ctx.rotate(this.moveAngle || 0);
             }
+
+            // [제거] 불필요한 비행 방향 보정 제거 (상하 대칭 모델)
 
             // 핵미사일 본체 (더 크고 위협적인 검은색/노란색 배색)
             ctx.fillStyle = '#2d3436';
